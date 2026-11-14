@@ -2,6 +2,7 @@
 //! panel, the bottom properties panel, the parts pop-up (Tab), the status island, the speed strip, hints, and the
 //! unsaved-changes question.
 use crate::level::{Collision, Mover, Shape, Wire};
+use crate::update::{self, Status};
 use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
 use super::view::{Mode, SPEED_LABELS, View};
 use super::{Editor, Pending};
@@ -58,6 +59,8 @@ pub fn ui(
     overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
+    if ed.about_open { about_modal(&ctx, &mut ed); }
+    if ed.updates_open { updates_modal(&ctx, &mut ed); }
     Ok(())
 }
 
@@ -102,6 +105,18 @@ fn top_bar(root: &mut Ui, ed: &mut Editor, exit: &mut MessageWriter<AppExit>) {
                 ui.separator();
                 if item(ui, "Quit", "Ctrl+Q") {
                     ed.request(Pending::Quit, exit);
+                    ui.close();
+                }
+            });
+            ui.menu_button("Help", |ui| {
+                ui.set_min_width(200.0);
+                if ui.add(egui::Button::new("About Beverly").frame(false)).clicked() {
+                    ed.about_open = true;
+                    ui.close();
+                }
+                if ui.add(egui::Button::new("Check for updates…").frame(false)).clicked() {
+                    ed.updates_open = true;
+                    ed.updater.check();
                     ui.close();
                 }
             });
@@ -794,6 +809,103 @@ fn unsaved_modal(ctx: &egui::Context, ed: &mut Editor, what: Pending, exit: &mut
         Some(_) => ed.pending = None,
         None => {}
     }
+}
+
+fn dialog_frame() -> egui::Frame { egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(R_CARD).inner_margin(egui::Margin::same(22)) }
+
+fn this_build() -> String { update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")) }
+
+fn about_modal(ctx: &egui::Context, ed: &mut Editor) {
+    let mut close = false;
+    egui::Modal::new(Id::new("about")).frame(dialog_frame()).show(ctx, |ui| {
+        ui.set_width(420.0);
+        ui.label(egui::RichText::new("Beverly").font(semi(20.0)).color(TEXT));
+        ui.add_space(2.0);
+        ui.label(egui::RichText::new(format!("This is {}", this_build())).color(ACCENT));
+        ui.add_space(10.0);
+        ui.add(egui::Label::new(egui::RichText::new("A no-code-first 3D game editor for Bevy: build levels by placing and wiring parts, test them on the spot, and export a Windows game.").color(TEXT)).wrap());
+        ui.add_space(10.0);
+        ui.label(egui::RichText::new("Bevy 0.20.1 · bevy_egui 0.43.1 · Motion UI kit").color(MUTED));
+        ui.hyperlink_to(egui::RichText::new("github.com/thriple/Beverly").color(ACCENT), env!("CARGO_PKG_REPOSITORY"));
+        ui.add_space(16.0);
+        ui.horizontal(|ui| {
+            if ui.add(egui::Button::new("Check for updates…").min_size(vec2(150.0, 32.0))).clicked() {
+                close = true;
+                ed.updates_open = true;
+                ed.updater.check();
+            }
+            if ui.add(egui::Button::new("Close").min_size(vec2(80.0, 32.0))).clicked() { close = true; }
+            theme::kbd(ui, "Esc");
+        });
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) { close = true; }
+    });
+    if close { ed.about_open = false; }
+}
+
+/// Help > Check for updates: what the check found, and the button that downloads and installs a newer build.
+fn updates_modal(ctx: &egui::Context, ed: &mut Editor) {
+    let status = ed.updater.status();
+    if status.busy() { ctx.request_repaint(); }
+    let (mut close, mut install, mut again) = (false, false, false);
+    egui::Modal::new(Id::new("updates")).frame(dialog_frame()).show(ctx, |ui| {
+        ui.set_width(440.0);
+        ui.label(egui::RichText::new("Check for updates").font(semi(17.0)).color(TEXT));
+        ui.label(egui::RichText::new(format!("This is {}", this_build())).color(MUTED));
+        ui.add_space(12.0);
+        let say = |ui: &mut Ui, text: &str| {
+            ui.add(egui::Label::new(egui::RichText::new(text).color(TEXT)).wrap());
+        };
+        let accent = |label: &str| egui::Button::new(egui::RichText::new(label).font(semi(13.0)).color(INK)).fill(ACCENT).min_size(vec2(170.0, 32.0));
+        match &status {
+            Status::Idle | Status::Checking => say(ui, "Looking for a newer build…"),
+            Status::Local => say(ui, "This build was made by hand, so there's nothing to compare it with. Updates are for the builds from the Releases page."),
+            Status::Unsupported => say(ui, "Updates are for the Windows build."),
+            Status::GameEditor => say(ui, "This editor is part of a game, so it updates with the game's own downloads."),
+            Status::UpToDate(n) => say(ui, &format!("Build {n} is the newest.")),
+            Status::Available { latest, .. } => {
+                say(ui, &format!("Build {latest} is available. Beverly downloads it, checks it, and puts it in place of this one (the editor and the game player). It runs from the next start."));
+                ui.add_space(12.0);
+                if ui.add(accent("Download and install")).clicked() { install = true; }
+            }
+            Status::Downloading { latest, done, total } => {
+                let mb = |b: u64| b as f64 / 1_048_576.0;
+                say(ui, &match total {
+                    Some(t) => format!("Downloading build {latest}: {:.1} of {:.1} MB", mb(*done), mb(*t)),
+                    None => format!("Downloading build {latest}: {:.1} MB", mb(*done)),
+                });
+                ui.add_space(10.0);
+                let w = ui.available_width();
+                let (bar, _) = ui.allocate_exact_size(vec2(w, 8.0), Sense::hover());
+                ui.painter().rect_filled(bar, CornerRadius::same(4), white(18));
+                if let Some(t) = total.filter(|t| *t > 0) {
+                    let f = (*done as f32 / t as f32).clamp(0.0, 1.0);
+                    ui.painter().rect_filled(bar.with_max_x(bar.left() + w * f), CornerRadius::same(4), ACCENT);
+                }
+            }
+            Status::Installed(n) => {
+                ui.label(egui::RichText::new(format!("Installed build {n}.")).font(semi(14.0)).color(theme::OK));
+                say(ui, "Close Beverly and open it again to use it.");
+            }
+            Status::Failed(why) => {
+                say(ui, why);
+                ui.add_space(12.0);
+                if ui.add(accent("Try again")).clicked() { again = true; }
+            }
+        }
+        ui.add_space(14.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Older builds stay on the Releases page.").size(11.0).color(MUTED));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                theme::kbd(ui, "Esc");
+                // a download carries on with the window closed
+                if ui.add(egui::Button::new("Close").min_size(vec2(80.0, 32.0))).clicked() { close = true; }
+            });
+        });
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) { close = true; }
+    });
+    if close { ed.updates_open = false; }
+    if install { ed.updater.install(); }
+    if again { ed.updater.check(); }
 }
 
 /// The basic shapes as small line drawings (one stroke weight, all the same size), in a box of half-size `h`.

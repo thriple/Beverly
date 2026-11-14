@@ -9,4 +9,5 @@ pub mod play;
 pub mod player;
 pub mod script;
 pub mod shapes;
+pub mod update;
 pub mod world;

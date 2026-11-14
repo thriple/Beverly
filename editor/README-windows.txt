@@ -2,6 +2,7 @@ Beverly - a simple 3D game editor for Bevy (Windows build)
 
 Run Beverly.exe. Nothing to install. A new project folder is made in Documents\Beverly.
 Keep beverly-player.exe next to it: every exported game runs on it.
+Help > Check for updates fetches the newest build; it runs from the next time you open Beverly.
 
 Moving around
   Caps Lock     switch between Editor movement and Builder movement

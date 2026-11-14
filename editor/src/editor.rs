@@ -6,7 +6,7 @@ mod theme;
 mod ui;
 mod view;
 
-use crate::{level, models, play, shapes, world};
+use crate::{level, models, play, shapes, update, world};
 
 use bevy::prelude::*;
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
@@ -65,6 +65,10 @@ pub struct Editor {
     pub wiring: Option<(u64, &'static str)>,
     /// The input menu after that click: from, output, to, and where on screen.
     pub wire_pick: Option<(u64, &'static str, u64, Vec2)>,
+    /// Help > About Beverly / Check for updates.
+    pub about_open: bool,
+    pub updates_open: bool,
+    pub updater: update::Updater,
 }
 
 impl Editor {
@@ -124,12 +128,18 @@ impl Editor {
             player: "beverly-player",
             wiring: None,
             wire_pick: None,
+            about_open: false,
+            updates_open: false,
+            updater: default(),
         };
         ed.refresh_assets();
         ed
     }
 
     pub fn dirty(&self) -> bool { self.level != self.saved }
+
+    /// A window over the editor (the unsaved-changes question, Help's windows): the 3D view ignores the keys.
+    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open }
 
     pub fn refresh_assets(&mut self) {
         self.assets = level::ASSET_FOLDERS.iter().map(|f| (*f, level::list_assets(&self.dir, f))).collect();
@@ -140,6 +150,7 @@ impl Editor {
 /// `player` the file name of its game player (without .exe), and `extra` adds its plugins (e.g. its player
 /// character, see [`play::Play::custom`]).
 pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
+    update::clean_up();
     let mut ed = Editor::new();
     ed.player = player;
     let root = models::ProjectRoot::new(ed.dir.clone());

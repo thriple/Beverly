@@ -114,9 +114,9 @@ pub fn input(
     let (window, mut cursor_opts) = window.into_inner();
     let (cam, gtf, mut tf) = cam.into_inner();
     view.cursor = window.cursor_position();
-    view.keyboard_in_ui = egui_in.wants_keyboard_input();
+    view.keyboard_in_ui = egui_in.wants_keyboard_input() || ed.dialog_open();
     // only when the pointer is over a panel or pop-up (not merely held down: drags in the 3D view keep going)
-    view.over_ui = egui_in.is_pointer_over_area() || egui_in.is_popup_open() || ed.parts_open || ed.pending.is_some();
+    view.over_ui = egui_in.is_pointer_over_area() || egui_in.is_popup_open() || ed.parts_open || ed.dialog_open();
     let dt = time.delta_secs();
     let now = time.elapsed_secs_f64();
     let typing = view.keyboard_in_ui || ed.pending.is_some();

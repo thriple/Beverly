@@ -5,6 +5,8 @@
 # a GitHub Release - releases are for finished features, not work in progress. Each release is named
 # ("Beverly build N", tag build-N, the newest marked Latest) with the zip attached, and also kept under the
 # run's "Artifacts". tools/make-zip.ps1 makes the same zip on your own PC.
+# Each release also carries update.json (the build number and the zip's SHA-256): Help > Check for updates reads
+# it from the release marked Latest, and the build number is built into the programs (BEVERLY_BUILD).
 name: Windows build
 on:
   workflow_dispatch:
@@ -23,6 +25,8 @@ jobs:
           workspaces: editor
       - name: Build
         working-directory: editor
+        env:
+          BEVERLY_BUILD: ${{ github.run_number }}
         run: cargo build --release
       - name: Package
         shell: pwsh
@@ -32,6 +36,9 @@ jobs:
           Copy-Item editor/target/release/beverly-player.exe dist/Beverly/beverly-player.exe
           Copy-Item editor/README-windows.txt dist/Beverly/README.txt
           Compress-Archive -Path dist/Beverly -DestinationPath Beverly-windows.zip
+          $sha = (Get-FileHash Beverly-windows.zip -Algorithm SHA256).Hash.ToLower()
+          @{ build = ${{ github.run_number }}; commit = "${{ github.sha }}"; files = @{ "Beverly-windows.zip" = $sha } } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM update.json
+          Get-Content update.json
       - uses: actions/upload-artifact@v4
         with:
           name: Beverly-windows
@@ -44,4 +51,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           make_latest: true
           body: "Unzip and run Beverly.exe (keep beverly-player.exe next to it: it is what exported games run on). Controls: README.txt."
-          files: Beverly-windows.zip
+          files: |
+            Beverly-windows.zip
+            update.json
