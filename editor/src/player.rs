@@ -3,7 +3,7 @@
 //! program is in, then the current folder).
 use crate::level::{self, Shape};
 use crate::models::{self, ModelLib, ProjectRoot};
-use crate::play::{CollisionWorld, Play, PlayCamera, PlayPlugin};
+use crate::play::{Play, PlayCamera, PlayPlugin};
 use crate::shapes::{self, ShapeLib};
 use crate::world::{self, Geometry};
 use bevy::prelude::*;
@@ -73,12 +73,11 @@ fn start(mut commands: Commands, mut game: ResMut<Game>, lib: Res<ModelLib>, mut
     let game = &mut *game;
     game.geo.sync_models(&lib);
     game.started = true;
-    let world = CollisionWorld::build(&game.level, &game.geo);
     let (feet, yaw) = match game.level.parts.iter().find(|p| p.shape == Shape::PlayerStart) {
         Some(p) => (Vec3::from(p.pos) - Vec3::Y * p.size[1] * 0.5, Quat::from_array(p.rot).to_euler(EulerRot::YXZ).0),
         None => (Vec3::ZERO, 0.0),
     };
-    play.start(&mut commands, &mut meshes, &mut mats, world, feet, yaw);
+    play.start(&mut commands, &mut meshes, &mut mats, &game.level, &game.geo, feet, yaw);
 }
 
 /// The mouse is captured while playing; Esc lets it go, a click takes it back.

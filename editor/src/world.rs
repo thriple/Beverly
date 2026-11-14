@@ -13,6 +13,10 @@ pub struct Hit { pub t: f32, pub point: Vec3, pub normal: Vec3, pub part: Option
 /// Unit box (shapes) or model space (models) to world.
 pub fn part_affine(p: &Part) -> Affine3A { Affine3A::from_scale_rotation_translation(Vec3::from(p.size), Quat::from_array(p.rot), Vec3::from(p.pos)) }
 
+/// Which part an entity shows.
+#[derive(Component, Clone, Copy)]
+pub struct PartId(pub u64);
+
 pub fn part_transform(p: &Part) -> Transform { Transform { translation: Vec3::from(p.pos), rotation: Quat::from_array(p.rot), scale: Vec3::from(p.size) } }
 
 /// Every part's triangles: the basic shapes' unit-box ones, and each loaded model's.
@@ -20,7 +24,7 @@ pub struct Geometry { pub shapes: HashMap<Shape, Tris>, pub models: HashMap<Stri
 
 impl Default for Geometry {
     fn default() -> Self {
-        let shapes = Shape::ALL.iter().chain([&Shape::PlayerStart]).map(|&s| (s, shapes::build(s))).collect();
+        let shapes = Shape::ALL.iter().chain([&Shape::PlayerStart, &Shape::Interact]).map(|&s| (s, shapes::build(s))).collect();
         Self { shapes, models: HashMap::new() }
     }
 }
@@ -107,7 +111,7 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
 /// Spawn how a part looks. `editor`: hidden colliders and the player start show as see-through stand-ins;
 /// in the game they are not drawn.
 pub fn spawn_visual(commands: &mut Commands, p: &Part, lib: &ShapeLib, models: &mut ModelLib, server: &AssetServer, mats: &mut Mats, assets: &mut Assets<StandardMaterial>, editor: bool) -> Option<Entity> {
-    let tf = part_transform(p);
+    let tf = (part_transform(p), PartId(p.id));
     match p.shape {
         Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()))).id()),
         Shape::Model => {

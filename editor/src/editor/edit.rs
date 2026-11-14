@@ -2,7 +2,7 @@
 //! shortcuts, dropped files, undo, and keeping the 3D entities in step with the level.
 use crate::level::{self, Collision, Level, Part, Shape};
 use crate::models::{ModelLib, ProjectRoot};
-use crate::play::{CollisionWorld, Play};
+use crate::play::Play;
 use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
@@ -38,6 +38,7 @@ impl Editor {
         if let Some(id) = self.selected.take() {
             let name = self.level.get(id).map(|p| p.name.clone()).unwrap_or_default();
             self.level.parts.retain(|p| p.id != id);
+            self.level.wires.retain(|w| w.from != id && w.to != id);
             self.island.show("✕", format!("Deleted {name}"), "Ctrl+Z to undo", Tone::Danger);
         }
     }
@@ -290,9 +291,8 @@ pub fn test_mode(
     ed.testing = Some(Saved { pos: view.pos, yaw: view.yaw, pitch: view.pitch, mode: view.mode });
     ed.placing = None;
     ed.drag = None;
-    let world = CollisionWorld::build(&ed.level, &ed.geo);
-    play.start(&mut commands, &mut meshes, &mut mats, world, feet, view.yaw);
-    let controls = play.custom.unwrap_or("WASD walk · Shift run · Space jump");
+    play.start(&mut commands, &mut meshes, &mut mats, &ed.level, &ed.geo, feet, view.yaw);
+    let controls = play.custom.unwrap_or("WASD walk · Shift run · Space jump · E press");
     ed.island.show("▶", "Testing", format!("{controls} · ` back to editing"), Tone::Accent);
 }
 
@@ -362,10 +362,11 @@ pub fn interact(
                         pos: pos.to_array(),
                         rot: rot.to_array(),
                         size: size.to_array(),
-                        color: [0.62, 0.64, 0.70],
+                        color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
                         visible: true,
                         collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
                         model: model.clone(),
+                        mover: None,
                     };
                     ed.selected = Some(ed.level.add(part));
                     ed.placing = None;
@@ -382,6 +383,31 @@ pub fn interact(
         return;
     }
     *ghost.1 = Visibility::Hidden;
+
+    // ---- wiring: click the part the wire goes to
+    if let Some((from, out)) = ed.wiring {
+        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
+            ed.wiring = None;
+        } else if mouse.just_pressed(MouseButton::Left) {
+            if let (Some(ptr), Some(to)) = (pointer, ray.and_then(|r| ed.hit(r)).and_then(|h| h.part)) {
+                let p = ed.level.get(to).unwrap();
+                if to == from {
+                } else if p.inputs().is_empty() {
+                    let name = p.name.clone();
+                    ed.island.show("!", format!("{name} can't take wires yet"), "Turn on Moves to give it Go, Back and Toggle", Tone::Danger);
+                } else {
+                    ed.wire_pick = Some((from, out, to, ptr));
+                    ed.wiring = None;
+                }
+            }
+        }
+        press.at = None;
+        return;
+    }
+    if ed.wire_pick.is_some() {
+        press.at = None;
+        return;
+    }
 
     // ---- the widget on the selected part
     if !mouse.pressed(MouseButton::Left) { ed.drag = None; }
@@ -600,6 +626,31 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     for p in ed.level.parts.iter().filter(|p| !p.visible && Some(p.id) != ed.selected) {
         for (a, b) in shapes::BOX_EDGES { g.line(corner(p, a), corner(p, b), Color::srgba(0.96, 0.86, 0.29, 0.45)); }
     }
+    // moving parts: where they go (an outline at the end, and the path there)
+    for p in &ed.level.parts {
+        let Some(m) = &p.mover else { continue };
+        let a = if Some(p.id) == ed.selected { 0.9 } else { 0.35 };
+        let col = Color::srgba(0.36, 0.61, 0.94, a);
+        let mut end = p.clone();
+        end.pos = (Vec3::from(p.pos) + Vec3::from(m.to)).to_array();
+        for (i, j) in shapes::BOX_EDGES { g.line(corner(&end, i), corner(&end, j), col); }
+        g.arrow(Vec3::from(p.pos), Vec3::from(end.pos), col);
+    }
+    // wires: arcs from the part that sends to the part that receives
+    for w in &ed.level.wires {
+        let (Some(a), Some(b)) = (ed.level.get(w.from), ed.level.get(w.to)) else { continue };
+        let (a, b) = (Vec3::from(a.pos), Vec3::from(b.pos));
+        let lift = Vec3::Y * (a.distance(b) * 0.3 + 0.5);
+        let hot = ed.selected == Some(w.from) || ed.selected == Some(w.to);
+        let col = Color::srgba(0.94, 0.55, 0.26, if hot { 1.0 } else { 0.55 });
+        let pts: Vec<Vec3> = (0..=24).map(|k| {
+            let t = k as f32 / 24.0;
+            a.lerp(b, t) + lift * 4.0 * t * (1.0 - t)
+        }).collect();
+        g.linestrip(pts.iter().copied(), col);
+        let tip = pts[23];
+        g.arrow(tip, b, col);
+    }
     let Some(p) = ed.selected.and_then(|id| ed.level.get(id)) else { return };
     outline(&mut o, p, Color::srgb(0.96, 0.86, 0.29));
     if ed.placing.is_some() { return; }
@@ -638,7 +689,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);

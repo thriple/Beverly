@@ -61,6 +61,10 @@ pub struct Editor {
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
     pub player: &'static str,
+    /// Wiring: the part and output a wire is being drawn from (the next click picks the part it goes to).
+    pub wiring: Option<(u64, &'static str)>,
+    /// The input menu after that click: from, output, to, and where on screen.
+    pub wire_pick: Option<(u64, &'static str, u64, Vec2)>,
 }
 
 impl Editor {
@@ -118,6 +122,8 @@ impl Editor {
             hover_handle: None,
             label: None,
             player: "beverly-player",
+            wiring: None,
+            wire_pick: None,
         };
         ed.refresh_assets();
         ed

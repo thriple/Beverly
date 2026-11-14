@@ -72,7 +72,7 @@ pub fn build(shape: Shape) -> Tris {
         Shape::Ramp => prism(&[vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5)]),
         Shape::Stairs => prism(&stairs_profile(6)),
         Shape::Arch => prism(&arch_profile()),
-        Shape::Cylinder | Shape::PlayerStart => cylinder(40),
+        Shape::Cylinder | Shape::PlayerStart | Shape::Interact => cylinder(40),
         Shape::Model => Tris::default(),
         Shape::Sphere => sphere(32, 18),
     }
@@ -195,7 +195,7 @@ impl ShapeLib {
 }
 
 pub fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
-    let meshes = Shape::ALL.iter().chain([&Shape::PlayerStart]).map(|&s| (s, meshes.add(build(s).mesh()))).collect();
+    let meshes = Shape::ALL.iter().chain([&Shape::PlayerStart, &Shape::Interact]).map(|&s| (s, meshes.add(build(s).mesh()))).collect();
     commands.insert_resource(ShapeLib { meshes });
 }
 

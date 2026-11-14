@@ -592,6 +592,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li>Wires are drawn as arcs in the 3D world. <kbd>W</kbd> opens a flat node-graph view for when parts are far apart.</li>
         <li>Your example chain is one straight line, so a <b>Sequence</b> part holds it as a list: steps and waits, reordered by dragging. That avoids eight separate noodles. Noodles are for branching and logic.</li>
         <li><b>Variables</b> (flags and counters such as "has key" or "enemies left") are parts too. Save points store them.</li>
+        <li><b>Moves</b> is a setting on any shape: an end position and a time. Its inputs are Go, Back and Toggle, its outputs Arrived and Returned, and the player rides it. A lift is a Plane that moves plus an Interact button wired to its Toggle.</li>
         <li>In test mode, wires pulse when they fire, so you can see why something did or didn't happen.</li>
         <li>Select several parts → "Make prefab" packs them into one part with only the chosen ports showing. For example, an ambush prefab you can reuse.</li>
       </ul>

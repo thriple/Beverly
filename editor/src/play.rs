@@ -1,6 +1,7 @@
 //! Playing a level: the plain walker (a stand-in character until the real characters exist) and its collision
 //! with the level's solid parts. Used by the editor's test mode (`) and by the game player.
 use crate::level::{Collision, Level, Part, Shape};
+use crate::script::Script;
 use crate::world::{Geometry, part_affine};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -14,8 +15,9 @@ const WALK: f32 = 5.0;
 const RUN: f32 = 9.0;
 const STEP: f32 = 1.0 / 120.0;
 
-/// One solid part's triangles in world space, with the box around them.
-struct Piece { min: Vec3, max: Vec3, tris: Vec<[Vec3; 3]> }
+/// One solid part's triangles in world space as placed, with the box around them; `off` is how far it has moved
+/// since (a moving part), `delta` how far it moved this frame.
+struct Piece { id: u64, min: Vec3, max: Vec3, tris: Vec<[Vec3; 3]>, off: Vec3, delta: Vec3 }
 
 /// The solid parts of a level, ready for collision.
 #[derive(Default)]
@@ -33,20 +35,40 @@ impl CollisionWorld {
                 let m = part_affine(p);
                 let tris: Vec<[Vec3; 3]> = t.pos.chunks_exact(3).map(|c| [m.transform_point3(c[0]), m.transform_point3(c[1]), m.transform_point3(c[2])]).collect();
                 let (min, max) = tris.iter().flatten().fold((Vec3::MAX, Vec3::MIN), |(a, b), v| (a.min(*v), b.max(*v)));
-                (!tris.is_empty()).then_some(Piece { min, max, tris })
+                (!tris.is_empty()).then_some(Piece { id: p.id, min, max, tris, off: Vec3::ZERO, delta: Vec3::ZERO })
             })
             .collect();
         Self { pieces }
     }
 
-    /// Each solid part's triangles, in world space.
+    /// Each solid part's triangles, in world space, where it was placed.
     pub fn pieces(&self) -> impl Iterator<Item = &[[Vec3; 3]]> { self.pieces.iter().map(|p| p.tris.as_slice()) }
+
+    /// How far each piece (same order as [`Self::pieces`]) has moved from where it was placed.
+    pub fn offsets(&self) -> impl Iterator<Item = Vec3> + '_ { self.pieces.iter().map(|p| p.off) }
+
+    /// The piece of part `id`, if it is solid.
+    pub fn piece_of(&self, id: u64) -> Option<usize> { self.pieces.iter().position(|p| p.id == id) }
+
+    /// Move piece `i` to `off` from where it was placed.
+    pub fn set_offset(&mut self, i: usize, off: Vec3) {
+        let p = &mut self.pieces[i];
+        p.delta += off - p.off;
+        p.off = off;
+    }
+
+    /// How far piece `i` moved this frame.
+    pub fn delta(&self, i: usize) -> Vec3 { self.pieces[i].delta }
+
+    pub(crate) fn clear_deltas(&mut self) { for p in &mut self.pieces { p.delta = Vec3::ZERO; } }
 
     /// Nearest hit along a ray within `max` (the ground plane included).
     pub fn ray(&self, o: Vec3, d: Vec3, max: f32) -> Option<f32> {
         let mut best = if d.y < -1e-6 && o.y > 0.0 { Some(-o.y / d.y).filter(|t| *t <= max) } else { None };
-        let (lo, hi) = (o.min(o + d * max), o.max(o + d * max));
-        for p in self.pieces.iter().filter(|p| p.min.cmple(hi).all() && p.max.cmpge(lo).all()) {
+        for p in &self.pieces {
+            let o = o - p.off;
+            let (lo, hi) = (o.min(o + d * max), o.max(o + d * max));
+            if !(p.min.cmple(hi).all() && p.max.cmpge(lo).all()) { continue; }
             for [a, b, c] in &p.tris {
                 if let Some(t) = ray_tri(o, d, *a, *b, *c) {
                     if t <= max && best.is_none_or(|bt| t < bt) { best = Some(t); }
@@ -56,12 +78,15 @@ impl CollisionWorld {
         best
     }
 
-    /// Push a sphere out of everything it overlaps. Returns the push and the most upward contact normal.
-    fn push_sphere(&self, c: Vec3, r: f32) -> (Vec3, Option<Vec3>) {
+    /// Push a sphere out of everything it overlaps. Returns the push and the most upward contact normal, with
+    /// the piece it belongs to.
+    fn push_sphere(&self, c: Vec3, r: f32) -> (Vec3, Option<(Vec3, usize)>) {
         let mut push = Vec3::ZERO;
-        let mut up: Option<Vec3> = None;
-        let (lo, hi) = (c - Vec3::splat(r), c + Vec3::splat(r));
-        for p in self.pieces.iter().filter(|p| p.min.cmple(hi).all() && p.max.cmpge(lo).all()) {
+        let mut up: Option<(Vec3, usize)> = None;
+        for (i, p) in self.pieces.iter().enumerate() {
+            let c = c - p.off;
+            let (lo, hi) = (c - Vec3::splat(r), c + Vec3::splat(r));
+            if !(p.min.cmple(hi).all() && p.max.cmpge(lo).all()) { continue; }
             for [a, b, t3] in &p.tris {
                 let cc = c + push;
                 let q = closest_on_tri(cc, *a, *b, *t3);
@@ -70,7 +95,7 @@ impl CollisionWorld {
                 if dist < r && dist > 1e-6 {
                     let n = d / dist;
                     push += n * (r - dist);
-                    if up.is_none_or(|u| n.y > u.y) { up = Some(n); }
+                    if up.is_none_or(|u| n.y > u.0.y) { up = Some((n, i)); }
                 }
             }
         }
@@ -117,7 +142,7 @@ fn closest_on_tri(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 
 /// The walker: feet position, velocity, facing, and the camera's yaw / pitch.
 #[derive(Default, Clone)]
-pub struct Walker { pub pos: Vec3, pub vel: Vec3, pub facing: f32, pub yaw: f32, pub pitch: f32, pub ground: bool, acc: f32 }
+pub struct Walker { pub pos: Vec3, pub vel: Vec3, pub facing: f32, pub yaw: f32, pub pitch: f32, pub ground: bool, acc: f32, on: Option<usize> }
 
 /// Test mode / game state.
 #[derive(Resource, Default)]
@@ -133,6 +158,11 @@ pub struct Play {
     pub run: u32,
     /// This run's start: feet, facing (yaw).
     pub start: (Vec3, f32),
+    /// Where the player's feet are (a custom character sets this each frame; buttons are pressed from here).
+    pub feet: Vec3,
+    /// Buttons, wires and moving parts. A custom character rides moving parts by following
+    /// [`CollisionWorld::offsets`].
+    pub script: Script,
 }
 
 #[derive(Component)]
@@ -145,15 +175,19 @@ pub struct PlayPlugin;
 
 impl Plugin for PlayPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Play>().add_systems(Update, (walk, follow).chain().run_if(|p: Res<Play>| p.on && p.custom.is_none()));
+        app.init_resource::<Play>()
+            .add_systems(Update, (crate::script::run.run_if(|p: Res<Play>| p.on), (walk, follow).chain().run_if(|p: Res<Play>| p.on && p.custom.is_none())).chain());
     }
 }
 
 impl Play {
-    /// Start playing with the walker standing at `feet`, facing `yaw`.
-    pub fn start(&mut self, commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>, world: CollisionWorld, feet: Vec3, yaw: f32) {
+    /// Start playing `level` with the walker standing at `feet`, facing `yaw`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start(&mut self, commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>, level: &Level, geo: &Geometry, feet: Vec3, yaw: f32) {
         self.stop(commands);
-        self.world = world;
+        self.world = CollisionWorld::build(level, geo);
+        self.script = Script::new(level, &self.world);
+        self.feet = feet;
         self.run += 1;
         self.start = (feet, yaw);
         self.on = true;
@@ -173,6 +207,7 @@ impl Play {
 
     pub fn stop(&mut self, commands: &mut Commands) {
         if let Some(b) = self.body.take() { commands.entity(b).despawn(); }
+        self.script.reset(commands);
         self.on = false;
     }
 }
@@ -194,6 +229,8 @@ fn walk(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, motion: Res<Acc
     let speed = if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) { RUN } else { WALK };
     if dir != Vec3::ZERO { w.facing = (-dir.x).atan2(-dir.z); }
     let jump = keys.just_pressed(KeyCode::Space);
+    // ride whatever we stand on
+    if let Some(i) = w.on { w.pos += play.world.delta(i); }
     w.acc += time.delta_secs().min(0.1);
     let mut first = true;
     while w.acc >= STEP {
@@ -210,13 +247,17 @@ fn walk(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, motion: Res<Acc
         w.pos += w.vel * STEP;
         // collide
         w.ground = false;
+        w.on = None;
         for _ in 0..3 {
             for hgt in SPHERES {
                 let (push, up) = play.world.push_sphere(w.pos + Vec3::Y * hgt, RADIUS);
                 if push == Vec3::ZERO { continue; }
                 w.pos += push;
-                if let Some(n) = up {
-                    if n.y > 0.6 { w.ground = true; }
+                if let Some((n, i)) = up {
+                    if n.y > 0.6 {
+                        w.ground = true;
+                        w.on = Some(i);
+                    }
                     let into = w.vel.dot(n);
                     if into < 0.0 { w.vel -= n * into; }
                 }
@@ -229,6 +270,7 @@ fn walk(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, motion: Res<Acc
         }
         if w.ground && w.vel.y < 0.0 { w.vel.y = 0.0; }
     }
+    play.feet = w.pos;
 }
 
 fn follow(play: Res<Play>, mut body: Query<&mut Transform, (With<Body>, Without<PlayCamera>)>, mut cam: Query<&mut Transform, With<PlayCamera>>) {

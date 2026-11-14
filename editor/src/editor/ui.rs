@@ -1,7 +1,7 @@
 //! The 2D parts of the editor, in the Motion kit's style: top bar with the File menu, the collapsible Assets
 //! panel, the bottom properties panel, the parts pop-up (Tab), the status island, the speed strip, hints, and the
 //! unsaved-changes question.
-use crate::level::{Collision, Shape};
+use crate::level::{Collision, Mover, Shape, Wire};
 use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
 use super::view::{Mode, SPEED_LABELS, View};
 use super::{Editor, Pending};
@@ -262,15 +262,17 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
         let mut p = ed.level.get(id).unwrap().clone();
         let before = p.clone();
         let mut delete = false;
-        ui.horizontal_top(|ui| {
+        let mut unwire: Option<usize> = None;
+        egui::ScrollArea::horizontal().show(ui, |ui| ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
-            column(ui, 230.0, "PART", |ui| {
+            column(ui, 190.0, "PART", |ui| {
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                     ui.painter().rect_filled(r, CornerRadius::same(2), theme::CAT_SHAPES);
-                    ui.add(egui::TextEdit::singleline(&mut p.name).desired_width(180.0).font(semi(13.0)));
+                    ui.add(egui::TextEdit::singleline(&mut p.name).desired_width(150.0).font(semi(13.0)));
                 });
-                ui.label(egui::RichText::new(format!("{} {}", p.shape.glyph(), p.shape.label())).color(MUTED));
+                let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
+                ui.label(egui::RichText::new(format!("{} {}{file}", p.shape.glyph(), p.shape.label())).color(MUTED));
                 ui.horizontal(|ui| {
                     if ui.button("Duplicate").on_hover_ui(|ui| theme::hint(ui, "Duplicate", &["Ctrl", "D"])).clicked() { ed.duplicate_selected(); }
                     if ui.button("Delete").on_hover_ui(|ui| theme::hint(ui, "Delete", &["Del"])).clicked() { delete = true; }
@@ -291,19 +293,9 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     }
                 });
             });
-            if p.shape == Shape::Model {
-                column(ui, 250.0, "SCALE", |ui| {
-                    xyz(ui, &mut p.size, 0.01, 0.001, "×");
-                    let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("");
-                    ui.label(egui::RichText::new(file).color(MUTED).size(11.0));
-                });
-            } else {
-                column(ui, 250.0, "SIZE", |ui| {
-                    xyz(ui, &mut p.size, 0.02, 0.02, " m");
-                    ui.label(egui::RichText::new("Width · height · depth").color(MUTED).size(11.0));
-                });
-            }
-            column(ui, 330.0, "LOOK  ·  COLLISION", |ui| {
+            let (title, speed, min, suffix) = if p.shape == Shape::Model { ("SCALE  ·  LOOK", 0.01, 0.001, "×") } else { ("SIZE  ·  LOOK", 0.02, 0.02, " m") };
+            column(ui, 260.0, title, |ui| {
+                xyz(ui, &mut p.size, speed, min, suffix);
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("Colour").color(MUTED));
                     ui.color_edit_button_rgb(&mut p.color);
@@ -315,12 +307,79 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                 let labels: Vec<&str> = Collision::ALL.iter().map(|c| c.label()).collect();
                 if theme::segmented(ui, "collision", &labels, &mut c, false) { p.collision = Collision::ALL[c]; }
             });
-        });
+            if p.shape != Shape::PlayerStart {
+                column(ui, 250.0, "MOVES", |ui| {
+                    ui.horizontal(|ui| {
+                        let mut on = p.mover.is_some();
+                        if theme::toggle(ui, &mut on).on_hover_text("Moves to an end position and back when wired to").changed() {
+                            p.mover = on.then(|| Mover { to: [0.0, 3.0, 0.0], secs: 2.0 });
+                        }
+                        ui.label(egui::RichText::new(if on { "Moves when told to" } else { "Stays put" }).color(MUTED));
+                    });
+                    if let Some(m) = &mut p.mover {
+                        xyz(ui, &mut m.to, 0.05, -100000.0, " m");
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("Takes").color(MUTED));
+                            ui.add(egui::DragValue::new(&mut m.secs).speed(0.05).range(0.05..=600.0).max_decimals(2).suffix(" s"));
+                            ui.label(egui::RichText::new("to the end").color(MUTED));
+                        });
+                    }
+                });
+            }
+            let outs = p.outputs();
+            let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
+            if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
+                column(ui, 260.0, "WIRES", |ui| {
+                    let name_of = |pid: u64| ed.level.get(pid).map(|q| q.name.clone()).unwrap_or_default();
+                    for out in &outs {
+                        ui.horizontal(|ui| {
+                            port(ui, &format!("{out} ▸"), theme::CAT_TRIGGERS);
+                            let wiring = ed.wiring == Some((id, out));
+                            if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).on_hover_text("Then click the part it goes to").clicked() {
+                                ed.wiring = if wiring { None } else { Some((id, out)) };
+                            }
+                        });
+                    }
+                    for (i, w) in ed.level.wires.iter().enumerate() {
+                        let text = if w.from == id {
+                            format!("{} → {} · {}", w.out, name_of(w.to), w.input)
+                        } else if w.to == id {
+                            format!("{} ← {} · {}", w.input, name_of(w.from), w.out)
+                        } else {
+                            continue;
+                        };
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(text).color(MUTED));
+                            if ui.small_button("✕").on_hover_text("Remove this wire").clicked() { unwire = Some(i); }
+                        });
+                    }
+                    if !p.inputs().is_empty() && !ed.level.wires.iter().any(|w| w.to == id) {
+                        ui.horizontal(|ui| {
+                            for i in p.inputs() { port(ui, &format!("▸ {i}"), theme::CAT_ACTIONS); }
+                        });
+                    }
+                });
+            }
+        }));
+        if let Some(i) = unwire { ed.level.wires.remove(i); }
         if delete {
             ed.delete_selected();
         } else if p != before {
+            if p.mover.is_none() {
+                // its inputs are gone: so are the wires into them
+                ed.level.wires.retain(|w| w.to != id || p.inputs().contains(&w.input.as_str()));
+                let outs = p.outputs();
+                ed.level.wires.retain(|w| w.from != id || outs.contains(&w.out.as_str()));
+            }
             if let Some(m) = ed.level.get_mut(id) { *m = p; }
         }
+    });
+}
+
+/// A port chip: an output ("Pressed ▸") or an input ("▸ Go") in its category colour.
+fn port(ui: &mut Ui, text: &str, color: Color32) {
+    egui::Frame::new().fill(color.gamma_multiply(0.22)).stroke(Stroke::new(1.0, color.gamma_multiply(0.7))).corner_radius(CornerRadius { nw: 8, ne: 8, se: 8, sw: 3 }).inner_margin(egui::Margin::symmetric(7, 2)).show(ui, |ui| {
+        ui.label(egui::RichText::new(text).font(semi(12.0)).color(TEXT));
     });
 }
 
@@ -389,7 +448,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Parts", &["Tab"]), ("Fly", &["Caps Lock"])],
         Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Parts", &["Tab"]), ("Edit", &["Caps Lock"])],
     };
-    if ed.placing.is_none() && !ed.parts_open {
+    if ed.placing.is_none() && !ed.parts_open && ed.wiring.is_none() {
         let id = Id::new("hint-bar");
         let w_est = 120.0 * hints.len() as f32;
         let at = pos2(r.center().x - w_est / 2.0, r.max.y - 44.0);
@@ -407,9 +466,52 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Placing {} · click a surface", if shape == Shape::Model { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("model").to_string() } else { shape.label().to_string() }), ACCENT, &["Shift", "Esc"]);
     }
 
+    if let Some((from, out)) = ed.wiring {
+        let name = ed.level.get(from).map(|p| p.name.clone()).unwrap_or_default();
+        theme::float_label(ctx, "wiring", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Wire {name} · {out}: click the part it starts"), theme::CAT_TRIGGERS, &["Esc"]);
+    }
+    if let Some((from, out, to, at)) = ed.wire_pick {
+        wire_menu(ctx, ed, from, out, to, pos2(at.x, at.y));
+    }
+
     if let Some((at, text, color)) = ed.label.clone() {
         let keys: &[&str] = if ed.drag.is_some() { &[] } else { &["drag"] };
         theme::float_label(ctx, "widget", pos2(at.x, at.y), &text, color, keys);
+    }
+}
+
+/// After clicking the part a wire goes to: pick which of its inputs.
+fn wire_menu(ctx: &egui::Context, ed: &mut Editor, from: u64, out: &'static str, to: u64, at: egui::Pos2) {
+    let id = Id::new("wire-menu").with(to);
+    let t = theme::spring_from(ctx, id, 0.0, 1.0, theme::SNAPPY);
+    let Some(target) = ed.level.get(to).cloned() else {
+        ed.wire_pick = None;
+        return;
+    };
+    let mut pick: Option<&str> = None;
+    let resp = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(at + vec2(8.0, 8.0 * (1.0 - t))).show(ctx, |ui| {
+        ui.multiply_opacity(t.clamp(0.0, 1.0));
+        egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, white(24))).corner_radius(R_CARD).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+            ui.label(egui::RichText::new(format!("{out} starts {} …", target.name)).font(semi(13.0)));
+            ui.add_space(4.0);
+            for i in target.inputs() {
+                if ui.add(egui::Button::new(egui::RichText::new(format!("▸ {i}")).font(semi(13.0))).min_size(vec2(160.0, 26.0))).clicked() { pick = Some(i); }
+            }
+            ui.add_space(2.0);
+            theme::hint(ui, "Cancel", &["Esc"]);
+        });
+    });
+    // (not in its first frames: the press that opened it)
+    let outside = t > 0.3 && ctx.input(|i| i.pointer.any_pressed()) && !resp.response.contains_pointer();
+    if let Some(i) = pick {
+        ed.level.wires.push(Wire { from, out: out.into(), to, input: i.into() });
+        let name = ed.level.get(from).map(|p| p.name.clone()).unwrap_or_default();
+        ed.island.show("⟿", format!("Wired {name} → {}", target.name), format!("{out} → {i} · ` to test"), Tone::Accent);
+        ed.wire_pick = None;
+        theme::spring_reset(ctx, id);
+    } else if outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        ed.wire_pick = None;
+        theme::spring_reset(ctx, id);
     }
 }
 
@@ -441,7 +543,11 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     let shapes: Vec<Item> = Shape::ALL.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
     let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> = vec![("Shapes", theme::CAT_SHAPES, shapes, true)];
     for sec in &SCRIPT_SECTIONS {
-        let shape_of = |l: &str| (l == "Player start").then_some(Shape::PlayerStart);
+        let shape_of = |l: &str| match l {
+            "Player start" => Some(Shape::PlayerStart),
+            "Interact" => Some(Shape::Interact),
+            _ => None,
+        };
         sections.push((sec.name, sec.color, sec.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| Item { glyph: g, label: l, shape: shape_of(l) }).collect(), sec.ready));
     }
 
@@ -783,6 +889,6 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
                 .collect();
             p.add(egui::Shape::line(pts, st));
         }
-        Shape::Model | Shape::PlayerStart => {}
+        Shape::Model | Shape::PlayerStart | Shape::Interact => {}
     }
 }

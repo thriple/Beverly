@@ -23,6 +23,8 @@ pub enum Shape {
     Model,
     /// Where the player character starts. Shown in the editor only.
     PlayerStart,
+    /// A button the player presses (E when close). Output: Pressed.
+    Interact,
 }
 
 impl Shape {
@@ -38,6 +40,7 @@ impl Shape {
             Shape::Plane => "Plane",
             Shape::Model => "Model",
             Shape::PlayerStart => "Player start",
+            Shape::Interact => "Interact",
         }
     }
     pub fn glyph(self) -> &'static str {
@@ -51,6 +54,7 @@ impl Shape {
             Shape::Plane => "▭",
             Shape::Model => "◆",
             Shape::PlayerStart => "☺",
+            Shape::Interact => "☝",
         }
     }
     /// One line for the parts pop-up.
@@ -66,6 +70,7 @@ impl Shape {
             Shape::Plane => "a thin slab for floors and platforms",
             Shape::Model => return "an imported glTF model".into(),
             Shape::PlayerStart => return "where the player character starts (Shift+` tests from here)".into(),
+            Shape::Interact => return "a button the player presses with E; wire Pressed to what it starts".into(),
         };
         format!("{what} · {x} × {y} × {z} m")
     }
@@ -82,8 +87,39 @@ impl Shape {
             Shape::Plane => [4.0, 0.1, 4.0],
             Shape::Model => [1.0, 1.0, 1.0],
             Shape::PlayerStart => [0.8, 1.8, 0.8],
+            Shape::Interact => [0.5, 1.0, 0.5],
         }
     }
+
+    /// Events this part sends out along wires.
+    pub fn outputs(self) -> &'static [&'static str] {
+        match self {
+            Shape::Interact => &["Pressed"],
+            _ => &[],
+        }
+    }
+}
+
+/// A part that moves: from where it was placed to `pos + to` over `secs`, eased, when told to.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Mover {
+    /// The end position, relative to the start (metres).
+    pub to: [f32; 3],
+    pub secs: f32,
+}
+
+impl Mover {
+    pub const INPUTS: [&str; 3] = ["Go", "Back", "Toggle"];
+    pub const OUTPUTS: [&str; 2] = ["Arrived", "Returned"];
+}
+
+/// A wire: when part `from` sends `out`, part `to` gets `input`.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Wire {
+    pub from: u64,
+    pub out: String,
+    pub to: u64,
+    pub input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -117,6 +153,17 @@ pub struct Part {
     /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mover: Option<Mover>,
+}
+
+impl Part {
+    pub fn outputs(&self) -> Vec<&'static str> {
+        let mut v = self.shape.outputs().to_vec();
+        if self.mover.is_some() { v.extend(Mover::OUTPUTS); }
+        v
+    }
+    pub fn inputs(&self) -> &'static [&'static str] { if self.mover.is_some() { &Mover::INPUTS } else { &[] } }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -124,6 +171,8 @@ pub struct Level {
     pub name: String,
     pub parts: Vec<Part>,
     pub next_id: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wires: Vec<Wire>,
 }
 
 impl Level {
