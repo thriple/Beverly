@@ -2,9 +2,9 @@
 //! panel, the bottom properties panel, the parts pop-up (Tab), the status island, the speed strip, hints, and the
 //! unsaved-changes question.
 use crate::level::{Collision, Shape};
-use crate::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
-use crate::view::{Mode, SPEED_LABELS, View};
-use crate::{Editor, Pending};
+use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
+use super::view::{Mode, SPEED_LABELS, View};
+use super::{Editor, Pending};
 use bevy::prelude::*;
 use bevy_egui::egui::{self, Align2, Color32, CornerRadius, Id, Rect as ERect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use bevy_egui::{EguiContexts, egui::emath::TSTransform};
@@ -414,7 +414,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
 }
 
 fn speed_text(i: usize) -> String {
-    let s = crate::view::SPEEDS[i];
+    let s = super::view::SPEEDS[i];
     if s < 1.0 { format!("{}×", SPEED_LABELS[i]) } else { format!("{s}×") }
 }
 

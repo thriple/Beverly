@@ -42,10 +42,10 @@ pub fn body(size: f32) -> FontId { FontId::new(size, FontFamily::Proportional) }
 
 pub fn setup(ctx: &Context) {
     let mut f = FontDefinitions::default();
-    f.font_data.insert("inter".into(), Arc::new(FontData::from_static(include_bytes!("../assets/fonts/Inter-Regular.otf"))));
-    f.font_data.insert("inter-semi".into(), Arc::new(FontData::from_static(include_bytes!("../assets/fonts/Inter-SemiBold.otf"))));
-    f.font_data.insert("dejavu".into(), Arc::new(FontData::from_static(include_bytes!("../assets/fonts/DejaVuSans.ttf"))));
-    f.font_data.insert("jbmono".into(), Arc::new(FontData::from_static(include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf"))));
+    f.font_data.insert("inter".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/Inter-Regular.otf"))));
+    f.font_data.insert("inter-semi".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/Inter-SemiBold.otf"))));
+    f.font_data.insert("dejavu".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/DejaVuSans.ttf"))));
+    f.font_data.insert("jbmono".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/JetBrainsMono-Medium.ttf"))));
     // Inter for text, DejaVu Sans for the symbols Inter lacks
     f.families.get_mut(&FontFamily::Proportional).unwrap().splice(0..0, ["inter".to_string(), "dejavu".to_string()]);
     f.families.get_mut(&FontFamily::Monospace).unwrap().splice(0..0, ["jbmono".to_string(), "dejavu".to_string()]);

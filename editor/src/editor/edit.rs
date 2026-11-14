@@ -4,10 +4,10 @@ use crate::level::{self, Collision, Level, Part, Shape};
 use crate::models::{ModelLib, ProjectRoot};
 use crate::play::{CollisionWorld, Play};
 use crate::shapes::{self, ShapeLib};
-use crate::theme::{self, Tone};
-use crate::view::{MainCamera, Mode, View};
+use super::theme::{self, Tone};
+use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use crate::{Editor, Pending, Saved};
+use super::{Editor, Pending, Saved};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
 
@@ -21,10 +21,10 @@ impl Editor {
     /// project's files. The player must sit next to the editor (the release zip has both).
     pub fn export_zip(&mut self) {
         if self.dirty() { self.save(); }
-        let exe = if cfg!(windows) { "beverly-player.exe" } else { "beverly-player" };
-        let player = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(exe)));
+        let exe = if cfg!(windows) { format!("{}.exe", self.player) } else { self.player.to_string() };
+        let player = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&exe)));
         let Some(player) = player.filter(|p| p.is_file()) else {
-            self.island.show("!", "Couldn't find the game player", format!("{exe} should be next to Beverly"), Tone::Danger);
+            self.island.show("!", "Couldn't find the game player", format!("{exe} should be next to the editor"), Tone::Danger);
             return;
         };
         let Some(out) = rfd::FileDialog::new().set_title("Export Windows game").set_file_name(format!("{}.zip", self.name)).save_file() else { return };
@@ -116,8 +116,9 @@ impl Editor {
                 let start = level::projects_root();
                 let Some(dir) = rfd::FileDialog::new().set_title("Open a project folder").set_directory(start).pick_folder() else { return };
                 match level::load(&dir) {
-                    Ok((_name, lvl)) => {
+                    Ok((name, lvl)) => {
                         self.load_into(dir, lvl);
+                        self.name = name;
                         self.island.show("▸", format!("Opened {}", self.name), format!("{} parts", self.level.parts.len()), Tone::Accent);
                     }
                     Err(e) => self.island.show("!", "Couldn't open that folder", e, Tone::Danger),
@@ -291,7 +292,8 @@ pub fn test_mode(
     ed.drag = None;
     let world = CollisionWorld::build(&ed.level, &ed.geo);
     play.start(&mut commands, &mut meshes, &mut mats, world, feet, view.yaw);
-    ed.island.show("▶", "Testing", "WASD walk · Shift run · Space jump · ` back to editing", Tone::Accent);
+    let controls = play.custom.unwrap_or("WASD walk · Shift run · Space jump");
+    ed.island.show("▶", "Testing", format!("{controls} · ` back to editing"), Tone::Accent);
 }
 
 #[derive(Default)]

@@ -3,7 +3,7 @@
 //!   to pan, the wheel zooms toward the point under the cursor (each notch closes a share of the distance).
 //! - Builder movement: no-clip flight; the mouse looks, W/A/S/D move where you look, no speed ramp. Mouse 5 / ]
 //!   faster, Mouse 4 / [ slower through 12 speeds. Hold Alt for a cursor.
-use crate::{Editor, theme};
+use super::{Editor, theme};
 use bevy::camera::Viewport;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
@@ -80,7 +80,7 @@ pub fn setup(mut commands: Commands, mut egui_settings: ResMut<EguiGlobalSetting
     let v = View::default();
     // BEVERLY_LITE=1: no anti-aliasing (for slow software renderers, e.g. automated tests)
     let msaa = if std::env::var_os("BEVERLY_LITE").is_some() { Msaa::Off } else { Msaa::Sample4 };
-    commands.spawn((Camera3d::default(), MainCamera, beverly::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa));
+    commands.spawn((Camera3d::default(), MainCamera, crate::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa));
     commands.insert_resource(v);
     // The panels get their own full-window camera, drawn over the 3D view (whose viewport shrinks to the free area).
     egui_settings.auto_create_primary_context = false;
@@ -109,7 +109,7 @@ pub fn input(
     egui_in: Res<EguiWantsInput>,
     window: Single<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
     cam: Single<(&Camera, &GlobalTransform, &mut Transform), With<MainCamera>>,
-    mut caps: ResMut<crate::caps::CapsLock>,
+    mut caps: ResMut<super::caps::CapsLock>,
 ) {
     let (window, mut cursor_opts) = window.into_inner();
     let (cam, gtf, mut tf) = cam.into_inner();

@@ -19,6 +19,10 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 Bevy 0.20.1 + bevy_egui 0.43.1 (egui 0.36), pinned together with the toolchain in `editor/rust-toolchain.toml`.
 Windows build: `.github/workflows/windows.yml` (release per push) or `tools/make-zip.ps1` locally.
 
+A game with its own code (e.g. its player character) depends on this crate and builds its own copy of the editor
+and player: `beverly::editor::run(title, player_exe, plugins)`, `beverly::player::run(plugins)`. A custom player
+character sets `play::Play::custom` and takes over while `Play::on` (see the doc comment there).
+
 ## Releases
 
 Push work to the repository freely, but only cut a release (commit message containing `[release]`, or a manual

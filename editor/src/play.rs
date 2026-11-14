@@ -39,6 +39,9 @@ impl CollisionWorld {
         Self { pieces }
     }
 
+    /// Each solid part's triangles, in world space.
+    pub fn pieces(&self) -> impl Iterator<Item = &[[Vec3; 3]]> { self.pieces.iter().map(|p| p.tris.as_slice()) }
+
     /// Nearest hit along a ray within `max` (the ground plane included).
     pub fn ray(&self, o: Vec3, d: Vec3, max: f32) -> Option<f32> {
         let mut best = if d.y < -1e-6 && o.y > 0.0 { Some(-o.y / d.y).filter(|t| *t <= max) } else { None };
@@ -118,7 +121,19 @@ pub struct Walker { pub pos: Vec3, pub vel: Vec3, pub facing: f32, pub yaw: f32,
 
 /// Test mode / game state.
 #[derive(Resource, Default)]
-pub struct Play { pub on: bool, pub walker: Walker, pub world: CollisionWorld, body: Option<Entity> }
+pub struct Play {
+    pub on: bool,
+    pub walker: Walker,
+    pub world: CollisionWorld,
+    body: Option<Entity>,
+    /// A game's own player character plays instead of the walker: its plugin sets this to its controls hint,
+    /// then runs while `on`, starting afresh whenever `run` changes, from `start`, and moves the `PlayCamera`.
+    pub custom: Option<&'static str>,
+    /// Counts the starts.
+    pub run: u32,
+    /// This run's start: feet, facing (yaw).
+    pub start: (Vec3, f32),
+}
 
 #[derive(Component)]
 pub struct PlayCamera;
@@ -130,7 +145,7 @@ pub struct PlayPlugin;
 
 impl Plugin for PlayPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Play>().add_systems(Update, (walk, follow).chain().run_if(|p: Res<Play>| p.on));
+        app.init_resource::<Play>().add_systems(Update, (walk, follow).chain().run_if(|p: Res<Play>| p.on && p.custom.is_none()));
     }
 }
 
@@ -139,6 +154,10 @@ impl Play {
     pub fn start(&mut self, commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>, world: CollisionWorld, feet: Vec3, yaw: f32) {
         self.stop(commands);
         self.world = world;
+        self.run += 1;
+        self.start = (feet, yaw);
+        self.on = true;
+        if self.custom.is_some() { return; }
         self.walker = Walker { pos: feet + Vec3::Y * 0.05, facing: yaw, yaw, pitch: -0.25, ..default() };
         let body_mat = mats.add(StandardMaterial { base_color: Color::srgb(0.85, 0.82, 0.78), perceptual_roughness: 0.6, ..default() });
         let visor = mats.add(StandardMaterial { base_color: Color::srgb(0.96, 0.86, 0.29), emissive: LinearRgba::rgb(0.6, 0.5, 0.1), ..default() });
@@ -150,7 +169,6 @@ impl Play {
             })
             .id();
         self.body = Some(body);
-        self.on = true;
     }
 
     pub fn stop(&mut self, commands: &mut Commands) {
