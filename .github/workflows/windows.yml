@@ -1,6 +1,7 @@
 # Windows build of the editor: a zip with Beverly.exe - unzip and double-click, nothing to install.
-# Runs by hand from the Actions tab, or on a push whose commit message contains [release] (releases are for
-# finished features, not work in progress). Each build is published as a GitHub Release
+# Builds on every push that touches editor/ (so Windows-only errors show up early; the zip is kept under the run's
+# "Artifacts"). Only a run by hand from the Actions tab, or a push whose commit message contains [release], publishes
+# a GitHub Release - releases are for finished features, not work in progress. Each release is named
 # ("Beverly build N", tag build-N, the newest marked Latest) with the zip attached, and also kept under the
 # run's "Artifacts". tools/make-zip.ps1 makes the same zip on your own PC.
 name: Windows build
@@ -12,7 +13,6 @@ permissions:
   contents: write   # to publish the release
 jobs:
   windows:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +35,7 @@ jobs:
           name: Beverly-windows
           path: dist
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
         with:
           tag_name: build-${{ github.run_number }}
           name: Beverly build ${{ github.run_number }}
