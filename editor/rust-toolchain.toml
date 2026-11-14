@@ -1,0 +1,4 @@
+# pinned with bevy =0.20.1 (Cargo.toml): the compiler too, so every build matches; upgrade both on purpose
+[toolchain]
+channel = "1.99.1"
+targets = ["wasm32-unknown-unknown"]

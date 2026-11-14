@@ -1,0 +1,760 @@
+<title>Beverly Editor Design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; the wireframe breaks out wider and scrolls sideways on small screens. Blueprint lines on paper. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #18202b; --muted: #5b6676; --line: #c9d2de; --wire: #7d8ea6;
+  --accent: #d9822b; --trig: #e0782a; --act: #2f74c9; --flow: #2c9a6a; --logic: #8a55c9; --game: #b8456b;
+  --x: #d6453d; --y: #3a9a3a; --z: #3466d1;
+  --vp: #e6ebf2; --vpgrid: #c4cede;
+  --f-head: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121821; --panel: #1a222e; --fg: #e3e8ef; --muted: #96a2b3; --line: #2d3949; --wire: #6f819a;
+  --accent: #f0a050; --trig: #f08c42; --act: #5b9bf0; --flow: #48c08c; --logic: #a77ce6; --game: #e0688f;
+  --x: #f06a60; --y: #5cc25c; --z: #6a93f5; --vp: #0e141c; --vpgrid: #253142; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121821; --panel: #1a222e; --fg: #e3e8ef; --muted: #96a2b3; --line: #2d3949; --wire: #6f819a;
+  --accent: #f0a050; --trig: #f08c42; --act: #5b9bf0; --flow: #48c08c; --logic: #a77ce6; --game: #e0688f;
+  --x: #f06a60; --y: #5cc25c; --z: #6a93f5; --vp: #0e141c; --vpgrid: #253142; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--f-body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-head); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: 2.3rem; font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 1.45rem; font-weight: 700; margin-top: 56px; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 68ch; margin-top: 10px; }
+.eyebrow { font: 600 11px/1 var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+kbd { font: 600 12px/1 var(--f-mono); padding: 2px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--panel); white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.chip b { font-weight: 600; }
+
+/* wireframe */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 10px; }
+.tabs button { font: 600 13px var(--f-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scroller { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.frame { min-width: 940px; display: grid; grid-template-columns: 1fr 190px; grid-template-rows: 38px 1fr 150px; height: 600px; font-size: 12px; }
+.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.bar .logo { font: 800 14px var(--f-head); }
+.bar .seg { display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.bar .seg span { padding: 3px 9px; border-right: 1px solid var(--line); }
+.bar .seg span:last-child { border-right: 0; }
+.bar .seg .on { background: var(--accent); color: #fff; }
+.bar .sp { flex: 1; }
+.btn { border: 1px solid var(--line); border-radius: 5px; padding: 3px 9px; }
+.btn.go { border-color: var(--flow); color: var(--flow); font-weight: 600; }
+.side { padding: 10px; border-right: 1px solid var(--line); overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.side.r { border-right: 0; border-left: 1px solid var(--line); position: relative; }
+.vp { grid-column: 1; grid-row: 2; }
+.side.r { grid-column: 2; grid-row: 2; }
+.frame.shut { grid-template-columns: 1fr 30px; }
+.frame.shut .side.r > :not(.phrow) { display: none !important; }
+.frame.shut .side.r { padding: 8px 4px; }
+.frame.shut .phrow { flex-direction: column; }
+.frame.shut .phrow .ph { writing-mode: vertical-rl; }
+.phrow { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.col { font: 600 12px var(--f-mono); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; cursor: pointer; }
+.col:focus-visible { outline: 2px solid var(--accent); }
+.popup { position: absolute; left: calc((100% - 190px) / 2); top: 52%; transform: translate(-50%, -50%); z-index: 4; width: 600px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,0.25); padding: 12px 14px; flex-direction: column; gap: 8px; }
+.frame.shut .popup { left: calc((100% - 30px) / 2); }
+.popup .top { display: flex; align-items: center; gap: 10px; }
+.popup .top .search { flex: 1; }
+.pop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 12px; align-items: start; }
+.pop-grid > div { display: flex; flex-direction: column; gap: 4px; }
+.search { border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; color: var(--muted); }
+.hbar { color: #fff; font-weight: 600; font-size: 11px; padding: 2px 8px; border-radius: 3px; display: flex; justify-content: space-between; margin-top: 4px; }
+.pgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.pgrid span { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 9px; color: var(--muted); text-align: center; line-height: 1.1; }
+.pgrid span b { font-size: 15px; color: var(--fg); font-weight: 400; }
+.pgrid span.drag { border-color: var(--trig); box-shadow: 0 0 0 1px var(--trig); color: var(--fg); }
+.menu { position: absolute; top: 34px; left: 62px; z-index: 3; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); padding: 4px 0; min-width: 190px; }
+.menu div { display: flex; justify-content: space-between; gap: 16px; padding: 3px 12px; }
+.menu div span { color: var(--muted); font-family: var(--f-mono); font-size: 10px; }
+.menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.menu .hi { background: var(--accent); color: #fff; } .menu .hi span { color: #fff; }
+.drop { position: absolute; inset: 72px 8px auto 8px; height: 150px; border: 2px dashed var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 8px; }
+.drop .files { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.drop .files span { font: 10px var(--f-mono); background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; }
+.frame { position: relative; }
+.ph { font: 600 10px var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.tree div { padding: 1px 0; color: var(--muted); }
+.tree .open { color: var(--fg); font-weight: 600; }
+.thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.thumbs i { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 3px; background: repeating-linear-gradient(45deg, var(--vp) 0 5px, var(--panel) 5px 10px); }
+.thumbs i.sel { outline: 2px solid var(--accent); }
+.cat { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 4px; }
+.dot { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.parts { display: flex; flex-wrap: wrap; gap: 4px; }
+.parts span { border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--muted); }
+.parts span.drag { border-color: var(--trig); color: var(--fg); }
+.vp { position: relative; background: var(--vp); overflow: hidden; }
+.vp svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pill { position: absolute; font: 600 11px var(--f-mono); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; white-space: nowrap; }
+.speeds { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 2px; font: 600 10px var(--f-mono); }
+.speeds span { padding: 2px 4px; border-radius: 3px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); }
+.speeds span.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.bottom { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 10px 12px; display: grid; grid-template-columns: 1.1fr 1.3fr 1fr 1fr; gap: 16px; }
+.bottom h4 { margin: 0 0 6px; font: 700 13px var(--f-head); display: flex; align-items: center; gap: 6px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; color: var(--muted); }
+.kv b { color: var(--fg); font-weight: 500; font-family: var(--f-mono); font-size: 11px; }
+.port { display: inline-block; border-radius: 3px; padding: 0 5px; margin: 1px 2px 1px 0; color: #fff; font-size: 11px; }
+.toggle { display: inline-block; width: 22px; height: 12px; border-radius: 6px; background: var(--line); vertical-align: middle; position: relative; }
+.toggle::after { content: ""; position: absolute; left: 1px; top: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel); }
+.toggle.on { background: var(--flow); } .toggle.on::after { left: 11px; }
+.st { display: none; }
+.frame[data-state="editor"] .st-editor, .frame[data-state="builder"] .st-builder, .frame[data-state="wiring"] .st-wiring,
+.frame[data-state="editor"] .st-ew, .frame[data-state="wiring"] .st-ew, .frame[data-state="files"] .st-ew, .frame[data-state="files"] .st-files { display: revert; }
+.frame[data-state="files"] .menu.st-files, .frame[data-state="files"] .drop.st-files { display: flex; flex-direction: column; }
+.frame[data-state="files"] .menu.st-files { display: block; }
+.frame[data-state="parts"] .st-parts { display: revert; }
+.frame[data-state="parts"] .popup.st-parts { display: flex; }
+.frame[data-state="parts"] .vp svg, .frame[data-state="parts"] .side, .frame[data-state="parts"] .bottom { opacity: 0.4; }
+.frame[data-state="builder"] .side, .frame[data-state="builder"] .bottom { opacity: 0.35; }
+.cap { color: var(--muted); font-size: 13px; margin-top: 8px; max-width: 80ch; }
+
+/* spec */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card.you { border-left: 3px solid var(--accent); }
+.tag { font: 600 10px var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.card li { padding-left: 2px; }
+.said { font-size: 13.5px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; }
+.miles { display: grid; gap: 10px; margin-top: 18px; }
+.mile { display: grid; grid-template-columns: 92px 1fr; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+.mile .v { font: 700 15px var(--f-mono); color: var(--accent); }
+.mile p { color: var(--muted); font-size: 14px; }
+.mile h3 { margin-bottom: 2px; }
+.mini { overflow-x: auto; margin-top: 4px; }
+.mini svg { display: block; min-width: 300px; width: 100%; height: auto; }
+ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
+@media (max-width: 520px) { .mile { grid-template-columns: 1fr; gap: 4px; } h1 { font-size: 1.8rem; } }
+@media (prefers-reduced-motion: no-preference) { .pulse { animation: pulse 1.6s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.35; } } }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Design draft · 2026-11-14</div>
+  <h1>Beverly</h1>
+  <p class="lede">A standalone, no-code-first editor for making 3D Bevy games for Windows. The name comes from Bevy. Last Ascent is its first game. This page fills in the open topics from your list, adds the ones that were missing, and sketches the main screen.</p>
+  <div class="chips">
+    <span class="chip"><b>Logic:</b> parts + noodles; Rust only for new kinds of parts</span>
+    <span class="chip"><b>Export:</b> prebuilt player (instant zip) or compile (local / GitHub)</span>
+    <span class="chip"><b>Platform:</b> Windows</span>
+    <span class="chip"><b>3D</b> only</span>
+    <span class="chip"><b>Assets:</b> glTF, sounds, images + basic shapes</span>
+    <span class="chip"><b>Built with:</b> Bevy + egui; projects are folders of text files</span>
+  </div>
+
+  <h2>Main screen</h2>
+  <p class="lede">Switch between the five states. The arrow button on the Assets panel collapses it. The layout stays put; only the viewport overlay and the panels change.</p>
+  <div class="tabs" role="group" aria-label="Wireframe state">
+    <button id="t-editor" aria-pressed="true" data-s="editor">Editor movement</button>
+    <button id="t-builder" aria-pressed="false" data-s="builder">Builder movement</button>
+    <button id="t-wiring" aria-pressed="false" data-s="wiring">Wiring a sequence</button>
+    <button id="t-parts" aria-pressed="false" data-s="parts">Parts pop-up</button>
+    <button id="t-files" aria-pressed="false" data-s="files">File menu and dropping files</button>
+  </div>
+  <div class="scroller">
+    <div class="frame" id="frame" data-state="editor">
+      <div class="bar">
+        <span class="logo">Beverly</span>
+        <span class="btn">File ▾</span>
+        <span>Last Ascent ▸ Level: <b>Flats</b> ▾</span>
+        <span class="seg"><span class="on">Level</span><span>Screens</span><span>Animatics</span></span>
+        <span class="sp"></span>
+        <span class="btn">↶ ↷</span>
+        <span class="btn">Snap 0.25 m · 15°</span>
+        <span class="btn go">▶ Test here <kbd>`</kbd></span>
+        <span class="btn">Export ▾</span>
+      </div>
+
+      <div class="menu st st-files" aria-label="File menu">
+        <div>New project…</div><div>Open project… <span>Ctrl+O</span></div><div>Open recent ▸</div><hr>
+        <div>New level <span>Ctrl+N</span></div><div class="hi">Save <span>Ctrl+S</span></div><div>Save as…</div><div>Load level… <span>Ctrl+L</span></div><hr>
+        <div>Import files… <span>Ctrl+I</span></div><div>Export Windows zip…</div><hr>
+        <div>Quit <span>Ctrl+Q</span></div>
+      </div>
+
+      <div class="popup st st-parts" role="dialog" aria-label="Parts">
+        <div class="top"><b style="font:700 14px var(--f-head)">Parts</b><div class="search">Type to search…</div><kbd>Tab</kbd><span style="color:var(--muted)">or Esc to close</span></div>
+        <div class="pop-grid">
+          <div><div class="hbar" style="background:var(--wire)">Shapes</div><div class="pgrid"><span><b>▢</b>Box</span><span><b>◺</b>Ramp</span><span><b>◯</b>Cylinder</span><span><b>▤</b>Stairs</span><span><b>∩</b>Arch</span><span><b>●</b>Sphere</span><span><b>▭</b>Plane</span></div></div>
+          <div><div class="hbar" style="background:var(--trig)">Triggers</div><div class="pgrid"><span class="drag"><b>◎</b>Proximity</span><span><b>⬚</b>Volume</span><span><b>☝</b>Interact</span><span><b>▶</b>On start</span><span><b>✖</b>Killed</span></div></div>
+          <div><div class="hbar" style="background:var(--act)">Actions</div><div class="pgrid"><span><b>✸</b>Explosion</span><span><b>≋</b>Shake</span><span><b>⁘</b>Debris</span><span><b>⌧</b>Break</span><span><b>♪</b>Sound</span><span><b>⁂</b>Particles</span><span><b>☀</b>Light FX</span><span><b>❝</b>Dialog</span><span><b>⌖</b>Camera</span><span><b>Ⅱ</b>Pause</span><span><b>▦</b>Animatic</span></div></div>
+          <div><div class="hbar" style="background:var(--flow)">Flow</div><div class="pgrid"><span><b>◷</b>Timer</span><span><b>⇉</b>Relay</span><span><b>☰</b>Sequence</span><span><b>#</b>Counter</span><span><b>⚄</b>Random</span></div></div>
+          <div><div class="hbar" style="background:var(--logic)">Logic</div><div class="pgrid"><span><b>∧</b>AND</span><span><b>∨</b>OR</span><span><b>⊽</b>NOR</span><span><b>⊻</b>XOR</span><span><b>¬</b>NOT</span></div></div>
+          <div><div class="hbar" style="background:var(--game)">Game</div><div class="pgrid"><span><b>⚑</b>Spawner</span><span><b>✚</b>Save point</span><span><b>☺</b>Player start</span><span><b>⇥</b>Level exit</span></div></div>
+        </div>
+      </div>
+
+      <div class="side r">
+        <div class="phrow"><span class="ph">Assets</span><button class="col" id="col" aria-expanded="true" aria-label="Collapse the Assets panel">⇥</button></div>
+        <div class="tree">
+          <div>▸ Models</div><div>▸ Shapes</div><div class="open">▾ Textures</div>
+          <div style="padding-left:12px">▸ concrete</div><div style="padding-left:12px" class="open">▾ metal</div>
+          <div>▸ Sounds</div><div>▸ Prefabs</div>
+        </div>
+        <div class="thumbs"><i></i><i class="sel"></i><i></i><i></i><i></i><i></i></div>
+        <div class="ph" style="margin-top:8px">Scene</div>
+        <div class="tree"><div>▸ Terrain_01</div><div>▸ Wall_N (×12)</div><div class="open">● Proximity 1</div><div>● Explosion 1</div><div>● Timer 1</div></div>
+        <div class="drop st st-files">
+          <b>Drop to import into Textures / metal</b>
+          <div class="files"><span>plate_01.png</span><span>rust.jpg</span><span>grate.png</span></div>
+          <span style="color:var(--muted)">Copied into the project; originals untouched</span>
+        </div>
+      </div>
+
+      <div class="vp">
+        <svg viewBox="0 0 540 412" preserveAspectRatio="xMidYMid slice" aria-label="Viewport sketch">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--trig)"/></marker>
+          </defs>
+          <!-- ground grid -->
+          <g stroke="var(--vpgrid)" stroke-width="1" fill="none">
+            <path d="M270 110L-200 412M270 110L-40 412M270 110L110 412M270 110L270 412M270 110L430 412M270 110L580 412M270 110L740 412"/>
+            <path d="M0 130H540M0 160H540M0 205H540M0 270H540M0 360H540"/>
+          </g>
+          <!-- wall block -->
+          <g stroke="var(--wire)" stroke-width="1.5" fill="var(--panel)" fill-opacity="0.6">
+            <path d="M360 120L470 120L470 210L360 210Z"/><path d="M470 120L500 108L500 196L470 210Z"/><path d="M360 120L390 108L500 108L470 120Z"/>
+          </g>
+          <!-- ramp -->
+          <g stroke="var(--wire)" stroke-width="1.5" fill="var(--panel)" fill-opacity="0.6"><path d="M40 300L170 300L170 250Z"/><path d="M170 300L200 285L200 238L170 250Z"/></g>
+
+          <!-- proximity trigger (always) -->
+          <ellipse cx="200" cy="320" rx="95" ry="28" fill="var(--trig)" fill-opacity="0.12" stroke="var(--trig)" stroke-dasharray="5 4" stroke-width="1.5"/>
+          <rect x="192" y="292" width="16" height="28" rx="3" fill="var(--trig)"/>
+          <text x="214" y="300" font-size="10" fill="var(--fg)" font-family="Inter">Proximity · 6 m</text>
+          <!-- explosion / shake near wall -->
+          <circle cx="400" cy="214" r="9" fill="var(--act)"/><text x="413" y="230" font-size="10" fill="var(--fg)" font-family="Inter">Explosion + Shake</text>
+          <!-- timer floating -->
+          <rect x="300" y="250" width="34" height="18" rx="4" fill="var(--flow)"/><text x="317" y="263" font-size="10" fill="#fff" text-anchor="middle" font-family="JetBrains Mono">2 s</text>
+          <!-- spawner pad -->
+          <ellipse cx="455" cy="300" rx="40" ry="12" fill="var(--game)" fill-opacity="0.15" stroke="var(--game)" stroke-width="1.5"/><text x="455" y="303" font-size="10" fill="var(--fg)" text-anchor="middle" font-family="JetBrains Mono">Spawn ×50</text>
+
+          <!-- editor: gizmo on trigger -->
+          <g class="st st-editor">
+            <path d="M200 306L268 306" stroke="var(--x)" stroke-width="3"/><path d="M268 300L280 306L268 312Z" fill="var(--x)"/>
+            <path d="M200 306L200 238" stroke="var(--y)" stroke-width="3"/><path d="M194 238L200 226L206 238Z" fill="var(--y)"/>
+            <path d="M200 306L168 330" stroke="var(--z)" stroke-width="3"/><path d="M163 324L158 337L170 334Z" fill="var(--z)"/>
+            <ellipse cx="200" cy="306" rx="46" ry="14" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.8"/>
+            <rect x="282" y="314" width="122" height="20" rx="4" fill="var(--panel)" stroke="var(--x)"/><text x="343" y="328" font-size="10" text-anchor="middle" fill="var(--fg)" font-family="Inter">Move along X · +2.50 m</text>
+            <circle cx="300" cy="306" r="0"/>
+          </g>
+          <!-- builder: reticle + ghost part -->
+          <g class="st st-builder">
+            <path d="M270 196V204M266 200H274" stroke="var(--fg)" stroke-width="1.5"/>
+            <circle cx="270" cy="200" r="11" fill="none" stroke="var(--fg)" stroke-width="1"/>
+            <g stroke="var(--trig)" stroke-width="1.5" fill="none" stroke-dasharray="4 3">
+              <path d="M248 214L292 214L292 250L248 250Z"/><path d="M270 250L270 284"/>
+            </g>
+            <ellipse cx="270" cy="286" rx="26" ry="7" fill="var(--trig)" fill-opacity="0.25"/>
+            <rect x="300" y="226" width="150" height="20" rx="4" fill="var(--panel)" stroke="var(--trig)"/><text x="375" y="240" font-size="10" text-anchor="middle" fill="var(--fg)" font-family="Inter">Click: drop on surface below</text>
+          </g>
+          <!-- wiring: noodles -->
+          <g class="st st-wiring" fill="none" stroke="var(--trig)" stroke-width="2.5" marker-end="url(#ah)">
+            <path class="pulse" d="M208 296C250 240 280 250 298 258"/>
+            <path d="M334 258C360 250 380 236 393 222"/>
+            <path d="M408 216C440 240 450 260 455 284"/>
+          </g>
+          <g class="st st-wiring">
+            <rect x="12" y="12" width="156" height="150" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+            <text x="22" y="30" font-size="10" font-weight="700" fill="var(--fg)" font-family="Archivo">Sequence 1</text>
+            <g font-size="9" fill="var(--fg)" font-family="Inter">
+              <text x="22" y="48">● Pause + focus camera</text>
+              <text x="22" y="62">● Explosion / shake</text>
+              <text x="22" y="76">◷ wait 2 s</text>
+              <text x="22" y="90">● Explosion / wall break</text>
+              <text x="22" y="104">◷ wait 1 s</text>
+              <text x="22" y="118">● Spawn 50 enemies</text>
+              <text x="22" y="132">● Computer dialog</text>
+              <text x="22" y="146">● Unpause + release camera</text>
+            </g>
+          </g>
+        </svg>
+        <span class="pill st st-editor" style="left:10px;top:10px">EDITOR MOVEMENT · <kbd>Caps Lock</kbd></span>
+        <span class="pill st st-builder" style="left:10px;top:10px;border-color:var(--accent)">BUILDER MOVEMENT · <kbd>Caps Lock</kbd></span>
+        <span class="pill st st-wiring" style="right:10px;top:10px">WIRES SHOWN · <kbd>W</kbd> flat graph</span>
+        <div class="speeds st st-builder" aria-label="Fly speed">
+          <span>⅛</span><span>¼</span><span>½</span><span>1</span><span>2</span><span class="on">5×</span><span>10</span><span>20</span><span>50</span><span>100</span><span>200</span><span>400</span>
+        </div>
+        <span class="pill st st-ew" style="left:10px;bottom:10px">Fly 5×</span>
+        <span class="hint st st-editor">Middle-drag orbit · Space+drag pan · Wheel zoom toward cursor</span>
+        <span class="hint st st-builder" style="top:44px;bottom:auto">WASD fly · Mouse 5 / 4 faster / slower · hold Alt for cursor</span>
+        <span class="hint st st-wiring">Drag from a port to a part to wire it</span>
+        <span class="hint st st-files">Files dragged from Explorer onto the window import into the folder under the cursor</span>
+      </div>
+
+      <div class="bottom">
+        <div>
+          <h4><span class="dot" style="background:var(--trig)"></span>Proximity 1</h4>
+          <div class="kv"><span>Radius</span><b>6.00 m</b><span>Who</span><b>Player</b><span>Fire</span><b>Once</b><span>Delay</span><b>0 s</b></div>
+        </div>
+        <div>
+          <h4>Wires</h4>
+          <div><span class="port" style="background:var(--trig)">On enter ▸</span><span class="port" style="background:var(--trig)">On exit ▸</span></div>
+          <div style="margin-top:4px"><span class="port" style="background:var(--act)">▸ Enable</span><span class="port" style="background:var(--act)">▸ Disable</span><span class="port" style="background:var(--act)">▸ Reset</span></div>
+          <div style="color:var(--muted);margin-top:4px">On enter → Sequence 1</div>
+        </div>
+        <div>
+          <h4>Transform</h4>
+          <div class="kv"><span>Position</span><b>12.0  0.0  -4.5</b><span>Rotation</span><b>0°</b><span>On surface</span><b>yes</b></div>
+        </div>
+        <div>
+          <h4>Display</h4>
+          <div class="kv"><span>Unique</span><span class="toggle"></span><span>Show in test</span><span class="toggle"></span><span>Editor color</span><b>orange</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap"><kbd>Tab</kbd> opens the parts pop-up in the middle of the screen: a grid of squares under colour-coded section bars, with search. <kbd>Caps Lock</kbd> switches movement modes. Right: assets (folder view) above the scene list; it accepts files dropped from Explorer and collapses to a thin strip. Bottom: properties of the selection. In Builder movement the panels fade back and the reticle becomes the cursor; holding <kbd>Alt</kbd> frees the mouse so you can reach them.</p>
+
+  <h2>One timeline, everywhere</h2>
+  <p class="lede">Many parts of the editor are really "things happening over time", so they all get the same timeline widget. Learn it once in the Sequence part and it works the same in animatics, light effects, weather, spawn waves and menu transitions.</p>
+  <div class="scroller" style="margin-top:16px">
+    <svg viewBox="0 0 960 336" style="display:block;min-width:860px;width:100%;height:auto" aria-label="Timeline wireframe">
+      <g font-family="Inter" font-size="11" fill="var(--fg)">
+        <!-- header -->
+        <rect x="0" y="0" width="960" height="36" fill="var(--panel)"/>
+        <path d="M0 36H960" stroke="var(--line)"/>
+        <g font-family="JetBrains Mono" font-size="12"><text x="14" y="23">⏮  ▶  ⟲</text></g>
+        <text x="92" y="23" font-family="JetBrains Mono" font-weight="600">00:03.40 / 00:12.00</text>
+        <text x="250" y="23" font-family="Archivo" font-weight="700" font-size="12">Ambush</text>
+        <text x="306" y="23" fill="var(--muted)">Sequence part · started by Proximity 1</text>
+        <text x="640" y="23" fill="var(--muted)">Snap 0.1 s</text>
+        <text x="720" y="23" fill="var(--muted)">Zoom</text>
+        <path d="M758 19H860" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><circle cx="800" cy="19" r="5" fill="var(--accent)"/>
+        <text x="876" y="23" fill="var(--muted)">◇ Paths</text>
+        <!-- ruler -->
+        <g fill="var(--muted)" font-family="JetBrains Mono" font-size="10">
+          <text x="174" y="50">0s</text><text x="302" y="50">2</text><text x="430" y="50">4</text><text x="558" y="50">6</text><text x="686" y="50">8</text><text x="814" y="50">10</text><text x="934" y="50">12</text>
+        </g>
+        <g stroke="var(--line)"><path d="M170 56H960M170 36V318M298 52V318M426 52V318M554 52V318M682 52V318M810 52V318M938 52V318"/></g>
+        <!-- track headers -->
+        <g font-size="11">
+          <rect x="0" y="56" width="4" height="34" fill="var(--act)"/><text x="14" y="77">Camera</text>
+          <rect x="0" y="90" width="4" height="34" fill="var(--act)"/><text x="14" y="111">Explosions</text>
+          <rect x="0" y="124" width="4" height="34" fill="var(--act)"/><text x="14" y="145">Shake  ▾ curve</text>
+          <rect x="0" y="158" width="4" height="34" fill="var(--wire)"/><text x="14" y="179">Wall_N</text>
+          <rect x="0" y="192" width="4" height="34" fill="var(--game)"/><text x="14" y="213">Spawner</text>
+          <rect x="0" y="226" width="4" height="34" fill="var(--act)"/><text x="14" y="247">Dialog</text>
+          <rect x="0" y="260" width="4" height="34" fill="var(--act)"/><text x="14" y="281">Sound</text>
+          <rect x="0" y="294" width="4" height="24" fill="var(--trig)"/><text x="14" y="310">Markers → wires</text>
+          <text x="14" y="332" fill="var(--muted)">+ Add track</text>
+        </g>
+        <g stroke="var(--line)"><path d="M0 90H960M0 124H960M0 158H960M0 192H960M0 226H960M0 260H960M0 294H960M0 318H960"/></g>
+        <!-- clips: x = 170 + t*64 -->
+        <g fill-opacity="0.85">
+          <path d="M170 84L170 62L330 62L330 84Z" fill="var(--act)"/><path d="M170 84L234 62L170 62Z" fill="var(--panel)" fill-opacity="0.35"/>
+          <rect x="842" y="62" width="96" height="22" rx="3" fill="var(--act)"/>
+          <rect x="202" y="96" width="44" height="22" rx="3" fill="var(--act)"/>
+          <rect x="330" y="96" width="70" height="22" rx="3" fill="var(--act)"/>
+          <rect x="202" y="130" width="148" height="22" rx="3" fill="var(--act)" fill-opacity="0.25" stroke="var(--act)"/>
+          <rect x="394" y="198" width="160" height="22" rx="3" fill="var(--game)"/>
+          <rect x="586" y="232" width="224" height="22" rx="3" fill="var(--act)"/>
+          <rect x="234" y="266" width="576" height="22" rx="3" fill="var(--flow)"/>
+        </g>
+        <path d="M204 150C214 132 222 134 232 142S250 136 262 146 290 140 310 148 340 149 348 150" fill="none" stroke="var(--act)" stroke-width="2"/>
+        <g fill="var(--act)"><path d="M204 150l-4-4 4-4 4 4z"/><path d="M232 142l-4-4 4-4 4 4z"/><path d="M348 150l-4-4 4-4 4 4z"/></g>
+        <path d="M330 175l-6-7 6-7 6 7z" fill="var(--wire)"/>
+        <g fill="#fff" font-size="10">
+          <text x="240" y="77">Focus on wall</text><text x="850" y="77">Release</text>
+          <text x="207" y="111">Boom</text><text x="335" y="111">Boom+break</text>
+          <text x="400" y="213">Spawn 50 (spread 2.5 s)</text>
+          <text x="592" y="247">Computer: "Hostiles inbound."</text>
+          <text x="240" y="281">Alarm loop</text>
+        </g>
+        <text x="342" y="179" font-size="10" fill="var(--muted)">break</text>
+        <g fill="var(--trig)" font-size="10"><path d="M330 300v14M330 300h10l-3 4 3 4h-10" stroke="var(--trig)" fill="var(--trig)"/><text x="344" y="312">walls_down</text>
+          <path d="M554 300v14M554 300h10l-3 4 3 4h-10" stroke="var(--trig)"/><text x="568" y="312">wave_spawned</text></g>
+        <!-- playhead -->
+        <path d="M387.6 36V318" stroke="var(--accent)" stroke-width="2"/><path d="M381 36h13l-6.5 9z" fill="var(--accent)"/>
+      </g>
+    </svg>
+  </div>
+  <p class="cap">Your ambush chain as a timeline. Clips are things that last (the camera focus, a dialog line), keys are values at a moment (diamonds, with the curve opened under Shake), and markers are moments that fire wires out to other parts.</p>
+
+  <div class="grid">
+    <div class="card">
+      <span class="tag">Same everywhere</span><h3>One anatomy, one set of controls</h3>
+      <ul>
+        <li><b>Tracks</b> (one per thing being animated), <b>clips</b> (things that last; drag the edges to trim, Alt-drag to copy), <b>keys</b> (values at a moment, with an optional curve lane), and <b>markers</b> (moments that fire wires).</li>
+        <li>With the cursor over the timeline, the viewport keys carry over: wheel zooms toward the cursor, middle-drag pans, Space plays and pauses.</li>
+        <li>Scrubbing previews the level live in the viewport.</li>
+        <li>It docks in the bottom panel, which grows taller while it's open. The selected clip's settings show at its right.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="tag">Plugs into wiring</span><h3>A timeline is a part</h3>
+      <ul>
+        <li>Inputs: Play, Stop, Pause, Jump to. Outputs: Started, Finished, plus one per marker. So a timeline wires into noodles like anything else.</li>
+        <li>A clip can be another timeline, such as an animatic inside a sequence. Double-click to dive in; a breadcrumb takes you back out. That's your "stages that nest" idea, applied to time.</li>
+        <li>The ruler can count metres instead of seconds, for camera rails and moving platforms: the same widget, measuring distance along the path.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="tag">Reused in</span><h3>Every "over time" feature</h3>
+      <ul>
+        <li>Sequence part (its list view is the timeline read top to bottom)</li>
+        <li>Animatics (camera cuts, character recordings, subtitles)</li>
+        <li>Light FX (flicker, pulse, colour shifts) and weather changes</li>
+        <li>Particle effects (bursts, size and colour over a particle's life)</li>
+        <li>Spawn waves, camera rails, moving platforms</li>
+        <li>Dialog, music and ambience cues</li>
+        <li>Menu transitions and HUD warnings</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Animating on the stage</h2>
+  <p class="lede">The timeline stays in the bottom panel; it's too fiddly to use as an object in the world. What moves into 3D is a toggle overlay for animating: the paths things travel, widgets on each key, and curve handles to shape the path. It's off unless you're animating, so the stage stays clean.</p>
+  <div class="scroller" style="margin-top:16px">
+    <svg viewBox="0 0 900 330" style="display:block;min-width:760px;width:100%;height:auto;background:var(--vp)" aria-label="Animation overlay sketch">
+      <g stroke="var(--vpgrid)" fill="none"><path d="M450 90L-300 330M450 90L60 330M450 90L450 330M450 90L840 330M450 90L1200 330M0 110H900M0 145H900M0 200H900M0 290H900"/></g>
+      <!-- path -->
+      <path d="M90 280C170 300 250 250 330 200S520 120 640 140" fill="none" stroke="var(--act)" stroke-width="3"/>
+      <path d="M640 140C700 150 760 130 820 100" fill="none" stroke="var(--act)" stroke-width="2" stroke-dasharray="6 5"/>
+      <!-- speed ticks: close = slow, far apart = fast -->
+      <g stroke="var(--act)" stroke-width="2">
+        <path d="M118 279v10M140 280v10M168 280v10M202 275v10M244 261v10M290 234v10M372 182v10M420 162v10M468 146v10M512 136v10M552 132v10M584 132v10M610 134v10"/>
+      </g>
+      <!-- keys -->
+      <g fill="var(--panel)" stroke="var(--act)" stroke-width="2.5">
+        <path d="M90 272l8 8-8 8-8-8z"/><path d="M640 132l8 8-8 8-8-8z"/>
+      </g>
+      <!-- selected key with tangent handles + move widget -->
+      <g>
+        <path d="M262 245L398 155" stroke="var(--logic)" stroke-width="1.5"/>
+        <rect x="256" y="239" width="12" height="12" fill="var(--logic)"/><rect x="392" y="149" width="12" height="12" fill="var(--logic)"/>
+        <path d="M330 200L392 200" stroke="var(--x)" stroke-width="3"/><path d="M392 194L404 200L392 206Z" fill="var(--x)"/>
+        <path d="M330 200L330 146" stroke="var(--y)" stroke-width="3"/><path d="M324 146L330 134L336 146Z" fill="var(--y)"/>
+        <path d="M330 200L304 222" stroke="var(--z)" stroke-width="3"/><path d="M298 217L295 229L306 226Z" fill="var(--z)"/>
+        <path d="M330 190l10 10-10 10-10-10z" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>
+      </g>
+      <!-- playhead + camera on the path -->
+      <circle cx="468" cy="146" r="8" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>
+      <g stroke="var(--fg)" stroke-width="1.2" fill="none"><path d="M468 146L540 196L540 236M468 146L540 236M468 146L500 250M540 196L500 250L540 236"/></g>
+      <!-- pen extending the path -->
+      <g stroke="var(--fg)" stroke-width="1.5" fill="none"><path d="M820 100l14-14 6 6-14 14z"/><path d="M820 100l-4 10 10-4"/></g>
+      <g font-family="Inter" font-size="11" fill="var(--fg)">
+        <text x="168" y="240">tangent handles</text>
+        <text x="352" y="222">selected key · drag to move</text>
+        <text x="476" y="126">playhead 3.4 s, synced with the timeline</text>
+        <text x="96" y="312">ticks every 0.25 s: bunched = slow, spread out = fast</text>
+        <text x="700" y="80">click to add points</text>
+      </g>
+      <g font-family="JetBrains Mono" font-size="11"><rect x="14" y="14" width="196" height="24" rx="12" fill="var(--panel)" stroke="var(--accent)"/><text x="28" y="30" fill="var(--fg)">PATHS OVERLAY ON · P</text></g>
+    </svg>
+  </div>
+  <p class="cap">A camera path being animated. The keys, handles and playhead in the world are the same ones on the timeline below: select a key in either place and it's selected in both.</p>
+
+  <div class="grid">
+    <div class="card">
+      <span class="tag">Drawing paths</span><h3>Click points, or fly it</h3>
+      <ul>
+        <li>With the overlay on, click points on surfaces or in the air to lay down a path; each point becomes a key.</li>
+        <li>Or fly the path in Builder movement while recording, and the editor smooths what you flew into a few keys.</li>
+        <li>Paths can close into loops, for patrols and moving platforms.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="tag">Shaping</span><h3>Keys and curve handles</h3>
+      <ul>
+        <li>Each key has a move widget. Its two tangent handles (violet) bend the path in and out of the key; <kbd>Alt</kbd>-drag breaks them for a sharp corner.</li>
+        <li>Tick marks along the path show timing: drag ticks apart to speed that stretch up, or bunch them to slow it down. The timeline's ease curve updates to match.</li>
+        <li>Rotation keys (where a camera looks) show as a small arrow on the key you can aim.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="tag">Stays in panels</span><h3>Everything else</h3>
+      <ul>
+        <li>The timeline, properties and the File menu stay 2D in the bottom panel and top bar.</li>
+        <li>The Parts pop-up and Assets panel stay 2D.</li>
+        <li>The overlay shows only the selected thing's paths, plus faint paths for anything else on the same timeline.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Look and feel</h2>
+  <p class="lede">The editor's panels use the Motion kit: dark glass surfaces, a yellow accent, quick springs that overshoot a little, content that sharpens in from a blur, uneven corner radii, and keycaps for every shortcut. The kit is React, and Beverly's panels are Rust, so the components get ported with the same springs, timings, sizes and colours. This page stays a light sketch; the real editor is dark.</p>
+  <p class="lede"><b>Rule for all of Beverly's development:</b> use a kit component wherever one fits, and build any new UI in the kit's style, with its springs, blur-in, colours, radii and keycaps.</p>
+  <div class="grid">
+    <div class="card"><span class="tag">Kit component → editor feature</span><ul>
+      <li><b>Command palette</b> → the Parts pop-up on <kbd>Tab</kbd> (search, ↑ ↓ Enter, Esc)</li>
+      <li><b>Dynamic island</b> → the status pill: fly speed, movement mode, "Saved", "Test started"</li>
+      <li><b>Mode dial</b> → the 12 fly speeds, turning as you press Mouse 4 / 5</li>
+      <li><b>Segmented control</b> → Level / Screens / Animatics</li>
+      <li><b>Context menu</b> → right-click on parts, assets and keys</li>
+    </ul></div>
+    <div class="card"><span class="tag">Kit component → editor feature</span><ul>
+      <li><b>Tooltip</b> and <b>Tooltip toolbar</b> → the top bar and widget hover labels</li>
+      <li><b>Transport</b>, <b>Timecode</b>, <b>Timeline ruler</b> → the shared timeline</li>
+      <li><b>Undo snackbar</b> → deleting parts and levels; <b>Hold button</b> → Quit without saving</li>
+      <li><b>Render progress</b> and <b>Status dot</b> → Export (local zip, GitHub build status)</li>
+      <li><b>Loading rings</b> → opening projects and levels; <b>Kbd</b> → every shortcut hint</li>
+    </ul></div>
+  </div>
+
+  <h2>Your list, filled in</h2>
+  <p class="lede">Cards with an orange edge started from what you wrote; the rest are proposals for the blanks.</p>
+
+  <div class="grid">
+    <div class="card you">
+      <span class="tag">Navigation</span><h3>Two movement modes, <kbd>Caps Lock</kbd> to switch</h3>
+      <div class="said">Editor: middle-click orbit around the reticle, Space hand-pan, wheel zoom with SketchUp-style proximity. Builder: first-person no-clip, WASD, instant start/stop, mouse buttons step speed ⅛× to 400×.</div>
+      <ul>
+        <li><kbd>Caps Lock</kbd> is only the mode switch in the editor. Text fields ignore its capitals state, and when you leave the editor window it switches Caps Lock back off so other apps aren't left typing in capitals.</li>
+        <li><kbd>Tab</kbd> opens the Parts pop-up in either mode. In Builder movement it frees the cursor while it's open; picking a part closes it and the part rides on the reticle, ready to drop.</li>
+        <li>No separate up / down keys: <kbd>W</kbd> flies where you're looking, so look up and press W to climb.</li>
+        <li>The mouse is captured in Builder, so hold <kbd>Alt</kbd> to get a cursor for the panels. Letting go puts you back in flight.</li>
+        <li><b>Mouse 5</b> steps faster and <b>Mouse 4</b> slower through the 12 speeds, with <kbd>]</kbd> and <kbd>[</kbd> doing the same as a backup. The speed strip appears for 2 seconds when it changes, and a small "Fly 5×" pill stays in the corner.</li>
+        <li>Proximity zoom: each wheel notch moves a fixed fraction of the distance to the surface under the cursor, so it slows down as you get close and never passes through.</li>
+        <li><kbd>F</kbd> frames the selection in both modes.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Feel</span><h3>Widgets that explain themselves</h3>
+      <div class="said">Minimal, colour-coded, hovering widgets around (or through) the selection. Complex operations in stages that nest around the widget, animated.</div>
+      <ul>
+        <li>Axes are always red X, green Y (up), blue Z. The operation shows in the shape: arrows move, rings rotate, cubes on the corners scale.</li>
+        <li>Hovering a handle shows a short label of what dragging will do ("Move along X"). While dragging, it shows the live value. Typing a number during a drag sets it exactly.</li>
+        <li>Staged operations grow outward. For example, Array: drag out the count ring, release, a second ring for spacing slides out around it, and Enter confirms. Esc backs out one stage.</li>
+        <li>Part colours match the palette categories everywhere: in the world, in wires, in the bottom panel.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Placement</span><h3>Bounding boxes and widgets</h3>
+      <div class="said">Parts drop onto the nearest surface below the mouse; a widget lifts them into the air.</div>
+      <ul>
+        <li>Each part has a default size. Volume-type parts (triggers, weather zones, kill boxes) show face handles for stretching. Point-type parts (sound, light, spawner) show a radius handle.</li>
+        <li>Dropping aligns the part to the surface it lands on. Hold <kbd>Shift</kbd> while dropping to keep it upright instead.</li>
+        <li><b>Shapes double as colliders.</b> Every basic shape has a Visible switch and a Collision setting (Solid, Walk-through, Trigger). Turn Visible off for a quick invisible wall: in the editor it shows as a hatched see-through outline, and in the game it isn't drawn.</li>
+        <li>Snapping is on by default (0.25 m, 15°) and shown in the top bar. Hold <kbd>Ctrl</kbd> to drag freely.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Textures</span><h3>Drag onto a selected shape</h3>
+      <div class="said">Select the shape, drag a texture onto it; handles scale it proportionally (Shift) or stretch it. Tile repeat, opacity, metalness, roughness.</div>
+      <ul>
+        <li>Drag image files from Explorer straight into the Textures panel (or anywhere in the window). They're copied into the folder you drop them on; the originals stay where they were. Models and sounds import the same way.</li>
+        <li>Dropping onto one face textures that face; dropping onto the box handle textures the whole shape.</li>
+        <li>Texture handles sit flat on the face, drawn in a different colour (violet) from the move widget so the two can't be confused.</li>
+        <li>A texture plus its settings saves as a reusable Material in the Assets folder, so changing it changes every surface that uses it.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Instancing</span><h3>A simple rule for what gets instanced</h3>
+      <div class="said">Non-script, non-character parts are instanced unless toggled Unique. Foliage gets its own system later.</div>
+      <ul>
+        <li><b>Rule:</b> anything that is only a mesh plus a material (shapes and imported models with no wires, no skeleton, no behaviour) is instanced. Script parts, characters, lights and cameras are always individual.</li>
+        <li>Instances can still differ in position, rotation, scale and a tint colour. Changing anything else asks "Change all 12, or make this one Unique?"</li>
+        <li>Unique copies the mesh and material so that copy can be edited alone.</li>
+        <li>Foliage later: a paint brush that scatters from a set of variants with random rotation, scale and tint, so repeats aren't obvious. It's always instanced and always LOD'd.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">LOD</span><h3>Automatic by default</h3>
+      <ul>
+        <li>On import, the editor makes 3 simpler versions of each model automatically. Swaps happen by how big the object is on screen, not by metres, so big things stay detailed further out.</li>
+        <li>When you select a model, faint coloured rings on the ground show where each swap happens. Drag a ring to move that swap point.</li>
+        <li>View menu → "Colour by LOD" tints the whole level so heavy spots stand out.</li>
+        <li>Swaps cross-fade instead of popping (Bevy's visibility ranges support this).</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Draw distance</span><h3>Tied to the haze</h3>
+      <ul>
+        <li>One level-wide far distance, plus size classes: small props vanish first, then medium, then large. Landmarks are always visible.</li>
+        <li>The haze end is linked to the far distance, so objects fade into haze instead of popping out at the edge.</li>
+        <li>Any part can be flagged "Always visible".</li>
+        <li>In Builder movement, a faint ground circle shows the current far distance around you.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Wiring</span><h3>Noodles in the world, sequences for chains</h3>
+      <ul>
+        <li>Outputs are events ("On enter", "Done") and inputs are actions ("Start", "Reset"). Drag from an output to any part and pick the input from a small pop-up.</li>
+        <li>Wires are drawn as arcs in the 3D world. <kbd>W</kbd> opens a flat node-graph view for when parts are far apart.</li>
+        <li>Your example chain is one straight line, so a <b>Sequence</b> part holds it as a list: steps and waits, reordered by dragging. That avoids eight separate noodles. Noodles are for branching and logic.</li>
+        <li><b>Variables</b> (flags and counters such as "has key" or "enemies left") are parts too. Save points store them.</li>
+        <li>In test mode, wires pulse when they fire, so you can see why something did or didn't happen.</li>
+        <li>Select several parts → "Make prefab" packs them into one part with only the chosen ports showing. For example, an ambush prefab you can reuse.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Lighting</span><h3>Real-time, with honest widgets</h3>
+      <ul>
+        <li>Each level has a Sun and Sky with a time-of-day slider, or "Interior", which turns them off and uses flat ambient light plus your own lights.</li>
+        <li>Light parts: point (radius sphere handle), spot (cone handles for angle and reach), and a glowing-surface material for screens and strips.</li>
+        <li>Reflection box parts for shiny areas. Their influence box is always drawn, so a stray reflection, like the mech's silver square, is easy to find.</li>
+        <li>A light budget meter in the corner warns when too many shadowed lights overlap.</li>
+        <li>No light baking at first. It can come later if interiors need it.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Cameras</span><h3>Camera parts plus the player's camera</h3>
+      <ul>
+        <li>The player's camera belongs to the character, for example Last Ascent's third-person rig. It's set up once per character, not per level.</li>
+        <li>Camera parts: Fixed, Rail (follows a path you draw), Orbit (circles a point) and Follow. Each shows its view frustum as a wire pyramid.</li>
+        <li>"Look through" flies the camera part like Builder movement, so you aim it by eye.</li>
+        <li>The "Camera focus" action blends to a camera part over N seconds, with an ease curve; "Release" blends back.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Weather and haze</span><h3>Level atmosphere plus zones</h3>
+      <ul>
+        <li>Level settings: sky, sun, haze colour and density, wind, and precipitation (rain, snow, ash, embers).</li>
+        <li>Zone parts are stretchable boxes that override those settings inside them, blending over a few metres at the edge. "Interior" is a preset zone: no sky, no weather, default lighting.</li>
+        <li>The "Set weather" action changes the level's atmosphere over time, so a storm can roll in on cue.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Game UI (HUD)</span><h3>A 2D layer over the game view</h3>
+      <ul>
+        <li><kbd>F4</kbd> swaps the editor panels for the game's HUD. In HUD-edit mode the HUD's own widgets become selectable.</li>
+        <li>Widgets: text, image, bar, crosshair, objective, dialog box, minimap. Each pins to one of 9 anchor points and stays inside the safe area.</li>
+        <li>Preview at 16:9, 21:9 and 4:3 from a toggle.</li>
+        <li>Bind by wire: drag from a bar to a value (fuel, health, a counter variable).</li>
+        <li>In-world panels, like the mech's fuel gauge, are the same widgets placed on a surface.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Menus</span><h3>Screens as a flow</h3>
+      <div class="mini">
+        <svg viewBox="0 0 360 92" aria-label="Screen flow sketch">
+          <g font-family="Inter" font-size="10" fill="var(--fg)" text-anchor="middle">
+            <rect x="4" y="30" width="62" height="30" rx="5" fill="var(--panel)" stroke="var(--line)"/><text x="35" y="49">Title</text>
+            <rect x="96" y="30" width="72" height="30" rx="5" fill="var(--panel)" stroke="var(--accent)"/><text x="132" y="49">Main menu</text>
+            <rect x="200" y="4" width="66" height="30" rx="5" fill="var(--panel)" stroke="var(--line)"/><text x="233" y="23">Settings</text>
+            <rect x="200" y="56" width="66" height="30" rx="5" fill="var(--panel)" stroke="var(--line)"/><text x="233" y="75">Loading</text>
+            <rect x="294" y="56" width="62" height="30" rx="5" fill="var(--panel)" stroke="var(--line)"/><text x="325" y="75">Level</text>
+          </g>
+          <g stroke="var(--wire)" stroke-width="1.5" fill="none"><path d="M66 45H96M168 40L200 22M168 50L200 70M266 71H294"/></g>
+        </svg>
+      </div>
+      <ul>
+        <li>The Screens mode shows every screen as a card in a flow chart. Double-click a card to edit it with the same widgets as the HUD, plus buttons, sliders, toggles and lists.</li>
+        <li>Buttons wire to actions: Go to screen, Start level, Continue, Quit, Change setting.</li>
+        <li>New projects start with a working Settings screen (graphics, audio, key rebinding), since every game needs one.</li>
+        <li>A screen's background can be a live 3D scene, a level seen through one of its camera parts.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Animatics</span><h3>A mode built on the shared timeline</h3>
+      <div class="said">Another mode. Macro recording of the main character. Views: 1st person, 3rd person, other cameras, an NPC's view.</div>
+      <div class="mini">
+        <svg viewBox="0 0 360 84" aria-label="Timeline sketch">
+          <g font-family="Inter" font-size="9" fill="var(--muted)"><text x="2" y="16">Camera</text><text x="2" y="36">Mech</text><text x="2" y="56">Sound</text><text x="2" y="76">Events</text></g>
+          <g stroke="var(--line)"><path d="M48 4V82M48 22H358M48 42H358M48 62H358"/></g>
+          <rect x="52" y="7" width="110" height="12" rx="3" fill="var(--act)" opacity="0.8"/><rect x="164" y="7" width="80" height="12" rx="3" fill="var(--logic)" opacity="0.8"/><rect x="246" y="7" width="108" height="12" rx="3" fill="var(--act)" opacity="0.8"/>
+          <rect x="52" y="27" width="230" height="12" rx="3" fill="var(--trig)" opacity="0.8"/>
+          <rect x="120" y="47" width="60" height="12" rx="3" fill="var(--flow)" opacity="0.8"/>
+          <circle cx="210" cy="73" r="4" fill="var(--game)"/><circle cx="300" cy="73" r="4" fill="var(--game)"/>
+          <path d="M190 2V84" stroke="var(--accent)" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <ul>
+        <li>One track per actor: cameras, characters, lights, sounds, subtitles and script events. Cutting between camera tracks gives you 1st person, 3rd person, other cameras or an NPC's eyes.</li>
+        <li>Recording: you play the character and the editor records the resulting movement and animation, not the key presses. Replaying recorded keys through physics drifts, so a recording could come out differently every time.</li>
+        <li>Recorded tracks become editable keyframes, so you can trim or retime them.</li>
+        <li>Played by the "Animatic" action. Letterboxing and "skippable" are per-animatic switches.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Testing</span><h3>Play from the reticle</h3>
+      <div class="said"><kbd>`</kbd> tests the game with the main character at the reticle point. <kbd>F4</kbd> swaps editor UI for game UI.</div>
+      <ul>
+        <li>The editor snapshots the level when you press <kbd>`</kbd>, and pressing it again returns you to the exact spot and view you left. Things destroyed or spawned during play come back as they were.</li>
+        <li>Values you tune during play (a light's colour, a timer's length) are offered with a "Keep these changes?" list on return.</li>
+        <li><kbd>Shift</kbd>+<kbd>`</kbd> starts from the level's Player start instead of the reticle, to test the real opening.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Things not on the list yet</h2>
+  <div class="grid">
+    <div class="card"><span class="tag">Basics</span><ul>
+      <li><b>File menu:</b> New / Open project, New level, Save, Save as, Load level, Import files, Export, Quit. Quitting with unsaved changes asks first.</li>
+      <li><b>Undo / redo</b> for everything, including wiring and texture moves.</li>
+      <li><b>Autosave</b> every few minutes, plus a project launcher with templates: Empty, First-person, Third-person.</li>
+      <li><b>Built-in characters:</b> a generic humanoid and a small cartoon character, rigged and animated, so any project can be tested from day one. Last Ascent swaps in its mech.</li>
+      <li><b>Scene list</b> (shown under Assets in the wireframe) for finding and hiding things.</li>
+    </ul></div>
+    <div class="card"><span class="tag">Gameplay</span><ul>
+      <li><b>Collision:</b> per part, Solid, Walk-through or Trigger. Basic shapes use their exact shape; imported models get a simplified hull. Hidden shapes are plain colliders.</li>
+      <li><b>Enemy paths:</b> a navigation area enemies can walk, built from the level with one button, plus patrol paths you draw.</li>
+      <li><b>Paths tool</b> for rails, patrols, camera paths and roads.</li>
+      <li><b>Input map:</b> actions such as Jump or Fire mapped to keys and gamepad, editable in Settings.</li>
+      <li><b>Save system:</b> what a save point stores (player, variables, which parts already fired).</li>
+    </ul></div>
+    <div class="card"><span class="tag">Sound and shipping</span><ul>
+      <li><b>Audio zones:</b> ambient loops, music regions and reverb boxes, blended like weather zones.</li>
+      <li><b>Export panel:</b> "Make Windows zip" locally, or "Build on GitHub". Both produce the same zip.</li>
+      <li><b>Performance meter:</b> frame time, draw calls, triangles and lights, coloured green, amber or red.</li>
+      <li><b>Several levels</b> per project, plus level exits wired to the next level.</li>
+    </ul></div>
+  </div>
+
+  <h2>Minimum to start</h2>
+  <p class="lede">Each step is usable by itself. The first one is enough to start blocking out a level.</p>
+  <div class="miles">
+    <div class="mile"><span class="v">v0.1</span><div><h3>Block out and walk it</h3><p>Project folders, both movement modes with speeds, basic shapes and glTF import, select / move / rotate / scale widgets with snapping, undo, the File menu (save, load, quit), the texture panel with file drop, sun and point/spot lights, haze, save and load, <kbd>`</kbd> test mode with the two built-in characters (generic humanoid, small cartoon) and Last Ascent's mech, and the Windows zip export (local and GitHub).</p></div></div>
+    <div class="mile"><span class="v">v0.2</span><div><h3>Script parts, wiring and the timeline</h3><p>The shared timeline widget arrives here, first used by the Sequence part. Triggers, timers, logic gates, variables, spawner, sound, explosion, screen shake, debris, dialog, camera focus and pause; wires in the world and the flat view; prefabs. Custom Rust parts appear in the palette.</p></div></div>
+    <div class="mile"><span class="v">v0.3</span><div><h3>HUD and menus</h3><p>The HUD editor with value binding, the Screens flow, the default Settings screen and the loading screen.</p></div></div>
+    <div class="mile"><span class="v">v0.4</span><div><h3>Animatics</h3><p>The same timeline with more track types: camera cuts, character recordings, subtitles.</p></div></div>
+    <div class="mile"><span class="v">v0.5</span><div><h3>Big levels</h3><p>LOD rings and auto-LOD, draw-distance classes, foliage painting, weather zones and the performance meter.</p></div></div>
+  </div>
+
+  <h2>Settled</h2>
+  <ul class="q">
+    <li><b>Name:</b> the editor is Beverly. The game is Last Ascent (codename Glide), and it's Beverly's first project. Beverly gets its own repository.</li>
+    <li><b>Fly speed:</b> Mouse 5 faster, Mouse 4 slower; <kbd>]</kbd> and <kbd>[</kbd> as backups.</li>
+    <li><b>Builder up / down:</b> none; you fly where you look.</li>
+    <li><b>Test characters:</b> the mech for Last Ascent; Beverly ships a generic humanoid and a small cartoon character for other games.</li>
+    <li><b>Overlay key:</b> <kbd>P</kbd> toggles the paths overlay.</li>
+  </ul>
+  <h2>Next</h2>
+  <p class="lede">Apply the UI style kit to the editor's panels, then start v0.1 in a new Beverly repository.</p>
+</div>
+
+<script>
+(function () {
+  var frame = document.getElementById("frame");
+  var btns = document.querySelectorAll(".tabs button");
+  var col = document.getElementById("col");
+  col.addEventListener("click", function () {
+    var shut = frame.classList.toggle("shut");
+    col.textContent = shut ? "⇤" : "⇥";
+    col.setAttribute("aria-expanded", shut ? "false" : "true");
+    col.setAttribute("aria-label", shut ? "Expand the Assets panel" : "Collapse the Assets panel");
+  });
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      frame.dataset.state = b.dataset.s;
+      btns.forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+    });
+  });
+})();
+</script>

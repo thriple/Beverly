@@ -1,0 +1,31 @@
+[package]
+name = "beverly"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"  # bevy 0.20.1 needs it
+description = "Beverly: a simple, no-code-first 3D game editor for Bevy"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+# pinned: Bevy's API breaks between releases; upgrade on purpose (bevy, bevy_egui and the toolchain together)
+bevy = { version = "=0.20.1", default-features = false, features = [
+    "default_app", "3d_bevy_render", "scene", "std", "bevy_winit", "webgl2", "free_camera",
+] }
+bevy_egui = { version = "=0.43.1", default-features = false, features = ["render", "manage_clipboard"] }
+serde = { version = "1", features = ["derive"] }
+ron = "0.12"
+rfd = "0.15"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "=0.20.1", default-features = false, features = ["multi_threaded", "x11", "wayland"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+
+[profile.dev]
+opt-level = 1
+strip = "debuginfo"   # debug binaries are ~1.7 GB otherwise
+
+[profile.dev.package."*"]
+opt-level = 3
