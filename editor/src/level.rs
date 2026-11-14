@@ -37,6 +37,21 @@ impl Shape {
             Shape::Plane => "▭",
         }
     }
+    /// One line for the parts pop-up.
+    pub fn description(self) -> String {
+        let [x, y, z] = self.default_size();
+        let what = match self {
+            Shape::Box => "a block for walls, floors and cover",
+            Shape::Ramp => "a slope rising toward +X",
+            Shape::Stairs => "six steps rising toward +X",
+            Shape::Arch => "a block with a round-topped opening",
+            Shape::Cylinder => "a round column",
+            Shape::Sphere => "a ball",
+            Shape::Plane => "a thin slab for floors and platforms",
+        };
+        format!("{what} · {x} × {y} × {z} m")
+    }
+
     /// Size in metres (x wide, y tall, z deep) when dropped.
     pub fn default_size(self) -> [f32; 3] {
         match self {

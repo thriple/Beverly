@@ -38,6 +38,8 @@ pub struct Editor {
     pub parts_query: String,
     /// The pop-up opened this frame (so the Tab that opened it doesn't also close it).
     pub parts_fresh: bool,
+    /// The keyboard highlight in the pop-up (an index into the matching shapes).
+    pub parts_cursor: usize,
     pub assets_open: bool,
     pub assets: Vec<(&'static str, Vec<String>)>,
     pub hovering_files: bool,
@@ -71,6 +73,7 @@ impl Editor {
             parts_open: false,
             parts_query: String::new(),
             parts_fresh: false,
+            parts_cursor: 0,
             assets_open: true,
             assets: vec![],
             hovering_files: false,

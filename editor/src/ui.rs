@@ -359,7 +359,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Parts", &["Tab"]), ("Fly", &["Caps Lock"])],
         Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Parts", &["Tab"]), ("Edit", &["Caps Lock"])],
     };
-    if ed.placing.is_none() {
+    if ed.placing.is_none() && !ed.parts_open {
         let id = Id::new("hint-bar");
         let w_est = 120.0 * hints.len() as f32;
         let at = pos2(r.center().x - w_est / 2.0, r.max.y - 44.0);
@@ -373,8 +373,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
                 });
             });
         });
-    } else {
-        let shape = ed.placing.unwrap();
+    } else if let Some(shape) = ed.placing {
         theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Placing {} · click a surface", shape.label()), ACCENT, &["Shift", "Esc"]);
     }
 
@@ -389,85 +388,182 @@ fn speed_text(i: usize) -> String {
     if s < 1.0 { format!("{}×", SPEED_LABELS[i]) } else { format!("{s}×") }
 }
 
+struct Item { glyph: &'static str, label: &'static str, shape: Option<Shape> }
+
+/// The parts pop-up (Tab): a search field over three columns of colour-coded sections, each a grid of squares.
+/// Pops in like the kit's palette (scale .92 → 1, rising 8 px, fading in; sections follow in a short stagger).
+/// Arrow keys move through the shapes, Enter picks, Tab or Esc closes.
 fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     let id = Id::new("parts-pop");
     let screen = ctx.viewport_rect();
+    let t = theme::spring_from(ctx, id, 0.0, 1.0, theme::SNAPPY);
+    let shown = t.clamp(0.0, 1.0);
+
     // scrim: click outside to close
     egui::Area::new(id.with("scrim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
         let r = ui.allocate_rect(screen, Sense::click());
-        ui.painter().rect_filled(screen, CornerRadius::ZERO, Color32::from_black_alpha(150));
+        ui.painter().rect_filled(screen, CornerRadius::ZERO, Color32::from_black_alpha((160.0 * shown) as u8));
         if r.clicked() { ed.parts_open = false; }
     });
-    // POP_IN: scale .92 → 1, y 8 → 0, fade in (SNAPPY)
-    let t = theme::spring_from(ctx, id, 0.0, 1.0, theme::SNAPPY);
+
+    let q = ed.parts_query.trim().to_lowercase();
+    let matches = |label: &str| q.is_empty() || label.to_lowercase().contains(&q);
+    let shapes: Vec<Item> = Shape::ALL.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
+    let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> = vec![("Shapes", theme::CAT_SHAPES, shapes, true)];
+    for sec in &SCRIPT_SECTIONS {
+        sections.push((sec.name, sec.color, sec.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| Item { glyph: g, label: l, shape: None }).collect(), sec.ready));
+    }
+
+    // keyboard: arrows move through the shapes (the parts that work in this version)
+    let n = sections[0].2.len();
+    let (left, right, up, down, enter, tab, esc) = ctx.input(|i| {
+        use egui::Key::*;
+        (i.key_pressed(ArrowLeft), i.key_pressed(ArrowRight), i.key_pressed(ArrowUp), i.key_pressed(ArrowDown), i.key_pressed(Enter), i.key_pressed(Tab), i.key_pressed(Escape))
+    });
+    let mut cursor = ed.parts_cursor.min(n.saturating_sub(1));
+    if n > 0 {
+        if right { cursor = (cursor + 1) % n; }
+        if left { cursor = (cursor + n - 1) % n; }
+        if down && cursor + 4 < n { cursor += 4; }
+        if up && cursor >= 4 { cursor -= 4; }
+    }
+
+    // POP_IN
     let scale = 0.92 + 0.08 * t;
-    let w = 660.0;
     let center = screen.center();
     let layer = egui::LayerId::new(egui::Order::Foreground, id);
-    ctx.set_transform_layer(layer, TSTransform::new((center.to_vec2()) * (1.0 - scale) + vec2(0.0, 8.0 * (1.0 - t)), scale));
+    ctx.set_transform_layer(layer, TSTransform::new(center.to_vec2() * (1.0 - scale) + vec2(0.0, 8.0 * (1.0 - t)), scale));
+
     let mut pick: Option<Shape> = None;
     let mut soon: Option<&str> = None;
-    let (tab, esc, enter) = ctx.input(|i| (i.key_pressed(egui::Key::Tab), i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter)));
+    let mut info: Option<(String, String, Color32)> = None;
+    let w = 720.0;
+    let gap = 16.0;
+    let col_w = (w - 2.0 * gap) / 3.0;
     egui::Area::new(id).order(egui::Order::Foreground).pivot(Align2::CENTER_CENTER).fixed_pos(center).show(ctx, |ui| {
-        ui.multiply_opacity(t.clamp(0.0, 1.0));
-        egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(R_CARD).inner_margin(egui::Margin::same(18)).shadow(ctx.global_style().visuals.window_shadow).show(ui, |ui| {
+        ui.multiply_opacity(shown);
+        let frame = egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, white(24))).corner_radius(R_CARD).inner_margin(egui::Margin::same(20)).shadow(ctx.global_style().visuals.window_shadow);
+        frame.show(ui, |ui| {
             ui.set_width(w);
+            // title row
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Parts").font(semi(16.0)));
-                ui.add_space(8.0);
-                let te = ui.add(egui::TextEdit::singleline(&mut ed.parts_query).hint_text("Type to search…").desired_width(360.0));
-                if !te.has_focus() && ed.parts_query.is_empty() { te.request_focus(); }
-                ui.add_space(8.0);
-                theme::kbd(ui, "Tab");
-                ui.label(egui::RichText::new("or").color(MUTED));
-                theme::kbd(ui, "Esc");
-                ui.label(egui::RichText::new("to close").color(MUTED));
+                ui.label(egui::RichText::new("Parts").font(semi(18.0)));
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("pick one, then click a surface").color(MUTED));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new("close").color(MUTED));
+                    theme::kbd(ui, "Esc");
+                    theme::kbd(ui, "Tab");
+                });
             });
             ui.add_space(10.0);
-            let q = ed.parts_query.to_lowercase();
-            let matches = |label: &str| q.is_empty() || label.to_lowercase().contains(&q);
-            let shapes: Vec<(&str, &str, Option<Shape>)> = Shape::ALL.iter().filter(|s| matches(s.label())).map(|s| (s.glyph(), s.label(), Some(*s))).collect();
-            if enter {
-                if let Some((_, _, Some(s))) = shapes.first() { pick = Some(*s); }
-            }
-            let col_w = (w - 24.0) / 3.0;
-            egui::Grid::new("sections").num_columns(3).spacing(vec2(12.0, 14.0)).show(ui, |ui| {
-                let mut n = 0;
-                let all: Vec<(&str, Color32, Vec<(&str, &str, Option<Shape>)>, bool)> = std::iter::once(("Shapes", theme::CAT_SHAPES, shapes.clone(), true))
-                    .chain(SCRIPT_SECTIONS.iter().map(|s| (s.name, s.color, s.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| (*g, *l, None)).collect(), s.ready)))
-                    .collect();
-                for (name, color, items, ready) in all {
-                    if items.is_empty() { continue; }
-                    ui.allocate_ui_with_layout(vec2(col_w, 10.0), egui::Layout::top_down(egui::Align::Min), |ui| {
-                        ui.set_width(col_w);
-                        // colour-coded section bar
-                        let (br, _) = ui.allocate_exact_size(vec2(col_w, 22.0), Sense::hover());
-                        ui.painter().rect_filled(br, CornerRadius { nw: 6, ne: 6, se: 6, sw: 2 }, color);
-                        ui.painter().text(br.left_center() + vec2(9.0, 0.0), Align2::LEFT_CENTER, name, semi(12.0), INK);
-                        if !ready { ui.painter().text(br.right_center() - vec2(9.0, 0.0), Align2::RIGHT_CENTER, "v0.2", mono(10.0), INK); }
-                        ui.add_space(4.0);
-                        let sq = (col_w - 3.0 * 6.0) / 4.0;
-                        let rows = items.chunks(4);
-                        for row in rows {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 6.0;
-                                for (glyph, label, shape) in row {
-                                    if part_square(ui, sq, glyph, label, color, ready) {
-                                        match shape {
-                                            Some(s) => pick = Some(*s),
-                                            None => soon = Some(label),
-                                        }
-                                    }
-                                }
-                            });
-                        }
+            // search field, kit style
+            let focused = ui.memory(|m| m.focused()).is_some();
+            egui::Frame::new()
+                .fill(white(10))
+                .stroke(Stroke::new(1.0, if focused { Color32::from_rgba_unmultiplied(0xf5, 0xdc, 0x4a, 150) } else { LINE }))
+                .corner_radius(CornerRadius { nw: 12, ne: 12, se: 12, sw: 4 })
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        // magnifier, drawn (no font has a good one)
+                        let (ir, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                        let c = ir.center() - vec2(1.5, 1.5);
+                        ui.painter().circle_stroke(c, 5.5, Stroke::new(1.6, MUTED));
+                        ui.painter().line_segment([c + vec2(4.0, 4.0), c + vec2(8.0, 8.0)], Stroke::new(1.8, MUTED));
+                        let te = ui.add(
+                            egui::TextEdit::singleline(&mut ed.parts_query)
+                                .hint_text("Search parts")
+                                .frame(egui::Frame::NONE)
+                                .font(body(15.0))
+                                .desired_width(ui.available_width()),
+                        );
+                        if !te.has_focus() { te.request_focus(); }
+                        if te.changed() { cursor = 0; }
                     });
-                    n += 1;
-                    if n % 3 == 0 { ui.end_row(); }
+                });
+            ui.add_space(16.0);
+
+            if sections.iter().all(|s| s.2.is_empty()) {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(30.0);
+                    ui.label(egui::RichText::new(format!("No parts match “{}”", ed.parts_query.trim())).font(semi(14.0)).color(MUTED));
+                    ui.add_space(30.0);
+                });
+            } else {
+                // three columns, each a stack of sections: no gaps where one section is taller than its neighbour
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = gap;
+                    for col in [[0usize, 3], [1, 4], [2, 5]] {
+                        ui.vertical(|ui| {
+                            ui.set_width(col_w);
+                            for &si in &col {
+                                let (name, color, items, ready) = &sections[si];
+                                if items.is_empty() { continue; }
+                                let a = ((t - si as f32 * 0.05) / 0.75).clamp(0.0, 1.0);
+                                ui.scope(|ui| {
+                                    ui.multiply_opacity(a);
+                                    section_bar(ui, col_w, name, *color, *ready, items.len());
+                                    ui.add_space(6.0);
+                                    let sq = ((col_w - 3.0 * 8.0) / 4.0).floor();
+                                    for (ri, row) in items.chunks(4).enumerate() {
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 8.0;
+                                            for (ci, it) in row.iter().enumerate() {
+                                                let k = ri * 4 + ci;
+                                                let selected = si == 0 && k == cursor;
+                                                let (clicked, hovered) = part_square(ui, sq, it.glyph, it.shape, it.label, *color, *ready, selected);
+                                                if hovered || (selected && info.is_none()) {
+                                                    let desc = match it.shape {
+                                                        Some(s) => s.description(),
+                                                        None => "Coming with script parts in v0.2".to_string(),
+                                                    };
+                                                    if hovered || info.is_none() { info = Some((it.label.to_string(), desc, *color)); }
+                                                }
+                                                if clicked {
+                                                    match it.shape {
+                                                        Some(s) => pick = Some(s),
+                                                        None => soon = Some(it.label),
+                                                    }
+                                                }
+                                            }
+                                        });
+                                        ui.add_space(2.0);
+                                    }
+                                });
+                                ui.add_space(14.0);
+                            }
+                        });
+                    }
+                });
+            }
+
+            // footer: what the highlighted part is, and the keys
+            let (r, _) = ui.allocate_exact_size(vec2(w, 1.0), Sense::hover());
+            ui.painter().rect_filled(r, CornerRadius::ZERO, LINE);
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if let Some((label, desc, color)) = &info {
+                    let (d, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+                    ui.painter().rect_filled(d, CornerRadius::same(2), *color);
+                    ui.label(egui::RichText::new(label).font(semi(13.0)));
+                    ui.label(egui::RichText::new(desc).color(MUTED));
                 }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(egui::RichText::new("place").color(MUTED));
+                    theme::kbd(ui, "Enter");
+                    ui.add_space(6.0);
+                    ui.label(egui::RichText::new("move").color(MUTED));
+                    for k in ["→", "↓", "↑", "←"] { theme::kbd(ui, k); }
+                });
             });
         });
     });
+
+    ed.parts_cursor = cursor;
+    if enter && pick.is_none() {
+        if let Some(Item { shape: Some(s), .. }) = sections[0].2.get(cursor) { pick = Some(*s); }
+    }
     if let Some(s) = pick {
         ed.placing = Some(s);
         ed.parts_open = false;
@@ -479,23 +575,52 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     ed.parts_fresh = false;
 }
 
-/// One square in the parts pop-up: glyph and name; the category colour lights the border on hover.
-fn part_square(ui: &mut Ui, size: f32, glyph: &str, label: &str, color: Color32, ready: bool) -> bool {
-    let (r, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
-    let hot = spring_hover(ui, resp.id, resp.hovered());
+/// A section's colour bar: name on the left, the count (or the version it arrives in) on the right.
+fn section_bar(ui: &mut Ui, w: f32, name: &str, color: Color32, ready: bool, count: usize) {
+    let (r, _) = ui.allocate_exact_size(vec2(w, 24.0), Sense::hover());
     let p = ui.painter();
-    let fill = theme::lerp_color(white(10), white(24), hot);
-    p.rect_filled(r, CornerRadius::same(10), fill);
-    let stroke = if resp.hovered() { color } else { LINE };
-    p.rect_stroke(r, CornerRadius::same(10), Stroke::new(if resp.hovered() { 1.5 } else { 1.0 }, stroke), StrokeKind::Inside);
-    let a = if ready { 255 } else { 120 };
-    let tc = Color32::from_rgba_unmultiplied(TEXT.r(), TEXT.g(), TEXT.b(), a);
-    p.text(r.center() - vec2(0.0, 8.0 + 2.0 * hot), Align2::CENTER_CENTER, glyph, body(20.0), tc);
-    p.text(r.center() + vec2(0.0, 16.0), Align2::CENTER_CENTER, label, body(10.5), if ready { white(200) } else { white(110) });
-    resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+    p.rect_filled(r, CornerRadius { nw: 8, ne: 8, se: 8, sw: 3 }, color);
+    p.text(r.left_center() + vec2(10.0, 0.0), Align2::LEFT_CENTER, name, semi(12.5), INK);
+    let tag = if ready { format!("{count}") } else { "v0.2".into() };
+    let g = p.layout_no_wrap(tag, mono(10.0), INK);
+    let chip = ERect::from_min_size(pos2(r.right() - g.size().x - 18.0, r.center().y - 8.0), vec2(g.size().x + 10.0, 16.0));
+    p.rect_filled(chip, CornerRadius::same(8), Color32::from_black_alpha(40));
+    p.galley(pos2(chip.left() + 5.0, chip.center().y - g.size().y / 2.0), g, INK);
 }
 
-fn spring_hover(ui: &Ui, id: Id, on: bool) -> f32 { theme::spring(ui.ctx(), id.with("hover"), if on { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.2) }
+/// One square: glyph and name. Hover lifts it and lights the border in the section colour; the keyboard
+/// highlight is the accent. Returns (clicked, hovered).
+fn part_square(ui: &mut Ui, size: f32, glyph: &str, shape: Option<Shape>, label: &str, color: Color32, ready: bool, selected: bool) -> (bool, bool) {
+    let (r, resp) = ui.allocate_exact_size(vec2(size, size + 6.0), Sense::click());
+    let hot = theme::spring(ui.ctx(), resp.id.with("hover"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY);
+    let sel = theme::spring(ui.ctx(), resp.id.with("sel"), if selected { 1.0 } else { 0.0 }, theme::SNAPPY);
+    let lift = 2.0 * hot.max(sel);
+    let r = r.translate(vec2(0.0, -lift));
+    let p = ui.painter();
+    let radius = CornerRadius { nw: 12, ne: 12, se: 12, sw: 4 };
+    p.rect_filled(r, radius, theme::lerp_color(white(9), white(22), hot.max(sel * 0.7).clamp(0.0, 1.0)));
+    let stroke = if resp.hovered() {
+        Stroke::new(1.5, color)
+    } else if selected {
+        Stroke::new(1.5, ACCENT)
+    } else {
+        Stroke::new(1.0, white(22))
+    };
+    p.rect_stroke(r, radius, stroke, StrokeKind::Inside);
+    let a = if ready { 1.0 } else { 0.42 };
+    let ic = r.center() - vec2(0.0, 9.0);
+    match shape {
+        Some(s) => shape_icon(p, ic, 11.0 + hot, s, TEXT.gamma_multiply(a)),
+        None => {
+            p.text(ic, Align2::CENTER_CENTER, glyph, body(20.0 + 2.0 * hot), TEXT.gamma_multiply(a));
+        }
+    }
+    p.text(pos2(r.center().x, r.bottom() - 13.0), Align2::CENTER_CENTER, label, body(10.5), white(200).gamma_multiply(a));
+    let clicked = resp.clicked();
+    let hovered = resp.hovered();
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    (clicked, hovered)
+}
 
 fn unsaved_modal(ctx: &egui::Context, ed: &mut Editor, what: Pending, exit: &mut MessageWriter<AppExit>) {
     let verb = match what {
@@ -530,5 +655,101 @@ fn unsaved_modal(ctx: &egui::Context, ed: &mut Editor, what: Pending, exit: &mut
         }
         Some(_) => ed.pending = None,
         None => {}
+    }
+}
+
+/// The basic shapes as small line drawings (one stroke weight, all the same size), in a box of half-size `h`.
+pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: Color32) {
+    let st = Stroke::new(1.6, col);
+    // a simple oblique projection: x right, y up, z back-and-up
+    let pt = |x: f32, y: f32, z: f32| pos2(c.x + (x * 0.8 + z * 0.45) * h, c.y - (y * 0.8 + z * 0.3) * h);
+    // edges as separate segments with round dots at the corners (closed lines get mitre spikes at sharp corners)
+    let poly = |pts: &[egui::Pos2]| {
+        for i in 0..pts.len() {
+            p.line_segment([pts[i], pts[(i + 1) % pts.len()]], st);
+            p.circle_filled(pts[i], st.width / 2.0, col);
+        }
+    };
+    let line = |a: egui::Pos2, b: egui::Pos2| p.line_segment([a, b], st);
+    match shape {
+        Shape::Box => {
+            poly(&[pt(-1., -1., -1.), pt(1., -1., -1.), pt(1., 1., -1.), pt(-1., 1., -1.)]);
+            poly(&[pt(-1., 1., -1.), pt(-1., 1., 1.), pt(1., 1., 1.), pt(1., 1., -1.)]);
+            poly(&[pt(1., -1., -1.), pt(1., -1., 1.), pt(1., 1., 1.), pt(1., 1., -1.)]);
+        }
+        Shape::Plane => {
+            poly(&[pt(-1., -0.15, -1.), pt(1., -0.15, -1.), pt(1., 0.15, -1.), pt(-1., 0.15, -1.)]);
+            poly(&[pt(-1., 0.15, -1.), pt(-1., 0.15, 1.), pt(1., 0.15, 1.), pt(1., 0.15, -1.)]);
+            poly(&[pt(1., -0.15, -1.), pt(1., -0.15, 1.), pt(1., 0.15, 1.), pt(1., 0.15, -1.)]);
+        }
+        Shape::Ramp => {
+            poly(&[pt(-1., -1., -1.), pt(1., -1., -1.), pt(1., 1., -1.)]);
+            poly(&[pt(-1., -1., -1.), pt(-1., -1., 1.), pt(1., 1., 1.), pt(1., 1., -1.)]);
+            poly(&[pt(1., -1., -1.), pt(1., -1., 1.), pt(1., 1., 1.), pt(1., 1., -1.)]);
+        }
+        Shape::Stairs => {
+            let n = 3;
+            let mut prof = vec![pt(-1., -1., -1.), pt(1., -1., -1.), pt(1., 1., -1.)];
+            for k in (0..n).rev() {
+                let x = -1.0 + 2.0 * k as f32 / n as f32;
+                let top = -1.0 + 2.0 * (k + 1) as f32 / n as f32;
+                prof.push(pt(x, top, -1.));
+                if k > 0 { prof.push(pt(x, top - 2.0 / n as f32, -1.)); }
+            }
+            poly(&prof);
+            for k in 0..n {
+                let x = -1.0 + 2.0 * k as f32 / n as f32;
+                let top = -1.0 + 2.0 * (k + 1) as f32 / n as f32;
+                line(pt(x, top, -1.), pt(x, top, 1.));
+                line(pt(x, top, 1.), pt(x + 2.0 / n as f32, top, 1.));
+            }
+            line(pt(1., 1., -1.), pt(1., 1., 1.));
+            line(pt(1., -1., -1.), pt(1., -1., 1.));
+            line(pt(1., -1., 1.), pt(1., 1., 1.));
+        }
+        Shape::Arch => {
+            let mut v = vec![pt(-1., -1., 0.), pt(-0.45, -1., 0.), pt(-0.45, -0.1, 0.)];
+            for i in 1..12 {
+                let a = std::f32::consts::PI * (1.0 - i as f32 / 12.0);
+                v.push(pt(a.cos() * 0.45, -0.1 + a.sin() * 0.45, 0.));
+            }
+            v.extend([pt(0.45, -0.1, 0.), pt(0.45, -1., 0.), pt(1., -1., 0.), pt(1., 1., 0.), pt(-1., 1., 0.)]);
+            poly(&v);
+            line(pt(-1., 1., 0.), pt(-1., 1., 0.9));
+            line(pt(1., 1., 0.), pt(1., 1., 0.9));
+            line(pt(-1., 1., 0.9), pt(1., 1., 0.9));
+            line(pt(1., -1., 0.), pt(1., -1., 0.9));
+            line(pt(1., -1., 0.9), pt(1., 1., 0.9));
+        }
+        Shape::Cylinder => {
+            let rx = 0.75 * h;
+            let ry = 0.28 * h;
+            let (t, b) = (c.y - 0.75 * h, c.y + 0.75 * h);
+            let ell = |cy: f32, full: bool| {
+                let n = 28;
+                let pts: Vec<egui::Pos2> = (0..=n)
+                    .map(|i| {
+                        let a = if full { std::f32::consts::TAU } else { std::f32::consts::PI } * i as f32 / n as f32;
+                        pos2(c.x + rx * a.cos(), cy + ry * a.sin())
+                    })
+                    .collect();
+                p.add(egui::Shape::line(pts, st));
+            };
+            ell(t, true);
+            ell(b, false);
+            line(pos2(c.x - rx, t), pos2(c.x - rx, b));
+            line(pos2(c.x + rx, t), pos2(c.x + rx, b));
+        }
+        Shape::Sphere => {
+            p.circle_stroke(c, 0.85 * h, st);
+            let n = 28;
+            let pts: Vec<egui::Pos2> = (0..=n)
+                .map(|i| {
+                    let a = std::f32::consts::PI * i as f32 / n as f32;
+                    pos2(c.x + 0.85 * h * a.cos(), c.y + 0.28 * h * a.sin())
+                })
+                .collect();
+            p.add(egui::Shape::line(pts, st));
+        }
     }
 }
