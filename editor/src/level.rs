@@ -11,7 +11,19 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum Shape { Box, Ramp, Stairs, Arch, Cylinder, Sphere, Plane }
+pub enum Shape {
+    Box,
+    Ramp,
+    Stairs,
+    Arch,
+    Cylinder,
+    Sphere,
+    Plane,
+    /// An imported glTF model (`Part::model` is its path in the project); `size` is its scale.
+    Model,
+    /// Where the player character starts. Shown in the editor only.
+    PlayerStart,
+}
 
 impl Shape {
     pub const ALL: [Shape; 7] = [Shape::Box, Shape::Ramp, Shape::Stairs, Shape::Arch, Shape::Cylinder, Shape::Sphere, Shape::Plane];
@@ -24,6 +36,8 @@ impl Shape {
             Shape::Cylinder => "Cylinder",
             Shape::Sphere => "Sphere",
             Shape::Plane => "Plane",
+            Shape::Model => "Model",
+            Shape::PlayerStart => "Player start",
         }
     }
     pub fn glyph(self) -> &'static str {
@@ -35,6 +49,8 @@ impl Shape {
             Shape::Cylinder => "◯",
             Shape::Sphere => "●",
             Shape::Plane => "▭",
+            Shape::Model => "◆",
+            Shape::PlayerStart => "☺",
         }
     }
     /// One line for the parts pop-up.
@@ -48,6 +64,8 @@ impl Shape {
             Shape::Cylinder => "a round column",
             Shape::Sphere => "a ball",
             Shape::Plane => "a thin slab for floors and platforms",
+            Shape::Model => return "an imported glTF model".into(),
+            Shape::PlayerStart => return "where the player character starts (Shift+` tests from here)".into(),
         };
         format!("{what} · {x} × {y} × {z} m")
     }
@@ -62,6 +80,8 @@ impl Shape {
             Shape::Cylinder => [1.5, 3.0, 1.5],
             Shape::Sphere => [2.0, 2.0, 2.0],
             Shape::Plane => [4.0, 0.1, 4.0],
+            Shape::Model => [1.0, 1.0, 1.0],
+            Shape::PlayerStart => [0.8, 1.8, 0.8],
         }
     }
 }
@@ -94,6 +114,9 @@ pub struct Part {
     pub color: [f32; 3],
     pub visible: bool,
     pub collision: Collision,
+    /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -199,4 +222,53 @@ pub fn list_assets(dir: &Path, folder: &str) -> Vec<String> {
         .unwrap_or_default();
     v.sort();
     v
+}
+
+/// Write a playable Windows game: `<name>/<name>.exe` (a copy of the game player) and the project's files beside
+/// it, zipped. Returns how many files went in.
+pub fn export_zip(dir: &Path, name: &str, player: &Path, out: &Path) -> std::io::Result<usize> {
+    use std::io::Write;
+    let mut z = zip::ZipWriter::new(std::fs::File::create(out)?);
+    let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let ext = if cfg!(windows) { ".exe" } else { "" };
+    z.start_file(format!("{name}/{name}{ext}"), opt.unix_permissions(0o755)).map_err(std::io::Error::other)?;
+    z.write_all(&std::fs::read(player)?)?;
+    let mut n = 1;
+    let mut stack = vec![dir.join("project.ron"), dir.join("levels"), dir.join("assets")];
+    while let Some(p) = stack.pop() {
+        if p.is_dir() {
+            for e in std::fs::read_dir(&p)?.flatten() { stack.push(e.path()); }
+        } else if p.is_file() {
+            let rel = p.strip_prefix(dir).unwrap_or(&p).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
+            z.start_file(format!("{name}/{rel}"), opt).map_err(std::io::Error::other)?;
+            z.write_all(&std::fs::read(&p)?)?;
+            n += 1;
+        }
+    }
+    z.finish().map_err(std::io::Error::other)?;
+    Ok(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn exports_a_zip_with_the_player_and_the_project() {
+        let base = std::env::temp_dir().join(format!("beverly-export-{}", std::process::id()));
+        let dir = base.join("proj");
+        let lvl = Level { name: "main".into(), ..Default::default() };
+        save(&dir, "My Game", &lvl).unwrap();
+        std::fs::write(dir.join("assets/textures/a.png"), b"png").unwrap();
+        let player = base.join("player.bin");
+        std::fs::write(&player, b"exe").unwrap();
+        let out = base.join("out.zip");
+        let n = export_zip(&dir, "My Game", &player, &out).unwrap();
+        assert_eq!(n, 4); // player, project.ron, levels/main.ron, the texture
+        let mut z = zip::ZipArchive::new(std::fs::File::open(&out).unwrap()).unwrap();
+        let ext = if cfg!(windows) { ".exe" } else { "" };
+        assert!(z.by_name(&format!("My Game/My Game{ext}")).is_ok());
+        assert!(z.by_name("My Game/levels/main.ron").is_ok());
+        assert!(z.by_name("My Game/assets/textures/a.png").is_ok());
+        let _ = std::fs::remove_dir_all(&base);
+    }
 }

@@ -8,6 +8,7 @@ Pop-Location
 Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force dist/Beverly | Out-Null
 Copy-Item editor/target/release/beverly.exe dist/Beverly/Beverly.exe
+Copy-Item editor/target/release/beverly-player.exe dist/Beverly/beverly-player.exe
 Copy-Item editor/README-windows.txt dist/Beverly/README.txt
 Compress-Archive -Force -Path dist/Beverly -DestinationPath Beverly-windows.zip
 Write-Host "Made Beverly-windows.zip"

@@ -1,45 +1,37 @@
 //! Editing the level in the 3D view: picking, placing shapes on surfaces, the move / rotate widget, keyboard
 //! shortcuts, dropped files, undo, and keeping the 3D entities in step with the level.
-use crate::level::{self, Collision, Level, Part};
+use crate::level::{self, Collision, Level, Part, Shape};
+use crate::models::{ModelLib, ProjectRoot};
+use crate::play::{CollisionWorld, Play};
 use crate::shapes::{self, ShapeLib};
 use crate::theme::{self, Tone};
 use crate::view::{MainCamera, Mode, View};
-use crate::{Editor, Pending};
+use crate::world::{self, Hit, Mats, part_affine};
+use crate::{Editor, Pending, Saved};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
-use std::collections::HashMap;
-
-pub struct Hit { pub t: f32, pub point: Vec3, pub normal: Vec3, pub part: Option<u64> }
-
-pub fn part_affine(p: &Part) -> bevy::math::Affine3A {
-    bevy::math::Affine3A::from_scale_rotation_translation(Vec3::from(p.size), Quat::from_array(p.rot), Vec3::from(p.pos))
-}
 
 impl Editor {
     /// The nearest surface along a ray: a part, or the ground (y = 0) seen from above.
     pub fn hit(&self, ray: Ray3d) -> Option<Hit> { self.hit_skip(ray, None) }
 
-    pub fn hit_skip(&self, ray: Ray3d, skip: Option<u64>) -> Option<Hit> {
-        let (o, d) = (ray.origin, *ray.direction);
-        let mut best: Option<Hit> = None;
-        for p in &self.level.parts {
-            if Some(p.id) == skip { continue; }
-            let m = part_affine(p);
-            let inv = m.inverse();
-            if let Some((t, n)) = self.tris[&p.shape].raycast(inv.transform_point3(o), inv.transform_vector3(d)) {
-                if best.as_ref().is_none_or(|b| t < b.t) {
-                    let nw = (Mat3::from(m.matrix3).inverse().transpose() * n).normalize_or_zero();
-                    best = Some(Hit { t, point: o + d * t, normal: nw, part: Some(p.id) });
-                }
-            }
+    pub fn hit_skip(&self, ray: Ray3d, skip: Option<u64>) -> Option<Hit> { world::raycast(&self.level.parts, &self.geo, ray, skip, |_| true) }
+
+    /// Write the project as a Windows game: a zip with the game player (renamed after the project) and the
+    /// project's files. The player must sit next to the editor (the release zip has both).
+    pub fn export_zip(&mut self) {
+        if self.dirty() { self.save(); }
+        let exe = if cfg!(windows) { "beverly-player.exe" } else { "beverly-player" };
+        let player = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(exe)));
+        let Some(player) = player.filter(|p| p.is_file()) else {
+            self.island.show("!", "Couldn't find the game player", format!("{exe} should be next to Beverly"), Tone::Danger);
+            return;
+        };
+        let Some(out) = rfd::FileDialog::new().set_title("Export Windows game").set_file_name(format!("{}.zip", self.name)).save_file() else { return };
+        match level::export_zip(&self.dir, &self.name, &player, &out) {
+            Ok(n) => self.island.show("⇪", format!("Exported {}", out.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default()), format!("{n} files · unzip and run {}.exe", self.name), Tone::Accent),
+            Err(e) => self.island.show("!", "Couldn't export", e.to_string(), Tone::Danger),
         }
-        if d.y < -1e-6 && o.y > 0.0 {
-            let t = -o.y / d.y;
-            if best.as_ref().is_none_or(|b| t < b.t) {
-                best = Some(Hit { t, point: o + d * t, normal: Vec3::Y, part: None });
-            }
-        }
-        best
     }
 
     pub fn delete_selected(&mut self) {
@@ -149,6 +141,7 @@ impl Editor {
         self.redo.clear();
         self.selected = None;
         self.placing = None;
+        self.project_changed = true;
         self.refresh_assets();
     }
 }
@@ -218,24 +211,11 @@ fn snapf(v: f32, step: f32) -> f32 { (v / step).round() * step }
 #[derive(Component)]
 pub struct Ghost;
 
-#[derive(Resource)]
-pub struct Mats { cache: HashMap<[u8; 3], Handle<StandardMaterial>>, collider: Handle<StandardMaterial> }
-
 pub fn setup(mut commands: Commands, mut mats: ResMut<Assets<StandardMaterial>>, mut meshes: ResMut<Assets<Mesh>>, mut configs: ResMut<GizmoConfigStore>) {
-    let see_through = |c: Color| StandardMaterial { base_color: c, alpha_mode: AlphaMode::Blend, unlit: true, cull_mode: None, double_sided: true, ..default() };
-    let collider = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.10)));
-    let ghost = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.28)));
-    commands.insert_resource(Mats { cache: HashMap::new(), collider });
+    let shared = world::setup_stage(&mut commands, &mut meshes, &mut mats, std::env::var_os("BEVERLY_LITE").is_none());
+    commands.insert_resource(shared);
+    let ghost = mats.add(StandardMaterial { base_color: Color::srgba(0.96, 0.86, 0.29, 0.28), alpha_mode: AlphaMode::Blend, unlit: true, cull_mode: None, ..default() });
     commands.spawn((Ghost, Mesh3d(meshes.add(Cuboid::default())), MeshMaterial3d(ghost), Transform::default(), Visibility::Hidden));
-    // the ground: a dark plane at y = 0 (the grid is drawn over it)
-    commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(4000.0, 4000.0))),
-        MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::srgb(0.075, 0.068, 0.085), perceptual_roughness: 1.0, ..default() })),
-    ));
-    commands.spawn((
-        DirectionalLight { illuminance: 9000.0, shadow_maps_enabled: std::env::var_os("BEVERLY_LITE").is_none(), ..default() },
-        Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.7, -0.95, 0.0)),
-    ));
     let (cfg, _) = configs.config_mut::<WidgetGizmos>();
     cfg.line.width = 3.5;
     cfg.depth_bias = -1.0;
@@ -244,6 +224,74 @@ pub fn setup(mut commands: Commands, mut mats: ResMut<Assets<StandardMaterial>>,
     cfg.depth_bias = -1.0;
     let (cfg, _) = configs.config_mut::<DefaultGizmoConfigGroup>();
     cfg.line.width = 1.0;
+}
+
+/// Another project was opened: point the asset folder at it and forget the old models.
+pub fn project_follow(mut ed: ResMut<Editor>, root: Res<ProjectRoot>, mut lib: ResMut<ModelLib>) {
+    if !ed.project_changed { return; }
+    ed.project_changed = false;
+    root.set(ed.dir.clone());
+    lib.clear();
+    ed.geo.models.clear();
+}
+
+/// Newly loaded models' triangles into the editor's geometry (for clicking and placing on them).
+pub fn models_in(mut ed: ResMut<Editor>, mut lib: ResMut<ModelLib>, server: Res<AssetServer>, mut seen: Local<u64>) {
+    // a model being placed starts loading right away, so its real box is known while placing
+    if let Some(m) = ed.placing_model.as_ref().filter(|_| ed.placing == Some(Shape::Model)) {
+        if lib.geo(m).is_none() { lib.request(&server, m); }
+    }
+    if lib.generation == *seen { return; }
+    *seen = lib.generation;
+    ed.bypass_change_detection().geo.sync_models(&lib);
+    ed.set_changed();
+}
+
+/// Test mode: ` drops the walker at the reticle (Shift+`: at the player start) and ` again returns to editing.
+#[allow(clippy::too_many_arguments)]
+pub fn test_mode(
+    mut commands: Commands,
+    mut ed: ResMut<Editor>,
+    mut view: ResMut<View>,
+    mut play: ResMut<Play>,
+    keys: Res<ButtonInput<KeyCode>>,
+    cam: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+) {
+    if !keys.just_pressed(KeyCode::Backquote) || ed.pending.is_some() || ed.parts_open || (view.keyboard_in_ui && ed.testing.is_none()) { return; }
+    if let Some(s) = ed.testing.take() {
+        play.stop(&mut commands);
+        view.pos = s.pos;
+        view.yaw = s.yaw;
+        view.pitch = s.pitch;
+        view.mode = s.mode;
+        ed.island.show("✎", "Back to editing", "` tests again", Tone::Plain);
+        return;
+    }
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let (cam, gtf) = *cam;
+    let start = ed.level.parts.iter().find(|p| p.shape == Shape::PlayerStart).map(|p| Vec3::from(p.pos) - Vec3::Y * p.size[1] * 0.5);
+    let feet = if shift {
+        match start {
+            Some(f) => f,
+            None => {
+                ed.island.show("!", "No Player start yet", "Place one from the Game section (Tab)", Tone::Danger);
+                return;
+            }
+        }
+    } else {
+        match view.ray(cam, gtf, view.rect.center()).and_then(|r| ed.hit(r)) {
+            Some(h) => h.point,
+            None => view.pos.with_y(0.0),
+        }
+    };
+    ed.testing = Some(Saved { pos: view.pos, yaw: view.yaw, pitch: view.pitch, mode: view.mode });
+    ed.placing = None;
+    ed.drag = None;
+    let world = CollisionWorld::build(&ed.level, &ed.geo);
+    play.start(&mut commands, &mut meshes, &mut mats, world, feet, view.yaw);
+    ed.island.show("▶", "Testing", "WASD walk · Shift run · Space jump · ` back to editing", Tone::Accent);
 }
 
 #[derive(Default)]
@@ -263,6 +311,10 @@ pub fn interact(
 ) {
     let (cam, gtf) = *cam;
     ed.label = None;
+    if ed.testing.is_some() {
+        *ghost.1 = Visibility::Hidden;
+        return;
+    }
     let pointer = view.pointer();
     let ray = pointer.and_then(|p| view.ray(cam, gtf, p));
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
@@ -271,22 +323,36 @@ pub fn interact(
     // ---- placing a shape from the parts pop-up
     if let Some(shape) = ed.placing {
         let (ref mut gt, ref mut vis, ref mut mesh) = *ghost;
-        mesh.0 = lib.mesh(shape);
+        // a model's box comes from its file once loaded; until then a 1 m stand-in
+        let model = ed.placing_model.clone();
+        let (lo, hi) = match &model {
+            Some(m) => ed.geo.models.get(m).map(|t| t.bounds()).unwrap_or((vec3(-0.5, 0.0, -0.5), vec3(0.5, 1.0, 0.5))),
+            None => (Vec3::splat(-0.5), Vec3::splat(0.5)),
+        };
+        if shape != Shape::Model { mesh.0 = lib.mesh(shape); }
         match ray.and_then(|r| ed.hit(r)) {
             Some(h) => {
                 let size = Vec3::from(shape.default_size());
-                let n = if shift { Vec3::Y } else { h.normal };
+                let n = if shift || shape == Shape::PlayerStart { Vec3::Y } else { h.normal };
                 let rot = Quat::from_rotation_arc(Vec3::Y, n);
                 let mut p = h.point;
                 if ed.snap && n.y > 0.999 {
                     p.x = snapf(p.x, 0.25);
                     p.z = snapf(p.z, 0.25);
                 }
-                let pos = p + n * size.y * 0.5;
-                **gt = Transform { translation: pos, rotation: rot, scale: size };
+                // the bottom of the part sits on the surface
+                let pos = p - n * lo.y * size.y;
+                **gt = match shape {
+                    Shape::Model => Transform { translation: pos + rot * ((lo + hi) * 0.5 * size), rotation: rot, scale: (hi - lo).max(Vec3::splat(0.05)) * size },
+                    _ => Transform { translation: pos, rotation: rot, scale: size },
+                };
                 **vis = Visibility::Visible;
                 if mouse.just_pressed(MouseButton::Left) {
-                    let name = ed.level.fresh_name(shape.label());
+                    let base = match &model {
+                        Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "Model".into()),
+                        None => shape.label().to_string(),
+                    };
+                    let name = ed.level.fresh_name(&base);
                     let part = Part {
                         id: 0,
                         name: name.clone(),
@@ -296,7 +362,8 @@ pub fn interact(
                         size: size.to_array(),
                         color: [0.62, 0.64, 0.70],
                         visible: true,
-                        collision: Collision::Solid,
+                        collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
+                        model: model.clone(),
                     };
                     ed.selected = Some(ed.level.add(part));
                     ed.placing = None;
@@ -414,7 +481,7 @@ pub fn interact(
 
 /// Keyboard shortcuts for the 3D view (typing in a text field turns most of them off).
 pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>, mut exit: MessageWriter<AppExit>) {
-    if ed.pending.is_some() { return; }
+    if ed.pending.is_some() || ed.testing.is_some() { return; }
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let typing = view.keyboard_in_ui;
@@ -483,59 +550,53 @@ pub fn files(mut ed: ResMut<Editor>, mut drops: MessageReader<FileDragAndDrop>) 
 #[derive(Component)]
 pub struct PartView { id: u64, applied: Part }
 
-/// Make the 3D entities match the level (spawn new parts, update changed ones, remove deleted ones).
+/// Make the 3D entities match the level (spawn new parts, update moved ones, rebuild changed ones, remove deleted ones).
+#[allow(clippy::too_many_arguments)]
 pub fn sync(
     mut commands: Commands,
     ed: Res<Editor>,
     lib: Res<ShapeLib>,
+    mut models: ResMut<ModelLib>,
+    server: Res<AssetServer>,
     mut mats: ResMut<Mats>,
     mut assets: ResMut<Assets<StandardMaterial>>,
-    mut views: Query<(Entity, &mut PartView, &mut Transform, &mut Mesh3d, &mut MeshMaterial3d<StandardMaterial>)>,
+    mut views: Query<(Entity, &mut PartView, &mut Transform)>,
 ) {
     if !ed.is_changed() { return; }
-    let mut material = |p: &Part| -> Handle<StandardMaterial> {
-        if !p.visible { return mats.collider.clone(); }
-        let key = p.color.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
-        mats.cache
-            .entry(key)
-            .or_insert_with(|| assets.add(StandardMaterial { base_color: Color::srgb_u8(key[0], key[1], key[2]), perceptual_roughness: 0.75, ..default() }))
-            .clone()
-    };
-    let tf = |p: &Part| Transform { translation: Vec3::from(p.pos), rotation: Quat::from_array(p.rot), scale: Vec3::from(p.size) };
+    let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color;
     let mut seen = std::collections::HashSet::new();
-    for (e, mut v, mut t, mut mesh, mut mat) in &mut views {
+    for (e, mut v, mut t) in &mut views {
         match ed.level.get(v.id) {
-            None => commands.entity(e).despawn(),
-            Some(p) => {
+            Some(p) if same_look(&v.applied, p) => {
                 seen.insert(p.id);
                 if v.applied != *p {
-                    *t = tf(p);
-                    if v.applied.shape != p.shape { mesh.0 = lib.mesh(p.shape); }
-                    mat.0 = material(p);
+                    *t = world::part_transform(p);
                     v.applied = p.clone();
                 }
             }
+            _ => commands.entity(e).despawn(),
         }
     }
     for p in ed.level.parts.iter().filter(|p| !seen.contains(&p.id)) {
-        commands.spawn((PartView { id: p.id, applied: p.clone() }, tf(p), Mesh3d(lib.mesh(p.shape)), MeshMaterial3d(material(p))));
+        if let Some(e) = world::spawn_visual(&mut commands, p, &lib, &mut models, &server, &mut mats, &mut assets, true) {
+            commands.entity(e).insert(PartView { id: p.id, applied: p.clone() });
+        }
     }
 }
 
 /// Outlines (selection, hidden colliders) and the widget.
 pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
-    let outline = |g: &mut Gizmos<_>, p: &Part, color: Color| {
-        let m = part_affine(p);
-        for (a, b) in shapes::BOX_EDGES {
-            g.line(m.transform_point3(shapes::box_corner(a)), m.transform_point3(shapes::box_corner(b)), color);
-        }
+    if ed.testing.is_some() { return; }
+    // the part's box: unit box for shapes, the model's bounds for models
+    let corner = |p: &Part, i: usize| {
+        let (lo, hi) = ed.geo.local_box(p);
+        part_affine(p).transform_point3(lo + (hi - lo) * (shapes::box_corner(i) + Vec3::splat(0.5)))
     };
-    let _ = &mut g;
+    let outline = |g: &mut Gizmos<_>, p: &Part, color: Color| {
+        for (a, b) in shapes::BOX_EDGES { g.line(corner(p, a), corner(p, b), color); }
+    };
     for p in ed.level.parts.iter().filter(|p| !p.visible && Some(p.id) != ed.selected) {
-        let m = part_affine(p);
-        for (a, b) in shapes::BOX_EDGES {
-            g.line(m.transform_point3(shapes::box_corner(a)), m.transform_point3(shapes::box_corner(b)), Color::srgba(0.96, 0.86, 0.29, 0.45));
-        }
+        for (a, b) in shapes::BOX_EDGES { g.line(corner(p, a), corner(p, b), Color::srgba(0.96, 0.86, 0.29, 0.45)); }
     }
     let Some(p) = ed.selected.and_then(|id| ed.level.get(id)) else { return };
     outline(&mut o, p, Color::srgb(0.96, 0.86, 0.29));
@@ -575,7 +636,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);

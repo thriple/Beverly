@@ -80,7 +80,7 @@ pub fn setup(mut commands: Commands, mut egui_settings: ResMut<EguiGlobalSetting
     let v = View::default();
     // BEVERLY_LITE=1: no anti-aliasing (for slow software renderers, e.g. automated tests)
     let msaa = if std::env::var_os("BEVERLY_LITE").is_some() { Msaa::Off } else { Msaa::Sample4 };
-    commands.spawn((Camera3d::default(), MainCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa));
+    commands.spawn((Camera3d::default(), MainCamera, beverly::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa));
     commands.insert_resource(v);
     // The panels get their own full-window camera, drawn over the 3D view (whose viewport shrinks to the free area).
     egui_settings.auto_create_primary_context = false;
@@ -120,6 +120,16 @@ pub fn input(
     let dt = time.delta_secs();
     let now = time.elapsed_secs_f64();
     let typing = view.keyboard_in_ui || ed.pending.is_some();
+
+    // Test mode: the walker has the camera and the mouse.
+    if ed.testing.is_some() {
+        caps.pressed(&keys);
+        if cursor_opts.grab_mode != CursorGrabMode::Locked {
+            cursor_opts.grab_mode = CursorGrabMode::Locked;
+            cursor_opts.visible = false;
+        }
+        return;
+    }
 
     // Caps Lock switches modes (and nothing else: see caps.rs).
     if caps.pressed(&keys) && !ed.pending.is_some() {

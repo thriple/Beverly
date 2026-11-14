@@ -16,6 +16,7 @@ bevy_egui = { version = "=0.43.1", default-features = false, features = ["render
 serde = { version = "1", features = ["derive"] }
 ron = "0.12"
 rfd = "0.15"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "=0.20.1", default-features = false, features = ["multi_threaded", "x11", "wayland"] }

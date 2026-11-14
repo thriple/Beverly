@@ -40,6 +40,13 @@ pub fn ui(
         *init = true;
         return Ok(());
     }
+    // test mode: no editor panels, just the status island
+    if ed.testing.is_some() {
+        let r = ctx.viewport_rect();
+        view.rect = Rect::new(r.left(), r.top(), r.right(), r.bottom());
+        ed.island.draw(&ctx, pos2(r.center().x, r.min.y + 14.0), "Testing", &["`"]);
+        return Ok(());
+    }
     let mut root = Ui::new(ctx.clone(), "root".into(), egui::UiBuilder::new().layer_id(egui::LayerId::background()).max_rect(ctx.viewport_rect()));
 
     top_bar(&mut root, &mut ed, &mut exit);
@@ -82,6 +89,10 @@ fn top_bar(root: &mut Ui, ed: &mut Editor, exit: &mut MessageWriter<AppExit>) {
                 }
                 if item(ui, "Save as…", "Ctrl+Shift+S") {
                     ed.save_as();
+                    ui.close();
+                }
+                if item(ui, "Export Windows game…", "") {
+                    ed.export_zip();
                     ui.close();
                 }
                 if item(ui, "Show project folder", "") {
@@ -173,7 +184,18 @@ fn assets_panel(root: &mut Ui, ed: &mut Editor) {
                         ui.label(egui::RichText::new("empty").color(MUTED).size(11.0));
                     }
                     for f in files {
-                        ui.label(egui::RichText::new(f).size(12.0));
+                        let path = format!("assets/{folder}/{f}");
+                        if crate::models::is_model(f) {
+                            // models: click to place
+                            let r = ui.add(egui::Button::new(egui::RichText::new(format!("◆  {f}")).size(12.0)).frame(false)).on_hover_text("Click, then click a surface to place it");
+                            if r.clicked() {
+                                ed.placing = Some(Shape::Model);
+                                ed.placing_model = Some(path);
+                                ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
+                            }
+                        } else {
+                            ui.label(egui::RichText::new(f).size(12.0));
+                        }
                     }
                 });
             }
@@ -269,10 +291,18 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     }
                 });
             });
-            column(ui, 250.0, "SIZE", |ui| {
-                xyz(ui, &mut p.size, 0.02, 0.02, " m");
-                ui.label(egui::RichText::new("Width · height · depth").color(MUTED).size(11.0));
-            });
+            if p.shape == Shape::Model {
+                column(ui, 250.0, "SCALE", |ui| {
+                    xyz(ui, &mut p.size, 0.01, 0.001, "×");
+                    let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("");
+                    ui.label(egui::RichText::new(file).color(MUTED).size(11.0));
+                });
+            } else {
+                column(ui, 250.0, "SIZE", |ui| {
+                    xyz(ui, &mut p.size, 0.02, 0.02, " m");
+                    ui.label(egui::RichText::new("Width · height · depth").color(MUTED).size(11.0));
+                });
+            }
             column(ui, 330.0, "LOOK  ·  COLLISION", |ui| {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("Colour").color(MUTED));
@@ -374,7 +404,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
             });
         });
     } else if let Some(shape) = ed.placing {
-        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Placing {} · click a surface", shape.label()), ACCENT, &["Shift", "Esc"]);
+        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Placing {} · click a surface", if shape == Shape::Model { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("model").to_string() } else { shape.label().to_string() }), ACCENT, &["Shift", "Esc"]);
     }
 
     if let Some((at, text, color)) = ed.label.clone() {
@@ -411,7 +441,8 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     let shapes: Vec<Item> = Shape::ALL.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
     let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> = vec![("Shapes", theme::CAT_SHAPES, shapes, true)];
     for sec in &SCRIPT_SECTIONS {
-        sections.push((sec.name, sec.color, sec.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| Item { glyph: g, label: l, shape: None }).collect(), sec.ready));
+        let shape_of = |l: &str| (l == "Player start").then_some(Shape::PlayerStart);
+        sections.push((sec.name, sec.color, sec.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| Item { glyph: g, label: l, shape: shape_of(l) }).collect(), sec.ready));
     }
 
     // keyboard: arrows move through the shapes (the parts that work in this version)
@@ -512,7 +543,7 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
                                             for (ci, it) in row.iter().enumerate() {
                                                 let k = ri * 4 + ci;
                                                 let selected = si == 0 && k == cursor;
-                                                let (clicked, hovered) = part_square(ui, sq, it.glyph, it.shape, it.label, *color, *ready, selected);
+                                                let (clicked, hovered) = part_square(ui, sq, it.glyph, it.shape.filter(|s| Shape::ALL.contains(s)), it.label, *color, *ready || it.shape.is_some(), selected);
                                                 if hovered || (selected && info.is_none()) {
                                                     let desc = match it.shape {
                                                         Some(s) => s.description(),
@@ -566,6 +597,7 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     }
     if let Some(s) = pick {
         ed.placing = Some(s);
+        ed.placing_model = None;
         ed.parts_open = false;
         ed.island.show(s.glyph(), format!("Placing {}", s.label()), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
     } else if let Some(l) = soon {
@@ -751,5 +783,6 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
                 .collect();
             p.add(egui::Shape::line(pts, st));
         }
+        Shape::Model | Shape::PlayerStart => {}
     }
 }

@@ -1,6 +1,7 @@
 Beverly - a simple 3D game editor for Bevy (Windows build)
 
 Run Beverly.exe. Nothing to install. A new project folder is made in Documents\Beverly.
+Keep beverly-player.exe next to it: every exported game runs on it.
 
 Moving around
   Caps Lock     switch between Editor movement and Builder movement
@@ -26,6 +27,16 @@ Building
   Ctrl+Z / Ctrl+Y   undo / redo
   Visible off   the shape becomes an invisible collider
 
+Testing
+  `             play the level as the walker, starting at the reticle (` again: back to editing)
+  Shift+`       start at the Player start instead (Tab > Game > Player start)
+  in test       mouse looks, W A S D walk, Shift run, Space jump
+
+Models
+  Drag .glb / .gltf files onto the window; click one in Assets > Models, then click a surface to place it.
+  Scale it in the bottom panel. Models are solid for the walker unless you set Collision to Walk-through.
+
 Files
   Ctrl+S save   Ctrl+Shift+S save as   Ctrl+O open   Ctrl+N new   Ctrl+Q quit
   Drag files from Explorer onto the window to import them into the project's assets.
+  File > Export Windows game   makes <project>.zip: unzip anywhere and run <project>.exe

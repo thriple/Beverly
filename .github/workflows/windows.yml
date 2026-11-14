@@ -1,4 +1,5 @@
-# Windows build of the editor: a zip with Beverly.exe - unzip and double-click, nothing to install.
+# Windows build of the editor: a zip with Beverly.exe and beverly-player.exe (the game player that File > Export
+# Windows game copies into each exported game) - unzip and double-click, nothing to install.
 # Builds on every push that touches editor/ (so Windows-only errors show up early; the zip is kept under the run's
 # "Artifacts"). Only a run by hand from the Actions tab, or a push whose commit message contains [release], publishes
 # a GitHub Release - releases are for finished features, not work in progress. Each release is named
@@ -28,6 +29,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist/Beverly | Out-Null
           Copy-Item editor/target/release/beverly.exe dist/Beverly/Beverly.exe
+          Copy-Item editor/target/release/beverly-player.exe dist/Beverly/beverly-player.exe
           Copy-Item editor/README-windows.txt dist/Beverly/README.txt
           Compress-Archive -Path dist/Beverly -DestinationPath Beverly-windows.zip
       - uses: actions/upload-artifact@v4
@@ -41,5 +43,5 @@ jobs:
           name: Beverly build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
-          body: "Unzip and run Beverly.exe. Controls: README.txt."
+          body: "Unzip and run Beverly.exe (keep beverly-player.exe next to it: it is what exported games run on). Controls: README.txt."
           files: Beverly-windows.zip

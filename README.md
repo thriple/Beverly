@@ -11,6 +11,9 @@ together. Code is only for new kinds of parts.
 - **Tab** opens the parts pop-up. Basic shapes (box, ramp, stairs, arch, cylinder, sphere, plane) drop onto the
   surface under the cursor and double as colliders: switch **Visible** off for an invisible wall.
 - Move and turn widgets with snapping, a properties panel, undo / redo.
+- **Models:** drop `.glb` / `.gltf` files on the window, then place them from the Assets panel.
+- **Test it:** press `` ` `` to walk the level with a stand-in character (Shift+`` ` `` starts at the Player start).
+- **Export:** File > Export Windows game writes a zip with `<project>.exe` and the project's files.
 - Projects are folders of plain text files (`project.ron`, `levels/*.ron`, `assets/`). Drag files from Explorer
   onto the window to import them.
 
@@ -18,7 +21,8 @@ Design: [`docs/design.html`](docs/design.html). The UI follows the Motion kit in
 
 ## Get it
 
-Download `Beverly-windows.zip` from the [latest release](../../releases/latest), unzip, run `Beverly.exe`.
+Download `Beverly-windows.zip` from the [latest release](../../releases/latest), unzip, run `Beverly.exe`
+(keep `beverly-player.exe` next to it).
 
 ## Build it yourself
 

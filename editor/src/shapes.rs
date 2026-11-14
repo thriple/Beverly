@@ -28,6 +28,12 @@ impl Tris {
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
             .with_inserted_indices(Indices::U32((0..self.pos.len() as u32).collect()))
     }
+    /// Corners of the box around all the triangles (zero box when empty).
+    pub fn bounds(&self) -> (Vec3, Vec3) {
+        if self.pos.is_empty() { return (Vec3::ZERO, Vec3::ZERO); }
+        self.pos.iter().fold((Vec3::MAX, Vec3::MIN), |(a, b), p| (a.min(*p), b.max(*p)))
+    }
+
     /// Nearest hit of a ray (in the shape's unit space) and the triangle's normal there.
     pub fn raycast(&self, o: Vec3, d: Vec3) -> Option<(f32, Vec3)> {
         let mut best: Option<(f32, Vec3)> = None;
@@ -59,13 +65,15 @@ fn box_uv(p: Vec3, n: Vec3) -> [f32; 2] {
     if a.y >= a.x && a.y >= a.z { [p.x + 0.5, p.z + 0.5] } else if a.x >= a.z { [p.z + 0.5, 0.5 - p.y] } else { [p.x + 0.5, 0.5 - p.y] }
 }
 
+/// The unit-box triangles of a basic shape (a model's come from its file: see `models.rs`).
 pub fn build(shape: Shape) -> Tris {
     match shape {
         Shape::Box | Shape::Plane => prism(&[vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5)]),
         Shape::Ramp => prism(&[vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5)]),
         Shape::Stairs => prism(&stairs_profile(6)),
         Shape::Arch => prism(&arch_profile()),
-        Shape::Cylinder => cylinder(40),
+        Shape::Cylinder | Shape::PlayerStart => cylinder(40),
+        Shape::Model => Tris::default(),
         Shape::Sphere => sphere(32, 18),
     }
 }
@@ -187,7 +195,7 @@ impl ShapeLib {
 }
 
 pub fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
-    let meshes = Shape::ALL.iter().map(|&s| (s, meshes.add(build(s).mesh()))).collect();
+    let meshes = Shape::ALL.iter().chain([&Shape::PlayerStart]).map(|&s| (s, meshes.add(build(s).mesh()))).collect();
     commands.insert_resource(ShapeLib { meshes });
 }
 

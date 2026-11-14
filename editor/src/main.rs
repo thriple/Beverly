@@ -3,17 +3,20 @@
 
 mod caps;
 mod edit;
-mod level;
-mod shapes;
 mod theme;
 mod ui;
 mod view;
 
+use beverly::{level, models, play, shapes, world};
+
 use bevy::prelude::*;
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 use level::{Level, Shape};
-use std::collections::HashMap;
 use std::path::PathBuf;
+
+/// The editor view to return to after test mode.
+#[derive(Clone, Copy)]
+pub struct Saved { pub pos: Vec3, pub yaw: f32, pub pitch: f32, pub mode: view::Mode }
 
 /// Something that would lose unsaved work: asked about first.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -45,7 +48,14 @@ pub struct Editor {
     pub hovering_files: bool,
     pub pending: Option<Pending>,
     pub island: theme::Island,
-    pub tris: HashMap<Shape, shapes::Tris>,
+    /// Every part's triangles (shapes, and models once loaded).
+    pub geo: world::Geometry,
+    /// The model file being placed, when `placing` is `Shape::Model`.
+    pub placing_model: Option<String>,
+    /// Test mode (`): where the editor camera was, to go back to.
+    pub testing: Option<Saved>,
+    /// Another project was opened: the model cache and the asset folder must follow.
+    pub project_changed: bool,
     pub drag: Option<edit::Drag>,
     pub hover_handle: Option<edit::Grip>,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
@@ -53,7 +63,19 @@ pub struct Editor {
 }
 
 impl Editor {
-    fn new() -> Self { Self::at(level::new_project_dir().unwrap_or_else(|_| PathBuf::from("Untitled"))) }
+    /// `beverly [PROJECT FOLDER]` opens that project; otherwise a new one is made.
+    fn new() -> Self {
+        if let Some(dir) = std::env::args().nth(1).map(PathBuf::from) {
+            if let Ok((_, lvl)) = level::load(&dir) {
+                let mut ed = Self::at(dir);
+                ed.saved = lvl.clone();
+                ed.committed = lvl.clone();
+                ed.level = lvl;
+                return ed;
+            }
+        }
+        Self::at(level::new_project_dir().unwrap_or_else(|_| PathBuf::from("Untitled")))
+    }
 
     /// An empty level in the project folder `dir`.
     pub fn at(dir: PathBuf) -> Self {
@@ -79,7 +101,10 @@ impl Editor {
             hovering_files: false,
             pending: None,
             island: default(),
-            tris: Shape::ALL.iter().map(|&s| (s, shapes::build(s))).collect(),
+            geo: default(),
+            placing_model: None,
+            testing: None,
+            project_changed: false,
             drag: None,
             hover_handle: None,
             label: None,
@@ -96,23 +121,43 @@ impl Editor {
 }
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+    let ed = Editor::new();
+    let root = models::ProjectRoot::new(ed.dir.clone());
+    let mut app = App::new();
+    models::register_source(&mut app, &root);
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window { title: "Beverly".into(), resolution: (1600, 960).into(), ..default() }),
             close_when_requested: false,
             ..default()
         }))
-        .add_plugins(EguiPlugin::default())
+        .add_plugins((EguiPlugin::default(), play::PlayPlugin))
+        .init_resource::<models::ModelLib>()
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
         .init_resource::<caps::CapsLock>()
-        .insert_resource(Editor::new())
+        .insert_resource(ed)
         .init_gizmo_group::<edit::WidgetGizmos>()
         .init_gizmo_group::<edit::OutlineGizmos>()
         .add_systems(Startup, (shapes::setup, view::setup, edit::setup, caps::startup))
         .add_systems(
             Update,
-            (view::input, edit::interact, edit::shortcuts, edit::files, edit::sync, edit::draw, view::grid, view::apply_viewport, edit::commit, edit::close_requested, view::frame_log)
+            (
+                edit::project_follow,
+                models::build_geometry,
+                edit::models_in,
+                view::input,
+                edit::test_mode,
+                edit::interact,
+                edit::shortcuts,
+                edit::files,
+                edit::sync,
+                edit::draw,
+                view::grid,
+                view::apply_viewport,
+                edit::commit,
+                edit::close_requested,
+                view::frame_log,
+            )
                 .chain(),
         )
         .add_systems(EguiPrimaryContextPass, ui::ui)
