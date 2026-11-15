@@ -6,7 +6,7 @@ use crate::settings::{self, Setting};
 use crate::update::{self, Status};
 use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
 use super::view::{Mode, SPEED_LABELS, View};
-use super::{Editor, Pending};
+use super::{actions, mcp, Editor, Pending};
 use bevy::prelude::*;
 use bevy_egui::egui::{self, Align2, Color32, CornerRadius, Id, Rect as ERect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use bevy_egui::{EguiContexts, egui::emath::TSTransform};
@@ -63,6 +63,7 @@ pub fn ui(
     if ed.about_open { about_modal(&ctx, &mut ed); }
     if ed.updates_open { updates_modal(&ctx, &mut ed); }
     if ed.features_open { features_modal(&ctx, &mut ed); }
+    if ed.mcp_open { mcp_modal(&ctx, &mut ed); }
     Ok(())
 }
 
@@ -78,53 +79,13 @@ fn top_bar(root: &mut Ui, ed: &mut Editor, exit: &mut MessageWriter<AppExit>) {
             ui.add_space(6.0);
             ui.menu_button("File", |ui| {
                 ui.set_min_width(230.0);
-                let item = |ui: &mut Ui, label: &str, keys: &str| ui.add(egui::Button::new(label).shortcut_text(keys).frame(false)).clicked();
-                if item(ui, "New project", "Ctrl+N") {
-                    ed.request(Pending::New, exit);
-                    ui.close();
-                }
-                if item(ui, "Open project…", "Ctrl+O") {
-                    ed.request(Pending::Open, exit);
-                    ui.close();
-                }
-                ui.separator();
-                if item(ui, "Save", "Ctrl+S") {
-                    ed.save();
-                    ui.close();
-                }
-                if item(ui, "Save as…", "Ctrl+Shift+S") {
-                    ed.save_as();
-                    ui.close();
-                }
-                if item(ui, "Export Windows game…", "") {
-                    ed.export_zip();
-                    ui.close();
-                }
-                if item(ui, "Show project folder", "") {
-                    let _ = open_folder(&ed.dir);
-                    ui.close();
-                }
-                ui.separator();
-                if item(ui, "Quit", "Ctrl+Q") {
-                    ed.request(Pending::Quit, exit);
-                    ui.close();
+                for id in ["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"] {
+                    if id.is_empty() { ui.separator(); } else { menu_action(ui, ed, id, exit); }
                 }
             });
             ui.menu_button("Help", |ui| {
                 ui.set_min_width(200.0);
-                if ui.add(egui::Button::new("About Beverly").frame(false)).clicked() {
-                    ed.about_open = true;
-                    ui.close();
-                }
-                if ui.add(egui::Button::new("Check for updates…").frame(false)).clicked() {
-                    ed.updates_open = true;
-                    ed.updater.check();
-                    ui.close();
-                }
-                if ui.add(egui::Button::new("Features").frame(false)).clicked() {
-                    ed.features_open = true;
-                    ui.close();
-                }
+                for id in ["help.about", "help.updates", "help.features", "help.mcp"] { menu_action(ui, ed, id, exit); }
             });
             ui.add_space(6.0);
             ui.label(egui::RichText::new(&ed.name).color(MUTED));
@@ -144,19 +105,28 @@ fn top_bar(root: &mut Ui, ed: &mut Editor, exit: &mut MessageWriter<AppExit>) {
                 if theme::toggle(ui, &mut s).changed() { ed.snap = s; }
                 ui.label(egui::RichText::new(snap_label).color(MUTED));
                 ui.add_space(10.0);
-                if ui.add_enabled(!ed.redo.is_empty(), egui::Button::new("↷ Redo")).on_hover_ui(|ui| theme::hint(ui, "Redo", &["Ctrl", "Y"])).clicked() { ed.redo(); }
-                if ui.add_enabled(!ed.undo.is_empty(), egui::Button::new("↶ Undo")).on_hover_ui(|ui| theme::hint(ui, "Undo", &["Ctrl", "Z"])).clicked() { ed.undo(); }
+                if ui.add_enabled(!ed.redo.is_empty(), egui::Button::new("↷ Redo")).on_hover_ui(|ui| theme::hint(ui, "Redo", &["Ctrl", "Y"])).clicked() { let _ = actions::run(ed, None, "edit.redo", exit); }
+                if ui.add_enabled(!ed.undo.is_empty(), egui::Button::new("↶ Undo")).on_hover_ui(|ui| theme::hint(ui, "Undo", &["Ctrl", "Z"])).clicked() { let _ = actions::run(ed, None, "edit.undo", exit); }
                 ui.add_space(10.0);
-                if ui.button("Parts").on_hover_ui(|ui| theme::hint(ui, "Open the parts pop-up", &["Tab"])).clicked() {
-                    ed.parts_open = true;
-                    ed.parts_query.clear();
-                }
+                if ui.button("Parts").on_hover_ui(|ui| theme::hint(ui, "Open the parts pop-up", &["Tab"])).clicked() { let _ = actions::run(ed, None, "view.parts", exit); }
             });
         });
     });
 }
 
-fn open_folder(dir: &std::path::Path) -> std::io::Result<()> {
+/// A menu item for a named action (its name and keys from the list), greyed when it can't run; runs it when clicked.
+fn menu_action(ui: &mut Ui, ed: &mut Editor, id: &str, exit: &mut MessageWriter<AppExit>) {
+    let a = actions::get(id).expect("a listed action");
+    let why = actions::why_not(ed, id);
+    let r = ui.add_enabled(why.is_none(), egui::Button::new(a.name).shortcut_text(a.keys).frame(false));
+    let r = match why { Some(w) => r.on_disabled_hover_text(w), None => r };
+    if r.clicked() {
+        let _ = actions::run(ed, None, id, exit);
+        ui.close();
+    }
+}
+
+pub(super) fn open_folder(dir: &std::path::Path) -> std::io::Result<()> {
     #[cfg(windows)]
     let cmd = "explorer";
     #[cfg(target_os = "macos")]
@@ -303,7 +273,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             });
             // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
             let model = p.shape == Shape::Model;
-            let scale = [("size", Setting::number("", "×", 0.01, 0.001, 100000.0).section(level::LOOK))];
+            let scale = [("size", Setting::number("Scale", "×", 0.01, 0.001, 100000.0).section(level::LOOK).bare())];
             let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
             for sec in settings::sections(&p) {
                 if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
@@ -978,6 +948,73 @@ fn updates_modal(ctx: &egui::Context, ed: &mut Editor) {
     if close { ed.updates_open = false; }
     if install { ed.updater.install(); }
     if again { ed.updater.check(); }
+}
+
+/// Help > MCP Server: let an AI assistant on this computer (such as Claude Code) read the project and run actions.
+fn mcp_modal(ctx: &egui::Context, ed: &mut Editor) {
+    let (mut close, mut changed) = (false, false);
+    egui::Modal::new(Id::new("mcp")).frame(dialog_frame()).show(ctx, |ui| {
+        ui.set_width(520.0);
+        ui.label(egui::RichText::new("MCP Server").font(semi(17.0)).color(TEXT));
+        ui.add(egui::Label::new(egui::RichText::new("Lets an AI assistant on this computer, such as Claude Code, read your project, look at parts and their settings, and run Beverly's actions. Everything it changes can be undone.").color(MUTED)).wrap());
+        ui.add_space(12.0);
+        ui.horizontal(|ui| {
+            let mut on = ed.mcp.settings.enabled;
+            if theme::toggle(ui, &mut on).changed() {
+                ed.mcp.settings.enabled = on;
+                changed = true;
+            }
+            ui.label(egui::RichText::new("Let AI assistants connect").font(semi(13.0)).color(TEXT));
+        });
+        let (dot, state) = match &ed.mcp.listen {
+            mcp::Listen::Off => (white(60), "Off".to_string()),
+            mcp::Listen::On(port) => (theme::OK, format!("Listening on port {port}, this computer only")),
+            mcp::Listen::Failed(why) => (theme::DANGER, why.clone()),
+        };
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+            ui.painter().circle_filled(r.center(), 3.5, dot);
+            ui.add(egui::Label::new(egui::RichText::new(state).color(MUTED)).wrap());
+        });
+        ui.add_space(10.0);
+        small_caps(ui, "ADDRESS");
+        ui.label(egui::RichText::new(ed.mcp.settings.url()).font(mono(12.0)).color(TEXT));
+        ui.add_space(6.0);
+        small_caps(ui, "TOKEN");
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&ed.mcp.settings.token).font(mono(12.0)).color(TEXT));
+            if ui.small_button("New token").on_hover_text("Assistants using the old one can no longer connect").clicked() {
+                ed.mcp.settings.token = mcp::new_token();
+                changed = true;
+            }
+        });
+        ui.add_space(6.0);
+        small_caps(ui, "ADD TO CLAUDE CODE");
+        let cmd = ed.mcp.settings.claude_command();
+        egui::Frame::new().fill(white(8)).corner_radius(CornerRadius { nw: 10, ne: 10, se: 10, sw: 3 }).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+            ui.add(egui::Label::new(egui::RichText::new(&cmd).font(mono(11.0)).color(TEXT)).wrap());
+        });
+        if ui.button("Copy").clicked() {
+            ctx.copy_text(cmd);
+            ed.island.show("⧉", "Copied", "Paste it into a terminal", Tone::Plain);
+        }
+        if !ed.mcp.log.is_empty() {
+            ui.add_space(8.0);
+            small_caps(ui, "RECENT CALLS");
+            for l in &ed.mcp.log { ui.label(egui::RichText::new(l).font(mono(11.0)).color(MUTED)); }
+        }
+        ui.add_space(14.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Off by default. The token stays on this computer.").size(11.0).color(MUTED));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                theme::kbd(ui, "Esc");
+                if ui.add(egui::Button::new("Close").min_size(vec2(80.0, 32.0))).clicked() { close = true; }
+            });
+        });
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) { close = true; }
+    });
+    if changed { ed.mcp.apply(); }
+    if close { ed.mcp_open = false; }
 }
 
 /// The basic shapes as small line drawings (one stroke weight, all the same size), in a box of half-size `h`.

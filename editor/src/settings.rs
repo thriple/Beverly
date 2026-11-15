@@ -33,6 +33,8 @@ pub struct Setting {
     pub unit: &'static str,
     /// Shown when hovering.
     pub help: &'static str,
+    /// The panel leaves the label out (its section title says it); descriptions still give it.
+    pub bare: bool,
 }
 
 #[derive(Reflect, Clone, Debug, PartialEq)]
@@ -60,7 +62,7 @@ pub enum Kind {
 pub struct Label(pub &'static str);
 
 impl Setting {
-    fn new(label: &'static str, kind: Kind) -> Self { Setting { label, kind, section: "", unit: "", help: "" } }
+    fn new(label: &'static str, kind: Kind) -> Self { Setting { label, kind, section: "", unit: "", help: "", bare: false } }
     pub fn feel(label: &'static str, ends: (&'static str, &'static str), lo: f32, hi: f32, unit: &'static str) -> Self {
         Setting { unit, ..Self::new(label, Kind::Feel { group: label, ends, lo, hi, log: false }) }
     }
@@ -76,6 +78,7 @@ impl Setting {
     pub fn list(label: &'static str) -> Self { Self::new(label, Kind::List) }
     pub fn section(mut self, s: &'static str) -> Self { self.section = s; self }
     pub fn help(mut self, h: &'static str) -> Self { self.help = h; self }
+    pub fn bare(mut self) -> Self { self.bare = true; self }
     /// Space a Feel slider's values by ratio (for ranges like 0.2 s to 20 s).
     pub fn log(mut self) -> Self { if let Kind::Feel { log, .. } = &mut self.kind { *log = true; } self }
     /// Put a Feel field on another field's slider (by that slider's label).
@@ -197,7 +200,7 @@ fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, ctx: &mu
             }
             if let Some(v) = f.try_downcast_mut::<[f32; 3]>() {
                 return ui.horizontal(|ui| {
-                    if !s.label.is_empty() { ui.label(egui::RichText::new(s.label).color(MUTED)); }
+                    if !s.bare { ui.label(egui::RichText::new(s.label).color(MUTED)); }
                     let mut c = false;
                     for (i, col) in [theme::AXIS_X, theme::AXIS_Y, theme::AXIS_Z].iter().enumerate() {
                         ui.label(egui::RichText::new(["X", "Y", "Z"][i]).font(theme::mono(11.0)).color(*col));
@@ -250,7 +253,7 @@ fn choice(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str) -> bo
     let names: Vec<&'static str> = info.variant_names().to_vec();
     let labels: Vec<&str> = info.iter().map(|v| v.get_attribute::<Label>().map_or(v.name(), |l| l.0)).collect();
     let mut i = names.iter().position(|n| *n == e.variant_name()).unwrap_or(0);
-    if !s.label.is_empty() { ui.label(egui::RichText::new(s.label).color(MUTED)); }
+    if !s.bare { ui.label(egui::RichText::new(s.label).color(MUTED)); }
     if theme::segmented(ui, key, &labels, &mut i, false) {
         f.apply(&DynamicEnum::new(names[i], DynamicVariant::Unit));
         return true;
@@ -387,6 +390,11 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Respon
     resp
 }
 
+/// An f32 as JSON without float noise (0.05, not 0.05000000074505806).
+pub fn num(x: f32) -> serde_json::Value { x.to_string().parse::<f64>().map_or(serde_json::Value::Null, serde_json::Value::from) }
+
+pub fn nums(x: &[f32]) -> serde_json::Value { serde_json::Value::Array(x.iter().map(|v| num(*v)).collect()) }
+
 /// Every described setting of `value` with its current value: for the MCP server and anything else that needs to
 /// know what can be set.
 pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
@@ -395,11 +403,11 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
     let mut out = vec![];
     for (name, s) in fields(value) {
         let Some(f) = st.field(name) else { continue };
-        let v: Value = if let Some(x) = f.try_downcast_ref::<f32>() { json!(x) }
+        let v: Value = if let Some(x) = f.try_downcast_ref::<f32>() { num(*x) }
             else if let Some(x) = f.try_downcast_ref::<bool>() { json!(x) }
             else if let Some(x) = f.try_downcast_ref::<String>() { json!(x) }
-            else if let Some(x) = f.try_downcast_ref::<[f32; 3]>() { json!(x) }
-            else if let Some(x) = f.try_downcast_ref::<[f32; 4]>() { json!(x) }
+            else if let Some(x) = f.try_downcast_ref::<[f32; 3]>() { nums(x) }
+            else if let Some(x) = f.try_downcast_ref::<[f32; 4]>() { nums(x) }
             else if let ReflectRef::Enum(e) = f.reflect_ref() {
                 match (e.variant_name(), e.field_at(0)) {
                     ("Some", Some(inner)) => describe(inner),
@@ -410,8 +418,8 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
             else { Value::Null };
         let mut d = json!({ "field": name, "label": s.label, "section": s.section, "value": v });
         let kind = match &s.kind {
-            Kind::Feel { group, ends, lo, hi, log } => { d["slider"] = json!({ "group": group, "ends": [ends.0, ends.1], "values": [lo, hi], "by_ratio": log }); "feel" }
-            Kind::Number { min, max, .. } => { d["min"] = json!(min); d["max"] = json!(max); "number" }
+            Kind::Feel { group, ends, lo, hi, log } => { d["slider"] = json!({ "group": group, "ends": [ends.0, ends.1], "values": [num(*lo), num(*hi)], "by_ratio": log }); "feel" }
+            Kind::Number { min, max, .. } => { d["min"] = num(*min); d["max"] = num(*max); "number" }
             Kind::Toggle => "toggle", Kind::Colour => "colour", Kind::Text => "text", Kind::Turn => "turn",
             Kind::Optional { .. } => "optional", Kind::Choice => "choice", Kind::List => "list",
         };

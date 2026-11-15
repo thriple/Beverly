@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{Editor, Pending, Saved};
+use super::{actions, Editor, Pending, Saved};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -677,40 +677,26 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let typing = view.keyboard_in_ui;
     let jp = |k| keys.just_pressed(k);
+    // keys to named actions (actions.rs), which the menus and the MCP server run too
+    let mut act = |id: &str| { let _ = actions::run(&mut ed, Some(&mut view), id, &mut exit); };
     if ctrl {
-        if jp(KeyCode::KeyS) {
-            if shift { ed.save_as() } else { ed.save() }
-        }
-        if jp(KeyCode::KeyO) { ed.request(Pending::Open, &mut exit); }
-        if jp(KeyCode::KeyN) { ed.request(Pending::New, &mut exit); }
-        if jp(KeyCode::KeyQ) { ed.request(Pending::Quit, &mut exit); }
+        if jp(KeyCode::KeyS) { act(if shift { "file.save_as" } else { "file.save" }); }
+        if jp(KeyCode::KeyO) { act("file.open"); }
+        if jp(KeyCode::KeyN) { act("file.new"); }
+        if jp(KeyCode::KeyQ) { act("file.quit"); }
         if typing { return; }
-        if jp(KeyCode::KeyZ) {
-            if shift { ed.redo() } else { ed.undo() }
-        }
-        if jp(KeyCode::KeyY) { ed.redo(); }
-        if jp(KeyCode::KeyD) { ed.duplicate_selected(); }
+        if jp(KeyCode::KeyZ) { act(if shift { "edit.redo" } else { "edit.undo" }); }
+        if jp(KeyCode::KeyY) { act("edit.redo"); }
+        if jp(KeyCode::KeyD) { act("edit.duplicate"); }
         return;
     }
     if typing { return; }
-    if jp(KeyCode::Tab) && !ed.parts_open {
-        ed.parts_open = true;
-        ed.parts_fresh = true;
-        ed.parts_query.clear();
-        ed.placing = None;
-    }
-    if jp(KeyCode::Escape) && !ed.parts_open {
-        if ed.placing.is_some() { ed.placing = None } else { ed.selected = None }
-    }
-    if jp(KeyCode::Delete) || jp(KeyCode::Backspace) { ed.delete_selected(); }
-    if jp(KeyCode::KeyF) {
-        if let Some(p) = ed.selected.and_then(|id| ed.level.get(id)) {
-            let c = Vec3::from(p.pos);
-            let r = Vec3::from(p.size).length();
-            let f = view.forward();
-            view.pos = c - f * (r * 1.6 + 2.0);
-        }
-    }
+    let parts_open = ed.parts_open;
+    let mut act = |id: &str| { let _ = actions::run(&mut ed, Some(&mut view), id, &mut exit); };
+    if jp(KeyCode::Tab) && !parts_open { act("view.parts"); }
+    if jp(KeyCode::Escape) && !parts_open { act("edit.deselect"); }
+    if jp(KeyCode::Delete) || jp(KeyCode::Backspace) { act("edit.delete"); }
+    if jp(KeyCode::KeyF) { act("view.frame"); }
 }
 
 /// Files dragged in from Explorer are copied into the project's assets.
@@ -843,12 +829,20 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
 
 /// One undo step per finished change: when the level differs from the last step and no drag is going on.
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
-    if ed.level == ed.committed || ed.drag.is_some() || mouse.pressed(MouseButton::Left) { return; }
-    let now = ed.level.clone();
-    let prev = std::mem::replace(&mut ed.committed, now);
-    ed.undo.push(prev);
-    if ed.undo.len() > 300 { ed.undo.remove(0); }
-    ed.redo.clear();
+    if ed.drag.is_some() || mouse.pressed(MouseButton::Left) { return; }
+    ed.commit();
+}
+
+impl Editor {
+    /// Make the change since the last undo step a step of its own (if there is one).
+    pub fn commit(&mut self) {
+        if self.level == self.committed { return; }
+        let now = self.level.clone();
+        let prev = std::mem::replace(&mut self.committed, now);
+        self.undo.push(prev);
+        if self.undo.len() > 300 { self.undo.remove(0); }
+        self.redo.clear();
+    }
 }
 
 pub fn close_requested(mut ed: ResMut<Editor>, mut closes: MessageReader<WindowCloseRequested>, mut exit: MessageWriter<AppExit>) {

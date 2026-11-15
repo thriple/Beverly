@@ -292,13 +292,19 @@ pub enum Tone { Plain, Accent, Danger }
 pub struct Toast { pub glyph: String, pub label: String, pub sub: String, pub tone: Tone }
 
 #[derive(Default, bevy::prelude::Resource)]
-pub struct Island { toast: Option<(Toast, f64)>, serial: u64 }
+pub struct Island { toast: Option<(Toast, f64)>, serial: u64, history: std::collections::VecDeque<String> }
 
 impl Island {
     pub fn show(&mut self, glyph: &str, label: impl Into<String>, sub: impl Into<String>, tone: Tone) {
         self.serial += 1;
-        self.toast = Some((Toast { glyph: glyph.into(), label: label.into(), sub: sub.into(), tone }, f64::NAN));
+        let (label, sub) = (label.into(), sub.into());
+        self.history.push_back(if sub.is_empty() { label.clone() } else { format!("{label} · {sub}") });
+        if self.history.len() > 40 { self.history.pop_front(); }
+        self.toast = Some((Toast { glyph: glyph.into(), label, sub, tone }, f64::NAN));
     }
+
+    /// The messages shown so far (the last 40), oldest first.
+    pub fn history(&self) -> &std::collections::VecDeque<String> { &self.history }
 
     /// Draw the island centred at `top` (the top-centre of the viewport). `rest` is the resting content.
     pub fn draw(&mut self, ctx: &Context, top: egui::Pos2, rest: &str, rest_keys: &[&str]) {

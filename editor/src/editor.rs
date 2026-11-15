@@ -1,7 +1,9 @@
 //! The editor: a simple, no-code-first 3D game editor for Bevy. See README.md and docs/design.html.
 
+mod actions;
 mod caps;
 mod edit;
+mod mcp;
 pub(crate) mod theme;
 mod ui;
 mod view;
@@ -70,6 +72,9 @@ pub struct Editor {
     pub updates_open: bool,
     pub features_open: bool,
     pub updater: update::Updater,
+    /// Help > MCP Server: the window, and the server (off unless the user turned it on).
+    pub mcp_open: bool,
+    pub mcp: mcp::Mcp,
 }
 
 impl Editor {
@@ -133,6 +138,8 @@ impl Editor {
             updates_open: false,
             features_open: false,
             updater: default(),
+            mcp_open: false,
+            mcp: mcp::Mcp::off(),
         };
         ed.refresh_assets();
         ed
@@ -141,7 +148,7 @@ impl Editor {
     pub fn dirty(&self) -> bool { self.level != self.saved }
 
     /// A window over the editor (the unsaved-changes question, Help's windows): the 3D view ignores the keys.
-    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open }
+    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open || self.mcp_open }
 
     pub fn refresh_assets(&mut self) {
         self.assets = level::ASSET_FOLDERS.iter().map(|f| (*f, level::list_assets(&self.dir, f))).collect();
@@ -155,6 +162,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
     update::clean_up();
     let mut ed = Editor::new();
     ed.player = player;
+    ed.mcp = mcp::Mcp::start();
     let root = models::ProjectRoot::new(ed.dir.clone());
     let mut app = App::new();
     models::register_source(&mut app, &root);
@@ -173,7 +181,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .init_gizmo_group::<edit::WidgetGizmos>()
         .init_gizmo_group::<edit::OutlineGizmos>()
         .add_systems(Startup, (shapes::setup, view::setup, edit::setup, caps::startup))
-        .add_systems(Update, window_icon)
+        .add_systems(Update, (window_icon, mcp::host::serve))
         .add_systems(
             Update,
             (

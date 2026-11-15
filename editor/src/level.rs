@@ -163,19 +163,19 @@ pub struct Part {
     #[reflect(@Setting::text("Name").section(PART))]
     pub name: String,
     pub shape: Shape,
-    #[reflect(@Setting::number("", "m", 0.05, -100000.0, 100000.0).section(PLACE))]
+    #[reflect(@Setting::number("Position", "m", 0.05, -100000.0, 100000.0).section(PLACE).bare())]
     pub pos: [f32; 3],
     /// Rotation as a quaternion (x, y, z, w).
     #[reflect(@Setting::turn("Turn").section(PLACE))]
     pub rot: [f32; 4],
-    #[reflect(@Setting::number("", "m", 0.02, 0.02, 100000.0).section(LOOK))]
+    #[reflect(@Setting::number("Size", "m", 0.02, 0.02, 100000.0).section(LOOK).bare())]
     pub size: [f32; 3],
     /// sRGB, 0..1.
     #[reflect(@Setting::colour("Colour").section(LOOK))]
     pub color: [f32; 3],
     #[reflect(@Setting::toggle("Visible").section(LOOK).help("Off: an invisible collider (shown hatched in the editor only)"))]
     pub visible: bool,
-    #[reflect(@Setting::choice("").section(LOOK))]
+    #[reflect(@Setting::choice("Collision").section(LOOK).bare())]
     pub collision: Collision,
     /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
     #[serde(default, skip_serializing_if = "Option::is_none")]
