@@ -603,7 +603,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <span class="tag">Lighting</span><h3>Real-time, with honest widgets</h3>
       <ul>
         <li>Each level has a Sun and Sky with a time-of-day slider, or "Interior", which turns them off and uses flat ambient light plus your own lights.</li>
-        <li>Light parts: point (radius sphere handle), spot (cone handles for angle and reach), and a glowing-surface material for screens and strips.</li>
+        <li>Light parts (the Lights section of the parts pop-up): point (a sphere showing its reach, with a handle to size it) and spot (its cone drawn: drag the tip to aim it and set its reach, the rim to widen or narrow it). A spot shines away from the surface it is placed on, so on a ceiling it points down. Each has a colour, brightness, reach and shadows on or off; the editor shows a small bulb to click, the game only the light. Lights are always individual and never collide. Plus a glowing-surface material for screens and strips.</li>
         <li>Reflection box parts for shiny areas. Their influence box is always drawn, so a stray reflection, like the mech's silver square, is easy to find.</li>
         <li>A light budget meter in the corner warns when too many shadowed lights overlap.</li>
         <li>No light baking at first. It can come later if interiors need it.</li>

@@ -174,7 +174,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         "get_log" => Ok(json!(ed.island.history().iter().collect::<Vec<_>>())),
         "list_part_kinds" => {
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
-            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model]);
+            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight]);
             let template = Part::placed(Shape::Box, None, "Box 1".into(), [0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], Shape::Box.default_size());
             Ok(json!({
                 "kinds": kinds.iter().map(|k| json!({"kind": k.label(), "what": k.description(), "size": settings::nums(&k.default_size()), "outputs": k.outputs()})).collect::<Vec<_>>(),
@@ -185,7 +185,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             editable(ed)?;
             let want = args.get("kind").and_then(Value::as_str).ok_or("Give the kind (list_part_kinds)")?.to_lowercase();
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
-            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model]);
+            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight]);
             let shape = *kinds.iter().find(|k| k.label().to_lowercase() == want).ok_or_else(|| {
                 format!("No kind called \"{want}\" (there are: {})", kinds.iter().map(|k| k.label()).collect::<Vec<_>>().join(", "))
             })?;
@@ -212,8 +212,14 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "Model".into()),
                 None => shape.label().to_string(),
             };
-            let mut p = Part::placed(shape, model, ed.level.fresh_name(&base), pos.to_array(), [0.0, 0.0, 0.0, 1.0], size);
+            // a light shines away from the surface it stands on (a part placed in the view's line)
+            let up = match args.get("position") {
+                None if shape.is_light() => ed.hit(Ray3d::new(view.pos, Dir3::new(view.forward()).unwrap_or(Dir3::NEG_Z))).map_or(Vec3::Y, |h| h.normal),
+                _ => Vec3::Y,
+            };
+            let mut p = Part::placed(shape, model, ed.level.fresh_name(&base), pos.to_array(), Quat::from_rotation_arc(Vec3::Y, up).to_array(), size);
             if let Some(set) = args.get("settings") { settings::apply(&mut p, set)?; }
+            aim(&mut p, args)?;
             let id = ed.level.add(p);
             ed.selected = Some(id);
             ed.placing = None;
@@ -223,8 +229,10 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         "change_part" => {
             editable(ed)?;
             let mut p = part_of(ed, args)?.clone();
-            let set = args.get("settings").ok_or("Give settings, such as {\"Colour\": \"#ff8000\"}")?;
-            let changed = settings::apply(&mut p, set)?;
+            let set = args.get("settings");
+            if set.is_none() && args.get("aim").is_none() { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
+            let mut changed = match set { Some(set) => settings::apply(&mut p, set)?, None => vec![] };
+            if aim(&mut p, args)? { changed.push("rot"); }
             let id = p.id;
             *ed.level.get_mut(id).expect("found above") = p;
             settle_instances(ed, args)?;
@@ -611,6 +619,17 @@ fn describe_material(ed: &Editor, path: &str) -> Value {
     json!({"material": path, "texture": m.texture, "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)})
 }
 
+/// Point a spot light at `aim` [x, y, z]: it turns to it and reaches it. Returns whether there was one.
+fn aim(p: &mut Part, args: &Value) -> Result<bool, String> {
+    let Some(a) = args.get("aim") else { return Ok(false) };
+    if p.shape != Shape::SpotLight { return Err(format!("{} isn't a spot light (aim is for spots)", p.name)); }
+    let to = vec3_of(a).ok_or("aim is [x, y, z]")? - Vec3::from(p.pos);
+    if to.length() < 0.1 { return Err("aim is where it shines, away from the light".into()); }
+    p.rot = Quat::from_rotation_arc(Vec3::Y, to.normalize()).to_array();
+    if let Some(l) = p.light.as_mut() { l.reach = to.length(); }
+    Ok(true)
+}
+
 /// A change to a part's contents that its instances didn't get: settled by `instances` ("all", or "this one",
 /// which makes the part Unique), or, without it, taken back and refused.
 fn settle_instances(ed: &mut Editor, args: &Value) -> Result<(), String> {
@@ -636,6 +655,7 @@ fn describe(ed: &Editor, p: &Part) -> Value {
     v["inputs"] = json!(p.inputs());
     // parts with the same contents; changing those asks for instances "all" or "this one"
     v["instances"] = json!(ed.level.instances(p.id).len());
+    if p.shape == Shape::SpotLight { v["shines"] = settings::nums(&crate::editor::light::aim(p).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0)); }
     v["wires_out"] = Value::Array(ed.level.wires.iter().filter(|w| w.from == p.id).map(|w| json!({"output": w.out, "to": name(w.to), "to_id": w.to, "input": w.input})).collect());
     v["wires_in"] = Value::Array(ed.level.wires.iter().filter(|w| w.to == p.id).map(|w| json!({"input": w.input, "from": name(w.from), "from_id": w.from, "output": w.out})).collect());
     if crate::editor::texture::takes_textures(p) {

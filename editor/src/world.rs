@@ -25,7 +25,7 @@ pub struct Geometry { pub shapes: HashMap<Shape, Tris>, pub models: HashMap<Stri
 
 impl Default for Geometry {
     fn default() -> Self {
-        let shapes = Shape::ALL.iter().chain([&Shape::PlayerStart, &Shape::Interact]).map(|&s| (s, shapes::build(s))).collect();
+        let shapes = Shape::built().map(|s| (s, shapes::build(s))).collect();
         Self { shapes, models: HashMap::new() }
     }
 }
@@ -170,14 +170,36 @@ pub struct Looks<'a> {
     pub assets: &'a mut Assets<StandardMaterial>,
     pub meshes: &'a mut Assets<Mesh>,
     pub materials: &'a std::collections::BTreeMap<String, level::Material>,
+    /// Lights may cast shadows (off for slow software renderers).
+    pub shadows: bool,
 }
 
 /// Spawn how a part looks. `editor`: hidden colliders and the player start show as see-through stand-ins;
 /// in the game they are not drawn. A textured shape is an entity with a child per material it shows.
 pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bool) -> Option<Entity> {
-    let Looks { lib, models, server, mats, assets, meshes, materials } = k;
+    let Looks { lib, models, server, mats, assets, meshes, materials, shadows } = k;
     let tf = (part_transform(p), PartId(p.id));
     match p.shape {
+        s if s.is_light() => {
+            let l = p.light.clone().unwrap_or_default();
+            let colour = Color::srgb(l.colour[0], l.colour[1], l.colour[2]);
+            // the editor shows a bulb (clicked to select it) in the light's colour; the game only the light
+            let part = match editor {
+                true => commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(assets.add(StandardMaterial { base_color: colour, unlit: true, ..default() })))).id(),
+                false => commands.spawn((tf, Visibility::default())).id(),
+            };
+            let shadows_enabled = l.shadows && *shadows;
+            // (Bevy's spot shines along -Z; the part's along its up)
+            match s {
+                Shape::PointLight => commands.spawn((PointLight { color: colour, intensity: l.brightness, range: l.reach, shadow_maps_enabled: shadows_enabled, ..default() }, ChildOf(part))),
+                _ => commands.spawn((
+                    SpotLight { color: colour, intensity: l.brightness, range: l.reach, outer_angle: (l.cone * 0.5).to_radians(), inner_angle: (l.cone * 0.4).to_radians(), shadow_maps_enabled: shadows_enabled, ..default() },
+                    Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+                    ChildOf(part),
+                )),
+            };
+            Some(part)
+        }
         Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()))).id()),
         Shape::Model => {
             let path = p.model.as_ref()?;

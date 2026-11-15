@@ -26,6 +26,7 @@ pub const CAT_ACTIONS: Color32 = Color32::from_rgb(0x5b, 0x9b, 0xf0);
 pub const CAT_FLOW: Color32 = Color32::from_rgb(0x48, 0xc0, 0x8c);
 pub const CAT_LOGIC: Color32 = Color32::from_rgb(0xa7, 0x7c, 0xe6);
 pub const CAT_GAME: Color32 = Color32::from_rgb(0xe0, 0x68, 0x8f);
+pub const CAT_LIGHTS: Color32 = Color32::from_rgb(0xf2, 0xc1, 0x4e);
 
 // Widget axes.
 /// Texture handles and the face a texture would land on (never the move widget's colours).

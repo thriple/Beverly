@@ -4,6 +4,7 @@ mod actions;
 mod bev_type;
 mod caps;
 mod edit;
+mod light;
 mod texture;
 mod mcp;
 pub(crate) mod theme;
@@ -75,6 +76,9 @@ pub struct Editor {
     /// The material shown in the bottom panel instead of the selected part (clicked in Assets).
     pub material_open: Option<String>,
     pub hover_handle: Option<edit::Grip>,
+    /// The selected light's handle being dragged, and the one under the pointer.
+    pub light_drag: Option<light::Grip>,
+    pub light_hot: Option<light::Grip>,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
@@ -156,6 +160,8 @@ impl Editor {
             tex_hot: None,
             material_open: None,
             hover_handle: None,
+            light_drag: None,
+            light_hot: None,
             label: None,
             player: "beverly-player",
             wiring: None,

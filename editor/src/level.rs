@@ -33,10 +33,18 @@ pub enum Shape {
     PlayerStart,
     /// A button the player presses (E when close). Output: Pressed.
     Interact,
+    /// Light in every direction, out to its reach (`Part::light`). Shown in the editor only; never collides.
+    PointLight,
+    /// Light in a cone along the part's up (+Y): placed on a ceiling it shines down.
+    SpotLight,
 }
 
 impl Shape {
     pub const ALL: [Shape; 7] = [Shape::Box, Shape::Ramp, Shape::Stairs, Shape::Arch, Shape::Cylinder, Shape::Sphere, Shape::Plane];
+    pub const LIGHTS: [Shape; 2] = [Shape::PointLight, Shape::SpotLight];
+    pub fn is_light(self) -> bool { Shape::LIGHTS.contains(&self) }
+    /// Every kind with triangles of its own (all but models).
+    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS) }
     pub fn label(self) -> &'static str {
         match self {
             Shape::Box => "Box",
@@ -49,6 +57,8 @@ impl Shape {
             Shape::Model => "Model",
             Shape::PlayerStart => "Player start",
             Shape::Interact => "Interact",
+            Shape::PointLight => "Point light",
+            Shape::SpotLight => "Spot light",
         }
     }
     pub fn glyph(self) -> &'static str {
@@ -63,6 +73,8 @@ impl Shape {
             Shape::Model => "◆",
             Shape::PlayerStart => "☺",
             Shape::Interact => "☝",
+            Shape::PointLight => "☼",
+            Shape::SpotLight => "▽",
         }
     }
     /// One line for the parts pop-up.
@@ -79,6 +91,8 @@ impl Shape {
             Shape::Model => return "an imported glTF model".into(),
             Shape::PlayerStart => return "where the player character starts (Shift+` tests from here)".into(),
             Shape::Interact => return "a button the player presses with E; wire Pressed to what it starts".into(),
+            Shape::PointLight => return "light in every direction, out to its reach".into(),
+            Shape::SpotLight => return "a cone of light, shining away from the surface it is placed on".into(),
         };
         format!("{what} · {x} × {y} × {z} m")
     }
@@ -96,6 +110,7 @@ impl Shape {
             Shape::Model => [1.0, 1.0, 1.0],
             Shape::PlayerStart => [0.8, 1.8, 0.8],
             Shape::Interact => [0.5, 1.0, 0.5],
+            Shape::PointLight | Shape::SpotLight => [0.3, 0.3, 0.3],
         }
     }
 
@@ -123,11 +138,38 @@ impl Default for Mover {
     fn default() -> Self { Mover { to: [0.0, 3.0, 0.0], secs: 2.0 } }
 }
 
+/// A light part's light: Point light and Spot light (the cone is a spot's only).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Light {
+    /// sRGB, 0..1.
+    #[reflect(@Setting::colour("Colour").section(LIGHT))]
+    pub colour: [f32; 3],
+    #[reflect(@Setting::toggle("Shadows").section(LIGHT).help("Off is cheaper: light passes through parts"))]
+    pub shadows: bool,
+    /// Lumens.
+    #[reflect(@Setting::feel("Brightness", ("Dim", "Bright"), 1000.0, 10000000.0, "lm").log().section(LIGHT))]
+    pub brightness: f32,
+    /// How far the light reaches, in metres (the sphere's or cone's handle).
+    #[reflect(@Setting::feel("Reach", ("Near", "Far"), 1.0, 100.0, "m").log().section(LIGHT).help("Nothing past this is lit"))]
+    pub reach: f32,
+    /// The spot's cone, edge to edge, in degrees.
+    #[reflect(@Setting::feel("Cone", ("Narrow", "Wide"), 5.0, 150.0, "°").section(CONE).help("Spot lights only: how wide the cone is"))]
+    pub cone: f32,
+}
+
+impl Default for Light {
+    fn default() -> Self { Light { colour: [1.0, 0.93, 0.82], shadows: true, brightness: 800000.0, reach: 10.0, cone: 50.0 } }
+}
+
 /// The part panel's sections.
 pub const PART: &str = "PART";
 pub const PLACE: &str = "POSITION  ·  ROTATION";
 pub const LOOK: &str = "SIZE  ·  LOOK";
 pub const MOVES: &str = "MOVES";
+pub const LIGHT: &str = "LIGHT";
+pub const CONE: &str = "CONE";
 
 impl Mover {
     pub const INPUTS: [&str; 3] = ["Go", "Back", "Toggle"];
@@ -303,6 +345,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[reflect(@Setting::toggle("Unique").section(PART).help("On: changing its look never changes the parts just like it"))]
     pub unique: bool,
+    /// A light part's light (`Shape::PointLight`, `Shape::SpotLight`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[reflect(@Setting::optional("Light", "Off", "On").section(LIGHT))]
+    pub light: Option<Light>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
@@ -315,8 +361,9 @@ impl Part {
             id: 0, name, shape, pos, rot, size,
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
-            collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
+            collision: if shape == Shape::PlayerStart || shape.is_light() { Collision::WalkThrough } else { Collision::Solid },
             model, mover: None, surfaces: vec![], unique: false,
+            light: shape.is_light().then(Light::default),
         }
     }
 
@@ -659,5 +706,20 @@ mod tests {
         // Unique is saved only when on
         let text = ron::to_string(&Part { unique: true, ..boxed(0.0) }).unwrap();
         assert!(text.contains("unique:true") && !ron::to_string(&boxed(0.0)).unwrap().contains("unique"), "{text}");
+    }
+
+    #[test]
+    fn light_parts_carry_a_light_are_individual_and_never_collide() {
+        let mut lvl = Level { name: "main".into(), ..Default::default() };
+        let mut spot = Part::placed(Shape::SpotLight, None, "Spot 1".into(), [0.0, 3.0, 0.0], [1.0, 0.0, 0.0, 0.0], Shape::SpotLight.default_size());
+        assert_eq!(spot.light, Some(Light::default()));
+        spot.collision = Collision::Solid;
+        let a = lvl.add(spot.clone());
+        lvl.add(spot);
+        assert!(lvl.instances(a).is_empty(), "lights are always individual");
+        assert_eq!(crate::play::CollisionWorld::build(&lvl, &crate::world::Geometry::default()).pieces().count(), 0, "not even set Solid");
+        let text = ron::to_string(&lvl.parts[0]).unwrap();
+        assert_eq!(ron::from_str::<Part>(&text).unwrap(), lvl.parts[0]);
+        assert!(!ron::to_string(&Part::placed(Shape::Box, None, "Box".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [1.0; 3])).unwrap().contains("light"));
     }
 }

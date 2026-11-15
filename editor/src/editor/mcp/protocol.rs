@@ -153,7 +153,7 @@ pub fn tools() -> Value {
         {
             "name": "add_part",
             "title": "Add a part",
-            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call.",
+            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call. Lights (Point light, Spot light) have a Light setting: {\"Light\": {\"Brightness\": 400000, \"Reach\": 8, \"Cone\": 40, \"Shadows\": false, \"Colour\": \"#ffd8a0\"}}; a spot shines away from the surface it stands on, or at aim.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -161,6 +161,7 @@ pub fn tools() -> Value {
                     "model": {"type": "string", "description": "For a Model: its file in the project, such as assets/models/tower.glb (list_assets)."},
                     "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Its middle in metres [x, y, z], Y up (a model's origin)."},
                     "settings": {"type": "object", "description": "Settings by label or field, as change_part takes them."},
+                    "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far)."},
                 },
                 "required": ["kind"],
             },
@@ -175,9 +176,10 @@ pub fn tools() -> Value {
                     "id": {"type": "integer"},
                     "name": {"type": "string"},
                     "settings": {"type": "object", "description": "Setting label or field → new value."},
+                    "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far)."},
                     "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, colour, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
                 },
-                "required": ["settings"],
+                "required": [],
             },
         },
         {

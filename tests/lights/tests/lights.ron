@@ -1,0 +1,10 @@
+// Lights (a warm point light in the walker's path, two ceiling spots: one with shadows, a narrow blue one without)
+// load and play under a roof; the walker walks straight through the point light, which never collides.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 1.5, release: ["W"]),
+        (at: 2.0, shot: "walked", expect: [Feet((0, 0, 1), 0.3)]),
+    ],
+)

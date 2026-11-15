@@ -78,7 +78,7 @@ fn setup(
 ) {
     commands.spawn((Camera3d::default(), PlayCamera, Msaa::Sample4, Transform::from_xyz(0.0, 3.0, 8.0)));
     let mut mats = world::setup_stage(&mut commands, &mut meshes, &mut assets, true);
-    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &game.level.materials };
+    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &game.level.materials, shadows: true };
     for p in &game.level.parts {
         world::spawn_visual(&mut commands, p, &mut looks, false);
     }

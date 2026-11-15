@@ -329,7 +329,7 @@
     "Point and spot light parts with radius and cone handles, shadows on or off",
     "Sun light with direction and shadows, Interior mode (no sun), light budget meter"
    ],
-   "note": "The sky and the time-of-day slider are in Sky and clouds; the running clock in Day and night.",
+   "note": "Part 1 built (2026-11-15): Point light and Spot light parts (the Lights section of the parts pop-up) with colour, brightness, reach, shadows on or off and a spot's cone; the reach sphere and the cone's tip (aim and reach) and rim (width) handles; a spot shines away from the surface it is placed on; lights never collide and are never instances. Test project: tests/lights. MCP: add_part kinds Point light and Spot light, the Light setting, aim (a point a spot shines at) on add_part and change_part, get_part's shines. The sky and the time-of-day slider are in Sky and clouds; the running clock in Day and night.",
    "order": 19,
    "first_game": true,
    "next": true

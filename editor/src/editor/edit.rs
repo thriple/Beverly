@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, texture, Editor, Pending, Saved, TestRequest};
+use super::{actions, light, texture, Editor, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -204,7 +204,7 @@ pub struct Drag {
 
 /// The scale handles of a part: corner cubes and face cubes, in the world.
 fn scale_handles(p: &Part, (lo, hi): (Vec3, Vec3)) -> Vec<(Grip, Vec3)> {
-    if p.shape == Shape::PlayerStart { return vec![]; }
+    if p.shape == Shape::PlayerStart || p.shape.is_light() { return vec![]; }
     let a = part_affine(p);
     let mut v: Vec<(Grip, Vec3)> = (0..8).map(|k| (Grip::Corner(k), a.transform_point3(corner_local(k, lo, hi)))).collect();
     for i in 0..3 {
@@ -488,6 +488,12 @@ pub fn interact(
         press.at = None;
         return;
     }
+    // ---- the selected light's reach and cone handles
+    if ed.drag.is_none() && light::handles(&mut ed, &view, cam, gtf, ray, pointer, mouse.pressed(MouseButton::Left), mouse.just_pressed(MouseButton::Left), snap) {
+        ed.hover_handle = None;
+        press.at = None;
+        return;
+    }
 
     // ---- the widget on the selected part
     let sel = ed.selected.and_then(|id| ed.level.get(id)).cloned();
@@ -767,7 +773,7 @@ pub fn sync(
     // a textured part's mesh is laid out for its size, and its look follows its materials
     let mats_changed = *materials != ed.level.materials;
     if mats_changed { *materials = ed.level.materials.clone(); }
-    let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color
+    let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color && a.light == b.light
         && a.surfaces == b.surfaces && (a.surfaces.is_empty() || (a.size == b.size && !mats_changed));
     let mut seen = std::collections::HashSet::new();
     for (e, mut v, mut t) in &mut views {
@@ -783,7 +789,7 @@ pub fn sync(
         }
     }
     for p in ed.level.parts.iter().filter(|p| !seen.contains(&p.id)) {
-        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &ed.level.materials };
+        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &ed.level.materials, shadows: std::env::var_os("BEVERLY_LITE").is_none() };
         if let Some(e) = world::spawn_visual(&mut commands, p, &mut looks, true) {
             commands.entity(e).insert(PartView { id: p.id, applied: p.clone() });
         }
@@ -794,6 +800,7 @@ pub fn sync(
 pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
     if ed.testing.is_some() { return; }
     texture::draw(&ed, &view, &mut w);
+    light::draw(&ed, &view, &mut w);
     // the part's box: unit box for shapes, the model's bounds for models
     let corner = |p: &Part, i: usize| {
         let (lo, hi) = ed.geo.local_box(p);
@@ -909,7 +916,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, light: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -923,7 +930,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, light: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

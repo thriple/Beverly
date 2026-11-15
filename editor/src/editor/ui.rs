@@ -296,7 +296,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     let (text, help) = if p.unique {
                         ("Unique", "Its contents are its own")
                     } else if !ed.level.instanced(&p) {
-                        ("Its own", "Moving and wired parts are always individual")
+                        ("Its own", "Lights, moving and wired parts are always individual")
                     } else if n > 0 {
                         ("", "Parts with the same shape, colour and textures; changing one asks first")
                     } else {
@@ -316,6 +316,16 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
             for sec in settings::sections(&p) {
                 if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
+                // a light: its light's settings in place of size and look (the cone for spots only)
+                if sec == level::LOOK && p.shape.is_light() { continue; }
+                if sec == level::LIGHT {
+                    let spot = p.shape == Shape::SpotLight;
+                    if let Some(l) = p.light.as_mut() {
+                        column(ui, 260.0, "LIGHT", |ui| { settings::section(ui, l, level::LIGHT, &mut ctx); });
+                        if spot { column(ui, 250.0, "CONE", |ui| { settings::section(ui, l, level::CONE, &mut ctx); }); }
+                    }
+                    continue;
+                }
                 let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
                 column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
             }
@@ -634,7 +644,8 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     let q = ed.parts_query.trim().to_lowercase();
     let matches = |label: &str| q.is_empty() || label.to_lowercase().contains(&q);
     let shapes: Vec<Item> = Shape::ALL.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
-    let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> = vec![("Shapes", theme::CAT_SHAPES, shapes, true)];
+    let lights: Vec<Item> = Shape::LIGHTS.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
+    let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> = vec![("Shapes", theme::CAT_SHAPES, shapes, true), ("Lights", theme::CAT_LIGHTS, lights, true)];
     for sec in &SCRIPT_SECTIONS {
         let shape_of = |l: &str| match l {
             "Player start" => Some(Shape::PlayerStart),
@@ -1254,7 +1265,7 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
                 .collect();
             p.add(egui::Shape::line(pts, st));
         }
-        Shape::Model | Shape::PlayerStart | Shape::Interact => {}
+        Shape::Model | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight => {}
     }
 }
 

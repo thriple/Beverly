@@ -165,6 +165,8 @@ pub fn build(shape: Shape) -> Tris {
         Shape::Cylinder | Shape::PlayerStart | Shape::Interact => cylinder(40),
         Shape::Model => Tris::default(),
         Shape::Sphere => sphere(32, 18),
+        Shape::PointLight => sphere(16, 10),
+        Shape::SpotLight => lampshade(20),
     }
 }
 
@@ -274,6 +276,18 @@ fn cylinder(seg: usize) -> Tris {
     t
 }
 
+/// A spot light's stand-in: a cone opening toward +Y (the way it shines), closed at the wide end.
+fn lampshade(seg: usize) -> Tris {
+    let mut t = Tris::default();
+    let apex = vec3(0.0, -0.5, 0.0);
+    let rim = |i: usize| { let a = TAU * i as f32 / seg as f32; vec3(a.cos() * 0.5, 0.5, a.sin() * 0.5) };
+    t.face(Lay::Around { axis: 1, centre: Vec2::ZERO, r: 0.25 });
+    for i in 0..seg { t.tri(apex, rim(i), rim(i + 1)); }
+    t.face(Lay::Flat(Vec3::Y));
+    for i in 0..seg { t.tri(vec3(0.0, 0.5, 0.0), rim(i + 1), rim(i)); }
+    t
+}
+
 fn sphere(seg: usize, rings: usize) -> Tris {
     let mut t = Tris::default();
     t.face(Lay::Ball);
@@ -301,7 +315,7 @@ impl ShapeLib {
 }
 
 pub fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
-    let meshes = Shape::ALL.iter().chain([&Shape::PlayerStart, &Shape::Interact]).map(|&s| (s, meshes.add(build(s).mesh()))).collect();
+    let meshes = Shape::built().map(|s| (s, meshes.add(build(s).mesh()))).collect();
     commands.insert_resource(ShapeLib { meshes });
 }
 
@@ -331,7 +345,7 @@ mod tests {
 
     #[test]
     fn faces_have_names_and_textures_lie_in_metres() {
-        for s in Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]) {
+        for s in Shape::built() {
             let t = build(s);
             assert_eq!(t.face.len() * 3, t.pos.len(), "{s:?}: a face for every triangle");
             assert!(t.face.iter().all(|&f| (f as usize) < t.faces.len()), "{s:?}");
