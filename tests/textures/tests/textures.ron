@@ -1,0 +1,10 @@
+// Textured parts (every shape, one face or all over, a textured floor) load and play: the walker stands on the
+// textured floor and walks across it. The screenshots show how the textures lie.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 1.5, release: ["W"]),
+        (at: 2.0, shot: "walked", expect: [Feet((0, 0, 1), 0.3)]),
+    ],
+)

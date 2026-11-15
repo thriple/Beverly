@@ -291,7 +291,7 @@
     "Textures on parts and faces: drop, scale, offset, the violet texture handles",
     "Material assets shared by many surfaces, the Materials panel, glowing-surface material"
    ],
-   "note": "",
+   "note": "Part 1 built 2026-11-15 (pushed, released with part 2): faces on the basic shapes (named, for the panel and the MCP), textures laid in metres (flat faces across, round faces wrapped), a material file per texture in assets/materials, drag from Assets onto a face (Shift: the whole shape), violet handles, the Textures section, png/jpeg loading (also fixes textures inside models). Test project: tests/textures. MCP: lay_texture, and get_part lists faces and textures.",
    "order": 17,
    "first_game": true,
    "next": true

@@ -548,8 +548,8 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <div class="said">Select the shape, drag a texture onto it; handles scale it proportionally (Shift) or stretch it. Tile repeat, opacity, metalness, roughness.</div>
       <ul>
         <li>Drag image files from Explorer straight into the Textures panel (or anywhere in the window). They're copied into the folder you drop them on; the originals stay where they were. Models and sounds import the same way.</li>
-        <li>Dropping onto one face textures that face; dropping onto the box handle textures the whole shape.</li>
-        <li>Texture handles sit flat on the face, drawn in a different colour (violet) from the move widget so the two can't be confused.</li>
+        <li>Dropping onto one face textures that face; holding Shift while dropping textures the whole shape (the face under the pointer lights up violet first). A texture keeps its size in metres when the shape is resized, and wraps around round faces (cylinder sides, the arch's opening, the ball).</li>
+        <li>Texture handles sit flat on the face, drawn in a different colour (violet) from the move widget so the two can't be confused: the middle slides the texture, the corners size one copy of it (Shift keeps its shape). The part panel's Textures section has the same numbers.</li>
         <li>A texture plus its settings saves as a reusable Material in the Assets folder, so changing it changes every surface that uses it.</li>
       </ul>
     </div>

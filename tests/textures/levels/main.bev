@@ -1,0 +1,14 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Wall", shape: Box, pos: (-3.0, 1.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (4.0, 2.0, 1.0), color: (0.6, 0.6, 0.6), visible: true, collision: Solid, surfaces: [(material: "assets/materials/checker.bev", tile: (1.0, 1.0))]),
+        (id: 3, name: "Front only", shape: Box, pos: (2.0, 1.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 2.0, 2.0), color: (0.36, 0.61, 0.94), visible: true, collision: Solid, surfaces: [(face: Some(4), material: "assets/materials/checker.bev", tile: (0.5, 0.5), offset: (0.25, 0.0))]),
+        (id: 4, name: "Column", shape: Cylinder, pos: (5.0, 1.5, -1.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.5, 3.0, 1.5), color: (0.6, 0.6, 0.6), visible: true, collision: Solid, surfaces: [(material: "assets/materials/checker.bev", tile: (1.0, 1.0))]),
+        (id: 5, name: "Arch", shape: Arch, pos: (-1.0, 1.5, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (4.0, 3.0, 1.0), color: (0.6, 0.6, 0.6), visible: true, collision: Solid, surfaces: [(material: "assets/materials/checker.bev", tile: (1.0, 1.0))]),
+        (id: 6, name: "Ball", shape: Sphere, pos: (-6.0, 1.0, -3.0), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 2.0, 2.0), color: (0.6, 0.6, 0.6), visible: true, collision: Solid, surfaces: [(material: "assets/materials/checker.bev", tile: (1.0, 1.0))]),
+        (id: 7, name: "Floor", shape: Plane, pos: (0.0, -0.05, 2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (16.0, 0.1, 12.0), color: (0.6, 0.6, 0.6), visible: true, collision: Solid, surfaces: [(face: Some(2), material: "assets/materials/checker.bev", tile: (2.0, 2.0))]),
+    ],
+    next_id: 7,
+)
