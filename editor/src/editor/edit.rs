@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, Editor, Pending, Saved};
+use super::{actions, Editor, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -22,9 +22,8 @@ impl Editor {
     /// project's files. The player must sit next to the editor (the release zip has both).
     pub fn export_zip(&mut self) {
         if self.dirty() { self.save(); }
-        let exe = if cfg!(windows) { format!("{}.exe", self.player) } else { self.player.to_string() };
-        let player = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(&exe)));
-        let Some(player) = player.filter(|p| p.is_file()) else {
+        let exe = self.player_exe();
+        let Some(player) = self.player_path() else {
             self.island.show("!", "Couldn't find the game player", format!("{exe} should be next to the editor"), Tone::Danger);
             return;
         };
@@ -33,6 +32,12 @@ impl Editor {
             Ok(n) => self.island.show("⇪", format!("Exported {}", out.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default()), format!("{n} files · unzip and run {}.exe", self.name), Tone::Accent),
             Err(e) => self.island.show("!", "Couldn't export", e.to_string(), Tone::Danger),
         }
+    }
+
+    /// The game player's file name, and its path next to the editor (if it is there).
+    pub fn player_exe(&self) -> String { if cfg!(windows) { format!("{}.exe", self.player) } else { self.player.to_string() } }
+    pub fn player_path(&self) -> Option<std::path::PathBuf> {
+        std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(self.player_exe()))).filter(|p| p.is_file())
     }
 
     pub fn delete_selected(&mut self) {
@@ -322,7 +327,11 @@ pub fn test_mode(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
-    if !keys.just_pressed(KeyCode::Backquote) || ed.pending.is_some() || ed.parts_open || (view.keyboard_in_ui && ed.testing.is_none()) { return; }
+    let asked = ed.test_request.take();
+    let key = keys.just_pressed(KeyCode::Backquote) && ed.pending.is_none() && !ed.parts_open && !(view.keyboard_in_ui && ed.testing.is_none());
+    if !key && asked.is_none() { return; }
+    if asked == Some(TestRequest::Stop) && ed.testing.is_none() { return; }
+    if matches!(asked, Some(TestRequest::Start(_))) && ed.testing.is_some() { return; }
     if let Some(s) = ed.testing.take() {
         play.stop(&mut commands);
         view.pos = s.pos;
@@ -335,7 +344,7 @@ pub fn test_mode(
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let (cam, gtf) = *cam;
     let start = ed.level.parts.iter().find(|p| p.shape == Shape::PlayerStart).map(|p| Vec3::from(p.pos) - Vec3::Y * p.size[1] * 0.5);
-    let feet = if shift {
+    let feet = if let Some(TestRequest::Start(f)) = asked { f } else if shift {
         match start {
             Some(f) => f,
             None => {

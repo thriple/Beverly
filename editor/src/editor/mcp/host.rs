@@ -2,7 +2,11 @@
 use super::protocol::Output;
 use crate::editor::actions::{self, ACTIONS};
 use crate::editor::view::View;
-use crate::editor::Editor;
+use crate::editor::{Editor, TestRequest};
+use crate::play::Play;
+use crate::scripted::{input, Input};
+use crate::world::{part_transform, PartId};
+use bevy::input::mouse::AccumulatedMouseMotion;
 use crate::level::{Part, Shape, Wire};
 use crate::settings;
 use bevy::prelude::*;
@@ -17,11 +21,81 @@ pub struct Shot {
     frames: u8,
 }
 
+/// Keys the assistant holds down (until a time on the real clock), and a turn of the view to make.
+#[derive(Resource, Default)]
+pub struct Injected {
+    held: Vec<(Input, f64)>,
+    look: Vec2,
+}
+
+/// Press the assistant's keys after the real input is read (as the scripted tests do), and let go when their time is up.
+pub fn inject(mut inj: ResMut<Injected>, time: Res<Time<Real>>, mut keys: ResMut<ButtonInput<KeyCode>>, mut mouse: ResMut<ButtonInput<MouseButton>>, mut motion: ResMut<AccumulatedMouseMotion>) {
+    let now = time.elapsed_secs_f64();
+    for (i, until) in &inj.held {
+        let up = *until <= now;
+        match (*i, up) {
+            (Input::Key(k), false) => keys.press(k),
+            (Input::Key(k), true) => keys.release(k),
+            (Input::Mouse(b), false) => mouse.press(b),
+            (Input::Mouse(b), true) => mouse.release(b),
+        }
+    }
+    inj.held.retain(|(_, until)| *until > now);
+    if inj.look != Vec2::ZERO {
+        motion.delta += inj.look;
+        inj.look = Vec2::ZERO;
+    }
+}
+
+/// A call answered with the play state once its time comes (after keys are let go, or once test mode has started).
+pub struct Waiting {
+    reply: std::sync::mpsc::Sender<Result<Output, String>>,
+    until: f64,
+    frames: u8,
+}
+
+/// What `serve` reads while playing.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct Playing<'w, 's> {
+    play: Res<'w, Play>,
+    time: Res<'w, Time<Real>>,
+    injected: ResMut<'w, Injected>,
+    parts: Query<'w, 's, (&'static PartId, &'static Transform)>,
+}
+
 /// Answer the calls that arrived since the last frame.
-pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWriter<AppExit>, mut commands: Commands, mut images: ResMut<Assets<Image>>, mut shots: Local<Vec<Shot>>) {
+#[allow(clippy::too_many_arguments)]
+pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWriter<AppExit>, mut commands: Commands, mut images: ResMut<Assets<Image>>, mut shots: Local<Vec<Shot>>, mut waiting: Local<Vec<Waiting>>, mut pl: Playing) {
     take_shots(&mut commands, &mut shots);
+    let now = pl.time.elapsed_secs_f64();
+    for w in waiting.iter_mut() { w.frames = w.frames.saturating_sub(1); }
+    let (ready, still): (Vec<Waiting>, Vec<Waiting>) = std::mem::take(&mut *waiting).into_iter().partition(|w| w.frames == 0 && w.until <= now);
+    *waiting = still;
+    for w in ready {
+        let v = play_state(&ed, &pl);
+        let _ = w.reply.send(Ok(Output::Text(serde_json::to_string_pretty(&v).unwrap_or_default())));
+    }
     let calls = ed.mcp.take_calls();
     for c in calls {
+        if matches!(c.name.as_str(), "start_test" | "stop_test" | "press_keys") {
+            match playing(&mut ed, &view, &mut pl, &c.name, &c.args, now) {
+                Ok(until) => {
+                    ed.mcp.note(c.name.clone());
+                    waiting.push(Waiting { reply: c.reply, until, frames: 3 });
+                }
+                Err(e) => {
+                    ed.mcp.note(format!("{} ✕ {e}", c.name));
+                    let _ = c.reply.send(Err(e));
+                }
+            }
+            continue;
+        }
+        if c.name == "get_play" {
+            let v = play_state(&ed, &pl);
+            ed.mcp.note(c.name.clone());
+            let _ = c.reply.send(Ok(Output::Text(serde_json::to_string_pretty(&v).unwrap_or_default())));
+            continue;
+        }
         if c.name == "screenshot" {
             match shot(&ed, &view, &c.args, &mut commands, &mut images) {
                 Ok((cam, width)) => {
@@ -59,6 +133,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             "undo_steps": ed.undo.len(),
             "redo_steps": ed.redo.len(),
             "testing": ed.testing.is_some(),
+            "tests": super::jobs::tests_in(&ed.dir),
             "beverly": crate::update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")),
         })),
         "list_parts" => {
@@ -217,6 +292,34 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             }
             call(ed, view, "get_camera", &json!({}), exit)
         }
+        "run_job" => {
+            if ed.dirty() { return Err("There are unsaved changes: jobs work on the saved files, so save first (run_action file.save)".into()); }
+            let player = ed.player_path().ok_or(format!("Couldn't find the game player ({} should be next to the editor)", ed.player_exe()))?;
+            let id = match args.get("kind").and_then(Value::as_str) {
+                Some("test") => {
+                    let all = super::jobs::tests_in(&ed.dir);
+                    let names = match args.get("test").and_then(Value::as_str) {
+                        Some(n) if all.iter().any(|t| t == n) => vec![n.to_string()],
+                        Some(n) => return Err(format!("No test called {n} (there are: {})", list_or_none(&all.iter().map(String::as_str).collect::<Vec<_>>()))),
+                        None if all.is_empty() => return Err("The project has no tests (tests/*.ron)".into()),
+                        None => all,
+                    };
+                    ed.mcp.jobs.tests(player, ed.dir.clone(), names)
+                }
+                Some("export") => {
+                    let out = ed.dir.join("exports").join(format!("{}.zip", ed.name));
+                    std::fs::create_dir_all(out.parent().expect("has one")).map_err(|e| e.to_string())?;
+                    ed.mcp.jobs.export(player, ed.dir.clone(), ed.name.clone(), out)
+                }
+                _ => return Err("kind is \"test\" or \"export\"".into()),
+            };
+            Ok(json!({"job": id, "check_with": "get_job"}))
+        }
+        "get_job" => {
+            let id = args.get("id").and_then(Value::as_u64).ok_or("Give the job's id")? as u32;
+            ed.mcp.jobs.get(id).map(|j| j.describe(true)).ok_or(format!("No job {id} (list_jobs)"))
+        }
+        "list_jobs" => Ok(Value::Array(ed.mcp.jobs.all().iter().map(|j| j.describe(false)).collect())),
         "list_actions" => {
             let q = args.get("query").and_then(Value::as_str).unwrap_or("").to_lowercase();
             Ok(Value::Array(ACTIONS.iter().filter(|a| {
@@ -238,9 +341,77 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
     }
 }
 
+/// Start or stop test mode, or hold keys: returns when (on the real clock) to answer with the play state.
+fn playing(ed: &mut Editor, view: &View, pl: &mut Playing, name: &str, args: &Value, now: f64) -> Result<f64, String> {
+    match name {
+        "start_test" => {
+            if ed.testing.is_some() { return Err("Already testing (stop_test first, or get_play to see it)".into()); }
+            if ed.pending.is_some() { return Err("The unsaved-changes question is open".into()); }
+            if ed.drag.is_some() { return Err("The user is dragging something; try again in a moment".into()); }
+            let start = ed.level.parts.iter().find(|p| p.shape == Shape::PlayerStart).map(|p| Vec3::from(p.pos) - Vec3::Y * p.size[1] * 0.5);
+            let feet = match args.get("from") {
+                Some(Value::Array(_)) => vec3_of(&args["from"]).ok_or("from is \"player_start\", \"view\" or [x, y, z]")?,
+                Some(Value::String(s)) if s == "view" => {
+                    let ray = Ray3d::new(view.pos, Dir3::new(view.forward()).unwrap_or(Dir3::NEG_Z));
+                    ed.hit(ray).map(|h| h.point).unwrap_or(view.pos.with_y(0.0))
+                }
+                None | Some(Value::String(_)) => start.ok_or("There's no Player start (place one with add_part, or give from: \"view\" or [x, y, z])")?,
+                _ => return Err("from is \"player_start\", \"view\" or [x, y, z]".into()),
+            };
+            ed.test_request = Some(TestRequest::Start(feet));
+            ed.parts_open = false;
+            Ok(now)
+        }
+        "stop_test" => {
+            if ed.testing.is_none() { return Err("Not testing".into()); }
+            ed.test_request = Some(TestRequest::Stop);
+            pl.injected.held.clear();
+            Ok(now)
+        }
+        "press_keys" => {
+            if ed.testing.is_none() { return Err("Not testing (start_test first): keys only go to the game".into()); }
+            let secs = args.get("secs").and_then(Value::as_f64).unwrap_or(0.1).clamp(0.02, 30.0);
+            let names: Vec<&str> = args.get("keys").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+            let mut held = vec![];
+            for n in &names {
+                let i = input(n).ok_or(format!("No key called {n} (letters, digits, Space, Shift, Ctrl, Alt, Tab, Enter, Escape, Up, Down, Left, Right, MouseLeft, MouseRight)"))?;
+                held.push((i, now + secs));
+            }
+            if let Some(l) = args.get("look") {
+                let a = l.as_array().filter(|a| a.len() == 2).and_then(|a| Some(Vec2::new(a[0].as_f64()? as f32, a[1].as_f64()? as f32)));
+                pl.injected.look += a.ok_or("look is [dx, dy] in mouse pixels")?;
+            }
+            pl.injected.held.extend(held);
+            Ok(now + secs)
+        }
+        _ => unreachable!(),
+    }
+}
+
+/// The player and the moving parts, while testing.
+fn play_state(ed: &Editor, pl: &Playing) -> Value {
+    if ed.testing.is_none() || !pl.play.on { return json!({"testing": false}); }
+    let p = &pl.play;
+    let mut player = json!({"feet": settings::nums(&p.feet.to_array())});
+    if p.custom.is_none() {
+        let w = &p.walker;
+        player["velocity"] = settings::nums(&w.vel.to_array());
+        player["on_ground"] = json!(w.ground);
+        player["facing"] = settings::num((w.facing.to_degrees() * 10.0).round() / 10.0);
+    } else {
+        player["character"] = json!("the game's own");
+    }
+    let moving: Vec<Value> = ed.level.parts.iter().filter(|q| q.mover.is_some()).map(|q| {
+        let live = pl.parts.iter().find(|(id, _)| id.0 == q.id).map(|(_, t)| t.translation);
+        let moved = live.map(|l| l - part_transform(q).translation).unwrap_or(Vec3::ZERO);
+        json!({"id": q.id, "name": q.name, "position": settings::nums(&(Vec3::from(q.pos) + moved).to_array()), "moved_by": settings::nums(&moved.to_array())})
+    }).collect();
+    json!({"testing": true, "player": player, "moving_parts": moving, "controls": p.custom.unwrap_or("WASD walk · Shift run · Space jump · E press")})
+}
+
 /// Edits wait while testing or while the user is dragging something (so their drag stays one undo step).
 fn editable(ed: &Editor) -> Result<(), String> {
-    if ed.testing.is_some() { return Err("Not while testing (run_action is refused too; the user presses ` to go back to editing)".into()); }
+    if ed.testing.is_some() { return Err("Not while testing (stop_test goes back to editing)".into()); }
     if ed.drag.is_some() { return Err("The user is dragging something; try again in a moment".into()); }
     Ok(())
 }

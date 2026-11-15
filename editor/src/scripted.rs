@@ -72,9 +72,9 @@ pub enum Expect {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum Input { Key(KeyCode), Mouse(MouseButton) }
+pub(crate) enum Input { Key(KeyCode), Mouse(MouseButton) }
 
-fn input(name: &str) -> Option<Input> {
+pub(crate) fn input(name: &str) -> Option<Input> {
     use KeyCode::*;
     let k = match name {
         "Space" => Space, "Shift" => ShiftLeft, "Ctrl" => ControlLeft, "Alt" => AltLeft, "Tab" => Tab,

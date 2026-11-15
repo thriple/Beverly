@@ -3,6 +3,7 @@
 //! tools run on the main thread in [`host`], once a frame.
 
 pub mod host;
+pub mod jobs;
 pub mod protocol;
 mod server;
 
@@ -96,16 +97,17 @@ pub struct Mcp {
     pub listen: Listen,
     /// The last few calls, newest last.
     pub log: VecDeque<String>,
+    pub jobs: jobs::Jobs,
     server: Option<server::Server>,
 }
 
 impl Mcp {
     /// Not listening, with unsaved default settings (until `start`).
-    pub fn off() -> Mcp { Mcp { settings: Settings::default(), listen: Listen::Off, log: VecDeque::new(), server: None } }
+    pub fn off() -> Mcp { Mcp { settings: Settings::default(), listen: Listen::Off, log: VecDeque::new(), jobs: jobs::Jobs::default(), server: None } }
 
     /// The saved settings, listening straight away if the user left it on.
     pub fn start() -> Mcp {
-        let mut m = Mcp { settings: Settings::load(), listen: Listen::Off, log: VecDeque::new(), server: None };
+        let mut m = Mcp { settings: Settings::load(), listen: Listen::Off, log: VecDeque::new(), jobs: jobs::Jobs::default(), server: None };
         m.apply();
         m
     }

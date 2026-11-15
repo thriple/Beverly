@@ -19,6 +19,10 @@ use std::path::PathBuf;
 #[derive(Clone, Copy)]
 pub struct Saved { pub pos: Vec3, pub yaw: f32, pub pitch: f32, pub mode: view::Mode }
 
+/// Test mode asked for by the MCP server (the ` key does the same itself).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum TestRequest { Start(Vec3), Stop }
+
 /// Something that would lose unsaved work: asked about first.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pending { Quit, New, Open }
@@ -55,6 +59,7 @@ pub struct Editor {
     pub placing_model: Option<String>,
     /// Test mode (`): where the editor camera was, to go back to.
     pub testing: Option<Saved>,
+    pub test_request: Option<TestRequest>,
     /// Another project was opened: the model cache and the asset folder must follow.
     pub project_changed: bool,
     pub drag: Option<edit::Drag>,
@@ -127,6 +132,7 @@ impl Editor {
             geo: default(),
             placing_model: None,
             testing: None,
+            test_request: None,
             project_changed: false,
             drag: None,
             hover_handle: None,
@@ -181,6 +187,8 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .init_gizmo_group::<edit::WidgetGizmos>()
         .init_gizmo_group::<edit::OutlineGizmos>()
         .add_systems(Startup, (shapes::setup, view::setup, edit::setup, caps::startup))
+        .init_resource::<mcp::host::Injected>()
+        .add_systems(PreUpdate, mcp::host::inject.after(bevy::input::InputSystems))
         .add_systems(Update, (window_icon, mcp::host::serve))
         .add_systems(
             Update,

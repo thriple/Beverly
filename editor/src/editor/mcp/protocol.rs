@@ -69,7 +69,9 @@ const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes t
     get_part show the level's parts and every setting they have (with ranges and units); list_part_kinds shows what \
     can be placed. add_part, change_part and delete_part edit the level, wire connects one part's output to \
     another's input. screenshot shows the window or the level from any point; get_camera and move_camera move the \
-    view. list_actions shows what can run now and run_action runs one exactly as its menu item or key would. Every \
+    view. start_test plays the level as the user's ` key does; press_keys holds keys in the game and get_play \
+    reads the player and the moving parts; stop_test goes back to editing. run_job runs the project's scripted tests \
+    or exports the game in the background (get_job checks on it). list_actions shows what can run now and run_action runs one exactly as its menu item or key would. Every \
     change is one undo step (run_action edit.undo). Metres, Y up; a part's position is its middle (a model's is its \
     origin), so a 2 m box stands on the ground at y = 1.";
 
@@ -232,6 +234,65 @@ pub fn tools() -> Value {
                     "frame": {"type": ["integer", "string"], "description": "A part to frame, by id or name."},
                 },
             },
+        },
+        {
+            "name": "start_test",
+            "title": "Start testing",
+            "description": "Play the level, as the user's ` key does: the player character drops in and the editor waits. Answers with the play state (as get_play).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"from": {"description": "\"player_start\" (the default), \"view\" (where the editor's view is looking) or [x, y, z] for the feet."}},
+            },
+        },
+        {
+            "name": "press_keys",
+            "title": "Press keys in the game",
+            "description": "While testing: hold keys together for `secs` (default 0.1), optionally turning the view by `look` [dx, dy] in mouse pixels (about 0.14° each), then let go and answer with the play state. Keys: letters, digits, Space, Shift, Ctrl, Alt, Tab, Enter, Escape, Up, Down, Left, Right, MouseLeft, MouseRight. The walker: W A S D walk, Shift runs, Space jumps, E presses a button nearby.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "keys": {"type": "array", "items": {"type": "string"}},
+                    "secs": {"type": "number", "description": "How long to hold them, 0.02 to 30."},
+                    "look": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                },
+            },
+        },
+        {
+            "name": "get_play",
+            "title": "Play state",
+            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something and which way it faces) and where every moving part is now.",
+            "inputSchema": none,
+        },
+        {
+            "name": "stop_test",
+            "title": "Stop testing",
+            "description": "Back to editing, with the view where it was.",
+            "inputSchema": none,
+        },
+        {
+            "name": "run_job",
+            "title": "Run a job",
+            "description": "Start long work in the background on the saved project (save first): kind \"test\" runs the project's scripted tests (tests/*.ron, listed by get_project; all of them, or one given by `test`) with the game player; kind \"export\" writes the Windows game to exports/<project>.zip in the project folder. Answers with a job id for get_job.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["test", "export"]},
+                    "test": {"type": "string", "description": "One test's name (without .ron)."},
+                },
+                "required": ["kind"],
+            },
+        },
+        {
+            "name": "get_job",
+            "title": "Check a job",
+            "description": "A job's status (running, passed or failed), how long it has taken, and its output: for tests, each test's report with every check.",
+            "inputSchema": {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]},
+        },
+        {
+            "name": "list_jobs",
+            "title": "List jobs",
+            "description": "The jobs started this session, newest last, with their status.",
+            "inputSchema": none,
         },
         {
             "name": "list_actions",
@@ -488,6 +549,13 @@ mod tests {
                 "screenshot",
                 "get_camera",
                 "move_camera",
+                "start_test",
+                "press_keys",
+                "get_play",
+                "stop_test",
+                "run_job",
+                "get_job",
+                "list_jobs",
                 "list_actions",
                 "run_action"
             ]

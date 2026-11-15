@@ -956,7 +956,7 @@ fn mcp_modal(ctx: &egui::Context, ed: &mut Editor) {
     egui::Modal::new(Id::new("mcp")).frame(dialog_frame()).show(ctx, |ui| {
         ui.set_width(520.0);
         ui.label(egui::RichText::new("MCP Server").font(semi(17.0)).color(TEXT));
-        ui.add(egui::Label::new(egui::RichText::new("Lets an AI assistant on this computer, such as Claude Code, read your project, look at parts and their settings, and run Beverly's actions. Everything it changes can be undone.").color(MUTED)).wrap());
+        ui.add(egui::Label::new(egui::RichText::new("Lets an AI assistant on this computer, such as Claude Code, build with you: read the project, place and change parts, wire them, take screenshots, play-test the level and run your tests. Everything it changes can be undone.").color(MUTED)).wrap());
         ui.add_space(12.0);
         ui.horizontal(|ui| {
             let mut on = ed.mcp.settings.enabled;
