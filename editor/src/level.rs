@@ -500,4 +500,26 @@ mod tests {
         assert!(load(&dir).unwrap_err().contains("newer Beverly"));
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn surfaces_cover_faces_and_share_one_material_per_texture() {
+        let dir = std::env::temp_dir().join(format!("beverly-mat-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        make_folders(&dir).unwrap();
+        let brick = material_for_texture(&dir, "assets/textures/brick.png").unwrap();
+        assert_eq!(brick, "assets/materials/brick.bev");
+        assert_eq!(material_for_texture(&dir, "assets/textures/brick.png").unwrap(), brick, "the same texture reuses its material");
+        assert_eq!(material_for_texture(&dir, "assets/textures/other/brick.png").unwrap(), "assets/materials/brick 2.bev");
+        assert_eq!(load_material(&dir, &brick).unwrap().texture.as_deref(), Some("assets/textures/brick.png"));
+        let mut p = Part::placed(Shape::Box, None, "Box 1".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [2.0; 3]);
+        let s = |face, m: &str| Surface { face, material: m.into(), tile: [1.0, 1.0], offset: [0.0, 0.0] };
+        p.lay(s(None, "all"));
+        p.lay(s(Some(2), "top"));
+        assert_eq!((p.surface(2).unwrap().material.as_str(), p.surface(0).unwrap().material.as_str()), ("top", "all"));
+        p.lay(s(Some(2), "top again"));
+        assert_eq!(p.surfaces.len(), 2, "a face holds one surface");
+        p.lay(s(None, "everything"));
+        assert_eq!(p.surfaces.len(), 1, "all over replaces the faces' own");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -135,7 +135,7 @@ pub fn tools() -> Value {
         {
             "name": "list_assets",
             "title": "List assets",
-            "description": "The project's asset files by folder (textures, models, sounds, other), as the Assets panel shows them.",
+            "description": "The project's asset files by folder (textures, materials, models, sounds, other), as the Assets panel shows them.",
             "inputSchema": none,
         },
         {
@@ -199,6 +199,23 @@ pub fn tools() -> Value {
                     "remove": {"type": "boolean"},
                 },
                 "required": ["from", "output", "to", "input"],
+            },
+        },
+        {
+            "name": "lay_texture",
+            "title": "Lay a texture on a part",
+            "description": "Lay a texture from assets/textures (list_assets) on a basic shape: on one face by name (get_part lists its faces, such as Top or Front) or all over. It goes through a material in assets/materials made for that texture (the same one every time, so surfaces share it). tile is how big one copy is in metres [across, down]; offset slides it [across, down]. Without texture, changes the tile or offset of the texture already there; with remove: true, takes it off.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "texture": {"type": "string", "description": "Such as assets/textures/brick.png, or just brick.png."},
+                    "face": {"type": "string", "description": "A face name from get_part, or \"all\" (the default)."},
+                    "tile": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                    "offset": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                    "remove": {"type": "boolean"},
+                },
             },
         },
         {
@@ -546,6 +563,7 @@ mod tests {
                 "change_part",
                 "delete_part",
                 "wire",
+                "lay_texture",
                 "screenshot",
                 "get_camera",
                 "move_camera",

@@ -184,6 +184,11 @@ fn assets_panel(root: &mut Ui, ed: &mut Editor) {
                                 ed.placing_model = Some(path);
                                 ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
                             }
+                        } else if super::texture::is_texture(f) {
+                            // textures: drag onto a face (or click, then click a face)
+                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).sense(Sense::click_and_drag()))
+                                .on_hover_text("Drag onto a face of a part (Shift: the whole part)");
+                            if r.drag_started() || r.clicked() { ed.texturing = Some(path); }
                         } else {
                             ui.label(egui::RichText::new(f).size(12.0));
                         }
@@ -281,6 +286,28 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                 column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
             }
             ranges_changed = ctx.ranges_changed;
+            if !p.surfaces.is_empty() {
+                column(ui, 250.0, "TEXTURES", |ui| {
+                    let names = ed.geo.shapes[&p.shape].face_names();
+                    let mut remove = None;
+                    for (i, s) in p.surfaces.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            let face = s.face.map_or("All over".to_string(), |f| names.get(f as usize).cloned().unwrap_or_default());
+                            let mat = std::path::Path::new(&s.material).file_stem().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default();
+                            ui.label(egui::RichText::new(format!("{face} · {mat}")).color(TEXT));
+                            if ui.small_button("✕").on_hover_text("Take this texture off").clicked() { remove = Some(i); }
+                        });
+                        for (label, v, help) in [("Size", &mut s.tile, "How big one copy of the texture is (across, down)"), ("Slide", &mut s.offset, "How far the texture is slid along the surface")] {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(label).color(MUTED)).on_hover_text(help);
+                                let lo = if label == "Size" { 0.05 } else { -1000.0 };
+                                for x in v.iter_mut() { ui.add(egui::DragValue::new(x).speed(0.01).range(lo..=1000.0).max_decimals(2).suffix(" m")); }
+                            });
+                        }
+                    }
+                    if let Some(i) = remove { p.surfaces.remove(i); }
+                });
+            }
             let outs = p.outputs();
             let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
             if !outs.is_empty() || !p.inputs().is_empty() || has_wires {

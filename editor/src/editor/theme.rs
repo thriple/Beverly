@@ -28,6 +28,8 @@ pub const CAT_LOGIC: Color32 = Color32::from_rgb(0xa7, 0x7c, 0xe6);
 pub const CAT_GAME: Color32 = Color32::from_rgb(0xe0, 0x68, 0x8f);
 
 // Widget axes.
+/// Texture handles and the face a texture would land on (never the move widget's colours).
+pub const VIOLET: Color32 = Color32::from_rgb(0xb4, 0x8c, 0xff);
 pub const AXIS_X: Color32 = Color32::from_rgb(0xf0, 0x6a, 0x60);
 pub const AXIS_Y: Color32 = Color32::from_rgb(0x5c, 0xc2, 0x5c);
 pub const AXIS_Z: Color32 = Color32::from_rgb(0x6a, 0x93, 0xf5);

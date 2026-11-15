@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, Editor, Pending, Saved, TestRequest};
+use super::{actions, texture, Editor, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -394,6 +394,14 @@ pub fn interact(
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
 
+    // ---- a texture dragged from the Assets panel
+    let cancel = keys.just_pressed(KeyCode::Escape) || mouse.just_pressed(MouseButton::Right);
+    if texture::dropping(&mut ed, ray, pointer, mouse.just_released(MouseButton::Left), cancel, shift) {
+        *ghost.1 = Visibility::Hidden;
+        press.at = None;
+        return;
+    }
+
     // ---- placing a shape from the parts pop-up
     if let Some(shape) = ed.placing {
         let (ref mut gt, ref mut vis, ref mut mesh) = *ghost;
@@ -469,8 +477,16 @@ pub fn interact(
         return;
     }
 
-    // ---- the widget on the selected part
+    // ---- the selected part's texture handles (they win over the widget when the pointer is on one)
     if !mouse.pressed(MouseButton::Left) { ed.drag = None; }
+    let snap = ed.snap && !ctrl;
+    if ed.drag.is_none() && texture::handles(&mut ed, &view, cam, gtf, ray, pointer, mouse.pressed(MouseButton::Left), mouse.just_pressed(MouseButton::Left), shift, snap) {
+        ed.hover_handle = None;
+        press.at = None;
+        return;
+    }
+
+    // ---- the widget on the selected part
     let sel = ed.selected.and_then(|id| ed.level.get(id)).cloned();
     if let (Some(drag_h), Some(p)) = (ed.drag.as_ref().map(|d| d.handle), sel.as_ref()) {
         let bx = ed.geo.local_box(p);
@@ -661,7 +677,9 @@ pub fn interact(
     if mouse.just_released(MouseButton::Left) {
         if let (Some(a), Some(b)) = (press.at.take(), pointer) {
             if a.distance(b) < 5.0 || view.mode == Mode::Builder {
-                ed.selected = ray.and_then(|r| ed.hit(r)).and_then(|h| h.part);
+                let hit = ray.and_then(|r| ed.hit(r));
+                ed.selected = hit.as_ref().and_then(|h| h.part);
+                ed.tex_face = hit.and_then(|h| h.face);
             }
         }
     }
@@ -766,6 +784,7 @@ pub fn sync(
 /// Outlines (selection, hidden colliders) and the widget.
 pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
     if ed.testing.is_some() { return; }
+    texture::draw(&ed, &view, &mut w);
     // the part's box: unit box for shapes, the model's bounds for models
     let corner = |p: &Part, i: usize| {
         let (lo, hi) = ed.geo.local_box(p);

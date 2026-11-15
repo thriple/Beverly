@@ -267,6 +267,42 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             ed.commit();
             Ok(json!({"wires": ed.level.wires.len(), "removed": removing, "already_there": had && !removing}))
         }
+        "lay_texture" => {
+            editable(ed)?;
+            let p = part_of(ed, args)?;
+            let id = p.id;
+            let names = ed.geo.shapes.get(&p.shape).map(|t| t.face_names()).unwrap_or_default();
+            let face = match args.get("face").and_then(Value::as_str) {
+                None => None,
+                Some(f) if f.eq_ignore_ascii_case("all") => None,
+                Some(f) => Some(names.iter().position(|n| n.eq_ignore_ascii_case(f)).ok_or_else(|| format!("{} has no face {f} (it has: {}, or all)", p.name, names.join(", ")))? as u8),
+            };
+            let pair = |k: &str| -> Result<Option<[f32; 2]>, String> {
+                args.get(k).map(|v| v.as_array().filter(|a| a.len() == 2).and_then(|a| Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32])).ok_or(format!("{k} is [across, down] in metres"))).transpose()
+            };
+            let (tile, offset) = (pair("tile")?, pair("offset")?);
+            if tile.is_some_and(|t| t.iter().any(|x| *x < 0.05)) { return Err("tile is at least 0.05 m each way".into()); }
+            if args.get("remove").and_then(Value::as_bool) == Some(true) {
+                let p = ed.level.get_mut(id).expect("found above");
+                let before = p.surfaces.len();
+                p.surfaces.retain(|s| s.face != face);
+                if p.surfaces.len() == before { return Err("There's no texture there".into()); }
+            } else if let Some(t) = args.get("texture").and_then(Value::as_str) {
+                let t = t.replace('\\', "/");
+                let t = if t.contains('/') { t } else { format!("assets/textures/{t}") };
+                if !ed.dir.join(&t).is_file() { return Err(format!("No file {t} in the project (list_assets)")); }
+                if !crate::editor::texture::is_texture(&t) { return Err("Textures are .png or .jpg files".into()); }
+                ed.lay_texture(id, face, &t)?;
+            } else if !ed.level.get(id).is_some_and(|p| p.surfaces.iter().any(|s| s.face == face)) {
+                return Err("Give a texture (there's none there to change)".into());
+            }
+            if let Some(s) = ed.level.get_mut(id).and_then(|p| p.surfaces.iter_mut().find(|s| s.face == face)) {
+                if let Some(t) = tile { s.tile = t; }
+                if let Some(o) = offset { s.offset = o; }
+            }
+            ed.commit();
+            Ok(describe(ed, ed.level.get(id).expect("found above")))
+        }
         "get_camera" => {
             let (yaw, pitch) = (view.yaw.to_degrees(), view.pitch.to_degrees());
             Ok(json!({"position": settings::nums(&view.pos.to_array()), "looking": settings::nums(&view.forward().to_array()), "yaw": settings::num((yaw * 10.0).round() / 10.0), "pitch": settings::num((pitch * 10.0).round() / 10.0)}))
@@ -524,5 +560,15 @@ fn describe(ed: &Editor, p: &Part) -> Value {
     v["inputs"] = json!(p.inputs());
     v["wires_out"] = Value::Array(ed.level.wires.iter().filter(|w| w.from == p.id).map(|w| json!({"output": w.out, "to": name(w.to), "to_id": w.to, "input": w.input})).collect());
     v["wires_in"] = Value::Array(ed.level.wires.iter().filter(|w| w.to == p.id).map(|w| json!({"input": w.input, "from": name(w.from), "from_id": w.from, "output": w.out})).collect());
+    if crate::editor::texture::takes_textures(p) {
+        let names = ed.geo.shapes[&p.shape].face_names();
+        v["faces"] = json!(names);
+        v["textures"] = Value::Array(p.surfaces.iter().map(|s| json!({
+            "face": s.face.map_or("all".into(), |f| names.get(f as usize).cloned().unwrap_or_default()),
+            "material": s.material,
+            "texture": crate::level::load_material(&ed.dir, &s.material).ok().and_then(|m| m.texture),
+            "tile": settings::nums(&s.tile), "offset": settings::nums(&s.offset),
+        })).collect());
+    }
     v
 }

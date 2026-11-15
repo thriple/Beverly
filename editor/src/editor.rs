@@ -4,6 +4,7 @@ mod actions;
 mod bev_type;
 mod caps;
 mod edit;
+mod texture;
 mod mcp;
 pub(crate) mod theme;
 mod ui;
@@ -64,6 +65,13 @@ pub struct Editor {
     /// Another project was opened: the model cache and the asset folder must follow.
     pub project_changed: bool,
     pub drag: Option<edit::Drag>,
+    /// A texture being dragged from the Assets panel, the part and face it would land on (`None` face: all of it),
+    /// the face of the selected part whose texture handles show, and those handles' drag and hover.
+    pub texturing: Option<String>,
+    pub tex_hover: Option<(u64, Option<u8>)>,
+    pub tex_face: Option<u8>,
+    pub tex_drag: Option<texture::Drag>,
+    pub tex_hot: Option<texture::Grip>,
     pub hover_handle: Option<edit::Grip>,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
@@ -136,6 +144,11 @@ impl Editor {
             test_request: None,
             project_changed: false,
             drag: None,
+            texturing: None,
+            tex_hover: None,
+            tex_face: None,
+            tex_drag: None,
+            tex_hot: None,
             hover_handle: None,
             label: None,
             player: "beverly-player",
