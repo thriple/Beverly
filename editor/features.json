@@ -356,20 +356,18 @@
    "id": "cameras",
    "name": "Camera parts",
    "area": "Level building",
-   "status": "planned",
-   "effort": "L",
+   "status": "done",
+   "effort": "M",
    "needs": [
     "shapes"
    ],
-   "what": "Fixed, Rail, Orbit and Follow camera parts for cinematics, with frustum pyramids and Look through.",
-   "chunks": [
-    "Fixed / Orbit / Follow camera parts, frustums, Look through",
-    "Rail cameras on paths"
-   ],
-   "note": "For cinematics (Animatics cuts between them); the game never switches to them while playing, so Camera focus / Release were dropped (user, 2026-11-15). Rail cameras need Paths. Part 1 built (2026-11-15): Fixed, Orbit (a target handle; Lap) and Follow (keeps its offset from the player start) camera parts in a Cameras section of the parts pop-up, each with a View and a 16:9 wire pyramid; Look through (L) flies the camera to aim it, one undo step; editor lines and stand-ins on a layer of their own. Test project: tests/cameras. MCP: add_part kinds and aim (what it looks at; an Orbit camera's target), the Camera setting, get_part's looks, screenshot through a camera at a time, action view.look_through.",
+   "what": "Fixed, Orbit and Follow camera parts for cinematics, with frustum pyramids and Look through.",
+   "chunks": [],
+   "note": "For cinematics (Animatics cuts between them); the game never switches to them while playing, so Camera focus / Release were dropped, and Rail cameras moved to Paths (user, 2026-11-15). Fixed, Orbit (a target handle; Lap) and Follow (keeps its offset from the player start) camera parts in a Cameras section of the parts pop-up, each with a View and a 16:9 wire pyramid; Look through (L) flies the camera to aim it, one undo step; editor lines and stand-ins on a layer of their own. Test project: tests/cameras. MCP: add_part kinds and aim (what it looks at; an Orbit camera's target), the Camera setting, get_part's looks, screenshot through a camera at a time, action view.look_through.",
    "order": 21,
    "first_game": true,
-   "next": true
+   "built": "2026-11-15",
+   "build": 36
   },
   {
    "id": "physics",
@@ -860,14 +858,15 @@
    "status": "planned",
    "effort": "L",
    "needs": [
+    "cameras",
     "timeline"
    ],
    "what": "Draw curves for rails, patrols, camera paths and roads; P shows paths with key widgets and handles, synced to the timeline.",
    "chunks": [
-    "Paths tool: click points, bend handles, closed loops; paths as level parts",
+    "Paths tool: click points, bend handles, closed loops; paths as level parts; Rail cameras that travel along a path",
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
-   "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries.",
+   "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries. Rail cameras (a camera part that travels along a path) moved here from Camera parts (user, 2026-11-15).",
    "order": 50,
    "first_game": true
   },
