@@ -162,6 +162,9 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
     shared
 }
 
+/// The layer of what only the editor's view shows (its lines, handles and stand-ins).
+pub const EDITOR_ONLY: bevy::camera::visibility::RenderLayers = bevy::camera::visibility::RenderLayers::layer(1);
+
 /// The stage's sun.
 #[derive(Component)]
 pub struct Sun;
@@ -193,8 +196,9 @@ pub struct Looks<'a> {
     pub shadows: bool,
 }
 
-/// Spawn how a part looks. `editor`: hidden colliders and the player start show as see-through stand-ins;
-/// in the game they are not drawn. A textured shape is an entity with a child per material it shows.
+/// Spawn how a part looks. `editor`: hidden colliders and the player start show as see-through stand-ins, lights as
+/// bulbs and cameras as small bodies, all on the editor's own layer (only its view shows them, not pictures through
+/// a camera); in the game they are not drawn. A textured shape is an entity with a child per material it shows.
 pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bool) -> Option<Entity> {
     let Looks { lib, models, server, mats, assets, meshes, materials, shadows } = k;
     let tf = (part_transform(p), PartId(p.id));
@@ -204,7 +208,7 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
             let colour = Color::srgb(l.colour[0], l.colour[1], l.colour[2]);
             // the editor shows a bulb (clicked to select it) in the light's colour; the game only the light
             let part = match editor {
-                true => commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(assets.add(StandardMaterial { base_color: colour, unlit: true, ..default() })))).id(),
+                true => commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(assets.add(StandardMaterial { base_color: colour, unlit: true, ..default() })), EDITOR_ONLY)).id(),
                 false => commands.spawn((tf, Visibility::default())).id(),
             };
             let shadows_enabled = l.shadows && *shadows;
@@ -219,7 +223,9 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
             };
             Some(part)
         }
-        Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()))).id()),
+        // a camera part: a small body in the editor (clicked to select it); nothing in the game
+        s if s.is_camera() => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(assets.add(StandardMaterial { base_color: Color::srgb(0.37, 0.78, 0.85), unlit: true, ..default() })), EDITOR_ONLY)).id()),
+        Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()), EDITOR_ONLY)).id()),
         Shape::Model => {
             let path = p.model.as_ref()?;
             let scene = models.request(server, path);
@@ -244,8 +250,8 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
                 }
                 return Some(parent);
             }
-            let mat = if p.visible { mats.color(assets, p.color) } else { mats.collider.clone() };
-            Some(commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(mat))).id())
+            if !p.visible { return Some(commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(mats.collider.clone()), EDITOR_ONLY)).id()); }
+            Some(commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(mats.color(assets, p.color)))).id())
         }
     }
 }

@@ -14,7 +14,7 @@
 //! misreading them. Projects from before `.bev` (project.ron, levels/*.ron, format 0) still open; saving one writes
 //! .bev files in place of its .ron ones.
 use crate::settings::{Label, Ranges, Setting};
-use bevy::math::{EulerRot, Quat};
+use bevy::math::{EulerRot, Quat, Vec3};
 use bevy::reflect::{std_traits::ReflectDefault, Reflect};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -38,14 +38,22 @@ pub enum Shape {
     PointLight,
     /// Light in a cone along the part's up (+Y): placed on a ceiling it shines down.
     SpotLight,
+    /// A camera that stays where it is put, looking along its -Z (`Part::camera`). Editor only; never collides.
+    FixedCamera,
+    /// A camera that circles its target (`Camera::target`) once a lap, always looking at it.
+    OrbitCamera,
+    /// A camera that keeps its offset from the player start as the player moves, looking the way it was aimed.
+    FollowCamera,
 }
 
 impl Shape {
     pub const ALL: [Shape; 7] = [Shape::Box, Shape::Ramp, Shape::Stairs, Shape::Arch, Shape::Cylinder, Shape::Sphere, Shape::Plane];
     pub const LIGHTS: [Shape; 2] = [Shape::PointLight, Shape::SpotLight];
     pub fn is_light(self) -> bool { Shape::LIGHTS.contains(&self) }
+    pub const CAMERAS: [Shape; 3] = [Shape::FixedCamera, Shape::OrbitCamera, Shape::FollowCamera];
+    pub fn is_camera(self) -> bool { Shape::CAMERAS.contains(&self) }
     /// Every kind with triangles of its own (all but models).
-    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS) }
+    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS).chain(Shape::CAMERAS) }
     pub fn label(self) -> &'static str {
         match self {
             Shape::Box => "Box",
@@ -60,6 +68,9 @@ impl Shape {
             Shape::Interact => "Interact",
             Shape::PointLight => "Point light",
             Shape::SpotLight => "Spot light",
+            Shape::FixedCamera => "Fixed camera",
+            Shape::OrbitCamera => "Orbit camera",
+            Shape::FollowCamera => "Follow camera",
         }
     }
     pub fn glyph(self) -> &'static str {
@@ -76,6 +87,9 @@ impl Shape {
             Shape::Interact => "☝",
             Shape::PointLight => "☼",
             Shape::SpotLight => "▽",
+            Shape::FixedCamera => "▣",
+            Shape::OrbitCamera => "↻",
+            Shape::FollowCamera => "⇢",
         }
     }
     /// One line for the parts pop-up.
@@ -94,6 +108,9 @@ impl Shape {
             Shape::Interact => return "a button the player presses with E; wire Pressed to what it starts".into(),
             Shape::PointLight => return "light in every direction, out to its reach".into(),
             Shape::SpotLight => return "a cone of light, shining away from the surface it is placed on".into(),
+            Shape::FixedCamera => return "a view that stays put; Look through to aim it".into(),
+            Shape::OrbitCamera => return "a view circling a target you drag, once a lap".into(),
+            Shape::FollowCamera => return "a view that keeps its offset from the player as they move".into(),
         };
         format!("{what} · {x} × {y} × {z} m")
     }
@@ -112,6 +129,7 @@ impl Shape {
             Shape::PlayerStart => [0.8, 1.8, 0.8],
             Shape::Interact => [0.5, 1.0, 0.5],
             Shape::PointLight | Shape::SpotLight => [0.3, 0.3, 0.3],
+            Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => [0.4, 0.3, 0.5],
         }
     }
 
@@ -172,6 +190,51 @@ pub const MOVES: &str = "MOVES";
 pub const LIGHT: &str = "LIGHT";
 pub const CONE: &str = "CONE";
 pub const TAGS: &str = "TAGS";
+pub const CAMERA: &str = "CAMERA";
+pub const ORBIT: &str = "ORBIT";
+
+/// A camera part's camera: Fixed, Orbit and Follow cameras (the target and lap are an Orbit camera's only).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Camera {
+    /// How much it sees, top to bottom, in degrees.
+    #[reflect(@Setting::feel("View", ("Narrow", "Wide"), 10.0, 120.0, "°").section(CAMERA).help("How much it sees, top to bottom"))]
+    pub fov: f32,
+    /// The point an Orbit camera circles and looks at.
+    #[reflect(@Setting::number("Target", "m", 0.05, -100000.0, 100000.0).section(ORBIT).help("The point it circles and looks at (drag the handle)"))]
+    pub target: [f32; 3],
+    /// Seconds for one circle.
+    #[reflect(@Setting::feel("Lap", ("Quick", "Slow"), 3.0, 120.0, "s").log().section(ORBIT).help("How long one circle takes"))]
+    pub lap: f32,
+}
+
+impl Default for Camera {
+    fn default() -> Self { Camera { fov: 45.0, target: [0.0; 3], lap: 20.0 } }
+}
+
+/// Where a camera part is and which way it looks (Bevy's: along -Z), `t` seconds into playing, with the player's
+/// feet at `feet` (a Follow camera keeps its offset from `start`, the player start's feet).
+pub fn camera_view(p: &Part, t: f32, feet: Vec3, start: Vec3) -> (Vec3, Quat) {
+    let pos = Vec3::from(p.pos);
+    let rot = Quat::from_array(p.rot);
+    let c = p.camera.clone().unwrap_or_default();
+    match p.shape {
+        Shape::OrbitCamera => {
+            let target = Vec3::from(c.target);
+            let at = target + Quat::from_rotation_y(std::f32::consts::TAU * t / c.lap.max(0.1)) * (pos - target);
+            (at, looking(at, target).unwrap_or(rot))
+        }
+        Shape::FollowCamera => (pos + feet - start, rot),
+        _ => (pos, rot),
+    }
+}
+
+/// The turn (yaw, then pitch: no roll) that looks from `from` at `to`; None when they are the same point.
+pub fn looking(from: Vec3, to: Vec3) -> Option<Quat> {
+    let d = (to - from).try_normalize()?;
+    Some(Quat::from_euler(EulerRot::YXZ, (-d.x).atan2(-d.z), d.y.clamp(-1.0, 1.0).asin(), 0.0))
+}
 /// The level panel's sections (shown when nothing is selected).
 pub const LIGHTING: &str = "LIGHTING";
 pub const SUN: &str = "SUN";
@@ -413,6 +476,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Light", "Off", "On").section(LIGHT))]
     pub light: Option<Light>,
+    /// A camera part's camera (`Shape::FixedCamera`, `OrbitCamera`, `FollowCamera`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[reflect(@Setting::optional("Camera", "Off", "On").section(CAMERA))]
+    pub camera: Option<Camera>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
@@ -425,9 +492,10 @@ impl Part {
             id: 0, name, shape, pos, rot, size,
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
-            collision: if shape == Shape::PlayerStart || shape.is_light() { Collision::WalkThrough } else { Collision::Solid },
+            collision: if shape == Shape::PlayerStart || shape.is_light() || shape.is_camera() { Collision::WalkThrough } else { Collision::Solid },
             model, mover: None, surfaces: vec![], unique: false, tags: vec![],
             light: shape.is_light().then(Light::default),
+            camera: shape.is_camera().then(Camera::default),
         }
     }
 
@@ -738,6 +806,23 @@ mod tests {
         assert_eq!(back.materials[&brick].glow, 2.0);
         assert_eq!(back.materials, lvl.materials);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_orbit_camera_circles_its_target_and_a_follow_camera_keeps_its_offset() {
+        let cam = |shape| Part { camera: Some(Camera { target: [0.0, 0.0, 0.0], lap: 8.0, ..Default::default() }), ..Part::placed(shape, None, "Cam".into(), [0.0, 2.0, 4.0], [0.0, 0.0, 0.0, 1.0], [0.4; 3]) };
+        let (feet, start) = (Vec3::new(3.0, 0.0, -1.0), Vec3::ZERO);
+        let orbit = cam(Shape::OrbitCamera);
+        let (at, rot) = camera_view(&orbit, 2.0, feet, start);
+        assert!(at.distance(Vec3::new(4.0, 2.0, 0.0)) < 1e-4, "a quarter lap round: {at}");
+        assert!((rot * Vec3::NEG_Z).distance(-at.normalize()) < 1e-4, "looking at the target");
+        assert!(camera_view(&orbit, 8.0, feet, start).0.distance(Vec3::from(orbit.pos)) < 1e-4, "a lap brings it back");
+        let follow = cam(Shape::FollowCamera);
+        assert_eq!(camera_view(&follow, 5.0, feet, start), (Vec3::new(3.0, 2.0, 3.0), Quat::IDENTITY));
+        let fixed = cam(Shape::FixedCamera);
+        assert_eq!(camera_view(&fixed, 5.0, feet, start).0, Vec3::new(0.0, 2.0, 4.0));
+        assert!(looking(Vec3::ZERO, Vec3::ZERO).is_none());
+        assert!((looking(Vec3::ZERO, Vec3::new(1.0, 1.0, 0.0)).unwrap() * Vec3::NEG_Z).distance(Vec3::new(1.0, 1.0, 0.0).normalize()) < 1e-5);
     }
 
     #[test]

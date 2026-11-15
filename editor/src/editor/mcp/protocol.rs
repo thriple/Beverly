@@ -178,7 +178,7 @@ pub fn tools() -> Value {
                     "model": {"type": "string", "description": "For a Model: its file in the project, such as assets/models/tower.glb (list_assets)."},
                     "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Its middle in metres [x, y, z], Y up (a model's origin)."},
                     "settings": {"type": "object", "description": "Settings by label or field, as change_part takes them."},
-                    "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far)."},
+                    "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far). For a camera: the point it looks at (an Orbit camera's target, which it circles)."},
                 },
                 "required": ["kind"],
             },
@@ -193,7 +193,7 @@ pub fn tools() -> Value {
                     "id": {"type": "integer"},
                     "name": {"type": "string"},
                     "settings": {"type": "object", "description": "Setting label or field → new value."},
-                    "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far)."},
+                    "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far). For a camera: the point it looks at (an Orbit camera's target, which it circles)."},
                     "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, colour, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
                 },
                 "required": [],
@@ -277,12 +277,14 @@ pub fn tools() -> Value {
         {
             "name": "screenshot",
             "title": "Screenshot",
-            "description": "A picture of Beverly's window as the user sees it, or, given `from` (and `look_at`), of the level seen from that point without moving the user's view.",
+            "description": "A picture of Beverly's window as the user sees it; or, given `from` (and `look_at`), of the level seen from that point; or, given `camera`, through that camera part (16:9, with its View), `at` seconds into its move (an Orbit camera circling, a Follow camera with the player at the player start). The user's view doesn't move, and the editor's lines and handles are left out.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "from": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Where to look from, [x, y, z] in metres."},
                     "look_at": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "What to look at (default: the selected part, or the middle of the level)."},
+                    "camera": {"type": ["integer", "string"], "description": "A camera part's id or name, to see through it."},
+                    "at": {"type": "number", "description": "With camera: seconds into its move (default 0)."},
                     "width": {"type": "integer", "description": "Pixels wide, 256 to 1920 (default 1024)."},
                 },
             },

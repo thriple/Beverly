@@ -184,6 +184,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         "list_part_kinds" => {
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
             kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight]);
+            kinds.extend(Shape::CAMERAS);
             let template = Part::placed(Shape::Box, None, "Box 1".into(), [0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], Shape::Box.default_size());
             Ok(json!({
                 "kinds": kinds.iter().map(|k| json!({"kind": k.label(), "what": k.description(), "size": settings::nums(&k.default_size()), "outputs": k.outputs()})).collect::<Vec<_>>(),
@@ -195,6 +196,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             let want = args.get("kind").and_then(Value::as_str).ok_or("Give the kind (list_part_kinds)")?.to_lowercase();
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
             kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight]);
+            kinds.extend(Shape::CAMERAS);
             let shape = *kinds.iter().find(|k| k.label().to_lowercase() == want).ok_or_else(|| {
                 format!("No kind called \"{want}\" (there are: {})", kinds.iter().map(|k| k.label()).collect::<Vec<_>>().join(", "))
             })?;
@@ -227,6 +229,11 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 _ => Vec3::Y,
             };
             let mut p = Part::placed(shape, model, ed.level.fresh_name(&base), pos.to_array(), Quat::from_rotation_arc(Vec3::Y, up).to_array(), size);
+            // a camera looks the way the view does: at eye height on what the view looks at, or where it is put
+            if shape.is_camera() {
+                let ground = match args.get("position") { Some(_) => pos - Vec3::Y * crate::editor::camera::EYE, None => pos - Vec3::Y * size[1] * 0.5 };
+                crate::editor::camera::place(&mut p, ground, view.yaw);
+            }
             if let Some(set) = args.get("settings") { settings::apply(&mut p, set)?; }
             aim(&mut p, args)?;
             let id = ed.level.add(p);
@@ -504,6 +511,7 @@ fn play_state(ed: &Editor, pl: &Playing) -> Value {
 fn editable(ed: &Editor) -> Result<(), String> {
     if ed.testing.is_some() { return Err("Not while testing (stop_test goes back to editing)".into()); }
     if ed.drag.is_some() { return Err("The user is dragging something; try again in a moment".into()); }
+    if ed.looking.is_some() { return Err("Looking through a camera (run_action view.look_through, or Esc, goes back)".into()); }
     Ok(())
 }
 
@@ -532,6 +540,27 @@ fn part_ref(ed: &Editor, v: Option<&Value>) -> Result<u64, String> {
 /// Start a screenshot: of the window, or from a camera made for it. Returns the camera and the width.
 fn shot(ed: &Editor, view: &View, args: &Value, commands: &mut Commands, images: &mut Assets<Image>) -> Result<(Option<(Entity, Handle<Image>)>, u32), String> {
     let width = args.get("width").and_then(Value::as_u64).unwrap_or(1024).clamp(256, 1920) as u32;
+    let (w, h) = (width, width * 9 / 16);
+    use bevy::render::render_resource::TextureFormat;
+    let texture = |images: &mut Assets<Image>| images.add(Image::new_target_texture(w, h, TextureFormat::Rgba8UnormSrgb, None));
+    // through a camera part, `at` seconds into its move (a Follow camera's player standing at the player start)
+    if let Some(c) = args.get("camera") {
+        let p = ed.level.get(part_ref(ed, Some(c))?).filter(|p| p.shape.is_camera()).ok_or("That isn't a camera part")?;
+        let at = args.get("at").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+        let start = ed.level.parts.iter().find(|q| q.shape == Shape::PlayerStart).map_or(Vec3::ZERO, |q| Vec3::from(q.pos));
+        let (pos, rot) = crate::level::camera_view(p, at, start, start);
+        let fov = p.camera.as_ref().map_or(45.0, |c| c.fov).to_radians();
+        let image = texture(images);
+        let cam = commands.spawn((
+            Camera3d::default(),
+            Camera { order: -1, ..default() },
+            bevy::camera::RenderTarget::Image(image.clone().into()),
+            Projection::Perspective(PerspectiveProjection { fov, ..default() }),
+            Msaa::Off,
+            Transform::from_translation(pos).with_rotation(rot),
+        )).id();
+        return Ok((Some((cam, image)), width));
+    }
     let Some(from) = args.get("from") else { return Ok((None, width)) };
     let from = vec3_of(from).ok_or("from is [x, y, z]")?;
     let target = match args.get("look_at") {
@@ -544,9 +573,7 @@ fn shot(ed: &Editor, view: &View, args: &Value, commands: &mut Commands, images:
     };
     if (target - from).length() < 1e-3 { return Err("from and look_at are the same point".into()); }
     let up = if (target - from).normalize().y.abs() > 0.999 { Vec3::Z } else { Vec3::Y };
-    let (w, h) = (width, width * 9 / 16);
-    use bevy::render::render_resource::TextureFormat;
-    let image = images.add(Image::new_target_texture(w, h, TextureFormat::Rgba8UnormSrgb, None));
+    let image = texture(images);
     let cam = commands.spawn((
         Camera3d::default(),
         Camera { order: -1, ..default() },
@@ -641,7 +668,11 @@ fn describe_material(ed: &Editor, path: &str) -> Value {
 /// Point a spot light at `aim` [x, y, z]: it turns to it and reaches it. Returns whether there was one.
 fn aim(p: &mut Part, args: &Value) -> Result<bool, String> {
     let Some(a) = args.get("aim") else { return Ok(false) };
-    if p.shape != Shape::SpotLight { return Err(format!("{} isn't a spot light (aim is for spots)", p.name)); }
+    if p.shape.is_camera() {
+        crate::editor::camera::aim(p, vec3_of(a).ok_or("aim is [x, y, z]")?)?;
+        return Ok(true);
+    }
+    if p.shape != Shape::SpotLight { return Err(format!("{} isn't a spot light or a camera (aim is for those)", p.name)); }
     let to = vec3_of(a).ok_or("aim is [x, y, z]")? - Vec3::from(p.pos);
     if to.length() < 0.1 { return Err("aim is where it shines, away from the light".into()); }
     p.rot = Quat::from_rotation_arc(Vec3::Y, to.normalize()).to_array();
@@ -687,6 +718,10 @@ fn describe(ed: &Editor, p: &Part) -> Value {
     v["inputs"] = json!(p.inputs());
     // parts with the same contents; changing those asks for instances "all" or "this one"
     v["instances"] = json!(ed.level.instances(p.id).len());
+    if p.shape.is_camera() {
+        let (_, rot) = crate::level::camera_view(p, 0.0, Vec3::ZERO, Vec3::ZERO);
+        v["looks"] = settings::nums(&(rot * Vec3::NEG_Z).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0));
+    }
     if p.shape == Shape::SpotLight { v["shines"] = settings::nums(&crate::editor::light::aim(p).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0)); }
     v["wires_out"] = Value::Array(ed.level.wires.iter().filter(|w| w.from == p.id).map(|w| json!({"output": w.out, "to": name(w.to), "to_id": w.to, "input": w.input})).collect());
     v["wires_in"] = Value::Array(ed.level.wires.iter().filter(|w| w.to == p.id).map(|w| json!({"input": w.input, "from": name(w.from), "from_id": w.from, "output": w.out})).collect());

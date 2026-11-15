@@ -25,7 +25,7 @@ pub struct CollisionWorld { pieces: Vec<Piece> }
 
 impl CollisionWorld {
     pub fn build(level: &Level, geo: &Geometry) -> Self {
-        let solid = |p: &Part| p.collision == Collision::Solid && p.shape != Shape::PlayerStart && !p.shape.is_light();
+        let solid = |p: &Part| p.collision == Collision::Solid && p.shape != Shape::PlayerStart && !p.shape.is_light() && !p.shape.is_camera();
         let pieces = level
             .parts
             .iter()

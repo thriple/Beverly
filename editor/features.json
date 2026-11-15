@@ -361,14 +361,15 @@
    "needs": [
     "shapes"
    ],
-   "what": "Fixed, Rail, Orbit and Follow cameras with frustum pyramids; Look through; Camera focus and Release actions.",
+   "what": "Fixed, Rail, Orbit and Follow camera parts for cinematics, with frustum pyramids and Look through.",
    "chunks": [
     "Fixed / Orbit / Follow camera parts, frustums, Look through",
-    "Rail cameras on paths, Camera focus / Release actions with ease"
+    "Rail cameras on paths"
    ],
-   "note": "Rail cameras need Paths.",
+   "note": "For cinematics (Animatics cuts between them); the game never switches to them while playing, so Camera focus / Release were dropped (user, 2026-11-15). Rail cameras need Paths. Part 1 built (2026-11-15): Fixed, Orbit (a target handle; Lap) and Follow (keeps its offset from the player start) camera parts in a Cameras section of the parts pop-up, each with a View and a 16:9 wire pyramid; Look through (L) flies the camera to aim it, one undo step; editor lines and stand-ins on a layer of their own. Test project: tests/cameras. MCP: add_part kinds and aim (what it looks at; an Orbit camera's target), the Camera setting, get_part's looks, screenshot through a camera at a time, action view.look_through.",
    "order": 21,
-   "first_game": true
+   "first_game": true,
+   "next": true
   },
   {
    "id": "physics",

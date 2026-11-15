@@ -56,13 +56,21 @@ check("tags are set by name and listed", setting(t.get("part", {"settings": []})
 l = tool("add_part", kind="Spot light", position=[2, 4, 2], aim=[2, 0, 2], settings={"Light": {"Cone": 30}})
 light = {s["field"]: s["value"] for s in setting(l, "light") or []}
 check("a spot light shines at its aim, reaching it, with the cone asked for", l.get("shines") == [0, -1, 0] and light.get("reach") == 4 and light.get("cone") == 30, l)
+oc = tool("add_part", kind="Orbit camera", position=[0, 3, 8], aim=[0, 1, 0], settings={"Camera": {"Lap": 8}})
+cam = {s["field"]: s["value"] for s in setting(oc, "camera") or []}
+check("an orbit camera looks at its aim, which it circles", oc.get("looks") and abs(oc["looks"][2] + 0.97) < 0.01 and cam.get("target") == [0, 1, 0] and cam.get("lap") == 8, oc)
+img = tool("screenshot", camera=oc.get("name", ""), at=2, width=320)
+check("a screenshot through a camera, a quarter lap on, is a PNG", img.get("type") == "image" and base64.b64decode(img["data"])[:4] == b"\x89PNG", str(img)[:200])
+steps = tool("get_project")["undo_steps"]
+tool("run_action", id="view.look_through"); bad = tool("change_part", name="Check box", settings={"Visible": True}); tool("run_action", id="view.look_through")
+check("looking through and back without flying changes nothing; edits wait meanwhile", tool("get_project")["undo_steps"] == steps and "error" in bad, bad)
 check("the light budget counts the shadowed spot", tool("get_level").get("light_budget", {}).get("worst") == 1)
 lv = tool("change_level", settings={"Interior": True, "Height": 15})
 check("change_level turns the sun off and lowers it", setting(lv.get("level", {"settings": []}), "interior") is True and setting(lv["level"], "height") == 15, lv)
-for _ in range(6): tool("run_action", id="edit.undo")
+for _ in range(7): tool("run_action", id="edit.undo")
 check("undo brings the sun back", setting(tool("get_level"), "interior") is False)
 p = tool("get_project")
-check("six undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
+check("seven undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
 
 img = tool("screenshot", **{"from": [8, 6, 6], "look_at": [0, 2, -4], "width": 640})
 check("a screenshot from elsewhere is a PNG", img.get("type") == "image" and base64.b64decode(img["data"])[:8] == b"\x89PNG\r\n\x1a\n", str(img)[:200])

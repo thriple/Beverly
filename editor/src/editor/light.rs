@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn the_budget_counts_shadowed_lights_reaching_one_place() {
         let mut lvl = Level::default();
-        let mut lamp = |lvl: &mut Level, x: f32, shadows: bool| {
+        let lamp = |lvl: &mut Level, x: f32, shadows: bool| {
             let mut p = Part::placed(Shape::PointLight, None, format!("Lamp {x}"), [x, 1.0, 0.0], Quat::IDENTITY.to_array(), [0.3; 3]);
             p.light.as_mut().unwrap().reach = 3.0;
             p.light.as_mut().unwrap().shadows = shadows;

@@ -19,7 +19,7 @@ const SCRIPT_SECTIONS: [Section; 5] = [
     Section {
         name: "Actions",
         color: theme::CAT_ACTIONS,
-        items: &[("✸", "Explosion"), ("≋", "Shake"), ("⁘", "Debris"), ("⌧", "Break"), ("♪", "Sound"), ("⁂", "Particles"), ("☀", "Light FX"), ("❝", "Dialog"), ("◉", "Camera"), ("Ⅱ", "Pause"), ("▦", "Animatic")],
+        items: &[("✸", "Explosion"), ("≋", "Shake"), ("⁘", "Debris"), ("⌧", "Break"), ("♪", "Sound"), ("⁂", "Particles"), ("☀", "Light FX"), ("❝", "Dialog"), ("Ⅱ", "Pause"), ("▦", "Animatic")],
         ready: false,
     },
     Section { name: "Flow", color: theme::CAT_FLOW, items: &[("◷", "Timer"), ("⇉", "Relay"), ("☰", "Sequence"), ("#", "Counter"), ("⚄", "Random")], ready: false },
@@ -53,7 +53,7 @@ pub fn ui(
 
     top_bar(&mut root, &mut ed, &mut exit);
     assets_panel(&mut root, &mut ed);
-    bottom_panel(&mut root, &mut ed);
+    bottom_panel(&mut root, &mut ed, &mut view, &mut exit);
     let r = root.available_rect_before_wrap();
     view.rect = Rect::new(r.left(), r.top(), r.right(), r.bottom());
 
@@ -247,7 +247,7 @@ fn dashed_rect(p: &egui::Painter, r: ERect, color: Color32) {
     }
 }
 
-fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
+fn bottom_panel(root: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWriter<AppExit>) {
     let frame = egui::Frame::new().fill(PANEL).inner_margin(egui::Margin::symmetric(16, 12)).stroke(Stroke::new(1.0, LINE));
     egui::Panel::bottom("props").min_size(168.0).max_size(420.0).resizable(false).frame(frame).show(root, |ui| {
         if let Some(path) = ed.material_open.clone().filter(|p| ed.level.materials.contains_key(p)) {
@@ -261,6 +261,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
         let mut p = ed.level.get(id).unwrap().clone();
         let before = p.clone();
         let mut delete = false;
+        let mut look = false;
         let mut unwire: Option<usize> = None;
         let mut ranges = ed.level.ranges.clone();
         let mut ranges_changed = false;
@@ -281,7 +282,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     let (text, help) = if p.unique {
                         ("Unique", "Its contents are its own")
                     } else if !ed.level.instanced(&p) {
-                        ("Its own", "Lights, moving and wired parts are always individual")
+                        ("Its own", "Lights, cameras, moving and wired parts are always individual")
                     } else if n > 0 {
                         ("", "Parts with the same shape, colour and textures; changing one asks first")
                     } else {
@@ -301,10 +302,21 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
             for sec in settings::sections(&p) {
                 if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
-                // the player start and lights have no surface to tag
-                if sec == level::TAGS && (p.shape == Shape::PlayerStart || p.shape.is_light()) { continue; }
-                // a light: its light's settings in place of size and look (the cone for spots only)
-                if sec == level::LOOK && p.shape.is_light() { continue; }
+                // the player start, lights and cameras have no surface to tag
+                if sec == level::TAGS && (p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera()) { continue; }
+                // a light or a camera: its settings in place of size and look (the cone for spots only)
+                if sec == level::LOOK && (p.shape.is_light() || p.shape.is_camera()) { continue; }
+                if sec == level::CAMERA {
+                    let orbit = p.shape == Shape::OrbitCamera;
+                    if let Some(c) = p.camera.as_mut() {
+                        column(ui, 250.0, "CAMERA", |ui| {
+                            settings::section(ui, c, level::CAMERA, &mut ctx);
+                            if ui.button("Look through").on_hover_ui(|ui| theme::hint(ui, "Fly it to aim it", &["L"])).clicked() { look = true; }
+                        });
+                        if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, &mut ctx); }); }
+                    }
+                    continue;
+                }
                 if sec == level::LIGHT {
                     let spot = p.shape == Shape::SpotLight;
                     if let Some(l) = p.light.as_mut() {
@@ -378,6 +390,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
         });
         if let Some(i) = unwire { ed.level.wires.remove(i); }
         if ranges_changed { ed.level.ranges = ranges; }
+        if look { let _ = actions::run(ed, Some(view), "view.look_through", exit); }
         if delete {
             ed.delete_selected();
         } else if p != before {
@@ -536,6 +549,18 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         }
     }
 
+    // looking through a camera: its picture, the rest dimmed
+    if let Some(name) = ed.looking.as_ref().and_then(|l| ed.level.get(l.id)).map(|p| p.name.clone()) {
+        let f = super::camera::frame(r);
+        let dim = Color32::from_black_alpha(170);
+        for band in [ERect::from_min_max(pos2(r.min.x, r.min.y), pos2(r.max.x, f.min.y)), ERect::from_min_max(pos2(r.min.x, f.max.y), pos2(r.max.x, r.max.y)),
+            ERect::from_min_max(pos2(r.min.x, f.min.y), pos2(f.min.x, f.max.y)), ERect::from_min_max(pos2(f.max.x, f.min.y), pos2(r.max.x, f.max.y))] {
+            if band.width() > 0.5 && band.height() > 0.5 { painter.rect_filled(band, CornerRadius::ZERO, dim); }
+        }
+        painter.rect_stroke(ERect::from_min_max(pos2(f.min.x, f.min.y), pos2(f.max.x, f.max.y)), CornerRadius::ZERO, Stroke::new(1.0, theme::CAT_CAMERAS), StrokeKind::Inside);
+        theme::float_label(ctx, "looking", pos2(f.min.x + 14.0, f.min.y + 14.0), &format!("Looking through {name} · fly to aim it"), theme::CAT_CAMERAS, &["Esc"]);
+    }
+
     // status island
     let rest = match view.mode {
         Mode::Editor => "Editor movement".to_string(),
@@ -564,7 +589,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Parts", &["Tab"]), ("Fly", &["Caps Lock"])],
         Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Parts", &["Tab"]), ("Edit", &["Caps Lock"])],
     };
-    if ed.placing.is_none() && !ed.parts_open && ed.wiring.is_none() {
+    if ed.placing.is_none() && !ed.parts_open && ed.wiring.is_none() && ed.looking.is_none() {
         let id = Id::new("hint-bar");
         let w_est = 120.0 * hints.len() as f32;
         let at = pos2(r.center().x - w_est / 2.0, r.max.y - 44.0);
@@ -696,7 +721,10 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     let matches = |label: &str| q.is_empty() || label.to_lowercase().contains(&q);
     let shapes: Vec<Item> = Shape::ALL.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
     let lights: Vec<Item> = Shape::LIGHTS.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label(), shape: Some(*s) }).collect();
-    let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> = vec![("Shapes", theme::CAT_SHAPES, shapes, true), ("Lights", theme::CAT_LIGHTS, lights, true)];
+    // (under the Cameras heading, "Fixed" says "Fixed camera")
+    let cameras: Vec<Item> = Shape::CAMERAS.iter().filter(|s| matches(s.label())).map(|s| Item { glyph: s.glyph(), label: s.label().trim_end_matches(" camera"), shape: Some(*s) }).collect();
+    let mut sections: Vec<(&str, Color32, Vec<Item>, bool)> =
+        vec![("Shapes", theme::CAT_SHAPES, shapes, true), ("Lights", theme::CAT_LIGHTS, lights, true), ("Cameras", theme::CAT_CAMERAS, cameras, true)];
     for sec in &SCRIPT_SECTIONS {
         let shape_of = |l: &str| match l {
             "Player start" => Some(Shape::PlayerStart),
@@ -1316,7 +1344,7 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
                 .collect();
             p.add(egui::Shape::line(pts, st));
         }
-        Shape::Model | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight => {}
+        Shape::Model | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight | Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => {}
     }
 }
 

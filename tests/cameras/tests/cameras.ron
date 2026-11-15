@@ -1,0 +1,10 @@
+// Camera parts are for cinematics: in play they are neither drawn nor solid. The walker walks straight through
+// where Fixed camera 1 stands (z = 2) and stops 4 m on.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 1.3, release: ["W"]),
+        (at: 1.8, shot: "walked", expect: [Feet((0, 0, 2), 0.4)]),
+    ],
+)

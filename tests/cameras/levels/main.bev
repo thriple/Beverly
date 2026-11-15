@@ -1,0 +1,14 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Statue", shape: Box, pos: (0.0, 1.5, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 3.0, 1.0), color: (0.85, 0.55, 0.35), visible: true, collision: Solid),
+        (id: 3, name: "Plinth", shape: Cylinder, pos: (0.0, 0.25, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (3.0, 0.5, 3.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 4, name: "Wall", shape: Box, pos: (-5.0, 1.5, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.4, 3.0, 8.0), color: (0.45, 0.5, 0.6), visible: true, collision: Solid),
+        (id: 5, name: "Fixed camera 1", shape: FixedCamera, pos: (0.0, 1.6, 2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.4, 0.3, 0.5), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, camera: Some((fov: 45.0, target: (0.0, 0.0, 0.0), lap: 20.0))),
+        (id: 6, name: "Orbit camera 1", shape: OrbitCamera, pos: (0.0, 4.0, 4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.4, 0.3, 0.5), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, camera: Some((fov: 50.0, target: (0.0, 1.5, -4.0), lap: 12.0))),
+        (id: 7, name: "Follow camera 1", shape: FollowCamera, pos: (3.0, 3.0, 10.0), rot: (-0.1260786, 0.2566048, 0.0337827, 0.9576622), size: (0.4, 0.3, 0.5), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, camera: Some((fov: 40.0, target: (0.0, 0.0, 0.0), lap: 20.0))),
+    ],
+    next_id: 7,
+)

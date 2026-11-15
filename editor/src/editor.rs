@@ -4,6 +4,7 @@ mod actions;
 mod bev_type;
 mod caps;
 mod edit;
+mod camera;
 mod light;
 mod texture;
 mod mcp;
@@ -79,6 +80,10 @@ pub struct Editor {
     /// The selected light's handle being dragged, and the one under the pointer.
     pub light_drag: Option<light::Grip>,
     pub light_hot: Option<light::Grip>,
+    /// Looking through a camera part (L).
+    pub looking: Option<camera::Looking>,
+    pub camera_drag: bool,
+    pub camera_hot: bool,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
@@ -162,6 +167,9 @@ impl Editor {
             hover_handle: None,
             light_drag: None,
             light_hot: None,
+            looking: None,
+            camera_drag: false,
+            camera_hot: false,
             label: None,
             player: "beverly-player",
             wiring: None,
@@ -226,6 +234,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 models::build_geometry,
                 edit::models_in,
                 view::input,
+                camera::lens,
                 edit::test_mode,
                 edit::interact,
                 edit::shortcuts,

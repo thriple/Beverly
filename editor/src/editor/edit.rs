@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, light, texture, Editor, Pending, Saved, TestRequest};
+use super::{actions, camera, light, texture, Editor, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -204,7 +204,7 @@ pub struct Drag {
 
 /// The scale handles of a part: corner cubes and face cubes, in the world.
 fn scale_handles(p: &Part, (lo, hi): (Vec3, Vec3)) -> Vec<(Grip, Vec3)> {
-    if p.shape == Shape::PlayerStart || p.shape.is_light() { return vec![]; }
+    if p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera() { return vec![]; }
     let a = part_affine(p);
     let mut v: Vec<(Grip, Vec3)> = (0..8).map(|k| (Grip::Corner(k), a.transform_point3(corner_local(k, lo, hi)))).collect();
     for i in 0..3 {
@@ -288,13 +288,17 @@ pub fn setup(mut commands: Commands, mut mats: ResMut<Assets<StandardMaterial>>,
     commands.insert_resource(shared);
     let ghost = mats.add(StandardMaterial { base_color: Color::srgba(0.96, 0.86, 0.29, 0.28), alpha_mode: AlphaMode::Blend, unlit: true, cull_mode: None, ..default() });
     commands.spawn((Ghost, Mesh3d(meshes.add(Cuboid::default())), MeshMaterial3d(ghost), Transform::default(), Visibility::Hidden));
+    // the editor's lines are on a layer of their own, which only the editor's view shows (not screenshots from a point)
     let (cfg, _) = configs.config_mut::<WidgetGizmos>();
+    cfg.render_layers = world::EDITOR_ONLY;
     cfg.line.width = 3.5;
     cfg.depth_bias = -1.0;
     let (cfg, _) = configs.config_mut::<OutlineGizmos>();
+    cfg.render_layers = world::EDITOR_ONLY;
     cfg.line.width = 1.5;
     cfg.depth_bias = -1.0;
     let (cfg, _) = configs.config_mut::<DefaultGizmoConfigGroup>();
+    cfg.render_layers = world::EDITOR_ONLY;
     cfg.line.width = 1.0;
 }
 
@@ -392,6 +396,12 @@ pub fn interact(
         *ghost.1 = Visibility::Hidden;
         return;
     }
+    // ---- looking through a camera part: it goes where the view goes, and nothing else is edited
+    if ed.looking.is_some() {
+        camera::follow(&mut ed, &view);
+        *ghost.1 = Visibility::Hidden;
+        return;
+    }
     let pointer = view.pointer();
     let ray = pointer.and_then(|p| view.ray(cam, gtf, p));
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
@@ -418,7 +428,7 @@ pub fn interact(
         match ray.and_then(|r| ed.hit(r)) {
             Some(h) => {
                 let size = Vec3::from(shape.default_size());
-                let n = if shift || shape == Shape::PlayerStart { Vec3::Y } else { h.normal };
+                let n = if shift || shape == Shape::PlayerStart || shape.is_camera() { Vec3::Y } else { h.normal };
                 let rot = Quat::from_rotation_arc(Vec3::Y, n);
                 let mut p = h.point;
                 if ed.snap && n.y > 0.999 {
@@ -428,6 +438,8 @@ pub fn interact(
                 // the bottom of the part sits on the surface
                 let pos = p - n * lo.y * size.y;
                 **gt = match shape {
+                    // a camera stands at eye height, looking the way the view does
+                    s if s.is_camera() => Transform { translation: p + Vec3::Y * camera::EYE, rotation: Quat::from_rotation_y(view.yaw), scale: size },
                     Shape::Model => Transform { translation: pos + rot * ((lo + hi) * 0.5 * size), rotation: rot, scale: (hi - lo).max(Vec3::splat(0.05)) * size },
                     _ => Transform { translation: pos, rotation: rot, scale: size },
                 };
@@ -438,7 +450,8 @@ pub fn interact(
                         None => shape.label().to_string(),
                     };
                     let name = ed.level.fresh_name(&base);
-                    let part = Part::placed(shape, model.clone(), name.clone(), pos.to_array(), rot.to_array(), size.to_array());
+                    let mut part = Part::placed(shape, model.clone(), name.clone(), pos.to_array(), rot.to_array(), size.to_array());
+                    if shape.is_camera() { camera::place(&mut part, p, view.yaw); }
                     ed.selected = Some(ed.level.add(part));
                     ed.placing = None;
                     ed.island.show(shape.glyph(), format!("Placed {name}"), "Drag the arrows to move it · Tab for more", Tone::Plain);
@@ -490,6 +503,13 @@ pub fn interact(
     }
     // ---- the selected light's reach and cone handles
     if ed.drag.is_none() && light::handles(&mut ed, &view, cam, gtf, ray, pointer, mouse.pressed(MouseButton::Left), mouse.just_pressed(MouseButton::Left), snap) {
+        ed.hover_handle = None;
+        press.at = None;
+        return;
+    }
+
+    // ---- the selected Orbit camera's target handle
+    if ed.drag.is_none() && camera::handles(&mut ed, &view, cam, gtf, ray, pointer, mouse.pressed(MouseButton::Left), mouse.just_pressed(MouseButton::Left)) {
         ed.hover_handle = None;
         press.at = None;
         return;
@@ -718,9 +738,11 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     }
     if typing { return; }
     let parts_open = ed.parts_open;
+    let looking = ed.looking.is_some();
     let mut act = |id: &str| { let _ = actions::run(&mut ed, Some(&mut view), id, &mut exit); };
     if jp(KeyCode::Tab) && !parts_open { act("view.parts"); }
-    if jp(KeyCode::Escape) && !parts_open { act("edit.deselect"); }
+    if (jp(KeyCode::Escape) && looking) || jp(KeyCode::KeyL) { act("view.look_through"); }
+    if jp(KeyCode::Escape) && !parts_open && !looking { act("edit.deselect"); }
     if jp(KeyCode::Delete) || jp(KeyCode::Backspace) { act("edit.delete"); }
     if jp(KeyCode::KeyF) { act("view.frame"); }
     if jp(KeyCode::Enter) || jp(KeyCode::NumpadEnter) { act("edit.change_all"); }
@@ -808,6 +830,7 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     if ed.testing.is_some() { return; }
     texture::draw(&ed, &view, &mut w);
     light::draw(&ed, &view, &mut w);
+    camera::draw(&ed, &view, &mut g, &mut w);
     // the part's box: unit box for shapes, the model's bounds for models
     let corner = |p: &Part, i: usize| {
         let (lo, hi) = ed.geo.local_box(p);
@@ -892,7 +915,8 @@ impl Editor {
 
 /// One undo step per finished change: when the level differs from the last step and no drag is going on.
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
-    if ed.drag.is_some() || mouse.pressed(MouseButton::Left) { return; }
+    // (looking through a camera is one step, made when it ends)
+    if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
     ed.commit();
 }
 
@@ -923,7 +947,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], light: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], light: None, camera: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -937,7 +961,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], light: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], light: None, camera: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

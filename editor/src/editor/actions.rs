@@ -40,6 +40,7 @@ pub const ACTIONS: &[Action] = &[
     a("edit.make_unique", "Make Unique", "Part panel", "U"),
     a("view.parts", "Parts pop-up", "Top bar", "Tab"),
     a("view.frame", "Frame the selection", "Keys", "F"),
+    a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("help.about", "About Beverly", "Help", ""),
     a("help.updates", "Check for updates…", "Help", ""),
     a("help.features", "Features", "Help", ""),
@@ -50,8 +51,9 @@ pub fn get(id: &str) -> Option<&'static Action> { ACTIONS.iter().find(|a| a.id =
 
 /// Why an action can't run right now (None: it can).
 pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
-    let editing = id.starts_with("edit.") || id == "view.parts" || id == "view.frame";
+    let editing = id.starts_with("edit.") || id.starts_with("view.");
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
+    if editing && ed.looking.is_some() && id != "view.look_through" { return Some("Not while looking through a camera (Esc goes back)"); }
     if ed.pending.is_some() && id.starts_with("file.") { return Some("The unsaved-changes question is open"); }
     match id {
         "edit.undo" if ed.undo.is_empty() => Some("Nothing to undo"),
@@ -61,6 +63,7 @@ pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
         "edit.change_all" if ed.ask.is_none() => Some("Nothing to change all of (it asks after a change to a part with instances)"),
         "edit.make_unique" if ed.ask.is_none() && ed.selected.is_none() => Some("Nothing is selected"),
         "edit.make_unique" if ed.ask.is_none() && ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.unique) => Some("It is Unique already"),
+        "view.look_through" if ed.looking.is_none() && !ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.shape.is_camera()) => Some("Select a camera part first"),
         _ => None,
     }
 }
@@ -106,6 +109,10 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
                 let f = view.forward();
                 view.pos = c - f * (r * 1.6 + 2.0);
             }
+        }
+        "view.look_through" => {
+            let Some(view) = view else { return Err("This needs the 3D view".into()) };
+            super::camera::toggle(ed, view);
         }
         "help.about" => ed.about_open = true,
         "help.updates" => {

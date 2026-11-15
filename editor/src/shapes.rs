@@ -158,7 +158,7 @@ fn box_uv(p: Vec3, n: Vec3) -> [f32; 2] {
 /// The unit-box triangles of a basic shape (a model's come from its file: see `models.rs`).
 pub fn build(shape: Shape) -> Tris {
     match shape {
-        Shape::Box | Shape::Plane => prism(&[vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5)], None),
+        Shape::Box | Shape::Plane | Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => prism(&[vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5)], None),
         Shape::Ramp => prism(&[vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5)], None),
         Shape::Stairs => prism(&stairs_profile(6), None),
         Shape::Arch => prism(&arch_profile(), Some((2..26, vec2(0.0, ARCH_SPRING), ARCH_HALF))),

@@ -80,7 +80,7 @@ pub fn setup(mut commands: Commands, mut egui_settings: ResMut<EguiGlobalSetting
     let v = View::default();
     // BEVERLY_LITE=1: no anti-aliasing (for slow software renderers, e.g. automated tests)
     let msaa = if std::env::var_os("BEVERLY_LITE").is_some() { Msaa::Off } else { Msaa::Sample4 };
-    commands.spawn((Camera3d::default(), MainCamera, crate::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa));
+    commands.spawn((Camera3d::default(), MainCamera, crate::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa, RenderLayers::from_layers(&[0, 1]))); // the level and the editor's own layer (world::EDITOR_ONLY)
     commands.insert_resource(v);
     // The panels get their own full-window camera, drawn over the 3D view (whose viewport shrinks to the free area).
     egui_settings.auto_create_primary_context = false;
