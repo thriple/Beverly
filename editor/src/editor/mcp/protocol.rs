@@ -168,14 +168,14 @@ pub fn tools() -> Value {
         {
             "name": "change_part",
             "title": "Change a part",
-            "description": "Change any of a part's settings (the ones get_part lists), by label or field name in any case: numbers (kept in range), [x, y, z] for Position and Size (a model's Size is its scale), degrees about the vertical or a quaternion for Turn, [r, g, b] from 0 to 1 or \"#rrggbb\" for Colour, true/false for toggles, a choice by name, and for an optional part true, false or an object of its own settings, such as {\"Moves\": {\"By\": [0, 4, 0], \"Speed\": 1.5}}. Parts with the same contents (what is inside the box: shape, textures, Visible, Collision) are instances of each other; name, position, turn, size and colour are each part's own. All or nothing: one bad setting changes none.",
+            "description": "Change any of a part's settings (the ones get_part lists), by label or field name in any case: numbers (kept in range), [x, y, z] for Position and Size (a model's Size is its scale), degrees about the vertical or a quaternion for Turn, [r, g, b] from 0 to 1 or \"#rrggbb\" for Colour, true/false for toggles, a choice by name, and for an optional part true, false or an object of its own settings, such as {\"Moves\": {\"By\": [0, 4, 0], \"Speed\": 1.5}}. Parts with the same contents (what is inside the box: shape, colour, textures, Visible, Collision) are instances of each other; name, position, turn and size are each part's own. All or nothing: one bad setting changes none.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": {"type": "integer"},
                     "name": {"type": "string"},
                     "settings": {"type": "object", "description": "Setting label or field → new value."},
-                    "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
+                    "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, colour, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
                 },
                 "required": ["settings"],
             },
@@ -217,7 +217,7 @@ pub fn tools() -> Value {
                     "tile": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
                     "offset": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
                     "remove": {"type": "boolean"},
-                    "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
+                    "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, colour, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
                 },
             },
         },

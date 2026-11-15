@@ -40,7 +40,7 @@ p = tool("get_project")
 check("the lift project is open with nothing unsaved", p.get("parts") == 4 and not p["unsaved_changes"] and not p["testing"], p)
 undo0 = p["undo_steps"]
 
-a = tool("add_part", kind="Box", position=[5, 1, 0], settings={"Name": "Check box", "Colour": "#ff8000", "Turn": 30})
+a = tool("add_part", kind="Box", position=[5, 1, 0], settings={"Name": "Check box", "Turn": 30})
 check("add_part places a part with settings", a.get("name") == "Check box", a)
 check("a plain box is an instance of the lift's ledge (same contents)", tool("get_part", name="Check box").get("instances") == 1)
 r = tool("change_part", name="Check box", settings={"Visible": False})

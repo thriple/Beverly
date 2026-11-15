@@ -289,7 +289,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                 });
                 let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
                 ui.label(egui::RichText::new(format!("{} {}{file}", p.shape.glyph(), p.shape.label())).color(MUTED));
-                // instances: the parts with the same contents (shape, textures, Visible, Collision)
+                // instances: the parts with the same contents (shape, colour, textures, Visible, Collision)
                 let n = ed.level.instances(id).len();
                 ui.horizontal(|ui| {
                     theme::toggle(ui, &mut p.unique).on_hover_text("On: changing its look never changes the parts just like it");
@@ -298,9 +298,9 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     } else if !ed.level.instanced(&p) {
                         ("Its own", "Moving and wired parts are always individual")
                     } else if n > 0 {
-                        ("", "Parts with the same shape and textures; changing one asks first")
+                        ("", "Parts with the same shape, colour and textures; changing one asks first")
                     } else {
-                        ("No instances", "Parts with the same shape and textures would be its instances")
+                        ("No instances", "Parts with the same shape, colour and textures would be its instances")
                     };
                     let text = if text.is_empty() { format!("Instance · {} alike", n + 1) } else { text.to_string() };
                     ui.label(egui::RichText::new(text).color(MUTED)).on_hover_text(help);
@@ -408,7 +408,7 @@ fn ask_card(ctx: &egui::Context, ed: &mut Editor, view: &View) {
         ui.multiply_opacity(t.clamp(0.0, 1.0));
         egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, white(24))).corner_radius(R_CARD).inner_margin(egui::Margin::same(14)).show(ui, |ui| {
             ui.label(egui::RichText::new(format!("{name} has {} like it", them.len())).font(semi(14.0)));
-            ui.label(egui::RichText::new("Its instances share what is inside the box: shape, textures, Visible, Collision").color(MUTED).size(12.0));
+            ui.label(egui::RichText::new("Its instances share what is inside the box: shape, colour, textures, Visible, Collision").color(MUTED).size(12.0));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 let button = |ui: &mut Ui, label: String, key: &str| {

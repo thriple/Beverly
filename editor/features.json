@@ -301,7 +301,7 @@
    "id": "instancing",
    "name": "Instancing and Unique",
    "area": "Level building",
-   "status": "planned",
+   "status": "done",
    "effort": "M",
    "needs": [
     "models",
@@ -309,10 +309,11 @@
    ],
    "what": "Mesh-plus-material parts are drawn as instances; changing one asks “change all, or make this one unique?”",
    "chunks": [],
-   "note": "Bevy already draws identical mesh-plus-material pairs in batches (Beverly shares one mesh per shape, one material per colour and one loaded copy per model), so this is mostly the editor side: shared assets, Unique, and keeping models sharing one mesh. Built after Textures and materials (user, 2026-11-15) so “change all, or make this one Unique?” has textures and materials to act on.",
+   "note": "Each part is a box (name, position, turn, size: its placement, as a SketchUp component instance) around its contents (shape or model, colour, textures and how they lie, Visible, Collision). Parts with the same contents are instances of each other; changing one's contents asks “Change all N” (Enter) or “Make this one Unique” (U), with the instances outlined, and one undo takes back the change and the answer. Unique toggle and instance count in the part panel; moving and wired parts are always individual. Textured copies share one mesh per shape, size and faces (Bevy batches mesh-plus-material pairs). The design's per-instance tint was dropped (user, 2026-11-15): the colour is a plain shape's material, so it is contents. Test project: tests/instancing. MCP: change_part and lay_texture take instances (all / this one), get_part gives the count, actions edit.change_all and edit.make_unique.",
    "order": 18,
    "first_game": true,
-   "next": true
+   "built": "2026-11-15",
+   "build": 30
   },
   {
    "id": "lights",
@@ -330,7 +331,8 @@
    ],
    "note": "The sky and the time-of-day slider are in Sky and clouds; the running clock in Day and night.",
    "order": 19,
-   "first_game": true
+   "first_game": true,
+   "next": true
   },
   {
    "id": "surface-tags",

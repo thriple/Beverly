@@ -967,10 +967,14 @@ mod tests {
         ed.level.get_mut(b).unwrap().visible = false;
         ed.commit();
         assert!(ed.ask.is_none());
-        // the box (colour, size, place) is each part's own: no question
-        ed.level.get_mut(a).unwrap().color = [1.0, 0.0, 0.0];
+        // the box (size, place, turn) is each part's own: no question
         ed.level.get_mut(a).unwrap().size = [1.0; 3];
+        ed.level.get_mut(a).unwrap().pos = [0.0, 5.0, 0.0];
         ed.commit();
         assert!(ed.ask.is_none());
+        // the colour is inside: it asks
+        ed.level.get_mut(a).unwrap().color = [1.0, 0.0, 0.0];
+        ed.commit();
+        assert_eq!(ed.ask, Some((a, vec![c])));
     }
 }

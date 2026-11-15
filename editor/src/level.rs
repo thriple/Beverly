@@ -327,15 +327,17 @@ impl Part {
     }
     pub fn inputs(&self) -> &'static [&'static str] { if self.mover.is_some() { &Mover::INPUTS } else { &[] } }
 
-    /// Whether two parts hold the same contents: what is inside the box (the shape or model, its textures and how
-    /// they lie, Visible, Collision). The box itself (name, position, turn, size, colour) is each part's own.
+    /// Whether two parts hold the same contents: what is inside the box (the shape or model, its colour, its
+    /// textures and how they lie, Visible, Collision). The box itself (name, position, turn, size) is each part's
+    /// own, as an instance's placement is in SketchUp.
     pub fn same_contents(&self, o: &Part) -> bool {
-        self.shape == o.shape && self.model == o.model && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
+        self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
     }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
         self.shape = from.shape;
         self.model = from.model.clone();
+        self.color = from.color;
         self.surfaces = from.surfaces.clone();
         self.visible = from.visible;
         self.collision = from.collision;
@@ -628,10 +630,10 @@ mod tests {
         let mut lvl = Level { name: "main".into(), ..Default::default() };
         let boxed = |x: f32| Part::placed(Shape::Box, None, format!("Box {x}"), [x, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], [2.0; 3]);
         let a = lvl.add(boxed(0.0));
-        let b = lvl.add(Part { color: [1.0, 0.0, 0.0], size: [1.0, 3.0, 1.0], ..boxed(3.0) });
+        let b = lvl.add(Part { size: [1.0, 3.0, 1.0], rot: [0.0, 0.38268343, 0.0, 0.9238795], ..boxed(3.0) });
         let c = lvl.add(boxed(6.0));
         let ball = lvl.add(Part::placed(Shape::Sphere, None, "Ball".into(), [9.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], [2.0; 3]));
-        // the box (place, size, colour) is each part's own; the contents are shared
+        // the box (place, turn, size) is each part's own; the contents are shared
         assert_eq!(lvl.instances(a), [b, c]);
         assert!(lvl.instances(ball).is_empty());
         // texturing one splits it from the others until they all change or it is made Unique
@@ -642,7 +644,9 @@ mod tests {
         all.change_all(a, &[b, c]);
         assert_eq!(all.split_from(&before), None);
         assert_eq!(all.instances(a), [b, c]);
-        assert_eq!((all.get(b).unwrap().color, all.get(b).unwrap().size), ([1.0, 0.0, 0.0], [1.0, 3.0, 1.0]), "their boxes stay theirs");
+        assert_eq!(all.get(b).unwrap().size, [1.0, 3.0, 1.0], "their boxes stay theirs");
+        // a different colour is different contents (the colour is a plain shape's material)
+        assert!(!boxed(0.0).same_contents(&Part { color: [1.0, 0.0, 0.0], ..boxed(0.0) }));
         lvl.get_mut(a).unwrap().unique = true;
         assert_eq!(lvl.split_from(&before), None);
         assert_eq!(lvl.instances(b), [c]);

@@ -1,4 +1,4 @@
-// Instances (four crates with the same contents, each with its own place, turn, size and colour) and a Unique crate
+// Instances (four crates with the same contents, each with its own place, turn and size) and a Unique crate
 // load and play: they share one mesh where their boxes match, and the walker is stopped by an instance.
 (
     steps: [
