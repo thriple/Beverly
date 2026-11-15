@@ -18,6 +18,8 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   stroke description works (shaders are fine; textures only the user's own). Keeps files small.
 - No third-party asset packs: the user makes Beverly's built-in models and characters. Libraries are fine.
 - Build each feature to its full plan in the roadmap (its parts in order), not a cut-down first version.
+- Every feature says what the MCP server gets from it (most comes free from setting descriptions and named
+  editor actions; anything else is part of the feature).
 - Keep it simple: minimum code for what was asked, surgical changes, ask when unclear.
 - Never put model names or ids in repository files. Never ask for keys in chat or write them into files.
 
@@ -39,6 +41,7 @@ character sets `play::Play::custom` and takes over while `Play::on` (see the doc
 Push work to the repository freely, but only cut a release (commit message containing `[release]`, or a manual
 run of the Windows build) for finished features, never half-done work.
 
-Every release updates the feature list: `editor/features.json` (status of what the release finished, new features
-with their needs, effort S / M / L / XL and, for L and XL, session-sized parts), then `python3 tools/roadmap.py`,
-which checks it, renumbers the build order and writes `docs/roadmap.html`. Help > Features shows the same list.
+Every release updates the feature list, `editor/features.json`: what the release finished becomes `done` with `built`
+(the date) and `build` (its build number: the next run of the Windows build); new features get their needs, effort
+S / M / L / XL and, for L and XL, session-sized parts. Then `python3 tools/roadmap.py` checks it, renumbers the build
+order and writes `docs/roadmap.html`. Help > Features shows the same list.

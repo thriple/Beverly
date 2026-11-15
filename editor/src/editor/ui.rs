@@ -822,7 +822,22 @@ fn unsaved_modal(ctx: &egui::Context, ed: &mut Editor, what: Pending, exit: &mut
 struct Roadmap { updated: String, features: Vec<Feature> }
 
 #[derive(serde::Deserialize)]
-struct Feature { id: String, name: String, area: String, status: String, effort: String, needs: Vec<String>, what: String, chunks: Vec<String>, note: String, order: u32 }
+struct Feature {
+    id: String, name: String, area: String, status: String, effort: String, needs: Vec<String>, what: String, chunks: Vec<String>, note: String, order: u32,
+    /// When a built feature was finished (YYYY-MM-DD) and the release build it shipped in.
+    #[serde(default)]
+    built: String,
+    #[serde(default)]
+    build: u32,
+}
+
+/// "2026-11-15" as "15 Nov 2026" (or "15 Nov" when `short`).
+fn day(s: &str, short: bool) -> String {
+    const M: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    let p: Vec<&str> = s.split('-').collect();
+    let (Some(y), Some(m), Some(d)) = (p.first(), p.get(1).and_then(|m| m.parse::<usize>().ok()).filter(|m| (1..=12).contains(m)), p.get(2).and_then(|d| d.parse::<u32>().ok())) else { return s.into() };
+    if short { format!("{d} {}", M[m - 1]) } else { format!("{d} {} {y}", M[m - 1]) }
+}
 
 fn roadmap() -> &'static Roadmap {
     static R: std::sync::OnceLock<Roadmap> = std::sync::OnceLock::new();
@@ -855,10 +870,10 @@ fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
             for f in r.features.iter().filter(|f| match filter { 1 => ready(f), 2 => f.status == "done", _ => true }) {
                 let is_open = open == f.id;
                 let (dot, word) = match f.status.as_str() {
-                    "done" => (theme::OK, "built"),
-                    "hold" => (white(40), "on hold"),
-                    _ if ready(f) => (ACCENT, "ready"),
-                    _ => (white(60), "planned"),
+                    "done" => (theme::OK, format!("built {}", day(&f.built, true))),
+                    "hold" => (white(40), "on hold".into()),
+                    _ if ready(f) => (ACCENT, "ready".into()),
+                    _ => (white(60), "planned".into()),
                 };
                 let resp = egui::Frame::new().fill(if is_open { white(10) } else { Color32::TRANSPARENT }).corner_radius(CornerRadius { nw: 10, ne: 10, se: 10, sw: 3 }).inner_margin(egui::Margin::symmetric(8, 5)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
@@ -875,6 +890,7 @@ fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
                     });
                     if is_open {
                         ui.add(egui::Label::new(egui::RichText::new(&f.what).color(TEXT)).wrap());
+                        if f.status == "done" { ui.label(egui::RichText::new(format!("Built {} in build {}", day(&f.built, false), f.build)).size(12.0).color(theme::OK)); }
                         if !f.needs.is_empty() {
                             let names: Vec<String> = f.needs.iter().map(|n| {
                                 let g = r.features.iter().find(|g| &g.id == n);
@@ -1115,6 +1131,9 @@ mod tests {
                 let g = r.features.iter().find(|g| &g.id == n).unwrap_or_else(|| panic!("{} needs unknown {n}", f.id));
                 assert!(g.order < f.order, "{} is ordered before {n}", f.id);
             }
+            if f.status == "done" { assert!(f.build > 0 && f.built.len() == 10 && day(&f.built, false) != f.built, "{}: when it was built", f.id); }
         }
+        assert_eq!(day("2026-11-05", false), "5 Nov 2026");
+        assert_eq!(day("2026-01-15", true), "15 Jan");
     }
 }

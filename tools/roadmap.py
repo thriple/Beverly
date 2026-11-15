@@ -2,7 +2,8 @@
 """Beverly's feature list: editor/features.json is the source (the editor's Help > Features window reads it).
 
 Run after changing it (and with every release):  python3 tools/roadmap.py
-- checks every feature's needs exist and L / XL features come in parts,
+- checks every feature's needs exist, L / XL features come in parts, and built ones say when (built: date, build: the
+  release's build number, as Help > About shows it),
 - renumbers the build order (built first, then each feature after everything it needs),
 - writes docs/roadmap.html, the readable version with the order, sizes and parts.
 """
@@ -21,6 +22,7 @@ for f in F:
     for n in f["needs"]:
         if n not in by: sys.exit(f"{f['id']} needs unknown feature {n}")
     if (f["effort"] in ("L", "XL")) != bool(f["chunks"]): sys.exit(f"{f['id']}: L and XL features need parts, S and M none")
+    if f["status"] == "done" and not (f.get("built") and f.get("build")): sys.exit(f"{f['id']} is built: give it built (date) and build (number)")
 
 depth = {}
 def d(i, seen=()):
@@ -35,7 +37,7 @@ def mark(i):
 for f in F:
     if f.get("first_game"): mark(f["id"])
 for f in F: f["first_game"] = f["id"] in path
-F.sort(key=lambda f: (f["status"] != "done", f["status"] == "hold", not f["first_game"], not f.get("next"), depth[f["id"]]))  # stable: file order breaks ties
+F.sort(key=lambda f: (f["status"] != "done", f["status"] == "hold", f.get("build", 0), not f["first_game"], not f.get("next"), depth[f["id"]]))  # stable: file order breaks ties
 for k, f in enumerate(F): f["order"] = k + 1
 SRC.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
 
@@ -54,11 +56,14 @@ def chain(i):
     return max((chain(n) for n in f["needs"]), key=lambda c: sum(sessions(by[x]) for x in c if not done(x))) + [i]
 
 e = html.escape
+import datetime
+def day(s): d = datetime.date.fromisoformat(s); return f"{d.day} {d:%b %Y}"
 def card(f):
     needs = " · ".join(f'<a href="#{n}">{e(by[n]["name"])}</a>{" ✓" if done(n) else ""}' for n in f["needs"]) or "nothing"
     parts = "".join(f"<li>{e(c)}</li>" for c in f["chunks"])
-    st = "built" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if all(done(n) for n in f["needs"]) else "planned")
-    return f'''<article class="f {st.replace(" ", "")}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
+    st = f"built {day(f['built'])}, build {f['build']}" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if all(done(n) for n in f["needs"]) else "planned")
+    cls = "built" if f["status"] == "done" else st.replace(" ", "")
+    return f'''<article class="f {cls}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
 <p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f"<ol>{parts}</ol>" if parts else ""}{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
 
 phases = {}
@@ -66,6 +71,10 @@ for f in todo + held: phases.setdefault(("Last Ascent path" if f["first_game"] e
 phase_html = "".join(f'<section class="phase"><h2>{k[0]} · step {k[1]}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p><div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
 paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) for x in chain(t) if not done(x))}</li>' for t in ["mech-port", "swarm", "screens", "vehicles", "destructibles"])
 
+builds = {}
+for f in F:
+    if f["status"] == "done": builds.setdefault((f["build"], f["built"]), []).append(f)
+built_html = "<h2>Built so far</h2><p class=\"sub\">Newest first: each release and the features it finished.</p><ul class=\"built\">" + "".join(f'<li><b>Build {b}</b> <span class="sub">{day(dt)}</span> · ' + " · ".join(f'<a href="#{f["id"]}">{e(f["name"])}</a>' for f in v) + "</li>" for (b, dt), v in sorted(builds.items(), reverse=True)) + "</ul>"
 notes_html = "<h2>Research behind the new areas</h2><div class=\"cols\">" + "".join(f'<div><h3 style="margin-top:10px">{e(n["title"])}</h3><p class="sub" style="margin-top:4px">{e(n["text"])}</p><p class="sub">' + " · ".join(f'<a href="{e(u)}">{e(t)}</a>' for t, u in n["sources"]) + "</p></div>" for n in data.get("notes", [])) + "</div>"
 OUT.write_text(f'''<title>Beverly Roadmap</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -109,6 +118,7 @@ dd {{ margin:0; color:var(--muted); }}
 .f .note {{ font-size:12px; color:var(--muted); font-style:italic; }}
 .f:target {{ outline:2px solid var(--accent); }}
 a {{ color:var(--accent); }}
+.built {{ margin:6px 0 0; padding-left:18px; }} .built li {{ margin:2px 0; }} .built .sub {{ margin:0; }}
 details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
 </style>
 <div class="wrap">
@@ -131,6 +141,7 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
   <dt>XL</dt><dd>New ground with several layers: the timeline, vehicles, brains, the HUD, the goo swarm. 4+ parts.</dd>
  </dl><p class="sub" style="margin-top:8px">Libraries that cut the work, all checked against Bevy 0.20: avian3d (physics), vleue_navigator (navigation areas), bevy_tnua (walking), bevy_kira_audio (sound), lightyear (multiplayer).</p></div>
 </div>
+{built_html}
 {notes_html}
 {phase_html}
 </div>
