@@ -278,21 +278,6 @@
    "build": 24
   },
   {
-   "id": "instancing",
-   "name": "Instancing and Unique",
-   "area": "Level building",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "models"
-   ],
-   "what": "Mesh-plus-material parts are drawn as instances; changing one asks “change all, or make this one unique?”",
-   "chunks": [],
-   "note": "Bevy already draws identical mesh-plus-material pairs in batches, so this is mostly the editor side: shared assets, Unique, and keeping models sharing one mesh.",
-   "order": 17,
-   "first_game": true
-  },
-  {
    "id": "materials",
    "name": "Textures and materials",
    "area": "Level building",
@@ -307,8 +292,26 @@
     "Material assets shared by many surfaces, the Materials panel, glowing-surface material"
    ],
    "note": "",
+   "order": 17,
+   "first_game": true,
+   "next": true
+  },
+  {
+   "id": "instancing",
+   "name": "Instancing and Unique",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "models",
+    "materials"
+   ],
+   "what": "Mesh-plus-material parts are drawn as instances; changing one asks “change all, or make this one unique?”",
+   "chunks": [],
+   "note": "Bevy already draws identical mesh-plus-material pairs in batches (Beverly shares one mesh per shape, one material per colour and one loaded copy per model), so this is mostly the editor side: shared assets, Unique, and keeping models sharing one mesh. Built after Textures and materials (user, 2026-11-15) so “change all, or make this one Unique?” has textures and materials to act on.",
    "order": 18,
-   "first_game": true
+   "first_game": true,
+   "next": true
   },
   {
    "id": "lights",
@@ -463,22 +466,6 @@
    "first_game": true
   },
   {
-   "id": "prism-import",
-   "name": "Prism models: named pieces",
-   "area": "Level building",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "models",
-    "instancing"
-   ],
-   "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
-   "chunks": [],
-   "note": "",
-   "order": 28,
-   "first_game": true
-  },
-  {
    "id": "jump-pads",
    "name": "Jump pads",
    "area": "Level building",
@@ -491,7 +478,7 @@
    "what": "Step on it and get launched in its direction; works on enemies and objects.",
    "chunks": [],
    "note": "",
-   "order": 29,
+   "order": 28,
    "first_game": true
   },
   {
@@ -512,7 +499,7 @@
     "Create steps: template, model, fit (auto collision); Body card"
    ],
    "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo).",
-   "order": 30,
+   "order": 29,
    "first_game": true
   },
   {
@@ -527,7 +514,7 @@
    "what": "Waves from a formula (layered Gerstner), shore fade, foam; settings by wind and storm.",
    "chunks": [],
    "note": "bevy_water supports Bevy 0.20.",
-   "order": 31,
+   "order": 30,
    "first_game": true
   },
   {
@@ -543,7 +530,7 @@
    "what": "Per level or camera: bloom, depth of field, motion blur, chromatic aberration, vignette, lens distortion, auto exposure, colour grading; zones and the timeline can change them.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 32,
+   "order": 31,
    "first_game": true
   },
   {
@@ -558,7 +545,7 @@
    "what": "Screen-space ambient occlusion and reflections, volumetric fog and light shafts, quality settings.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 33,
+   "order": 32,
    "first_game": true
   },
   {
@@ -576,7 +563,7 @@
     "Cloud layers and volumetric clouds that follow the wind"
    ],
    "note": "Bevy 0.20 has a physical atmosphere built in.",
-   "order": 34,
+   "order": 33,
    "first_game": true
   },
   {
@@ -592,7 +579,7 @@
    "what": "One wind for the level (direction, strength, gusts, zones) read by foliage, cloth, flags, particles, smoke, sails and flying lift.",
    "chunks": [],
    "note": "",
-   "order": 35,
+   "order": 34,
    "first_game": true
   },
   {
@@ -608,7 +595,7 @@
    "what": "Scorch marks, cracks, skid grooves, bullet holes and signs projected onto surfaces, fading with age.",
    "chunks": [],
    "note": "Bevy 0.20 has decals built in. Blast, crack and scrape marks are drawn by a shader from a few numbers (Last Ascent's are small images today; the no-raster rule asks for math where it can do the job); signs and graffiti use the user's own images.",
-   "order": 36,
+   "order": 35,
    "first_game": true
   },
   {
@@ -623,6 +610,22 @@
    "what": "Leaving test mode puts back everything that moved, broke or was used up; values tuned while testing are offered to keep.",
    "chunks": [],
    "note": "Needed as soon as loose physics parts exist, so it comes right after physics instead of at the end.",
+   "order": 36,
+   "first_game": true
+  },
+  {
+   "id": "prism-import",
+   "name": "Prism models: named pieces",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "models",
+    "instancing"
+   ],
+   "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
+   "chunks": [],
+   "note": "",
    "order": 37,
    "first_game": true
   },
@@ -1988,6 +1991,36 @@
    "first_game": false
   },
   {
+   "id": "plane-lock",
+   "name": "Side-on and top-down games",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "char-camera"
+   ],
+   "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
+   "chunks": [],
+   "note": "",
+   "order": 115,
+   "first_game": false
+  },
+  {
+   "id": "achievements",
+   "name": "Achievements and stats",
+   "area": "Game systems",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "variables"
+   ],
+   "what": "Achievements and stats wired to variables, shown in a screen.",
+   "chunks": [],
+   "note": "",
+   "order": 116,
+   "first_game": false
+  },
+  {
    "id": "dungeon-gen",
    "name": "Dungeon generator",
    "area": "World and maps",
@@ -2003,7 +2036,7 @@
     "Placing kit pieces, doors, keys and spawns along it"
    ],
    "note": "",
-   "order": 115,
+   "order": 117,
    "first_game": false
   },
   {
@@ -2016,36 +2049,6 @@
     "kits"
    ],
    "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
-   "chunks": [],
-   "note": "",
-   "order": 116,
-   "first_game": false
-  },
-  {
-   "id": "plane-lock",
-   "name": "Side-on and top-down games",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "char-camera"
-   ],
-   "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
-   "chunks": [],
-   "note": "",
-   "order": 117,
-   "first_game": false
-  },
-  {
-   "id": "achievements",
-   "name": "Achievements and stats",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "variables"
-   ],
-   "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
    "order": 118,
