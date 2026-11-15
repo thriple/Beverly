@@ -195,12 +195,14 @@ fn assets_panel(root: &mut Ui, ed: &mut Editor) {
                         } else if *folder == "materials" {
                             // materials: click to change, drag onto a face
                             let open = ed.material_open.as_deref() == Some(path.as_str());
-                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).sense(Sense::click_and_drag()))
+                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).selectable(false).sense(Sense::click_and_drag()))
+                                .on_hover_cursor(egui::CursorIcon::Grab)
                                 .on_hover_text("Click to change it (every surface using it changes) · drag onto a face");
                             if r.clicked() { ed.material_open = Some(path); } else if r.drag_started() { ed.texturing = Some(path); }
                         } else if super::texture::is_texture(f) {
                             // textures: drag onto a face (or click, then click a face)
-                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).sense(Sense::click_and_drag()))
+                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).selectable(false).sense(Sense::click_and_drag()))
+                                .on_hover_cursor(egui::CursorIcon::Grab)
                                 .on_hover_text("Drag onto a face of a part (Shift: the whole part)");
                             if r.drag_started() || r.clicked() { ed.texturing = Some(path); }
                         } else {
@@ -617,8 +619,19 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
 
     light_budget(ctx, ed, r);
 
+    // a texture or material being dragged out: a grabbing hand and its name under the pointer, all the way
+    if let Some(tex) = ed.texturing.as_deref() {
+        ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+        if view.pointer().is_none() {
+            if let Some(at) = ctx.pointer_hover_pos() {
+                let name = tex.rsplit('/').next().unwrap_or_default().trim_end_matches(".bev");
+                theme::float_label(ctx, "widget", at + vec2(18.0, 14.0), &format!("▦ {name}"), theme::VIOLET, &[]);
+            }
+        }
+    }
+
     if let Some((at, text, color)) = ed.label.clone() {
-        let keys: &[&str] = if ed.drag.is_some() { &[] } else { &["drag"] };
+        let keys: &[&str] = if ed.drag.is_some() || ed.texturing.is_some() { &[] } else { &["drag"] };
         theme::float_label(ctx, "widget", pos2(at.x, at.y), &text, color, keys);
     }
 }
