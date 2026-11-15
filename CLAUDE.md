@@ -13,7 +13,9 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 - Projects are folders of plain text (RON) so they work with git.
 - Build with multiplayer in mind (it comes late, but nothing should block it): game state lives in data (components,
   resources, the level and character files) that could be sent over a network, input goes through named actions,
-  and effects, sounds and the camera react to events instead of driving the game.
+  play runs on a fixed time step, and effects, sounds and the camera react to events instead of driving the game.
+- No raster where math does the job: no images, grids or baked meshes in files when a vector, table, curve or
+  stroke description works (shaders are fine; textures only the user's own). Keeps files small.
 - No third-party asset packs: the user makes Beverly's built-in models and characters. Libraries are fine.
 - Build each feature to its full plan in the roadmap (its parts in order), not a cut-down first version.
 - Keep it simple: minimum code for what was asked, surgical changes, ask when unclear.

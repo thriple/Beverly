@@ -129,7 +129,7 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
   <dt>M</dt><dd>A system with its UI, tested in Xvfb: triggers, health, the jump family.</dd>
   <dt>L</dt><dd>A system plus its editor and a second layer: lights, physics, abilities. 2–3 parts.</dd>
   <dt>XL</dt><dd>New ground with several layers: the timeline, vehicles, brains, the HUD, the goo swarm. 4+ parts.</dd>
- </dl><p class="sub" style="margin-top:8px">Libraries that cut the work, all checked against Bevy 0.20: avian3d (physics), vleue_navigator (navigation areas), bevy_hanabi (particles), bevy_kira_audio (sound).</p></div>
+ </dl><p class="sub" style="margin-top:8px">Libraries that cut the work, all checked against Bevy 0.20: avian3d (physics), vleue_navigator (navigation areas), bevy_tnua (walking), bevy_kira_audio (sound), lightyear (multiplayer).</p></div>
 </div>
 {notes_html}
 {phase_html}
