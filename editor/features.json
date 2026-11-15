@@ -1435,12 +1435,12 @@
    ],
    "what": "Terrain described as control points, curves and stroke operations (raise along a curve, flatten a pad, carve a bed, noise layers), built into meshes per chunk; no height images stored.",
    "chunks": [
-    "Terrain description and mesh building per chunk, with collision",
+    "Terrain description and mesh building per chunk; collision from the height function itself (no collision meshes)",
     "Stroke tools: raise, lower, smooth, flatten, noise; edits stay movable",
     "Curve tools: ridges, valleys, riverbeds and roads that cut and fill",
     "Terrain LOD and seams between chunks"
    ],
-   "note": "Height images from other tools could be converted into strokes later, if wanted.",
+   "note": "Height images from other tools could be converted into strokes later, if wanted. Collision (user, 2026-11-15: no meshes where a height function does it cheaper): the ground is the height function itself as a custom shape in Avian that answers rays exactly (standing on it: the walker's tnua sensor as a ray instead of a disc; feet and foot placement, grapple, camera, bullets, placing things), plus a small contact rule of Beverly's own, since Parry works out contact between solid shapes only for its built-in ones: each step, loose bodies' lowest points are checked against the height and pushed up and out along the slope, and ground steeper than a set limit (banks taller than the walker's 0.45 m step) pushes characters back like a wall. Check: sampled points agree with the height function, the walker climbs stairs and is stopped by a steep bank, a loose crate settles on a slope.",
    "order": 81,
    "first_game": true
   },
