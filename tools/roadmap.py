@@ -30,6 +30,11 @@ def d(i, seen=()):
     if i not in depth: depth[i] = 1 + max((d(n, seen + (i,)) for n in by[i]["needs"]), default=0)
     return depth[i]
 for f in F: d(f["id"])
+# polish passes sit between steps on purpose, not by their needs: after step N of their group, or after the last step
+for f in F:
+    if "pass_after" in f:
+        a = f["pass_after"]
+        depth[f["id"]] = (max(depth.values()) if a == "last" else a) + 0.5
 # the first game's path: what it needs, and everything those need, comes first
 path = set()
 def mark(i):
@@ -47,7 +52,9 @@ todo = [f for f in F if f["status"] not in ("done", "hold")]
 held = [f for f in F if f["status"] == "hold"]
 total = sum(sessions(f) for f in todo)
 eff = Counter(f["effort"] for f in todo)
-ready = [f for f in todo if all(done(n) for n in f["needs"])]
+# a pass is ready once everything before it in its group is built
+before = lambda f: [g for g in todo if g["first_game"] == f["first_game"] and depth[g["id"]] < depth[f["id"]]]
+ready = [f for f in todo if all(done(n) for n in f["needs"]) and not ("pass_after" in f and before(f))]
 
 # the longest chain of needs to each feature, for the critical paths shown
 def chain(i):
@@ -59,9 +66,9 @@ e = html.escape
 import datetime
 def day(s): d = datetime.date.fromisoformat(s); return f"{d.day} {d:%b %Y}"
 def card(f):
-    needs = " · ".join(f'<a href="#{n}">{e(by[n]["name"])}</a>{" ✓" if done(n) else ""}' for n in f["needs"]) or "nothing"
+    needs = " · ".join(f'<a href="#{n}">{e(by[n]["name"])}</a>{" ✓" if done(n) else ""}' for n in f["needs"]) or ("everything before it" if "pass_after" in f else "nothing")
     parts = "".join(f"<li>{e(c)}</li>" for c in f["chunks"])
-    st = f"built {day(f['built'])}, build {f['build']}" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if all(done(n) for n in f["needs"]) else "planned")
+    st = f"built {day(f['built'])}, build {f['build']}" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if f in ready else "planned")
     cls = "built" if f["status"] == "done" else st.replace(" ", "")
     return f'''<article class="f {cls}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
 <p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f"<ol>{parts}</ol>" if parts else ""}{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
@@ -70,7 +77,11 @@ phases = {}
 for f in todo + held: phases.setdefault(("Last Ascent path" if f["first_game"] else "After Last Ascent", depth[f["id"]]), []).append(f)
 # each step its own colour (golden-angle hues, so neighbours differ), on its heading and its cards
 def hue(step): return round(step * 137.5 + 40) % 360
-phase_html = "".join(f'<section class="phase" style="--h:{hue(k[1])}"><h2><span class="sw"></span>{k[0]} · step {k[1]}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p><div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
+def phase_head(k, v):
+    if k[1] % 1:  # a polish pass
+        return f'<section class="phase pass"><h2><span class="sw"></span>{k[0]} · polish pass</h2><p class="sub">about {sum(sessions(f) for f in v):g} sessions · after everything above it, before what follows</p>'
+    return f'<section class="phase" style="--h:{hue(k[1])}"><h2><span class="sw"></span>{k[0]} · step {k[1]}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p>'
+phase_html = "".join(f'{phase_head(k, v)}<div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
 paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) for x in chain(t) if not done(x))}</li>' for t in ["mech-port", "swarm", "screens", "vehicles", "destructibles"])
 
 builds = {}
@@ -110,6 +121,7 @@ dd {{ margin:0; color:var(--muted); }}
 .phase {{ --c:oklch(var(--step-l) 0.15 var(--h)); }}
 .phase .f {{ border-left:4px solid var(--c); background:linear-gradient(90deg, oklch(var(--step-l) 0.15 var(--h) / .07), transparent 40%), var(--panel); }}
 .phase .f .n {{ color:var(--c); font-weight:600; }}
+.phase.pass {{ --c:var(--accent); }} .phase.pass .f {{ border-style:dashed; border-left-style:solid; background:var(--panel); }}
 .sw {{ display:inline-block; width:12px; height:12px; border-radius:4px 4px 4px 1px; background:var(--c); margin-right:8px; vertical-align:-1px; }}
 .more {{ margin-top:26px; border:1px solid var(--line); border-radius:14px 14px 14px 4px; background:var(--panel); padding:10px 14px; }}
 .more > summary {{ font-size:15px; }} .more h2 {{ margin-top:18px; }}
