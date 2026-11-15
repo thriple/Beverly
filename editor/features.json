@@ -106,6 +106,21 @@
    "first_game": true
   },
   {
+   "id": "test-harness",
+   "name": "Scripted tests",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "Tests that load a level, press keys or actions on a timeline, save screenshots and check positions, on a fixed clock so the same script always gives the same result; they work with a game's own character too.",
+   "chunks": [],
+   "note": "Pushed forward by the user (2026-11-15). Also records Last Ascent's mech as it plays today (positions per step for scripted runs), so its port to a character file can be checked against the real thing. Bevy's manual time step keeps runs repeatable.",
+   "order": 8,
+   "first_game": true
+  },
+  {
    "id": "updater",
    "name": "Help menu, About and updates",
    "area": "Editor basics",
@@ -117,7 +132,7 @@
    "what": "About Beverly and Check for updates (download, check, swap; runs from the next start).",
    "chunks": [],
    "note": "",
-   "order": 8,
+   "order": 9,
    "first_game": false
   },
   {
@@ -132,7 +147,7 @@
    "what": "Help > Features: what's planned, built and next, updated with every release.",
    "chunks": [],
    "note": "",
-   "order": 9,
+   "order": 10,
    "first_game": false
   },
   {
@@ -147,7 +162,7 @@
    "what": "Find, select and hide parts by name.",
    "chunks": [],
    "note": "",
-   "order": 10,
+   "order": 11,
    "first_game": false
   },
   {
@@ -162,24 +177,8 @@
    "what": "File > Export Windows game zips the game player with the project.",
    "chunks": [],
    "note": "",
-   "order": 11,
-   "first_game": false
-  },
-  {
-   "id": "test-harness",
-   "name": "Scripted tests",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "test-mode"
-   ],
-   "what": "Tests that load a level, press keys or actions on a timeline, save screenshots and check positions, on a fixed clock so the same script always gives the same result; they work with a game's own character too.",
-   "chunks": [],
-   "note": "Pushed forward by the user (2026-11-15). Also records Last Ascent's mech as it plays today (positions per step for scripted runs), so its port to a character file can be checked against the real thing. Bevy's manual time step keeps runs repeatable.",
    "order": 12,
-   "first_game": true,
-   "next": true
+   "first_game": false
   },
   {
    "id": "auto-panels",
@@ -194,7 +193,8 @@
    "chunks": [],
    "note": "Built on bevy_reflect with range attributes on each setting: one description of a building block's settings serves its panel, saving, the timeline's keyable values and, later, sending it over the network (Prism's Inspector works the same way).",
    "order": 13,
-   "first_game": true
+   "first_game": true,
+   "next": true
   },
   {
    "id": "bev-files",
