@@ -112,7 +112,7 @@ pub fn tools() -> Value {
         {
             "name": "list_parts",
             "title": "List the level's parts",
-            "description": "The level's parts: id, name, kind (shape), position, size (or scale for models), the model file for models, and whether it moves. Filter with an optional query matched against the name and kind.",
+            "description": "The level's parts: id, name, kind (shape), position, size (or scale for models), the model file for models, whether it moves, and its surface tags if it has any. Filter with an optional query matched against the name and kind.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"query": {"type": "string", "description": "Words to match, such as \"box\" or \"lift\"."}},
@@ -170,7 +170,7 @@ pub fn tools() -> Value {
         {
             "name": "add_part",
             "title": "Add a part",
-            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call. Lights (Point light, Spot light) have a Light setting: {\"Light\": {\"Brightness\": 400000, \"Reach\": 8, \"Cone\": 40, \"Shadows\": false, \"Colour\": \"#ffd8a0\"}}; a spot shines away from the surface it stands on, or at aim.",
+            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call. Lights (Point light, Spot light) have a Light setting: {\"Light\": {\"Brightness\": 400000, \"Reach\": 8, \"Cone\": 40, \"Shadows\": false, \"Colour\": \"#ffd8a0\"}}; a spot shines away from the surface it stands on, or at aim. Tags mark what a part's surface is: {\"Tags\": [\"Climbable\", \"Slippery\"]} (get_part lists the choices); the walker slides on Slippery parts.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -333,7 +333,7 @@ pub fn tools() -> Value {
         {
             "name": "get_play",
             "title": "Play state",
-            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something and which way it faces) and where every moving part is now.",
+            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something, which way it faces and the part it stands on with that part's surface tags) and where every moving part is now.",
             "inputSchema": none,
         },
         {

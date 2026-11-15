@@ -56,6 +56,8 @@ pub enum Kind {
     Choice,
     /// A list (`Vec<T>`): each item's settings, with Remove and + Add.
     List,
+    /// A set of an enum's unit variants (`Vec<E>`, labelled as for Choice): a chip for each, on or off.
+    Tags,
 }
 
 /// A variant's name in a Choice.
@@ -77,6 +79,7 @@ impl Setting {
     pub fn optional(label: &'static str, off: &'static str, on: &'static str) -> Self { Self::new(label, Kind::Optional { off, on }) }
     pub fn choice(label: &'static str) -> Self { Self::new(label, Kind::Choice) }
     pub fn list(label: &'static str) -> Self { Self::new(label, Kind::List) }
+    pub fn tags(label: &'static str) -> Self { Self::new(label, Kind::Tags) }
     pub fn section(mut self, s: &'static str) -> Self { self.section = s; self }
     pub fn help(mut self, h: &'static str) -> Self { self.help = h; self }
     pub fn bare(mut self) -> Self { self.bare = true; self }
@@ -228,6 +231,7 @@ fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, ctx: &mu
         Kind::Choice => choice(ui, f, s, key),
         Kind::Optional { off, on } => optional(ui, f, s, off, on, key, ctx),
         Kind::List => list(ui, f, s, key, ctx),
+        Kind::Tags => tags(ui, f, s),
         Kind::Toggle | Kind::Colour => small(ui, f, s),
         Kind::Feel { .. } => false,
     }
@@ -266,6 +270,41 @@ fn choice(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str) -> bo
         return true;
     }
     false
+}
+
+/// A `Vec<E>`'s variants (E's unit variants): (name, label), and the names it holds.
+fn tag_set(f: &dyn PartialReflect) -> Option<(Vec<(&'static str, &'static str)>, Vec<String>)> {
+    let Some(TypeInfo::List(l)) = f.get_represented_type_info() else { return None };
+    let Some(TypeInfo::Enum(info)) = l.item_info() else { return None };
+    let all = info.iter().map(|v| (v.name(), v.get_attribute::<Label>().map_or(v.name(), |l| l.0))).collect();
+    let ReflectRef::List(items) = f.reflect_ref() else { return None };
+    let on = items.iter().filter_map(|i| match i.reflect_ref() { ReflectRef::Enum(e) => Some(e.variant_name().to_string()), _ => None }).collect();
+    Some((all, on))
+}
+
+/// Make a `Vec<E>` hold `names` (variant names), in E's order.
+fn set_tags(f: &mut dyn PartialReflect, all: &[(&'static str, &'static str)], names: &[&str]) {
+    let ReflectMut::List(l) = f.reflect_mut() else { return };
+    while l.len() > 0 { l.remove(l.len() - 1); }
+    for (n, _) in all.iter().filter(|(n, _)| names.contains(n)) { l.push(Box::new(DynamicEnum::new(*n, DynamicVariant::Unit))); }
+}
+
+fn tags(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting) -> bool {
+    let Some((all, on)) = tag_set(f) else { return false };
+    if !s.bare { ui.label(egui::RichText::new(s.label).color(MUTED)); }
+    let mut flip = None;
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+        for (n, label) in &all {
+            let mut is = on.iter().any(|o| o == n);
+            if tip(theme::chip(ui, label, &mut is), s).changed() { flip = Some(*n); }
+        }
+    });
+    let Some(flip) = flip else { return false };
+    let mut names: Vec<&str> = on.iter().map(String::as_str).filter(|n| *n != flip).collect();
+    if !on.iter().any(|o| o == flip) { names.push(flip); }
+    set_tags(f, &all, &names);
+    true
 }
 
 fn optional(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, off: &str, on_word: &str, key: &str, ctx: &mut Ctx) -> bool {
@@ -410,6 +449,7 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
     let mut out = vec![];
     for (name, s) in fields(value) {
         let Some(f) = st.field(name) else { continue };
+        let mut d_tags = None;
         let v: Value = if let Some(x) = f.try_downcast_ref::<f32>() { num(*x) }
             else if let Some(x) = f.try_downcast_ref::<bool>() { json!(x) }
             else if let Some(x) = f.try_downcast_ref::<String>() { json!(x) }
@@ -421,6 +461,9 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
                     ("None", None) => Value::Null,
                     (n, _) => json!(n),
                 }
+            } else if let (Kind::Tags, Some((all, on))) = (&s.kind, tag_set(f)) {
+                d_tags = Some(all.iter().map(|(_, l)| *l).collect::<Vec<_>>());
+                json!(all.iter().filter(|(n, _)| on.iter().any(|o| o == n)).map(|(_, l)| *l).collect::<Vec<_>>())
             } else if let ReflectRef::List(l) = f.reflect_ref() { Value::Array(l.iter().map(describe).collect()) }
             else { Value::Null };
         let mut d = json!({ "field": name, "label": s.label, "section": s.section, "value": v });
@@ -437,6 +480,7 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
             }
             Kind::Toggle => "toggle", Kind::Colour => "colour", Kind::Text => "text",
             Kind::Optional { .. } => "optional", Kind::Choice => "choice", Kind::List => "list",
+            Kind::Tags => { d["choices"] = json!(d_tags); "tags" }
         };
         d["kind"] = json!(kind);
         if !s.unit.is_empty() { d["unit"] = json!(s.unit); }
@@ -528,6 +572,17 @@ fn apply_one(f: &mut dyn PartialReflect, s: &Setting, v: &serde_json::Value) -> 
         let names: Vec<&str> = info.iter().map(|x| x.get_attribute::<Label>().map_or(x.name(), |l| l.0)).collect();
         let pick = pick.ok_or_else(|| format!("expected one of {}", names.join(", ")))?;
         f.apply(&DynamicEnum::new(pick.name(), DynamicVariant::Unit));
+    } else if let Kind::Tags = s.kind {
+        let (all, _) = tag_set(f).ok_or("not a set of tags")?;
+        let a = v.as_array().ok_or_else(|| format!("expected a list of names, not {v}"))?;
+        let mut names = vec![];
+        for x in a {
+            let want = x.as_str().ok_or_else(|| format!("expected a name, not {x}"))?.to_lowercase();
+            let (n, _) = all.iter().find(|(n, l)| n.to_lowercase() == want || l.to_lowercase() == want)
+                .ok_or_else(|| format!("no tag called {x} (there are: {})", all.iter().map(|(_, l)| *l).collect::<Vec<_>>().join(", ")))?;
+            names.push(*n);
+        }
+        set_tags(f, &all, &names);
     } else if let Kind::List = s.kind {
         let item_ty = match f.get_represented_type_info() { Some(TypeInfo::List(l)) => l.item_ty().id(), _ => return Err("not a list".into()) };
         let a = v.as_array().ok_or_else(|| format!("expected a list of objects, not {v}"))?;
@@ -551,7 +606,7 @@ mod tests {
 
     fn part() -> Part {
         Part { id: 1, name: "Pad".into(), shape: Shape::Box, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], size: [1.0; 3], color: [0.5; 3],
-            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0 }), surfaces: vec![], unique: false, light: None }
+            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0 }), surfaces: vec![], unique: false, tags: vec![], light: None }
     }
 
     #[test]
@@ -568,7 +623,7 @@ mod tests {
     #[test]
     fn a_part_describes_its_settings_in_sections_with_values() {
         let p = part();
-        assert_eq!(sections(&p), vec!["PART", "POSITION  ·  ROTATION", "SIZE  ·  LOOK", "LIGHT", "MOVES"]);
+        assert_eq!(sections(&p), vec!["PART", "POSITION  ·  ROTATION", "SIZE  ·  LOOK", "TAGS", "LIGHT", "MOVES"]);
         let d = describe(&p);
         let f = |name: &str| d.as_array().unwrap().iter().find(|x| x["field"] == name).unwrap().clone();
         assert_eq!(f("collision")["value"], "Solid");
@@ -593,6 +648,22 @@ mod tests {
         let ReflectMut::Struct(st) = p.reflect_mut() else { panic!() };
         st.field_mut("collision").unwrap().apply(&DynamicEnum::new("Trigger", DynamicVariant::Unit));
         assert_eq!(p.collision, Collision::Trigger);
+    }
+
+    #[test]
+    fn tags_are_set_by_label_in_their_own_order_and_described_with_the_choices() {
+        use crate::level::Tag;
+        let mut p = part();
+        assert_eq!(apply(&mut p, &serde_json::json!({"Tags": ["slippery", "Grind rail"]})).unwrap(), vec!["tags"]);
+        assert_eq!(p.tags, vec![Tag::GrindRail, Tag::Slippery]);
+        let d = describe(&p);
+        let t = d.as_array().unwrap().iter().find(|x| x["field"] == "tags").unwrap().clone();
+        assert_eq!(t["value"], serde_json::json!(["Grind rail", "Slippery"]));
+        assert_eq!(t["kind"], "tags");
+        assert_eq!(t["choices"].as_array().unwrap().len(), 6);
+        assert!(apply(&mut p, &serde_json::json!({"Tags": ["Bouncy"]})).unwrap_err().contains("Perch spot"));
+        apply(&mut p, &serde_json::json!({"Tags": []})).unwrap();
+        assert!(p.tags.is_empty());
     }
 
     #[test]

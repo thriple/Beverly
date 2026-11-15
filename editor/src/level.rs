@@ -171,6 +171,7 @@ pub const LOOK: &str = "SIZE  ·  LOOK";
 pub const MOVES: &str = "MOVES";
 pub const LIGHT: &str = "LIGHT";
 pub const CONE: &str = "CONE";
+pub const TAGS: &str = "TAGS";
 /// The level panel's sections (shown when nothing is selected).
 pub const LIGHTING: &str = "LIGHTING";
 pub const SUN: &str = "SUN";
@@ -358,6 +359,20 @@ impl Collision {
     }
 }
 
+/// What a part's surface is, for the characters and systems that care: climbing, digging, swimming, grinding,
+/// perching birds and sliding.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
+pub enum Tag {
+    Climbable,
+    Diggable,
+    Water,
+    #[reflect(@Label("Grind rail"))]
+    GrindRail,
+    #[reflect(@Label("Perch spot"))]
+    PerchSpot,
+    Slippery,
+}
+
 /// One basic shape placed in a level. With `visible` off it is only a collider.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
 pub struct Part {
@@ -390,6 +405,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[reflect(@Setting::toggle("Unique").section(PART).help("On: changing its look never changes the parts just like it"))]
     pub unique: bool,
+    /// What its surface is (see [`Tag`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[reflect(@Setting::tags("Tags").section(TAGS).bare().help("What its surface is, for the characters and systems that care"))]
+    pub tags: Vec<Tag>,
     /// A light part's light (`Shape::PointLight`, `Shape::SpotLight`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Light", "Off", "On").section(LIGHT))]
@@ -407,7 +426,7 @@ impl Part {
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
             collision: if shape == Shape::PlayerStart || shape.is_light() { Collision::WalkThrough } else { Collision::Solid },
-            model, mover: None, surfaces: vec![], unique: false,
+            model, mover: None, surfaces: vec![], unique: false, tags: vec![],
             light: shape.is_light().then(Light::default),
         }
     }
@@ -420,10 +439,11 @@ impl Part {
     pub fn inputs(&self) -> &'static [&'static str] { if self.mover.is_some() { &Mover::INPUTS } else { &[] } }
 
     /// Whether two parts hold the same contents: what is inside the box (the shape or model, its colour, its
-    /// textures and how they lie, Visible, Collision). The box itself (name, position, turn, size) is each part's
+    /// textures and how they lie, Visible, Collision, tags). The box itself (name, position, turn, size) is each part's
     /// own, as an instance's placement is in SketchUp.
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
+            && self.tags == o.tags
     }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
@@ -433,6 +453,7 @@ impl Part {
         self.surfaces = from.surfaces.clone();
         self.visible = from.visible;
         self.collision = from.collision;
+        self.tags = from.tags.clone();
     }
 }
 
@@ -741,6 +762,8 @@ mod tests {
         assert_eq!(all.get(b).unwrap().size, [1.0, 3.0, 1.0], "their boxes stay theirs");
         // a different colour is different contents (the colour is a plain shape's material)
         assert!(!boxed(0.0).same_contents(&Part { color: [1.0, 0.0, 0.0], ..boxed(0.0) }));
+        // so are different surface tags
+        assert!(!boxed(0.0).same_contents(&Part { tags: vec![Tag::Slippery], ..boxed(0.0) }));
         lvl.get_mut(a).unwrap().unique = true;
         assert_eq!(lvl.split_from(&before), None);
         assert_eq!(lvl.instances(b), [c]);

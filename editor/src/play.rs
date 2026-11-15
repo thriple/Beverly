@@ -1,6 +1,6 @@
 //! Playing a level: the plain walker (a stand-in character until the real characters exist) and its collision
 //! with the level's solid parts. Used by the editor's test mode (`) and by the game player.
-use crate::level::{Collision, Level, Part, Shape};
+use crate::level::{Collision, Level, Part, Shape, Tag};
 use crate::script::Script;
 use crate::world::{Geometry, part_affine};
 use bevy::input::mouse::AccumulatedMouseMotion;
@@ -17,7 +17,7 @@ const STEP: f32 = 1.0 / 120.0;
 
 /// One solid part's triangles in world space as placed, with the box around them; `off` is how far it has moved
 /// since (a moving part), `delta` how far it moved this frame.
-struct Piece { id: u64, min: Vec3, max: Vec3, tris: Vec<[Vec3; 3]>, off: Vec3, delta: Vec3 }
+struct Piece { id: u64, min: Vec3, max: Vec3, tris: Vec<[Vec3; 3]>, off: Vec3, delta: Vec3, slippery: bool }
 
 /// The solid parts of a level, ready for collision.
 #[derive(Default)]
@@ -35,7 +35,7 @@ impl CollisionWorld {
                 let m = part_affine(p);
                 let tris: Vec<[Vec3; 3]> = t.pos.chunks_exact(3).map(|c| [m.transform_point3(c[0]), m.transform_point3(c[1]), m.transform_point3(c[2])]).collect();
                 let (min, max) = tris.iter().flatten().fold((Vec3::MAX, Vec3::MIN), |(a, b), v| (a.min(*v), b.max(*v)));
-                (!tris.is_empty()).then_some(Piece { id: p.id, min, max, tris, off: Vec3::ZERO, delta: Vec3::ZERO })
+                (!tris.is_empty()).then_some(Piece { id: p.id, min, max, tris, off: Vec3::ZERO, delta: Vec3::ZERO, slippery: p.tags.contains(&Tag::Slippery) })
             })
             .collect();
         Self { pieces }
@@ -56,6 +56,9 @@ impl CollisionWorld {
         p.delta += off - p.off;
         p.off = off;
     }
+
+    /// The part piece `i` belongs to.
+    pub fn part_of(&self, i: usize) -> u64 { self.pieces[i].id }
 
     /// How far piece `i` moved this frame.
     pub fn delta(&self, i: usize) -> Vec3 { self.pieces[i].delta }
@@ -143,6 +146,11 @@ fn closest_on_tri(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 /// The walker: feet position, velocity, facing, and the camera's yaw / pitch.
 #[derive(Default, Clone)]
 pub struct Walker { pub pos: Vec3, pub vel: Vec3, pub facing: f32, pub yaw: f32, pub pitch: f32, pub ground: bool, acc: f32, on: Option<usize> }
+
+impl Walker {
+    /// The piece (of [`CollisionWorld`]) it stands on.
+    pub fn standing_on(&self) -> Option<usize> { self.on }
+}
 
 /// Test mode / game state.
 #[derive(Resource, Default)]
@@ -235,9 +243,10 @@ fn walk(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, motion: Res<Acc
     let mut first = true;
     while w.acc >= STEP {
         w.acc -= STEP;
-        // steer: quick on the ground, a little in the air
+        // steer: quick on the ground, a little in the air and on slippery ground
         let target = dir * speed;
-        let k = if w.ground { 14.0 } else { 3.0 };
+        let slippery = w.on.is_some_and(|i| play.world.pieces[i].slippery);
+        let k = if slippery { 1.0 } else if w.ground { 14.0 } else { 3.0 };
         let h = Vec3::new(w.vel.x, 0.0, w.vel.z).lerp(target, (k * STEP).min(1.0));
         w.vel.x = h.x;
         w.vel.z = h.z;

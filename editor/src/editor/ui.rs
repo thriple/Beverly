@@ -301,6 +301,8 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
             for sec in settings::sections(&p) {
                 if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
+                // the player start and lights have no surface to tag
+                if sec == level::TAGS && (p.shape == Shape::PlayerStart || p.shape.is_light()) { continue; }
                 // a light: its light's settings in place of size and look (the cone for spots only)
                 if sec == level::LOOK && p.shape.is_light() { continue; }
                 if sec == level::LIGHT {

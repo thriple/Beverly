@@ -485,6 +485,10 @@ fn play_state(ed: &Editor, pl: &Playing) -> Value {
         player["velocity"] = settings::nums(&w.vel.to_array());
         player["on_ground"] = json!(w.ground);
         player["facing"] = settings::num((w.facing.to_degrees() * 10.0).round() / 10.0);
+        // what it stands on, with its surface tags
+        if let Some(q) = w.standing_on().and_then(|i| ed.level.get(p.world.part_of(i))) {
+            player["standing_on"] = json!({"id": q.id, "name": q.name, "tags": tags_of(q)});
+        }
     } else {
         player["character"] = json!("the game's own");
     }
@@ -599,7 +603,13 @@ fn summary(p: &Part) -> Value {
     } else {
         v["size"] = settings::nums(&p.size);
     }
+    if !p.tags.is_empty() { v["tags"] = tags_of(p); }
     v
+}
+
+/// A part's surface tags by label, as its Tags setting describes them.
+fn tags_of(p: &Part) -> Value {
+    settings::describe(p).as_array().and_then(|a| a.iter().find(|d| d["field"] == "tags")).map_or(Value::Null, |d| d["value"].clone())
 }
 
 /// A part with every setting it has (from the same descriptions its panel is drawn from) and its wires.

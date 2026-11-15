@@ -339,16 +339,18 @@
    "id": "surface-tags",
    "name": "Surface tags",
    "area": "Level building",
-   "status": "planned",
+   "status": "done",
    "effort": "S",
    "needs": [
     "shapes"
    ],
    "what": "Mark parts climbable, diggable, water, grind rail, perch spot, slippery.",
    "chunks": [],
-   "note": "",
+   "note": "Tags chips in the part panel's TAGS column (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery; any number). Tags are contents, so instances share them. Slippery works now (the walker gathers speed slowly and slides on); the others are read by the features that need them (traversal, swimming, the flock). Test project: tests/tags. MCP: the Tags setting on add_part and change_part (by name), tags in list_parts, and get_play's standing_on (the part the player stands on, with its tags).",
    "order": 20,
-   "first_game": true
+   "first_game": true,
+   "built": "2026-11-15",
+   "build": 34
   },
   {
    "id": "cameras",

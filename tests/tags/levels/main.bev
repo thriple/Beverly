@@ -1,0 +1,12 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 1.1, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Ice", shape: Box, pos: (0.0, 0.1, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (4.0, 0.2, 20.0), color: (0.72, 0.86, 0.95), visible: true, collision: Solid, tags: [Slippery]),
+        (id: 3, name: "Climbing wall", shape: Box, pos: (-4.0, 2.0, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.4, 4.0, 6.0), color: (0.55, 0.45, 0.38), visible: true, collision: Solid, tags: [Climbable]),
+        (id: 4, name: "Rail", shape: Box, pos: (4.0, 0.6, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.1, 0.1, 10.0), color: (0.75, 0.75, 0.8), visible: true, collision: Solid, tags: [GrindRail]),
+        (id: 5, name: "Pool", shape: Box, pos: (7.0, 0.4, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (3.0, 0.8, 6.0), color: (0.2, 0.45, 0.7), visible: true, collision: WalkThrough, tags: [Water]),
+    ],
+    next_id: 5,
+)

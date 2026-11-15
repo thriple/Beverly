@@ -238,6 +238,23 @@ pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
     r
 }
 
+/// A chip that is on or off (a tag): a pill that fills with the accent when on (SNAPPY).
+pub fn chip(ui: &mut Ui, label: &str, on: &mut bool) -> Response {
+    let font = semi(12.0);
+    let w = ui.painter().layout_no_wrap(label.to_owned(), font.clone(), TEXT).size().x;
+    let (rect, mut r) = ui.allocate_exact_size(vec2(w + 22.0, 24.0), Sense::click());
+    if r.clicked() {
+        *on = !*on;
+        r.mark_changed();
+    }
+    let t = spring(ui.ctx(), r.id.with("t"), if *on { 1.0 } else { 0.0 }, SNAPPY).clamp(0.0, 1.0);
+    let p = ui.painter();
+    p.rect_filled(rect, CornerRadius::same(12), lerp_color(white(12), ACCENT, t));
+    p.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, if r.hovered() { white(90) } else { LINE }), StrokeKind::Inside);
+    p.text(rect.center(), Align2::CENTER_CENTER, label, font, lerp_color(TEXT, INK, t));
+    r
+}
+
 pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
     let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round().clamp(0.0, 255.0) as u8;
     Color32::from_rgba_unmultiplied(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()), l(a.a(), b.a()))
