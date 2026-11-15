@@ -606,7 +606,7 @@ mod tests {
 
     fn part() -> Part {
         Part { id: 1, name: "Pad".into(), shape: Shape::Box, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], size: [1.0; 3], color: [0.5; 3],
-            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0 }), surfaces: vec![], unique: false, tags: vec![], light: None, camera: None }
+            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0 }), surfaces: vec![], unique: false, tags: vec![], body: crate::level::Body::Still, light: None, camera: None }
     }
 
     #[test]

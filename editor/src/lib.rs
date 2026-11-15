@@ -5,6 +5,7 @@
 pub mod editor;
 pub mod level;
 pub mod models;
+pub mod physics;
 pub mod play;
 pub mod player;
 pub mod script;

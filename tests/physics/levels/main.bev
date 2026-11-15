@@ -1,0 +1,14 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 8.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Crate 1", shape: Box, pos: (-3.0, 4.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.72, 0.52, 0.3), visible: true, collision: Solid, body: Loose),
+        (id: 3, name: "Crate 2", shape: Box, pos: (-3.0, 6.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.72, 0.52, 0.3), visible: true, collision: Solid, body: Loose),
+        (id: 4, name: "Ramp", shape: Ramp, pos: (2.0, 1.0, 0.0), rot: (0.0, 1.0, 0.0, 0.0), size: (4.0, 2.0, 3.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 5, name: "Ball", shape: Sphere, pos: (1.0, 3.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 0.8, 0.8), color: (0.85, 0.3, 0.3), visible: true, collision: Solid, body: Loose),
+        (id: 6, name: "Loose stairs", shape: Stairs, pos: (-6.0, 3.0, -3.0), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 1.0, 1.0), color: (0.45, 0.55, 0.45), visible: true, collision: Solid, body: Loose),
+        (id: 7, name: "Wall", shape: Box, pos: (0.0, 1.0, -5.0), rot: (0.0, 0.0, 0.0, 1.0), size: (16.0, 2.0, 0.4), color: (0.45, 0.5, 0.6), visible: true, collision: Solid),
+    ],
+    next_id: 7,
+)

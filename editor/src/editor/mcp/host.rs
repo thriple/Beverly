@@ -493,7 +493,7 @@ fn play_state(ed: &Editor, pl: &Playing) -> Value {
         player["on_ground"] = json!(w.ground);
         player["facing"] = settings::num((w.facing.to_degrees() * 10.0).round() / 10.0);
         // what it stands on, with its surface tags
-        if let Some(q) = w.standing_on().and_then(|i| ed.level.get(p.world.part_of(i))) {
+        if let Some(q) = w.standing_on().and_then(|id| ed.level.get(id)) {
             player["standing_on"] = json!({"id": q.id, "name": q.name, "tags": tags_of(q)});
         }
     } else {

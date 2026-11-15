@@ -1,8 +1,10 @@
 //! Script parts at play time: buttons (Interact), wires, and parts that move. Runs in the editor's test mode and
 //! in the game player.
 use crate::level::{Level, Mover, Shape, Wire};
+use crate::physics::PartBody;
 use crate::play::{CollisionWorld, Play};
-use crate::world::{PartId, part_transform};
+use crate::world::part_transform;
+use avian3d::prelude::{LinearVelocity, Position};
 use bevy::prelude::*;
 
 /// How close (metres, feet to the button's side) the player must be to press a button.
@@ -19,7 +21,6 @@ struct Moving {
     t: f32,
     /// Where it is heading: 0 or 1.
     goal: f32,
-    entity: Option<Entity>,
 }
 
 impl Moving {
@@ -45,7 +46,7 @@ impl Script {
             .iter()
             .filter_map(|p| {
                 let m: &Mover = p.mover.as_ref()?;
-                Some(Moving { id: p.id, piece: world.piece_of(p.id), home: part_transform(p), to: Vec3::from(m.to), secs: m.secs.max(0.05), t: 0.0, goal: 0.0, entity: None })
+                Some(Moving { id: p.id, piece: world.piece_of(p.id), home: part_transform(p), to: Vec3::from(m.to), secs: m.secs.max(0.05), t: 0.0, goal: 0.0 })
             })
             .collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
@@ -62,10 +63,9 @@ impl Script {
             .map(|(id, ..)| id)
     }
 
-    /// Put moved parts back where they were placed.
-    pub fn reset(&mut self, commands: &mut Commands) {
+    /// Start the moving parts over from where they were placed.
+    pub fn reset(&mut self) {
         for m in &mut self.movers {
-            if let Some(e) = m.entity { commands.entity(e).try_insert(m.home); }
             m.t = 0.0;
             m.goal = 0.0;
         }
@@ -104,18 +104,20 @@ impl Script {
     }
 }
 
-/// One frame of the script: buttons, then wires, then moving parts.
-pub fn run(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut parts: Query<(Entity, &PartId, &mut Transform)>) {
+/// One fixed step of the script: buttons, then wires, then moving parts, whose bodies are given the speed that
+/// takes them where they should be by the end of the step (so what stands on them rides along).
+pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody, &Position, &mut LinearVelocity)>) {
     let play = &mut *play;
     play.world.clear_deltas();
     play.script.fired.clear();
-    if keys.just_pressed(KeyCode::KeyE) {
+    if std::mem::take(&mut play.press) {
         if let Some(id) = play.script.button_near(play.feet) { play.script.send(id, "Pressed"); }
     }
-    play.script.tick(&mut play.world, time.delta_secs().min(0.1));
-    for m in &mut play.script.movers {
-        if m.entity.is_none() { m.entity = parts.iter().find(|(_, id, _)| id.0 == m.id).map(|(e, ..)| e); }
-        if let Some(Ok((_, _, mut tf))) = m.entity.map(|e| parts.get_mut(e)) { tf.translation = m.home.translation + m.offset(); }
+    let dt = time.delta_secs();
+    play.script.tick(&mut play.world, dt);
+    if dt <= 0.0 { return; }
+    for (b, at, mut v) in &mut bodies {
+        if let Some(m) = play.script.movers.iter().find(|m| m.id == b.0) { v.0 = (m.home.translation + m.offset() - at.0) / dt; }
     }
 }
 
@@ -126,7 +128,7 @@ mod tests {
     use crate::world::Geometry;
 
     fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
-        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], light: None, camera: None }
+        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], body: crate::level::Body::Still, light: None, camera: None }
     }
 
     #[test]

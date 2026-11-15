@@ -719,7 +719,8 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <li><b>Scene list</b> (shown under Assets in the wireframe) for finding and hiding things.</li>
     </ul></div>
     <div class="card"><span class="tag">Gameplay</span><ul>
-      <li><b>Collision:</b> per part, Solid, Walk-through or Trigger. Basic shapes use their exact shape; imported models get a simplified hull. Hidden shapes are plain colliders.</li>
+      <li><b>Collision:</b> per part, Solid, Walk-through or Trigger. Hidden shapes are plain colliders.</li>
+      <li><b>Physics</b> (Avian, the one collision world while playing, on a fixed 60 Hz step drawn smoothed): each Solid part is Still (things stand on it and bump into it) or Loose (falls and tumbles: crates, barrels), a setting in the part panel shared by instances; a part that Moves is a moving body that carries what stands on it. Still parts collide exactly (boxes as boxes, everything else triangle for triangle); loose ones as a hull, or convex pieces for concave shapes such as stairs, arches and models. When play stops, everything goes back where it was placed.</li>
       <li><b>Enemy paths:</b> a navigation area enemies can walk, built from the level with one button, plus patrol paths you draw.</li>
       <li><b>Paths tool</b> for rails, patrols, camera paths and roads.</li>
       <li><b>Input map:</b> actions such as Jump or Fire mapped to keys and gamepad, editable in Settings.</li>

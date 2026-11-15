@@ -394,6 +394,8 @@ impl Level {
     }
 }
 
+fn is_still(b: &Body) -> bool { *b == Body::Still }
+
 /// A wire: when part `from` sends `out`, part `to` gets `input`.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Wire {
@@ -436,6 +438,16 @@ pub enum Tag {
     Slippery,
 }
 
+/// How a part takes part in physics while playing. A part that Moves is a moving body whatever this says.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Body {
+    /// Stays where it is put; things stand on it and bump into it.
+    #[default]
+    Still,
+    /// Falls and tumbles (a crate, a barrel).
+    Loose,
+}
+
 /// One basic shape placed in a level. With `visible` off it is only a collider.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
 pub struct Part {
@@ -457,6 +469,10 @@ pub struct Part {
     pub visible: bool,
     #[reflect(@Setting::choice("Collision").section(LOOK).bare())]
     pub collision: Collision,
+    /// Still or Loose (only for Solid parts).
+    #[serde(default, skip_serializing_if = "is_still")]
+    #[reflect(@Setting::choice("Physics").section(LOOK).help("Loose: falls and tumbles when played (Solid parts)"))]
+    pub body: Body,
     /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -493,7 +509,7 @@ impl Part {
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
             collision: if shape == Shape::PlayerStart || shape.is_light() || shape.is_camera() { Collision::WalkThrough } else { Collision::Solid },
-            model, mover: None, surfaces: vec![], unique: false, tags: vec![],
+            model, mover: None, surfaces: vec![], unique: false, tags: vec![], body: Body::Still,
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
         }
@@ -507,11 +523,11 @@ impl Part {
     pub fn inputs(&self) -> &'static [&'static str] { if self.mover.is_some() { &Mover::INPUTS } else { &[] } }
 
     /// Whether two parts hold the same contents: what is inside the box (the shape or model, its colour, its
-    /// textures and how they lie, Visible, Collision, tags). The box itself (name, position, turn, size) is each part's
+    /// textures and how they lie, Visible, Collision, tags, Physics). The box itself (name, position, turn, size) is each part's
     /// own, as an instance's placement is in SketchUp.
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
-            && self.tags == o.tags
+            && self.tags == o.tags && self.body == o.body
     }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
@@ -522,6 +538,7 @@ impl Part {
         self.visible = from.visible;
         self.collision = from.collision;
         self.tags = from.tags.clone();
+        self.body = from.body;
     }
 }
 

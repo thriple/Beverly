@@ -380,13 +380,14 @@
    ],
    "what": "Avian becomes the one collision world: level parts and models get colliders, moving parts are kinematic, crates and barrels tumble, characters push and stand on them, blasts shove them.",
    "chunks": [
-    "Avian as the only collision world: colliders for shapes and models (box, hull, convex pieces, exact for still things), still / moving / loose parts, a fixed time step with smoothing; Moves become moving bodies; the old collision code retires",
-    "The walker on bevy_tnua (slopes, steps, moving platforms); a game's own character (Last Ascent's mech) asks Avian instead of its own copy of the meshes",
+    "Avian as the collision world: colliders for shapes and models (box, hull, convex pieces, exact for still things), still / moving / loose parts, a fixed time step with smoothing; Moves become moving bodies; the walker moves and slides through it",
+    "The walker on bevy_tnua (slopes, steps, moving platforms); a game's own character (Last Ascent's mech) asks Avian instead of its own copy of the meshes, and the old collision code retires",
     "Loose parts: mass, friction, sleeping; characters push and stand on them; impulses from blasts and the winch"
    ],
-   "note": "Two collision worlds side by side (today's and Avian's) would need every moving part kept in step twice, so Avian replaces today's. Loose things need convex shapes (Avian builds them from the mesh: collider-from-mesh); exact mesh colliders only for things that never move. avian3d 0.8 supports Bevy 0.20 and has f64 and enhanced-determinism options for big worlds and multiplayer.",
+   "note": "Two collision worlds side by side (today's and Avian's) would need every moving part kept in step twice, so Avian replaces today's. Loose things need convex shapes (Avian builds them from the mesh); exact mesh colliders only for things that never move. avian3d 0.8 supports Bevy 0.20 and has f64 and enhanced-determinism options for big worlds and multiplayer. Part 1 built (2026-11-15): avian3d 0.8 runs while playing on a fixed 60 Hz step, drawn smoothed between steps; each Solid part becomes a body (boxes as boxes; still shapes and models exact; loose ones a hull or convex pieces); a Physics setting (Still / Loose) on parts, shared by instances; Moves parts are moving bodies; the walker moves and slides through Avian and rides moving bodies; everything goes back when play stops. The old triangle collision stays (CollisionWorld) for a game's own character until part 2 moves the mech to Avian. Test project: tests/physics. MCP: the Physics setting on add_part and change_part.",
    "order": 22,
-   "first_game": true
+   "first_game": true,
+   "next": true
   },
   {
    "id": "navmesh",
