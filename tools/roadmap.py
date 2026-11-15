@@ -34,7 +34,8 @@ SRC.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
 
 def sessions(f): return SESSIONS.get(f["effort"], len(f["chunks"]))
 done = lambda i: by[i]["status"] == "done"
-todo = [f for f in F if f["status"] != "done"]
+todo = [f for f in F if f["status"] not in ("done", "hold")]
+held = [f for f in F if f["status"] == "hold"]
 total = sum(sessions(f) for f in todo)
 eff = Counter(f["effort"] for f in todo)
 ready = [f for f in todo if all(done(n) for n in f["needs"])]
@@ -49,12 +50,12 @@ e = html.escape
 def card(f):
     needs = " · ".join(f'<a href="#{n}">{e(by[n]["name"])}</a>{" ✓" if done(n) else ""}' for n in f["needs"]) or "nothing"
     parts = "".join(f"<li>{e(c)}</li>" for c in f["chunks"])
-    st = "built" if f["status"] == "done" else ("ready" if all(done(n) for n in f["needs"]) else "planned")
-    return f'''<article class="f {st}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
+    st = "built" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if all(done(n) for n in f["needs"]) else "planned")
+    return f'''<article class="f {st.replace(" ", "")}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
 <p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f"<ol>{parts}</ol>" if parts else ""}{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
 
 phases = {}
-for f in todo: phases.setdefault(depth[f["id"]], []).append(f)
+for f in todo + held: phases.setdefault(depth[f["id"]], []).append(f)
 phase_html = "".join(f'<section class="phase"><h2>Step {k}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p><div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items()))
 paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) for x in chain(t) if not done(x))}</li>' for t in ["mech-port", "swarm", "screens", "vehicles", "destructibles"])
 
@@ -95,6 +96,7 @@ dd {{ margin:0; color:var(--muted); }}
 .f .meta {{ color:var(--muted); font-size:12px; }}
 .f .meta a {{ color:inherit; }}
 .f .st {{ font-weight:600; }}
+.f.onhold {{ opacity:.6; }}
 .f.built .st {{ color:var(--ok); }} .f.ready .st {{ color:var(--ready); }}
 .f ol {{ margin:8px 0 0; padding-left:20px; font-size:13px; }}
 .f .note {{ font-size:12px; color:var(--muted); font-style:italic; }}
@@ -106,7 +108,7 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
 <h1>Beverly roadmap</h1>
 <p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
 <div class="stats">
- <div class="stat"><b>{len(F) - len(todo)}</b><span>built</span></div>
+ <div class="stat"><b>{len(F) - len(todo) - len(held)}</b><span>built</span></div>
  <div class="stat"><b>{len(todo)}</b><span>to build</span></div>
  <div class="stat"><b>{total:g}</b><span>sessions, roughly</span></div>
  <div class="stat"><b>{eff["S"]}·{eff["M"]}·{eff["L"]}·{eff["XL"]}</b><span>S · M · L · XL</span></div>

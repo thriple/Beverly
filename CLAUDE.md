@@ -11,6 +11,9 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 - Caps Lock is the movement-mode switch only. Tab opens the parts pop-up. Mouse 5 / ] faster, Mouse 4 / [ slower.
 - Basic shapes double as colliders (Visible off = invisible collider).
 - Projects are folders of plain text (RON) so they work with git.
+- Build with multiplayer in mind (it comes late, but nothing should block it): game state lives in data (components,
+  resources, the level and character files) that could be sent over a network, input goes through named actions,
+  and effects, sounds and the camera react to events instead of driving the game.
 - Keep it simple: minimum code for what was asked, surgical changes, ask when unclear.
 - Never put model names or ids in repository files. Never ask for keys in chat or write them into files.
 

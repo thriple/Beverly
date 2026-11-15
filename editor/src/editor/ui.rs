@@ -832,7 +832,7 @@ fn roadmap() -> &'static Roadmap {
 fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
     let r = roadmap();
     let done = |id: &str| r.features.iter().any(|f| f.id == id && f.status == "done");
-    let ready = |f: &Feature| f.status != "done" && f.needs.iter().all(|n| done(n));
+    let ready = |f: &Feature| f.status == "planned" && f.needs.iter().all(|n| done(n));
     let id = Id::new("features");
     let mut filter = ctx.data(|d| d.get_temp::<usize>(id)).unwrap_or(1);
     let mut open = ctx.data(|d| d.get_temp::<String>(id.with("open"))).unwrap_or_default();
@@ -856,6 +856,7 @@ fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
                 let is_open = open == f.id;
                 let (dot, word) = match f.status.as_str() {
                     "done" => (theme::OK, "built"),
+                    "hold" => (white(40), "on hold"),
                     _ if ready(f) => (ACCENT, "ready"),
                     _ => (white(60), "planned"),
                 };
