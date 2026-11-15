@@ -126,7 +126,8 @@ impl Editor {
                     Ok((name, lvl)) => {
                         self.load_into(dir, lvl);
                         self.name = name;
-                        self.island.show("▸", format!("Opened {}", self.name), format!("{} parts", self.level.parts.len()), Tone::Accent);
+                        let note = if level::is_old(&self.dir) { " · from an older Beverly: saving updates its files to .bev" } else { "" };
+                        self.island.show("▸", format!("Opened {}", self.name), format!("{} parts{note}", self.level.parts.len()), Tone::Accent);
                     }
                     Err(e) => self.island.show("!", "Couldn't open that folder", e, Tone::Danger),
                 }

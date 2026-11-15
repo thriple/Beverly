@@ -2,11 +2,16 @@
 //!
 //! ```text
 //! My Game/
-//!   project.ron          name, levels
-//!   levels/main.ron      the parts placed in a level
+//!   project.bev          name, levels
+//!   levels/main.bev      the parts placed in a level
 //!   assets/textures/ ... files dropped onto the Assets panel are copied here
 //!   assets/models/ assets/sounds/ assets/other/
 //! ```
+//!
+//! `.bev` files are RON text (characters/*.bev will join them). Each starts with `format`, the [`FORMAT`] that wrote
+//! it, so a newer Beverly can upgrade older files as it opens them and an older one refuses newer files instead of
+//! misreading them. Projects from before `.bev` (project.ron, levels/*.ron, format 0) still open; saving one writes
+//! .bev files in place of its .ron ones.
 use crate::settings::{Label, Ranges, Setting};
 use bevy::reflect::{std_traits::ReflectDefault, Reflect};
 use serde::{Deserialize, Serialize};
@@ -207,6 +212,9 @@ impl Part {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub struct Level {
+    /// The file format that wrote this level (see [`FORMAT`]); 0 for files from before it existed.
+    #[serde(default)]
+    pub format: u32,
     pub name: String,
     pub parts: Vec<Part>,
     pub next_id: u64,
@@ -236,6 +244,8 @@ impl Level {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProjectFile {
+    #[serde(default)]
+    pub format: u32,
     pub name: String,
     pub levels: Vec<String>,
 }
@@ -277,23 +287,52 @@ pub fn make_folders(dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The file format Beverly writes. Raise it when a saved field is renamed or changes meaning, and teach [`load`] to
+/// upgrade files from before (a new field with a default needs neither).
+pub const FORMAT: u32 = 1;
+
+/// The project file in `dir`: project.bev, or project.ron in projects from before .bev files.
+pub fn project_file(dir: &Path) -> Option<PathBuf> {
+    ["bev", "ron"].map(|e| dir.join(format!("project.{e}"))).into_iter().find(|p| p.is_file())
+}
+
+/// The project a path given to Beverly belongs to: a project folder, or any file or folder inside one (project.bev,
+/// levels/main.bev), so a .bev file opened from Explorer opens its project.
+pub fn project_dir_of(path: &Path) -> PathBuf {
+    path.ancestors().find(|d| project_file(d).is_some()).unwrap_or(path).to_path_buf()
+}
+
+/// A project saved by a Beverly from before .bev files; saving it upgrades it.
+pub fn is_old(dir: &Path) -> bool { project_file(dir).is_some_and(|p| p.extension().is_some_and(|e| e == "ron")) }
+
 pub fn save(dir: &Path, name: &str, level: &Level) -> Result<(), String> {
     make_folders(dir).map_err(|e| e.to_string())?;
     let cfg = ron::ser::PrettyConfig::default();
-    let pf = ProjectFile { name: name.to_owned(), levels: vec!["main".into()] };
+    let pf = ProjectFile { format: FORMAT, name: name.to_owned(), levels: vec!["main".into()] };
     let p = ron::ser::to_string_pretty(&pf, cfg.clone()).map_err(|e| e.to_string())?;
-    let l = ron::ser::to_string_pretty(level, cfg).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join("project.ron"), p).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join("levels").join("main.ron"), l).map_err(|e| e.to_string())?;
+    let l = ron::ser::to_string_pretty(&Level { format: FORMAT, ..level.clone() }, cfg).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("project.bev"), p).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("levels").join("main.bev"), l).map_err(|e| e.to_string())?;
+    // the .ron files these replace, in a project from before .bev files
+    for old in [dir.join("project.ron"), dir.join("levels").join("main.ron")] {
+        if old.is_file() { std::fs::remove_file(old).map_err(|e| e.to_string())?; }
+    }
     Ok(())
 }
 
 pub fn load(dir: &Path) -> Result<(String, Level), String> {
-    let p = std::fs::read_to_string(dir.join("project.ron")).map_err(|_| "This folder has no project.ron".to_string())?;
-    let pf: ProjectFile = ron::from_str(&p).map_err(|e| format!("project.ron: {e}"))?;
+    let file = project_file(dir).ok_or("This folder has no project.bev")?;
+    let ext = file.extension().unwrap_or_default().to_string_lossy().into_owned();
+    let p = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let pf: ProjectFile = ron::from_str(&p).map_err(|e| format!("project.{ext}: {e}"))?;
     let first = pf.levels.first().cloned().unwrap_or_else(|| "main".into());
-    let l = std::fs::read_to_string(dir.join("levels").join(format!("{first}.ron"))).map_err(|e| e.to_string())?;
-    let level: Level = ron::from_str(&l).map_err(|e| format!("levels/{first}.ron: {e}"))?;
+    let l = std::fs::read_to_string(dir.join("levels").join(format!("{first}.{ext}"))).map_err(|e| e.to_string())?;
+    let mut level: Level = ron::from_str(&l).map_err(|e| format!("levels/{first}.{ext}: {e}"))?;
+    if let Some(n) = [pf.format, level.format].into_iter().find(|&n| n > FORMAT) {
+        return Err(format!("It was saved by a newer Beverly (file format {n}; this one reads up to {FORMAT}): update Beverly to open it"));
+    }
+    // format 0 (.ron) to 1 (.bev) changed nothing inside the files
+    level.format = FORMAT;
     Ok((pf.name, level))
 }
 
@@ -325,7 +364,7 @@ pub fn export_zip(dir: &Path, name: &str, player: &Path, out: &Path) -> std::io:
     z.start_file(format!("{name}/{name}{ext}"), opt.unix_permissions(0o755)).map_err(std::io::Error::other)?;
     z.write_all(&std::fs::read(player)?)?;
     let mut n = 1;
-    let mut stack = vec![dir.join("project.ron"), dir.join("levels"), dir.join("assets")];
+    let mut stack = vec![dir.join("project.bev"), dir.join("project.ron"), dir.join("levels"), dir.join("assets")];
     while let Some(p) = stack.pop() {
         if p.is_dir() {
             for e in std::fs::read_dir(&p)?.flatten() { stack.push(e.path()); }
@@ -354,12 +393,36 @@ mod tests {
         std::fs::write(&player, b"exe").unwrap();
         let out = base.join("out.zip");
         let n = export_zip(&dir, "My Game", &player, &out).unwrap();
-        assert_eq!(n, 4); // player, project.ron, levels/main.ron, the texture
+        assert_eq!(n, 4); // player, project.bev, levels/main.bev, the texture
         let mut z = zip::ZipArchive::new(std::fs::File::open(&out).unwrap()).unwrap();
         let ext = if cfg!(windows) { ".exe" } else { "" };
         assert!(z.by_name(&format!("My Game/My Game{ext}")).is_ok());
-        assert!(z.by_name("My Game/levels/main.ron").is_ok());
+        assert!(z.by_name("My Game/levels/main.bev").is_ok());
         assert!(z.by_name("My Game/assets/textures/a.png").is_ok());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn saves_bev_files_with_their_format_and_still_opens_ron_projects() {
+        let dir = std::env::temp_dir().join(format!("beverly-bev-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // a project as older Beverlys saved it
+        make_folders(&dir).unwrap();
+        std::fs::write(dir.join("project.ron"), r#"(name: "Old", levels: ["main"])"#).unwrap();
+        std::fs::write(dir.join("levels/main.ron"), r#"(name: "main", parts: [], next_id: 0)"#).unwrap();
+        assert!(is_old(&dir));
+        assert_eq!(project_dir_of(&dir.join("levels/main.ron")), dir, "a file inside opens its project");
+        let (name, lvl) = load(&dir).unwrap();
+        assert_eq!((name.as_str(), lvl.format), ("Old", FORMAT));
+        // saving upgrades it: .bev files that start with their format, and no .ron left behind
+        save(&dir, &name, &lvl).unwrap();
+        assert!(!is_old(&dir) && !dir.join("project.ron").exists() && !dir.join("levels/main.ron").exists());
+        let text = std::fs::read_to_string(dir.join("levels/main.bev")).unwrap();
+        assert!(text.trim_start_matches('(').trim_start().starts_with(&format!("format: {FORMAT},")), "{text}");
+        assert_eq!(load(&dir).unwrap(), (name, lvl));
+        // a newer Beverly's files are refused, not misread
+        std::fs::write(dir.join("project.bev"), format!(r#"(format: {}, name: "New", levels: ["main"])"#, FORMAT + 1)).unwrap();
+        assert!(load(&dir).unwrap_err().contains("newer Beverly"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

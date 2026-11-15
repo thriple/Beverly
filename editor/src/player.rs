@@ -28,10 +28,10 @@ fn args() -> (Option<PathBuf>, Option<PathBuf>, bool) {
 }
 
 fn project_dir(arg: Option<PathBuf>) -> PathBuf {
-    if let Some(a) = arg { return a; }
+    if let Some(a) = arg { return level::project_dir_of(&a); }
     let beside = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_path_buf()));
     match beside {
-        Some(d) if d.join("project.ron").is_file() => d,
+        Some(d) if level::project_file(&d).is_some() => d,
         _ => std::env::current_dir().unwrap_or_default(),
     }
 }

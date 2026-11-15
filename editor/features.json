@@ -264,16 +264,18 @@
    "id": "bev-files",
    "name": "The .bev file extension",
    "area": "Editor basics",
-   "status": "planned",
+   "status": "done",
    "effort": "S",
    "needs": [
     "projects"
    ],
    "what": "project.bev, levels/*.bev, characters/*.bev, each with a format version so files from older Beverlys are upgraded when opened; old .ron projects still open.",
    "chunks": [],
-   "note": "",
+   "note": "Files are RON text with a format number first (FORMAT in level.rs); saving an old project writes .bev in place of its .ron files. The editor and player also take a .bev file's path (Explorer's Open with). Test projects: tests/lift (.bev) and tests/old-ron-project (.ron), same trace. MCP: nothing new needed; its tools work on the open project in either format.",
    "order": 16,
-   "first_game": true
+   "first_game": true,
+   "built": "2026-11-15",
+   "build": 24
   },
   {
    "id": "instancing",

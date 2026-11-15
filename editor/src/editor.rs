@@ -13,7 +13,7 @@ use crate::{level, models, play, shapes, update, world};
 use bevy::prelude::*;
 use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 use level::{Level, Shape};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The editor view to return to after test mode.
 #[derive(Clone, Copy)]
@@ -83,16 +83,16 @@ pub struct Editor {
 }
 
 impl Editor {
-    /// `beverly [PROJECT FOLDER]` opens that project; without one, the project in a folder beside the editor if
+    /// `beverly [PROJECT]` opens that project (its folder or a .bev file in it); without one, the project in a folder beside the editor if
     /// there is exactly one (a game's own editor ships with its project); otherwise a new one is made.
     fn new() -> Self {
         let beside = || {
             let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-            let mut found = std::fs::read_dir(exe_dir).ok()?.flatten().map(|e| e.path()).filter(|d| d.join("project.ron").is_file());
+            let mut found = std::fs::read_dir(exe_dir).ok()?.flatten().map(|e| e.path()).filter(|d| level::project_file(d).is_some());
             let one = found.next()?;
             found.next().is_none().then_some(one)
         };
-        if let Some(dir) = std::env::args().nth(1).map(PathBuf::from).or_else(beside) {
+        if let Some(dir) = std::env::args().nth(1).map(|a| level::project_dir_of(Path::new(&a))).or_else(beside) {
             if let Ok((name, lvl)) = level::load(&dir) {
                 let mut ed = Self::at(dir);
                 ed.name = name;

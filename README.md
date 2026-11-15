@@ -14,7 +14,8 @@ together. Code is only for new kinds of parts.
 - **Models:** drop `.glb` / `.gltf` files on the window, then place them from the Assets panel.
 - **Test it:** press `` ` `` to walk the level with a stand-in character (Shift+`` ` `` starts at the Player start).
 - **Export:** File > Export Windows game writes a zip with `<project>.exe` and the project's files.
-- Projects are folders of plain text files (`project.ron`, `levels/*.ron`, `assets/`). Drag files from Explorer
+- Projects are folders of plain text files (`project.bev`, `levels/*.bev`, `assets/`); projects saved as `.ron`
+  by older Beverlys still open and are updated when saved. Drag files from Explorer
   onto the window to import them.
 
 Design: [`docs/design.html`](docs/design.html). The UI follows the Motion kit in [`kit/`](kit/).

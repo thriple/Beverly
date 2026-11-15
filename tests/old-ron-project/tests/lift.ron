@@ -1,0 +1,13 @@
+// A project saved before .bev files (project.ron, levels/main.ron) still plays: the lift test, unchanged.
+(
+    trace: "tests/lift.trace.csv",
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0.1, -4), 0.1)]),
+        (at: 0.5, press: ["E"]),
+        (at: 0.6, release: ["E"]),
+        (at: 4.0, shot: "up", expect: [Part("Pad 1", (0, 5.05, -4), 0.05), Feet((0, 5.1, -4), 0.1)]),
+        (at: 4.2, press: ["W"]),
+        (at: 5.0, release: ["W"]),
+        (at: 5.5, shot: "on-ledge", expect: [Feet((0, 5, -7.5), 0.6)]),
+    ],
+)
