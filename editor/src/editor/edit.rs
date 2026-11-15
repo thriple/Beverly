@@ -735,10 +735,13 @@ pub fn sync(
     server: Res<AssetServer>,
     mut mats: ResMut<Mats>,
     mut assets: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut views: Query<(Entity, &mut PartView, &mut Transform)>,
 ) {
     if !ed.is_changed() { return; }
-    let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color;
+    // a textured part's mesh is laid out for its size
+    let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color
+        && a.surfaces == b.surfaces && (a.surfaces.is_empty() || a.size == b.size);
     let mut seen = std::collections::HashSet::new();
     for (e, mut v, mut t) in &mut views {
         match ed.level.get(v.id) {
@@ -753,7 +756,8 @@ pub fn sync(
         }
     }
     for p in ed.level.parts.iter().filter(|p| !seen.contains(&p.id)) {
-        if let Some(e) = world::spawn_visual(&mut commands, p, &lib, &mut models, &server, &mut mats, &mut assets, true) {
+        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, dir: &ed.dir };
+        if let Some(e) = world::spawn_visual(&mut commands, p, &mut looks, true) {
             commands.entity(e).insert(PartView { id: p.id, applied: p.clone() });
         }
     }
@@ -856,7 +860,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![],
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -870,7 +874,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![],
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

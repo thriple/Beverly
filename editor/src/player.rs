@@ -75,11 +75,14 @@ fn setup(
     server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut assets: ResMut<Assets<StandardMaterial>>,
+    root: Res<ProjectRoot>,
 ) {
     commands.spawn((Camera3d::default(), PlayCamera, Msaa::Sample4, Transform::from_xyz(0.0, 3.0, 8.0)));
     let mut mats = world::setup_stage(&mut commands, &mut meshes, &mut assets, true);
+    let dir = root.get();
+    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, dir: &dir };
     for p in &game.level.parts {
-        world::spawn_visual(&mut commands, p, &lib, &mut models, &server, &mut mats, &mut assets, false);
+        world::spawn_visual(&mut commands, p, &mut looks, false);
     }
     commands.insert_resource(mats);
 }

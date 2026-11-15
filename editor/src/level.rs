@@ -5,6 +5,7 @@
 //!   project.bev          name, levels
 //!   levels/main.bev      the parts placed in a level
 //!   assets/textures/ ... files dropped onto the Assets panel are copied here
+//!   assets/materials/    a texture and its settings, shared by every surface that uses it
 //!   assets/models/ assets/sounds/ assets/other/
 //! ```
 //!
@@ -133,6 +134,76 @@ impl Mover {
     pub const OUTPUTS: [&str; 2] = ["Arrived", "Returned"];
 }
 
+/// A material laid on a part, all over or on one face, through its file in assets/materials. Where it sits is the
+/// surface's own (two parts can share a material and lay it differently).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+pub struct Surface {
+    /// The face (see `shapes::Tris::faces`), or `None` for all of the part. A face's own surface wins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face: Option<u8>,
+    /// The material file, e.g. "assets/materials/brick.bev".
+    pub material: String,
+    /// How big one copy of the texture is on the surface, in metres (across, down).
+    pub tile: [f32; 2],
+    /// How far the texture is slid along the surface, in metres (across, down).
+    #[serde(default)]
+    pub offset: [f32; 2],
+}
+
+impl Part {
+    /// The surface that covers `face`: its own, else the all-over one.
+    pub fn surface(&self, face: u8) -> Option<&Surface> {
+        self.surfaces.iter().find(|s| s.face == Some(face)).or_else(|| self.surfaces.iter().find(|s| s.face.is_none()))
+    }
+    /// Lay `s` on the part: on its face (or all over), replacing what was there. All over clears the faces' own.
+    pub fn lay(&mut self, s: Surface) {
+        if s.face.is_none() { self.surfaces.clear(); }
+        self.surfaces.retain(|o| o.face != s.face);
+        self.surfaces.push(s);
+    }
+}
+
+/// A material file (assets/materials/NAME.bev): what every surface using it looks like.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+pub struct Material {
+    #[serde(default)]
+    pub format: u32,
+    /// The texture, e.g. "assets/textures/brick.png".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texture: Option<String>,
+}
+
+pub fn load_material(dir: &Path, path: &str) -> Result<Material, String> {
+    let text = std::fs::read_to_string(dir.join(path)).map_err(|e| format!("{path}: {e}"))?;
+    let m: Material = ron::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+    if m.format > FORMAT { return Err(format!("{path} was saved by a newer Beverly")); }
+    Ok(m)
+}
+
+pub fn save_material(dir: &Path, path: &str, m: &Material) -> Result<(), String> {
+    let text = ron::ser::to_string_pretty(&Material { format: FORMAT, ..m.clone() }, ron::ser::PrettyConfig::default()).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(dir.join("assets/materials")).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(path), text).map_err(|e| e.to_string())
+}
+
+/// The material for a texture: the one already made for it, or a new assets/materials/<texture name>.bev.
+pub fn material_for_texture(dir: &Path, texture: &str) -> Result<String, String> {
+    let stem = Path::new(texture).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "material".into());
+    for n in 1.. {
+        let path = if n == 1 { format!("assets/materials/{stem}.bev") } else { format!("assets/materials/{stem} {n}.bev") };
+        match load_material(dir, &path) {
+            Ok(m) if m.texture.as_deref() == Some(texture) => return Ok(path),
+            Ok(_) => continue,
+            Err(_) if dir.join(&path).exists() => continue,
+            Err(_) => {
+                save_material(dir, &path, &Material { texture: Some(texture.into()), ..Default::default() })?;
+                return Ok(path);
+            }
+        }
+    }
+    unreachable!()
+}
+
 /// A wire: when part `from` sends `out`, part `to` gets `input`.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Wire {
@@ -185,6 +256,9 @@ pub struct Part {
     /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Textures laid on the part (basic shapes): all over, or face by face.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub surfaces: Vec<Surface>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
@@ -198,7 +272,7 @@ impl Part {
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
             collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
-            model, mover: None,
+            model, mover: None, surfaces: vec![],
         }
     }
 
@@ -250,7 +324,7 @@ pub struct ProjectFile {
     pub levels: Vec<String>,
 }
 
-pub const ASSET_FOLDERS: [&str; 4] = ["textures", "models", "sounds", "other"];
+pub const ASSET_FOLDERS: [&str; 5] = ["textures", "materials", "models", "sounds", "other"];
 
 /// Which assets folder a dropped file goes into, by its extension.
 pub fn folder_for(path: &Path) -> &'static str {
@@ -259,6 +333,7 @@ pub fn folder_for(path: &Path) -> &'static str {
         "png" | "jpg" | "jpeg" | "tga" | "bmp" | "ktx2" | "dds" | "webp" | "hdr" | "exr" => "textures",
         "glb" | "gltf" | "obj" | "fbx" | "dae" => "models",
         "wav" | "ogg" | "mp3" | "flac" => "sounds",
+        "bev" => "materials",
         _ => "other",
     }
 }
