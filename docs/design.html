@@ -525,7 +525,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <span class="tag">Feel</span><h3>Widgets that explain themselves</h3>
       <div class="said">Minimal, colour-coded, hovering widgets around (or through) the selection. Complex operations in stages that nest around the widget, animated.</div>
       <ul>
-        <li>Axes are always red X, green Y (up), blue Z. The operation shows in the shape: arrows move, rings rotate, cubes on the corners scale.</li>
+        <li>Axes are always red X, green Y (up), blue Z. The operation shows in the shape: arrows move, rings rotate, cubes on the corners scale (the opposite corner stays put; <kbd>Shift</kbd> scales from the middle) and cubes on the faces stretch along one axis. During any drag, type a number and <kbd>Enter</kbd> sets it exactly (metres, degrees, or times for corners); <kbd>Esc</kbd> cancels.</li>
         <li>Hovering a handle shows a short label of what dragging will do ("Move along X"). While dragging, it shows the live value. Typing a number during a drag sets it exactly.</li>
         <li>Staged operations grow outward. For example, Array: drag out the count ring, release, a second ring for spacing slides out around it, and Enter confirms. Esc backs out one stage.</li>
         <li>Part colours match the palette categories everywhere: in the world, in wires, in the bottom panel.</li>

@@ -8,6 +8,7 @@ use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
 use super::{Editor, Pending, Saved};
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
 
@@ -170,9 +171,69 @@ pub struct WidgetGizmos;
 pub struct OutlineGizmos;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Grip { Axis(usize), Ring }
+pub enum Grip {
+    Axis(usize),
+    Ring,
+    /// A corner cube (bits: which end of x, y, z): scales the whole part.
+    Corner(usize),
+    /// A face cube (axis, the positive side?): stretches along that axis.
+    Face(usize, bool),
+}
 
-pub struct Drag { pub handle: Grip, start_pos: Vec3, start_rot: Quat, s0: f32 }
+pub struct Drag {
+    pub handle: Grip,
+    start_pos: Vec3,
+    start_rot: Quat,
+    s0: f32,
+    /// The part as it was, for Esc.
+    orig: Part,
+    /// A number typed during the drag (Enter sets it exactly).
+    pub typed: String,
+    /// Finished by Enter or Esc: nothing more happens until the button is let go.
+    pub done: bool,
+}
+
+/// The scale handles of a part: corner cubes and face cubes, in the world.
+fn scale_handles(p: &Part, (lo, hi): (Vec3, Vec3)) -> Vec<(Grip, Vec3)> {
+    if p.shape == Shape::PlayerStart { return vec![]; }
+    let a = part_affine(p);
+    let mut v: Vec<(Grip, Vec3)> = (0..8).map(|k| (Grip::Corner(k), a.transform_point3(corner_local(k, lo, hi)))).collect();
+    for i in 0..3 {
+        for pos in [false, true] { v.push((Grip::Face(i, pos), a.transform_point3(face_local(i, pos, lo, hi)))); }
+    }
+    v
+}
+
+fn corner_local(k: usize, lo: Vec3, hi: Vec3) -> Vec3 {
+    Vec3::new(if k & 1 != 0 { hi.x } else { lo.x }, if k & 2 != 0 { hi.y } else { lo.y }, if k & 4 != 0 { hi.z } else { lo.z })
+}
+
+fn face_local(i: usize, pos: bool, lo: Vec3, hi: Vec3) -> Vec3 {
+    let mut c = (lo + hi) * 0.5;
+    c[i] = if pos { hi[i] } else { lo[i] };
+    c
+}
+
+/// `orig` scaled by a scale handle: Corner by `amount` times, Face to `amount` metres along its axis. The opposite
+/// corner or face stays put (with `centre`, the middle does).
+fn scaled(orig: &Part, (lo, hi): (Vec3, Vec3), grip: Grip, amount: f32, centre: bool) -> Part {
+    let min = if orig.shape == Shape::Model { 0.001 } else { 0.02 };
+    let size = Vec3::from(orig.size);
+    let (new, pin) = match grip {
+        Grip::Corner(k) => ((size * amount.max(0.01)).max(Vec3::splat(min)), corner_local(7 - k, lo, hi)),
+        Grip::Face(i, pos) => {
+            let mut s = size;
+            s[i] = (amount / (hi[i] - lo[i]).max(1e-6)).max(min);
+            (s, face_local(i, !pos, lo, hi))
+        }
+        _ => return orig.clone(),
+    };
+    let pin = if centre { (lo + hi) * 0.5 } else { pin };
+    let mut p = orig.clone();
+    p.size = new.to_array();
+    p.pos = (Vec3::from(orig.pos) + Quat::from_array(orig.rot) * ((size - new) * pin)).to_array();
+    p
+}
 
 const AXES: [Vec3; 3] = [Vec3::X, Vec3::Y, Vec3::Z];
 fn axis_color(i: usize) -> bevy_egui::egui::Color32 { [theme::AXIS_X, theme::AXIS_Y, theme::AXIS_Z][i] }
@@ -310,6 +371,7 @@ pub fn interact(
     mut ghost: Single<(&mut Transform, &mut Visibility, &mut Mesh3d), With<Ghost>>,
     lib: Res<ShapeLib>,
     mut press: Local<Press>,
+    mut typed: MessageReader<KeyboardInput>,
 ) {
     let (cam, gtf) = *cam;
     ed.label = None;
@@ -412,38 +474,117 @@ pub fn interact(
     // ---- the widget on the selected part
     if !mouse.pressed(MouseButton::Left) { ed.drag = None; }
     let sel = ed.selected.and_then(|id| ed.level.get(id)).cloned();
-    if let (Some(drag_h), Some(p), Some(ray)) = (ed.drag.as_ref().map(|d| d.handle), sel.as_ref(), ray) {
-        if !mouse.pressed(MouseButton::Left) {
-            ed.drag = None;
-        } else {
-            let d = ed.drag.as_ref().unwrap();
-            let (start_pos, start_rot, s0) = (d.start_pos, d.start_rot, d.s0);
-            let snap = ed.snap && !ctrl;
-            let at = pointer.unwrap_or_default() + vec2(18.0, 14.0);
-            let keys_hint = if snap { "Ctrl: free" } else { "" };
-            match drag_h {
-                Grip::Axis(i) => {
-                    if let Some(s) = axis_param(start_pos, AXES[i], ray) {
-                        let mut delta = s - s0;
-                        if snap { delta = snapf(delta, 0.25); }
-                        let pos = start_pos + AXES[i] * delta;
-                        if let Some(m) = ed.level.get_mut(p.id) { m.pos = pos.to_array(); }
-                        ed.label = Some((at, format!("Move along {} · {:+.2} m  {keys_hint}", axis_name(i), delta), axis_color(i)));
-                    }
-                }
-                Grip::Ring => {
-                    if let Some(a) = ring_angle(start_pos, ray) {
-                        let mut delta = a - s0;
-                        delta = (delta + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-                        if snap { delta = snapf(delta, 15f32.to_radians()); }
-                        let rot = Quat::from_rotation_y(-delta) * start_rot;
-                        if let Some(m) = ed.level.get_mut(p.id) { m.rot = rot.to_array(); }
-                        ed.label = Some((at, format!("Rotate · {:+.0}°  {keys_hint}", -delta.to_degrees()), theme::ACCENT));
-                    }
-                }
+    if let (Some(drag_h), Some(p)) = (ed.drag.as_ref().map(|d| d.handle), sel.as_ref()) {
+        let bx = ed.geo.local_box(p);
+        let d = ed.drag.as_mut().unwrap();
+        if d.done { return; }
+        // a number typed during the drag: Enter sets it exactly, Esc puts the part back
+        let (mut enter, mut esc) = (false, false);
+        for k in typed.read().filter(|k| k.state.is_pressed()) {
+            match &k.logical_key {
+                Key::Character(c) if c.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-') => d.typed.push_str(c),
+                Key::Backspace => { d.typed.pop(); }
+                Key::Enter => enter = true,
+                Key::Escape => esc = true,
+                _ => {}
             }
+        }
+        let (start_pos, start_rot, s0, orig) = (d.start_pos, d.start_rot, d.s0, d.orig.clone());
+        let typed_val = d.typed.parse::<f32>().ok();
+        let typing = !d.typed.is_empty();
+        let typed_text = d.typed.clone();
+        if esc {
+            d.done = true;
+            if let Some(m) = ed.level.get_mut(p.id) { *m = orig; }
+            ed.island.show("✕", "Cancelled", "", Tone::Plain);
             return;
         }
+        let snap = ed.snap && !ctrl;
+        let at = pointer.unwrap_or_default() + vec2(18.0, 14.0);
+        let keys_hint = if typing { format!("typed {typed_text} · Enter sets it · Esc cancels") } else if snap { "type a number · Ctrl: free".into() } else { "type a number".into() };
+        let world_handle = |g: Grip, part: &Part| scale_handles(part, bx).into_iter().find(|(h, _)| *h == g).map(|(_, w)| w).unwrap_or(start_pos);
+        // what the drag (or the typed number) asks for
+        let mut next: Option<Part> = None;
+        let mut text = String::new();
+        let mut color = theme::ACCENT;
+        match drag_h {
+            Grip::Axis(i) => {
+                let delta = match (enter, typed_val) {
+                    (true, Some(v)) => Some(v),
+                    _ => ray.and_then(|r| axis_param(start_pos, AXES[i], r)).map(|s| if snap { snapf(s - s0, 0.25) } else { s - s0 }),
+                };
+                if let Some(delta) = delta {
+                    let mut m = p.clone();
+                    m.pos = (start_pos + AXES[i] * delta).to_array();
+                    next = Some(m);
+                    text = format!("Move along {} · {:+.2} m", axis_name(i), delta);
+                    color = axis_color(i);
+                }
+            }
+            Grip::Ring => {
+                let turn = match (enter, typed_val) {
+                    (true, Some(v)) => Some(v),
+                    _ => ray.and_then(|r| ring_angle(start_pos, r)).map(|a| {
+                        let mut delta = (a - s0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+                        if snap { delta = snapf(delta, 15f32.to_radians()); }
+                        -delta.to_degrees()
+                    }),
+                };
+                if let Some(deg) = turn {
+                    let mut m = p.clone();
+                    m.rot = (Quat::from_rotation_y(deg.to_radians()) * start_rot).to_array();
+                    next = Some(m);
+                    text = format!("Rotate · {deg:+.0}°");
+                }
+            }
+            Grip::Face(i, pos) => {
+                let extent0 = orig.size[i] * (bx.1[i] - bx.0[i]);
+                let dir = Quat::from_array(orig.rot) * (AXES[i] * if pos { 1.0 } else { -1.0 });
+                let h0 = world_handle(drag_h, &orig);
+                let extent = match (enter, typed_val) {
+                    (true, Some(v)) => Some(v),
+                    _ => ray.and_then(|r| axis_param(h0, dir, r)).map(|s| {
+                        let e = extent0 + (s - s0) * if shift { 2.0 } else { 1.0 };
+                        if snap { snapf(e, 0.25) } else { e }
+                    }),
+                };
+                if let Some(e) = extent {
+                    let m = scaled(&orig, bx, drag_h, e, shift);
+                    text = format!("Stretch {} · {:.2} m", axis_name(i), m.size[i] * (bx.1[i] - bx.0[i]));
+                    color = axis_color(i);
+                    next = Some(m);
+                }
+            }
+            Grip::Corner(k) => {
+                let h0 = world_handle(drag_h, &orig);
+                let a = part_affine(&orig);
+                let pin = if shift { a.transform_point3((bx.0 + bx.1) * 0.5) } else { a.transform_point3(corner_local(7 - k, bx.0, bx.1)) };
+                let l0 = h0.distance(pin).max(1e-4);
+                let dir = (h0 - pin) / l0;
+                let factor = match (enter, typed_val) {
+                    (true, Some(v)) => Some(v),
+                    _ => ray.and_then(|r| axis_param(h0, dir, r)).map(|s| {
+                        let f = (l0 + s - s0) / l0;
+                        if snap { snapf(f, 0.05) } else { f }
+                    }),
+                };
+                if let Some(f) = factor {
+                    next = Some(scaled(&orig, bx, drag_h, f, shift));
+                    text = format!("Scale · ×{:.2}{}", f.max(0.01), if shift { " from the middle" } else { "" });
+                }
+            }
+        }
+        if let Some(m) = next {
+            if let Some(slot) = ed.level.get_mut(p.id) { *slot = m; }
+        }
+        if enter {
+            if let Some(d) = ed.drag.as_mut() { d.done = true; }
+            if typed_val.is_none() { ed.island.show("!", "Not a number", typed_text, Tone::Danger); }
+            return;
+        }
+        let shift_hint = if matches!(drag_h, Grip::Corner(_) | Grip::Face(..)) && !shift { " · Shift: from the middle" } else { "" };
+        ed.label = Some((at, format!("{text}  {keys_hint}{shift_hint}"), color));
+        return;
     }
 
     // hover a handle?
@@ -471,21 +612,42 @@ pub fn interact(
                 if dd < 8.0 && best.is_none_or(|(b, _)| dd < b) { best = Some((dd, Grip::Ring)); }
             }
         }
+        // the scale cubes win over the arrows and ring when the pointer is right on one
+        for (g, w) in scale_handles(p, ed.geo.local_box(p)) {
+            if let Some(s) = sc(w) {
+                let dd = s.distance(ptr) - 3.0;
+                if dd < 9.0 && best.is_none_or(|(b, _)| dd < b) { best = Some((dd, g)); }
+            }
+        }
         ed.hover_handle = best.map(|(_, h)| h);
         if let Some(h) = ed.hover_handle {
             let at = ptr + vec2(18.0, 14.0);
             ed.label = Some(match h {
                 Grip::Axis(i) => (at, format!("Move along {}", axis_name(i)), axis_color(i)),
                 Grip::Ring => (at, "Rotate".into(), theme::ACCENT),
+                Grip::Corner(_) => (at, "Scale (Shift: from the middle)".into(), theme::ACCENT),
+                Grip::Face(i, _) => (at, format!("Stretch along {} (Shift: both sides)", axis_name(i)), axis_color(i)),
             });
             if mouse.just_pressed(MouseButton::Left) {
                 if let Some(ray) = ray {
+                    let bx = ed.geo.local_box(p);
                     let s0 = match h {
                         Grip::Axis(i) => axis_param(c, AXES[i], ray),
                         Grip::Ring => ring_angle(c, ray),
+                        Grip::Face(i, pos) => {
+                            let h0 = scale_handles(p, bx).into_iter().find(|(g, _)| *g == h).map(|(_, w)| w).unwrap_or(c);
+                            axis_param(h0, Quat::from_array(p.rot) * (AXES[i] * if pos { 1.0 } else { -1.0 }), ray)
+                        }
+                        Grip::Corner(k) => {
+                            let a = part_affine(p);
+                            let h0 = a.transform_point3(corner_local(k, bx.0, bx.1));
+                            let pin = if shift { a.transform_point3((bx.0 + bx.1) * 0.5) } else { a.transform_point3(corner_local(7 - k, bx.0, bx.1)) };
+                            axis_param(h0, (h0 - pin).normalize_or_zero(), ray)
+                        }
                     };
                     if let Some(s0) = s0 {
-                        ed.drag = Some(Drag { handle: h, start_pos: c, start_rot: Quat::from_array(p.rot), s0 });
+                        typed.clear();
+                        ed.drag = Some(Drag { handle: h, start_pos: c, start_rot: Quat::from_array(p.rot), s0, orig: p.clone(), typed: String::new(), done: false });
                         press.at = None;
                         return;
                     }
@@ -509,7 +671,8 @@ pub fn interact(
 
 /// Keyboard shortcuts for the 3D view (typing in a text field turns most of them off).
 pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut view: ResMut<View>, mut exit: MessageWriter<AppExit>) {
-    if ed.pending.is_some() || ed.testing.is_some() { return; }
+    // during a widget drag the keyboard types its number (see `interact`)
+    if ed.pending.is_some() || ed.testing.is_some() || ed.drag.is_some() { return; }
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let typing = view.keyboard_in_ui;
@@ -665,6 +828,17 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     let hot = active == Some(Grip::Ring);
     let col = if hot { Color::WHITE } else { Color::srgba(0.96, 0.86, 0.29, 0.85) };
     w.circle(Isometry3d::new(c, Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)), len * 0.75, col).resolution(64);
+    // scale cubes: corners scale the whole part, faces stretch it along their axis
+    let rot = Quat::from_array(p.rot);
+    for (g, at) in scale_handles(p, ed.geo.local_box(p)) {
+        let hot = active == Some(g);
+        let (s, col) = match g {
+            Grip::Face(i, _) => (len * 0.045, c32(axis_color(i))),
+            _ => (len * 0.06, Color::srgb(0.96, 0.86, 0.29)),
+        };
+        let s = if hot { s * 1.4 } else { s };
+        w.cube(Transform { translation: at, rotation: rot, scale: Vec3::splat(s) }, if hot { Color::WHITE } else { col });
+    }
 }
 
 /// One undo step per finished change: when the level differs from the last step and no drag is going on.
@@ -697,5 +871,28 @@ mod tests {
         let h = ed.hit(ray).expect("hit");
         assert_eq!(h.part, Some(id));
         assert!((h.point - vec3(2.25, 1.0, 3.25)).length() < 1.05);
+    }
+
+    #[test]
+    fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
+        let p = Part {
+            id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None,
+        };
+        let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
+        let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;
+        // a corner doubles the part; the opposite corner stays
+        let q = scaled(&p, bx, Grip::Corner(5), 2.0, false);
+        assert_eq!(q.size, [4.0, 2.0, 8.0]);
+        assert!(at(&q, Grip::Corner(2)).distance(at(&p, Grip::Corner(2))) < 1e-4);
+        // a face stretches its axis to the length asked; the opposite face stays
+        let q = scaled(&p, bx, Grip::Face(2, true), 6.0, false);
+        assert_eq!(q.size, [2.0, 1.0, 6.0]);
+        assert!(at(&q, Grip::Face(2, false)).distance(at(&p, Grip::Face(2, false))) < 1e-4);
+        // from the middle: the middle stays
+        let q = scaled(&p, bx, Grip::Face(0, false), 5.0, true);
+        assert!(Vec3::from(q.pos).distance(Vec3::from(p.pos)) < 1e-5);
+        // never down to nothing
+        assert!(scaled(&p, bx, Grip::Face(1, true), -3.0, false).size[1] >= 0.02);
     }
 }

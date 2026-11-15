@@ -222,6 +222,23 @@
    "build": 18
   },
   {
+   "id": "scale-widget",
+   "name": "Scale handles",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Corner cubes scale the whole part (the opposite corner stays), face cubes stretch it along one axis; Shift scales from the middle, Ctrl turns snapping off; type a number during any drag (move, turn, scale) and Enter sets it exactly, Esc cancels.",
+   "chunks": [],
+   "note": "Asked for by the user (2026-11-15), so built ahead of its place in the order.",
+   "order": 14,
+   "first_game": false,
+   "built": "2026-11-15",
+   "build": 19
+  },
+  {
    "id": "mcp",
    "name": "MCP server",
    "area": "Editor basics",
@@ -238,7 +255,7 @@
     "Playing and testing: start and stop test mode, press keys, read the player and parts while playing; scripted tests, bakes and builds run as jobs to check on, so long work doesn't time out"
    ],
    "note": "Prism's server (2026-11-09) handles the protocol well (both versions, token, local only), so that half is reused. What Beverly needs beyond it: tools made from data instead of written by hand (Prism's ~10 tools each cover one thing; Beverly will have hundreds of settings), several kinds of files (levels, characters, HUD, screens), play mode, and jobs for work longer than Prism's 60-second wait. Editor only: never in an exported game. Like Prism, every later feature's brief says what it adds here.",
-   "order": 14,
+   "order": 15,
    "first_game": true,
    "next": true
   },
@@ -254,7 +271,7 @@
    "what": "project.bev, levels/*.bev, characters/*.bev, each with a format version so files from older Beverlys are upgraded when opened; old .ron projects still open.",
    "chunks": [],
    "note": "",
-   "order": 15,
+   "order": 16,
    "first_game": true
   },
   {
@@ -269,7 +286,7 @@
    "what": "Mesh-plus-material parts are drawn as instances; changing one asks “change all, or make this one unique?”",
    "chunks": [],
    "note": "Bevy already draws identical mesh-plus-material pairs in batches, so this is mostly the editor side: shared assets, Unique, and keeping models sharing one mesh.",
-   "order": 16,
+   "order": 17,
    "first_game": true
   },
   {
@@ -287,7 +304,7 @@
     "Material assets shared by many surfaces, the Materials panel, glowing-surface material"
    ],
    "note": "",
-   "order": 17,
+   "order": 18,
    "first_game": true
   },
   {
@@ -305,7 +322,7 @@
     "Sun light with direction and shadows, Interior mode (no sun), light budget meter"
    ],
    "note": "The sky and the time-of-day slider are in Sky and clouds; the running clock in Day and night.",
-   "order": 18,
+   "order": 19,
    "first_game": true
   },
   {
@@ -320,7 +337,7 @@
    "what": "Mark parts climbable, diggable, water, grind rail, perch spot, slippery.",
    "chunks": [],
    "note": "",
-   "order": 19,
+   "order": 20,
    "first_game": true
   },
   {
@@ -338,7 +355,7 @@
     "Rail cameras on paths, Camera focus / Release actions with ease"
    ],
    "note": "Rail cameras need Paths.",
-   "order": 20,
+   "order": 21,
    "first_game": true
   },
   {
@@ -357,7 +374,7 @@
     "Loose parts: mass, friction, sleeping; characters push and stand on them; impulses from blasts and the winch"
    ],
    "note": "Two collision worlds side by side (today's and Avian's) would need every moving part kept in step twice, so Avian replaces today's. Loose things need convex shapes (Avian builds them from the mesh: collider-from-mesh); exact mesh colliders only for things that never move. avian3d 0.8 supports Bevy 0.20 and has f64 and enhanced-determinism options for big worlds and multiplayer.",
-   "order": 21,
+   "order": 22,
    "first_game": true
   },
   {
@@ -372,7 +389,7 @@
    "what": "One button builds where enemies can walk; patrol paths.",
    "chunks": [],
    "note": "vleue_navigator supports Bevy 0.20.",
-   "order": 22,
+   "order": 23,
    "first_game": true
   },
   {
@@ -387,7 +404,7 @@
    "what": "Per level: ground (none, flat floor, terrain, ocean), sky or Interior. Space games get no ground at all.",
    "chunks": [],
    "note": "",
-   "order": 23,
+   "order": 24,
    "first_game": true
   },
   {
@@ -403,7 +420,7 @@
    "what": "One stretchable Zone part with settings for weather, post-processing, audio, wind, water, boundaries and hazards, blending at its edges.",
    "chunks": [],
    "note": "",
-   "order": 24,
+   "order": 25,
    "first_game": true
   },
   {
@@ -418,7 +435,7 @@
    "what": "One particle system for every effect: bursts and streams of soft blobs with drag, gravity, spin and wander, size and colour over life drawn as curves.",
    "chunks": [],
    "note": "Generalises Last Ascent's particles (fx.rs and the plume particles), which already match the game's look and run without compute shaders. bevy_hanabi (GPU, Bevy 0.20) stays a fallback if counts outgrow it. Rain and snow are a shader around the camera, not particles.",
-   "order": 25,
+   "order": 26,
    "first_game": true
   },
   {
@@ -439,7 +456,7 @@
     "Sound hooks: any event (a footstep, a move, a hit, a wire firing) plays a sound; footsteps by surface; a Sounds list on characters and on zones that later features (weather, effects, idles) add to"
    ],
    "note": "Gets its own planning pass before building (user, 2026-11-15: adding sounds to characters, sets and weather needs attention). bevy_kira_audio supports Bevy 0.20.",
-   "order": 26,
+   "order": 27,
    "first_game": true
   },
   {
@@ -455,7 +472,7 @@
    "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
    "chunks": [],
    "note": "",
-   "order": 27,
+   "order": 28,
    "first_game": true
   },
   {
@@ -471,7 +488,7 @@
    "what": "Step on it and get launched in its direction; works on enemies and objects.",
    "chunks": [],
    "note": "",
-   "order": 28,
+   "order": 29,
    "first_game": true
   },
   {
@@ -492,7 +509,7 @@
     "Create steps: template, model, fit (auto collision); Body card"
    ],
    "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo).",
-   "order": 29,
+   "order": 30,
    "first_game": true
   },
   {
@@ -507,7 +524,7 @@
    "what": "Waves from a formula (layered Gerstner), shore fade, foam; settings by wind and storm.",
    "chunks": [],
    "note": "bevy_water supports Bevy 0.20.",
-   "order": 30,
+   "order": 31,
    "first_game": true
   },
   {
@@ -523,7 +540,7 @@
    "what": "Per level or camera: bloom, depth of field, motion blur, chromatic aberration, vignette, lens distortion, auto exposure, colour grading; zones and the timeline can change them.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 31,
+   "order": 32,
    "first_game": true
   },
   {
@@ -538,7 +555,7 @@
    "what": "Screen-space ambient occlusion and reflections, volumetric fog and light shafts, quality settings.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 32,
+   "order": 33,
    "first_game": true
   },
   {
@@ -556,7 +573,7 @@
     "Cloud layers and volumetric clouds that follow the wind"
    ],
    "note": "Bevy 0.20 has a physical atmosphere built in.",
-   "order": 33,
+   "order": 34,
    "first_game": true
   },
   {
@@ -572,7 +589,7 @@
    "what": "One wind for the level (direction, strength, gusts, zones) read by foliage, cloth, flags, particles, smoke, sails and flying lift.",
    "chunks": [],
    "note": "",
-   "order": 34,
+   "order": 35,
    "first_game": true
   },
   {
@@ -588,7 +605,7 @@
    "what": "Scorch marks, cracks, skid grooves, bullet holes and signs projected onto surfaces, fading with age.",
    "chunks": [],
    "note": "Bevy 0.20 has decals built in. Blast, crack and scrape marks are drawn by a shader from a few numbers (Last Ascent's are small images today; the no-raster rule asks for math where it can do the job); signs and graffiti use the user's own images.",
-   "order": 35,
+   "order": 36,
    "first_game": true
   },
   {
@@ -603,7 +620,7 @@
    "what": "Leaving test mode puts back everything that moved, broke or was used up; values tuned while testing are offered to keep.",
    "chunks": [],
    "note": "Needed as soon as loose physics parts exist, so it comes right after physics instead of at the end.",
-   "order": 36,
+   "order": 37,
    "first_game": true
   },
   {
@@ -618,7 +635,7 @@
    "what": "Temporary sounds made from a few settings: blips, hits, footsteps, whooshes, explosions, engine hums and rain, saved as their settings (tiny) and swapped for real recordings whenever you have them.",
    "chunks": [],
    "note": "User, 2026-11-15: generated temporary sounds are fine. Works like the classic sfxr sound makers: a wave, a pitch slide, an envelope and noise.",
-   "order": 37,
+   "order": 38,
    "first_game": true
   },
   {
@@ -639,7 +656,7 @@
     "Atmosphere settings on Zone parts (Interior preset); Set weather action over time"
    ],
    "note": "Haze is Bevy's distance fog; local fog banks are fog volumes (ambient occlusion and fog volumes feature). Rain and wind sounds go through the sound hooks.",
-   "order": 38,
+   "order": 39,
    "first_game": true
   },
   {
@@ -655,7 +672,7 @@
    "what": "More than one level per project; Level exit parts wired to the next level.",
    "chunks": [],
    "note": "",
-   "order": 39,
+   "order": 40,
    "first_game": true
   },
   {
@@ -670,7 +687,7 @@
    "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
    "chunks": [],
    "note": "",
-   "order": 40,
+   "order": 41,
    "first_game": true
   },
   {
@@ -691,7 +708,7 @@
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
    "note": "",
-   "order": 41,
+   "order": 42,
    "first_game": true
   },
   {
@@ -710,7 +727,7 @@
     "Rules editor and the library picker (+ Add) with needs; editable ranges"
    ],
    "note": "bevy_tnua (Bevy 0.20) does walking, jumping with coyote time, crouching and dashing on Avian; the + Add library picker is shared with parts, abilities, effects and items.",
-   "order": 42,
+   "order": 43,
    "first_game": true
   },
   {
@@ -725,7 +742,7 @@
    "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
    "chunks": [],
    "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need.",
-   "order": 43,
+   "order": 44,
    "first_game": true
   },
   {
@@ -745,7 +762,7 @@
     "Joint tree by name: drag joints between chains, rename"
    ],
    "note": "The Walk job generalises Last Ascent's mech legs.",
-   "order": 44,
+   "order": 45,
    "first_game": true
   },
   {
@@ -764,7 +781,7 @@
     "Abilities with costs and cooldowns; the Abilities card with its tags"
    ],
    "note": "",
-   "order": 45,
+   "order": 46,
    "first_game": true
   },
   {
@@ -783,7 +800,7 @@
     "Outlines: shell per object and edge detection over the screen; per-project style presets"
    ],
    "note": "bevy_mod_outline supports Bevy 0.20.",
-   "order": 46,
+   "order": 47,
    "first_game": true
   },
   {
@@ -802,7 +819,7 @@
     "Draw-distance classes tied to the haze end, Always visible flag"
    ],
    "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades.",
-   "order": 47,
+   "order": 48,
    "first_game": true
   },
   {
@@ -820,7 +837,7 @@
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
    "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries.",
-   "order": 48,
+   "order": 49,
    "first_game": true
   },
   {
@@ -836,7 +853,7 @@
    "what": "Save point parts store the player, variables and which parts fired; load from the menu.",
    "chunks": [],
    "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs.",
-   "order": 49,
+   "order": 50,
    "first_game": true
   },
   {
@@ -856,7 +873,7 @@
     "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
    ],
    "note": "Skinned characters bring their clips in the GLB (the user will skin in another tool, Prism once it can). Characters made of separate pieces, like the mech, are posed and keyed here, since Prism exports pieces with pivots.",
-   "order": 50,
+   "order": 51,
    "first_game": true
   },
   {
@@ -871,7 +888,7 @@
    "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
    "chunks": [],
    "note": "",
-   "order": 51,
+   "order": 52,
    "first_game": true
   },
   {
@@ -886,7 +903,7 @@
    "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
    "chunks": [],
    "note": "Mostly bevy_tnua's.",
-   "order": 52,
+   "order": 53,
    "first_game": true
   },
   {
@@ -901,7 +918,7 @@
    "what": "Crouch, prone crawl, slide at speed, lean around corners.",
    "chunks": [],
    "note": "Mostly bevy_tnua's.",
-   "order": 53,
+   "order": 54,
    "first_game": true
   },
   {
@@ -920,7 +937,7 @@
     "Wall-run and wall-cling with their exits into jumps"
    ],
    "note": "",
-   "order": 54,
+   "order": 55,
    "first_game": true
   },
   {
@@ -938,7 +955,7 @@
     "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
    ],
    "note": "",
-   "order": 55,
+   "order": 56,
    "first_game": true
   },
   {
@@ -954,7 +971,7 @@
    "what": "Swim at the surface, dive under with breath, water volumes.",
    "chunks": [],
    "note": "",
-   "order": 56,
+   "order": 57,
    "first_game": true
   },
   {
@@ -975,7 +992,7 @@
     "Glow, trails, camera shake; attaching effects to joints and events in the editor"
    ],
    "note": "Reuses Last Ascent's plume reader and renderer, which already match the Plume Editor. Making effects happens in the Effects tab.",
-   "order": 57,
+   "order": 58,
    "first_game": true
   },
   {
@@ -990,7 +1007,7 @@
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
    "note": "",
-   "order": 58,
+   "order": 59,
    "first_game": true
   },
   {
@@ -1009,7 +1026,7 @@
     "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
    ],
    "note": "",
-   "order": 59,
+   "order": 60,
    "first_game": true
   },
   {
@@ -1028,7 +1045,7 @@
     "Gear traits stacking, consumables; inventory screen (with Screens)"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 60,
+   "order": 61,
    "first_game": true
   },
   {
@@ -1050,7 +1067,7 @@
     "Flock preset (the bird code: land on perch spots, scatter, flock)"
    ],
    "note": "The Flock preset reuses the user's bird code. Walkers use the navigation areas; flyers and swimmers steer around obstacles with rays instead.",
-   "order": 61,
+   "order": 62,
    "first_game": true
   },
   {
@@ -1071,7 +1088,7 @@
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
    "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code.",
-   "order": 62,
+   "order": 63,
    "first_game": true
   },
   {
@@ -1091,7 +1108,7 @@
     "Character recordings into editable keys; letterbox and skippable"
    ],
    "note": "",
-   "order": 63,
+   "order": 64,
    "first_game": true
   },
   {
@@ -1107,7 +1124,7 @@
    "what": "Characters go limp on death or big hits and blend back when they get up.",
    "chunks": [],
    "note": "",
-   "order": 64,
+   "order": 65,
    "first_game": true
   },
   {
@@ -1123,7 +1140,7 @@
    "what": "A running clock with day and night, schedules for lights and NPCs; slow motion and pause.",
    "chunks": [],
    "note": "",
-   "order": 65,
+   "order": 66,
    "first_game": true
   },
   {
@@ -1147,7 +1164,7 @@
     "Combined effects: several kinds layered and timed into one effect (a landing: dust, cracks, shake, a thud)"
    ],
    "note": "User, 2026-11-15: integrate the Plume Editor; other kinds of effects get their own sections. Its fields already come with sections, labels, ranges and notes (references/plume/FIELDS.md in Last Ascent), which is what Settings panels from data needs, and Last Ascent's plume code already draws them the same as the editor.",
-   "order": 66,
+   "order": 67,
    "first_game": true
   },
   {
@@ -1166,7 +1183,7 @@
     "Wind sway and performance pass"
    ],
    "note": "Stored as brush strokes and a seed, not every plant: the same plants come back each time and the level file stays small. Erasing is a stroke too.",
-   "order": 67,
+   "order": 68,
    "first_game": true
   },
   {
@@ -1185,7 +1202,7 @@
     "Loading around the player in play, with far regions shown as their simplest LOD"
    ],
    "note": "Each region carries its own colliders and navigation tiles, so physics and enemies load and unload with it.",
-   "order": 68,
+   "order": 69,
    "first_game": true
   },
   {
@@ -1206,7 +1223,7 @@
     "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
    ],
    "note": "",
-   "order": 69,
+   "order": 70,
    "first_game": true
   },
   {
@@ -1222,7 +1239,7 @@
    "what": "Spawner parts and spawn waves on the timeline.",
    "chunks": [],
    "note": "",
-   "order": 70,
+   "order": 71,
    "first_game": true
   },
   {
@@ -1242,7 +1259,7 @@
     "Interaction targets: look-at, hand reach (two-bone IK with blend in and out), sit / lean spots"
    ],
    "note": "",
-   "order": 71,
+   "order": 72,
    "first_game": true
   },
   {
@@ -1263,7 +1280,7 @@
     "Vehicle and Enemy (with vehicles and the swarm)"
    ],
    "note": "",
-   "order": 72,
+   "order": 73,
    "first_game": true
   },
   {
@@ -1278,7 +1295,7 @@
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
    "note": "",
-   "order": 73,
+   "order": 74,
    "first_game": true
   },
   {
@@ -1294,7 +1311,7 @@
    "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
    "chunks": [],
    "note": "Reuses Last Ascent's jets and grapple.",
-   "order": 74,
+   "order": 75,
    "first_game": true
   },
   {
@@ -1313,7 +1330,7 @@
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
    "note": "",
-   "order": 75,
+   "order": 76,
    "first_game": true
   },
   {
@@ -1335,7 +1352,7 @@
     "Combat: bites, goo splash, damage and death"
    ],
    "note": "Goo is drawn per cluster: each cluster's box runs a shader over only its own bugs, so cost grows with clusters, not with every bug against every other.",
-   "order": 76,
+   "order": 77,
    "first_game": true
   },
   {
@@ -1351,7 +1368,7 @@
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
    "note": "",
-   "order": 77,
+   "order": 78,
    "first_game": true
   },
   {
@@ -1372,7 +1389,7 @@
     "Live 3D backgrounds; transitions on the timeline"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 78,
+   "order": 79,
    "first_game": true
   },
   {
@@ -1393,7 +1410,7 @@
     "Terrain LOD and seams between chunks"
    ],
    "note": "Height images from other tools could be converted into strokes later, if wanted.",
-   "order": 79,
+   "order": 80,
    "first_game": true
   },
   {
@@ -1411,7 +1428,7 @@
    "what": "Every water body is a swim volume; floating objects bob with drag; splashes; underwater fog and tint; water puts out fire.",
    "chunks": [],
    "note": "",
-   "order": 80,
+   "order": 81,
    "first_game": true
   },
   {
@@ -1429,7 +1446,7 @@
    "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
    "chunks": [],
    "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D.",
-   "order": 81,
+   "order": 82,
    "first_game": true
   },
   {
@@ -1454,7 +1471,7 @@
     "Plumes, effects and the fuel gauge hooked up; Last Ascent editor and player removed"
    ],
    "note": "Scripted tests record today's mech before anything changes, so the port can be compared step by step.",
-   "order": 82,
+   "order": 83,
    "first_game": true
   },
   {
@@ -1469,7 +1486,7 @@
    "what": "A floating origin so worlds bigger than about 10 km don't jitter.",
    "chunks": [],
    "note": "big_space has no release for Bevy 0.20 yet, so the plan is a simple floating origin of Beverly's own (move the world back when the player is far from the middle) with Avian in f64; use big_space if it catches up.",
-   "order": 83,
+   "order": 84,
    "first_game": true
   },
   {
@@ -1488,7 +1505,7 @@
     "Cloth: flags, banners, sails and capes on characters"
    ],
    "note": "",
-   "order": 84,
+   "order": 85,
    "first_game": true
   },
   {
@@ -1504,7 +1521,7 @@
    "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
    "chunks": [],
    "note": "",
-   "order": 85,
+   "order": 86,
    "first_game": true
   },
   {
@@ -1520,7 +1537,7 @@
    "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
    "chunks": [],
    "note": "",
-   "order": 86,
+   "order": 87,
    "first_game": true
   },
   {
@@ -1537,7 +1554,7 @@
    "what": "Close attacks with combos, takedowns from behind.",
    "chunks": [],
    "note": "",
-   "order": 87,
+   "order": 88,
    "first_game": true
   },
   {
@@ -1557,7 +1574,7 @@
     "Beams, muzzle effects and sounds, aim with lock-on"
    ],
    "note": "",
-   "order": 88,
+   "order": 89,
    "first_game": true
   },
   {
@@ -1576,7 +1593,7 @@
     "Automatic rules: rock on steep slopes, snow above a height"
    ],
    "note": "Surfaces are outlines and strokes like the terrain itself; blend weights are worked out per vertex, so no paint images are stored.",
-   "order": 89,
+   "order": 90,
    "first_game": true
   },
   {
@@ -1595,7 +1612,7 @@
     "Rivers on paths: flow along the curve, foam, carving the bed, joining lakes"
    ],
    "note": "",
-   "order": 90,
+   "order": 91,
    "first_game": true
   },
   {
@@ -1612,7 +1629,7 @@
    "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
    "chunks": [],
    "note": "",
-   "order": 91,
+   "order": 92,
    "first_game": true
   },
   {
@@ -1628,7 +1645,7 @@
    "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
    "chunks": [],
    "note": "",
-   "order": 92,
+   "order": 93,
    "first_game": true
   },
   {
@@ -1644,7 +1661,7 @@
    "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
    "chunks": [],
    "note": "",
-   "order": 93,
+   "order": 94,
    "first_game": true
   },
   {
@@ -1659,7 +1676,7 @@
    "what": "A small toggle-able overlay: FPS, frame time, RAM, entities, draw calls, triangles and lights, coloured green, amber or red.",
    "chunks": [],
    "note": "Bevy's diagnostics give FPS, frame time and the process's memory.",
-   "order": 94,
+   "order": 95,
    "first_game": false
   },
   {
@@ -1674,7 +1691,7 @@
    "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
    "chunks": [],
    "note": "",
-   "order": 95,
+   "order": 96,
    "first_game": false
   },
   {
@@ -1689,7 +1706,7 @@
    "what": "Saves a recovery copy every few minutes; offers it after a crash.",
    "chunks": [],
    "note": "",
-   "order": 96,
+   "order": 97,
    "first_game": false
   },
   {
@@ -1704,7 +1721,7 @@
    "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
    "chunks": [],
    "note": "",
-   "order": 97,
+   "order": 98,
    "first_game": false
   },
   {
@@ -1717,21 +1734,6 @@
     "navigation"
    ],
    "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
-   "chunks": [],
-   "note": "",
-   "order": 98,
-   "first_game": false
-  },
-  {
-   "id": "scale-widget",
-   "name": "Scale handles",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "shapes"
-   ],
-   "what": "Cubes on the corners scale; type a number during any drag to set it exactly.",
    "chunks": [],
    "note": "",
    "order": 99,

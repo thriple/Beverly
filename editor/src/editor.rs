@@ -173,6 +173,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .init_gizmo_group::<edit::WidgetGizmos>()
         .init_gizmo_group::<edit::OutlineGizmos>()
         .add_systems(Startup, (shapes::setup, view::setup, edit::setup, caps::startup))
+        .add_systems(Update, window_icon)
         .add_systems(
             Update,
             (
@@ -196,4 +197,18 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         )
         .add_systems(EguiPrimaryContextPass, ui::ui)
         .run();
+}
+
+/// Beverly's icon on the editor window (the title bar and taskbar), once the window exists.
+fn window_icon(mut done: Local<bool>, window: Query<Entity, With<bevy::window::PrimaryWindow>>, _main: bevy::ecs::system::NonSendMarker) {
+    if *done { return; }
+    let Ok(entity) = window.single() else { return };
+    bevy::winit::WINIT_WINDOWS.with_borrow(|w| {
+        let Some(win) = w.get_window(entity) else { return };
+        *done = true;
+        let Ok(img) = image::load_from_memory(include_bytes!("../assets/icon.png")) else { return };
+        let img = img.into_rgba8();
+        let (wd, ht) = img.dimensions();
+        if let Ok(icon) = winit::window::Icon::from_rgba(img.into_raw(), wd, ht) { win.set_window_icon(Some(icon)); }
+    });
 }
