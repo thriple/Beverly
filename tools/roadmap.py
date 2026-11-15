@@ -28,7 +28,14 @@ def d(i, seen=()):
     if i not in depth: depth[i] = 1 + max((d(n, seen + (i,)) for n in by[i]["needs"]), default=0)
     return depth[i]
 for f in F: d(f["id"])
-F.sort(key=lambda f: (f["status"] != "done", depth[f["id"]]))  # stable: file order breaks ties
+# the first game's path: what it needs, and everything those need, comes first
+path = set()
+def mark(i):
+    if i not in path: path.add(i); [mark(n) for n in by[i]["needs"]]
+for f in F:
+    if f.get("first_game"): mark(f["id"])
+for f in F: f["first_game"] = f["id"] in path
+F.sort(key=lambda f: (f["status"] != "done", f["status"] == "hold", not f["first_game"], not f.get("next"), depth[f["id"]]))  # stable: file order breaks ties
 for k, f in enumerate(F): f["order"] = k + 1
 SRC.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
 
@@ -55,8 +62,8 @@ def card(f):
 <p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f"<ol>{parts}</ol>" if parts else ""}{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
 
 phases = {}
-for f in todo + held: phases.setdefault(depth[f["id"]], []).append(f)
-phase_html = "".join(f'<section class="phase"><h2>Step {k}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p><div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items()))
+for f in todo + held: phases.setdefault(("Last Ascent path" if f["first_game"] else "After Last Ascent", depth[f["id"]]), []).append(f)
+phase_html = "".join(f'<section class="phase"><h2>{k[0]} · step {k[1]}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p><div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
 paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) for x in chain(t) if not done(x))}</li>' for t in ["mech-port", "swarm", "screens", "vehicles", "destructibles"])
 
 notes_html = "<h2>Research behind the new areas</h2><div class=\"cols\">" + "".join(f'<div><h3 style="margin-top:10px">{e(n["title"])}</h3><p class="sub" style="margin-top:4px">{e(n["text"])}</p><p class="sub">' + " · ".join(f'<a href="{e(u)}">{e(t)}</a>' for t, u in n["sources"]) + "</p></div>" for n in data.get("notes", [])) + "</div>"
@@ -106,12 +113,13 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
 </style>
 <div class="wrap">
 <h1>Beverly roadmap</h1>
-<p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
+<p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. What Last Ascent needs (and what that needs) comes first; the rest follows. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
 <div class="stats">
  <div class="stat"><b>{len(F) - len(todo) - len(held)}</b><span>built</span></div>
  <div class="stat"><b>{len(todo)}</b><span>to build</span></div>
  <div class="stat"><b>{total:g}</b><span>sessions, roughly</span></div>
  <div class="stat"><b>{eff["S"]}·{eff["M"]}·{eff["L"]}·{eff["XL"]}</b><span>S · M · L · XL</span></div>
+ <div class="stat"><b>{sum(sessions(f) for f in todo if f["first_game"]):g}</b><span>sessions on the Last Ascent path</span></div>
  <div class="stat"><b>{len(ready)}</b><span>ready to build now</span></div>
 </div>
 <div class="cols">

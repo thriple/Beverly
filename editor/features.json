@@ -12,7 +12,8 @@
    "what": "Top bar, panels, status island, keycaps, springs: the kit ported to egui.",
    "chunks": [],
    "note": "",
-   "order": 1
+   "order": 1,
+   "first_game": true
   },
   {
    "id": "navigation",
@@ -26,7 +27,8 @@
    "what": "Caps Lock switches; orbit, pan, proximity zoom; fly with 12 speeds; F frames the selection.",
    "chunks": [],
    "note": "",
-   "order": 2
+   "order": 2,
+   "first_game": true
   },
   {
    "id": "projects",
@@ -40,21 +42,8 @@
    "what": "Project folders of plain text; save / open / new; undo and redo; unsaved-changes question; Assets panel with dropped files.",
    "chunks": [],
    "note": "",
-   "order": 3
-  },
-  {
-   "id": "updater",
-   "name": "Help menu, About and updates",
-   "area": "Editor basics",
-   "status": "done",
-   "effort": "S",
-   "needs": [
-    "shell"
-   ],
-   "what": "About Beverly and Check for updates (download, check, swap; runs from the next start).",
-   "chunks": [],
-   "note": "",
-   "order": 4
+   "order": 3,
+   "first_game": true
   },
   {
    "id": "shapes",
@@ -68,7 +57,8 @@
    "what": "Box, ramp, stairs, arch, cylinder, sphere, plane; drop on surfaces; move and turn with snapping; shapes double as colliders.",
    "chunks": [],
    "note": "",
-   "order": 5
+   "order": 4,
+   "first_game": true
   },
   {
    "id": "models",
@@ -82,21 +72,8 @@
    "what": "Drop .glb / .gltf files and place them like shapes; they collide too.",
    "chunks": [],
    "note": "",
-   "order": 6
-  },
-  {
-   "id": "features-window",
-   "name": "Features window",
-   "area": "Editor basics",
-   "status": "done",
-   "effort": "S",
-   "needs": [
-    "updater"
-   ],
-   "what": "Help > Features: what's planned, built and next, updated with every release.",
-   "chunks": [],
-   "note": "",
-   "order": 7
+   "order": 5,
+   "first_game": true
   },
   {
    "id": "test-mode",
@@ -110,35 +87,8 @@
    "what": "` plays from the reticle, Shift+` from the Player start; a plain walker until characters exist.",
    "chunks": [],
    "note": "",
-   "order": 8
-  },
-  {
-   "id": "scene-list",
-   "name": "Scene list",
-   "area": "Level building",
-   "status": "done",
-   "effort": "S",
-   "needs": [
-    "shapes"
-   ],
-   "what": "Find, select and hide parts by name.",
-   "chunks": [],
-   "note": "",
-   "order": 9
-  },
-  {
-   "id": "export",
-   "name": "Windows game export",
-   "area": "Editor basics",
-   "status": "done",
-   "effort": "M",
-   "needs": [
-    "test-mode"
-   ],
-   "what": "File > Export Windows game zips the game player with the project.",
-   "chunks": [],
-   "note": "",
-   "order": 10
+   "order": 6,
+   "first_game": true
   },
   {
    "id": "wires",
@@ -152,35 +102,99 @@
    "what": "Interact buttons, Moves on any shape (Go / Back / Toggle), wires picked in the properties panel, the walker rides moving parts.",
    "chunks": [],
    "note": "",
-   "order": 11
+   "order": 7,
+   "first_game": true
   },
   {
-   "id": "perf-meter",
-   "name": "Editor stats",
+   "id": "updater",
+   "name": "Help menu, About and updates",
    "area": "Editor basics",
-   "status": "planned",
+   "status": "done",
    "effort": "S",
    "needs": [
     "shell"
    ],
-   "what": "A small toggle-able overlay: FPS, frame time, RAM, entities, draw calls, triangles and lights, coloured green, amber or red.",
-   "chunks": [],
-   "note": "Bevy's diagnostics give FPS, frame time and the process's memory.",
-   "order": 12
-  },
-  {
-   "id": "pointer-tour",
-   "name": "Pointer tours",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "shell"
-   ],
-   "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
+   "what": "About Beverly and Check for updates (download, check, swap; runs from the next start).",
    "chunks": [],
    "note": "",
-   "order": 13
+   "order": 8,
+   "first_game": false
+  },
+  {
+   "id": "features-window",
+   "name": "Features window",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "updater"
+   ],
+   "what": "Help > Features: what's planned, built and next, updated with every release.",
+   "chunks": [],
+   "note": "",
+   "order": 9,
+   "first_game": false
+  },
+  {
+   "id": "scene-list",
+   "name": "Scene list",
+   "area": "Level building",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Find, select and hide parts by name.",
+   "chunks": [],
+   "note": "",
+   "order": 10,
+   "first_game": false
+  },
+  {
+   "id": "export",
+   "name": "Windows game export",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "File > Export Windows game zips the game player with the project.",
+   "chunks": [],
+   "note": "",
+   "order": 11,
+   "first_game": false
+  },
+  {
+   "id": "test-harness",
+   "name": "Scripted tests",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "Tests that load a level, press keys on a timeline, save screenshots and check positions, so each feature is checked in seconds.",
+   "chunks": [],
+   "note": "Pushed forward by the user (2026-11-15).",
+   "order": 12,
+   "first_game": true,
+   "next": true
+  },
+  {
+   "id": "auto-panels",
+   "name": "Settings panels from data",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "shell"
+   ],
+   "what": "Every building block's settings panel is generated from its data: word sliders with numbers under More, toggles, colours, lists, in the Motion kit style; key panels get custom designs later.",
+   "chunks": [],
+   "note": "",
+   "order": 13,
+   "first_game": true
   },
   {
    "id": "bev-files",
@@ -194,77 +208,8 @@
    "what": "project.bev, levels/*.bev, characters/*.bev; old .ron projects still open.",
    "chunks": [],
    "note": "",
-   "order": 14
-  },
-  {
-   "id": "autosave",
-   "name": "Autosave and recovery",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "projects"
-   ],
-   "what": "Saves a recovery copy every few minutes; offers it after a crash.",
-   "chunks": [],
-   "note": "",
-   "order": 15
-  },
-  {
-   "id": "profiler",
-   "name": "Performance profiler",
-   "area": "Shipping and players",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "perf-meter"
-   ],
-   "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
-   "chunks": [],
-   "note": "",
-   "order": 16
-  },
-  {
-   "id": "saved-views",
-   "name": "Saved views",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "navigation"
-   ],
-   "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
-   "chunks": [],
-   "note": "",
-   "order": 17
-  },
-  {
-   "id": "scale-widget",
-   "name": "Scale handles",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "shapes"
-   ],
-   "what": "Cubes on the corners scale; type a number during any drag to set it exactly.",
-   "chunks": [],
-   "note": "",
-   "order": 18
-  },
-  {
-   "id": "context-menu",
-   "name": "Right-click menus",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "shapes"
-   ],
-   "what": "Right-click on parts, assets and keys: duplicate, delete, rename, make unique.",
-   "chunks": [],
-   "note": "",
-   "order": 19
+   "order": 14,
+   "first_game": true
   },
   {
    "id": "instancing",
@@ -278,7 +223,8 @@
    "what": "Mesh-plus-material parts are drawn as instances; changing one asks “change all, or make this one unique?”",
    "chunks": [],
    "note": "",
-   "order": 20
+   "order": 15,
+   "first_game": true
   },
   {
    "id": "materials",
@@ -295,7 +241,8 @@
     "Material assets shared by many surfaces, the Materials panel, glowing-surface material"
    ],
    "note": "",
-   "order": 21
+   "order": 16,
+   "first_game": true
   },
   {
    "id": "lights",
@@ -312,7 +259,8 @@
     "Sun and sky with a time-of-day slider, Interior mode, light budget meter"
    ],
    "note": "",
-   "order": 22
+   "order": 17,
+   "first_game": true
   },
   {
    "id": "surface-tags",
@@ -326,7 +274,8 @@
    "what": "Mark parts climbable, diggable, water, grind rail, perch spot, slippery.",
    "chunks": [],
    "note": "",
-   "order": 23
+   "order": 18,
+   "first_game": true
   },
   {
    "id": "cameras",
@@ -343,7 +292,8 @@
     "Rail cameras on paths, Camera focus / Release actions with ease"
    ],
    "note": "Rail cameras need Paths.",
-   "order": 24
+   "order": 19,
+   "first_game": true
   },
   {
    "id": "physics",
@@ -360,7 +310,8 @@
     "Characters push and stand on dynamic parts; impulses from blasts and the winch"
    ],
    "note": "avian3d 0.8 supports Bevy 0.20.",
-   "order": 25
+   "order": 20,
+   "first_game": true
   },
   {
    "id": "navmesh",
@@ -374,24 +325,8 @@
    "what": "One button builds where enemies can walk; patrol paths.",
    "chunks": [],
    "note": "vleue_navigator supports Bevy 0.20.",
-   "order": 26
-  },
-  {
-   "id": "audio",
-   "name": "Sound parts and audio zones",
-   "area": "Audio and dialog",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "shapes"
-   ],
-   "what": "Sound parts, the Sound action, ambient loops, music regions, reverb boxes blended like weather zones.",
-   "chunks": [
-    "Sound parts and the Sound action, 3D sound, volume and range",
-    "Audio zones: ambience, music regions, reverb, blending at edges"
-   ],
-   "note": "bevy_kira_audio supports Bevy 0.20.",
-   "order": 27
+   "order": 21,
+   "first_game": true
   },
   {
    "id": "world-settings",
@@ -405,21 +340,43 @@
    "what": "Per level: ground (none, flat floor, terrain, ocean), sky or Interior. Space games get no ground at all.",
    "chunks": [],
    "note": "",
-   "order": 28
+   "order": 22,
+   "first_game": true
   },
   {
-   "id": "array-tool",
-   "name": "Array tool",
-   "area": "Editor basics",
+   "id": "zones",
+   "name": "Zone parts",
+   "area": "Level building",
    "status": "planned",
    "effort": "M",
    "needs": [
-    "scale-widget"
+    "shapes",
+    "auto-panels"
    ],
-   "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
+   "what": "One stretchable Zone part with settings for weather, post-processing, audio, wind, water, boundaries and hazards, blending at its edges.",
    "chunks": [],
    "note": "",
-   "order": 29
+   "order": 23,
+   "first_game": true
+  },
+  {
+   "id": "audio",
+   "name": "Sound parts and audio zones",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes",
+    "zones"
+   ],
+   "what": "Sound parts, the Sound action, ambient loops, music regions, reverb boxes blended like weather zones.",
+   "chunks": [
+    "Sound parts and the Sound action, 3D sound, volume and range",
+    "Audio settings on Zone parts: ambience, music regions, reverb"
+   ],
+   "note": "bevy_kira_audio supports Bevy 0.20.",
+   "order": 24,
+   "first_game": true
   },
   {
    "id": "prism-import",
@@ -434,21 +391,8 @@
    "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
    "chunks": [],
    "note": "",
-   "order": 30
-  },
-  {
-   "id": "reflections",
-   "name": "Reflection boxes",
-   "area": "Level building",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "lights"
-   ],
-   "what": "Reflection box parts with their influence box always drawn.",
-   "chunks": [],
-   "note": "",
-   "order": 31
+   "order": 25,
+   "first_game": true
   },
   {
    "id": "atmosphere",
@@ -457,15 +401,17 @@
    "status": "planned",
    "effort": "L",
    "needs": [
-    "lights"
+    "lights",
+    "zones"
    ],
    "what": "Haze, wind, rain / snow / ash / embers; zone boxes that override them; Set weather action over time.",
    "chunks": [
     "Level atmosphere: haze colour and density, wind, precipitation particles",
-    "Zone parts that blend their settings at the edge; Interior preset; Set weather action"
+    "Atmosphere settings on Zone parts (Interior preset); Set weather action over time"
    ],
    "note": "Precipitation uses the particle system.",
-   "order": 32
+   "order": 26,
+   "first_game": true
   },
   {
    "id": "jump-pads",
@@ -480,7 +426,8 @@
    "what": "Step on it and get launched in its direction; works on enemies and objects.",
    "chunks": [],
    "note": "",
-   "order": 33
+   "order": 27,
+   "first_game": true
   },
   {
    "id": "char-core",
@@ -490,7 +437,8 @@
    "effort": "L",
    "needs": [
     "bev-files",
-    "test-mode"
+    "test-mode",
+    "auto-panels"
    ],
    "what": "characters/*.bev, the Characters tab: list, preview, character sheet and cards; the walker becomes the first character file.",
    "chunks": [
@@ -499,7 +447,8 @@
     "Create steps: template, model, fit (auto collision); Body card"
    ],
    "note": "",
-   "order": 34
+   "order": 28,
+   "first_game": true
   },
   {
    "id": "ocean",
@@ -513,7 +462,8 @@
    "what": "Waves from a formula (layered Gerstner), shore fade, foam; settings by wind and storm.",
    "chunks": [],
    "note": "bevy_water supports Bevy 0.20.",
-   "order": 35
+   "order": 29,
+   "first_game": true
   },
   {
    "id": "post",
@@ -522,12 +472,14 @@
    "status": "planned",
    "effort": "M",
    "needs": [
-    "lights"
+    "lights",
+    "zones"
    ],
    "what": "Per level or camera: bloom, depth of field, motion blur, chromatic aberration, vignette, lens distortion, auto exposure, colour grading; zones and the timeline can change them.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 36
+   "order": 30,
+   "first_game": true
   },
   {
    "id": "ssao-ssr",
@@ -541,7 +493,8 @@
    "what": "Screen-space ambient occlusion and reflections, volumetric fog and light shafts, quality settings.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 37
+   "order": 31,
+   "first_game": true
   },
   {
    "id": "sky",
@@ -558,7 +511,8 @@
     "Cloud layers and volumetric clouds that follow the wind"
    ],
    "note": "Bevy 0.20 has a physical atmosphere built in.",
-   "order": 38
+   "order": 32,
+   "first_game": true
   },
   {
    "id": "levels",
@@ -573,7 +527,8 @@
    "what": "More than one level per project; Level exit parts wired to the next level.",
    "chunks": [],
    "note": "",
-   "order": 39
+   "order": 33,
+   "first_game": true
   },
   {
    "id": "lod",
@@ -590,50 +545,9 @@
     "Auto-LOD on import with cross-fades, LOD rings on the ground, Colour by LOD",
     "Draw-distance classes tied to the haze end, Always visible flag"
    ],
-   "note": "",
-   "order": 40
-  },
-  {
-   "id": "triggers",
-   "name": "Triggers",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "wires"
-   ],
-   "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
-   "chunks": [],
-   "note": "",
-   "order": 41
-  },
-  {
-   "id": "flow",
-   "name": "Flow parts",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "wires"
-   ],
-   "what": "Timer, Relay, Counter, Random.",
-   "chunks": [],
-   "note": "",
-   "order": 42
-  },
-  {
-   "id": "logic",
-   "name": "Logic gates",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "wires"
-   ],
-   "what": "AND, OR, NOR, XOR, NOT.",
-   "chunks": [],
-   "note": "",
-   "order": 43
+   "note": "meshopt simplifies the meshes.",
+   "order": 34,
+   "first_game": true
   },
   {
    "id": "variables",
@@ -647,21 +561,8 @@
    "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
    "chunks": [],
    "note": "",
-   "order": 44
-  },
-  {
-   "id": "wire-view",
-   "name": "Wire pulses and the flat view",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "wires"
-   ],
-   "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
-   "chunks": [],
-   "note": "",
-   "order": 45
+   "order": 35,
+   "first_game": true
   },
   {
    "id": "timeline",
@@ -681,7 +582,8 @@
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
    "note": "",
-   "order": 46
+   "order": 36,
+   "first_game": true
   },
   {
    "id": "char-modes",
@@ -697,8 +599,9 @@
     "Mode machine: walk & run, fall, jump with feel settings, coyote time, jump buffer",
     "Rules editor and the library picker (+ Add) with needs; editable ranges"
    ],
-   "note": "",
-   "order": 47
+   "note": "bevy_tnua (Bevy 0.20) does walking, jumping with coyote time, crouching and dashing on Avian; the + Add library picker is shared with parts, abilities, effects and items.",
+   "order": 37,
+   "first_game": true
   },
   {
    "id": "char-camera",
@@ -712,7 +615,8 @@
    "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
    "chunks": [],
    "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need.",
-   "order": 48
+   "order": 38,
+   "first_game": true
   },
   {
    "id": "joints",
@@ -730,23 +634,9 @@
     "Auto-detect chains from the model's shape; click-to-fix on the model",
     "Joint tree by name: drag joints between chains, rename"
    ],
-   "note": "",
-   "order": 49
-  },
-  {
-   "id": "pointer-tours-chars",
-   "name": "Character tours",
-   "area": "Characters",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "pointer-tour",
-    "char-core"
-   ],
-   "what": "The pointer tour for each card the first time it opens.",
-   "chunks": [],
-   "note": "",
-   "order": 50
+   "note": "The Walk job generalises Last Ascent's mech legs.",
+   "order": 39,
+   "first_game": true
   },
   {
    "id": "abilities",
@@ -755,7 +645,8 @@
    "status": "planned",
    "effort": "L",
    "needs": [
-    "char-core"
+    "char-core",
+    "auto-panels"
    ],
    "what": "Values like health, fuel, heat and ammo; effects that change them; abilities with costs and cooldowns; events that trigger cues.",
    "chunks": [
@@ -763,36 +654,8 @@
     "Abilities with costs and cooldowns; the Abilities card with its tags"
    ],
    "note": "",
-   "order": 51
-  },
-  {
-   "id": "export-panel",
-   "name": "Export panel and GitHub builds",
-   "area": "Shipping",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "export"
-   ],
-   "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
-   "chunks": [],
-   "note": "",
-   "order": 52
-  },
-  {
-   "id": "kits",
-   "name": "Modular kits",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "prism-import",
-    "instancing"
-   ],
-   "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
-   "chunks": [],
-   "note": "",
-   "order": 53
+   "order": 40,
+   "first_game": true
   },
   {
    "id": "styles",
@@ -810,7 +673,8 @@
     "Outlines: shell per object and edge detection over the screen; per-project style presets"
    ],
    "note": "bevy_mod_outline supports Bevy 0.20.",
-   "order": 54
+   "order": 41,
+   "first_game": true
   },
   {
    "id": "wind",
@@ -819,12 +683,14 @@
    "status": "planned",
    "effort": "M",
    "needs": [
-    "atmosphere"
+    "atmosphere",
+    "zones"
    ],
    "what": "One wind for the level (direction, strength, gusts, zones) read by foliage, cloth, flags, particles, smoke, sails and flying lift.",
    "chunks": [],
    "note": "",
-   "order": 55
+   "order": 42,
+   "first_game": true
   },
   {
    "id": "paths",
@@ -840,8 +706,9 @@
     "Paths tool: click points, bend handles, closed loops; paths as level parts",
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
-   "note": "",
-   "order": 56
+   "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries.",
+   "order": 43,
+   "first_game": true
   },
   {
    "id": "foliage",
@@ -859,25 +726,8 @@
     "Wind sway and performance pass"
    ],
    "note": "",
-   "order": 57
-  },
-  {
-   "id": "prefabs",
-   "name": "Prefabs",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "wires",
-    "variables"
-   ],
-   "what": "Select parts, Make prefab: one part with only the chosen ports showing.",
-   "chunks": [
-    "Make prefab, place copies, edit the original",
-    "Exposed ports and settings, nested prefabs"
-   ],
-   "note": "",
-   "order": 58
+   "order": 44,
+   "first_game": true
   },
   {
    "id": "save-system",
@@ -892,7 +742,8 @@
    "what": "Save point parts store the player, variables and which parts fired; load from the menu.",
    "chunks": [],
    "note": "",
-   "order": 59
+   "order": 45,
+   "first_game": true
   },
   {
    "id": "clips",
@@ -909,7 +760,8 @@
     "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
    ],
    "note": "",
-   "order": 60
+   "order": 46,
+   "first_game": true
   },
   {
    "id": "moves-jump",
@@ -923,35 +775,38 @@
    "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
    "chunks": [],
    "note": "",
-   "order": 61
+   "order": 47,
+   "first_game": true
   },
   {
    "id": "moves-dash",
    "name": "Dash, sprint and roll",
    "area": "Movement",
    "status": "planned",
-   "effort": "M",
+   "effort": "S",
    "needs": [
     "char-modes"
    ],
    "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
    "chunks": [],
-   "note": "",
-   "order": 62
+   "note": "Mostly bevy_tnua's.",
+   "order": 48,
+   "first_game": true
   },
   {
    "id": "moves-low",
    "name": "Crouch, prone, slide and lean",
    "area": "Movement",
    "status": "planned",
-   "effort": "M",
+   "effort": "S",
    "needs": [
     "char-modes"
    ],
    "what": "Crouch, prone crawl, slide at speed, lean around corners.",
    "chunks": [],
-   "note": "",
-   "order": 63
+   "note": "Mostly bevy_tnua's.",
+   "order": 49,
+   "first_game": true
   },
   {
    "id": "moves-ledge",
@@ -969,7 +824,8 @@
     "Wall-run and wall-cling with their exits into jumps"
    ],
    "note": "",
-   "order": 64
+   "order": 50,
+   "first_game": true
   },
   {
    "id": "flight",
@@ -986,7 +842,8 @@
     "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
    ],
    "note": "",
-   "order": 65
+   "order": 51,
+   "first_game": true
   },
   {
    "id": "swim",
@@ -1001,45 +858,8 @@
    "what": "Swim at the surface, dive under with breath, water volumes.",
    "chunks": [],
    "note": "",
-   "order": 66
-  },
-  {
-   "id": "vehicles",
-   "name": "Vehicles",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "char-modes",
-    "physics"
-   ],
-   "what": "Arcade driving: steering, traction, suspension, drift with handbrake, boost; seats; enter and exit; vehicle as a character or entered by one.",
-   "chunks": [
-    "Raycast wheels: suspension, steering limited by speed, traction, braking",
-    "Drift and handbrake, boost (refilled by drifting), air control, reset when flipped",
-    "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
-    "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
-   ],
-   "note": "",
-   "order": 67
-  },
-  {
-   "id": "other-modes",
-   "name": "More ways of moving",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "char-modes",
-    "surface-tags"
-   ],
-   "what": "Climb, burrow, swing, grind rails, zero-g, ride, perch.",
-   "chunks": [
-    "Climb on tagged surfaces, swing on ropes and grapple lines",
-    "Grind rails, zero-g, burrow, ride, perch"
-   ],
-   "note": "",
-   "order": 68
+   "order": 52,
+   "first_game": true
   },
   {
    "id": "effects",
@@ -1048,15 +868,17 @@
    "status": "planned",
    "effort": "L",
    "needs": [
-    "abilities"
+    "abilities",
+    "auto-panels"
    ],
    "what": "Built-in effects: flame plume, smoke, scorch and crack decals, trails, glow, camera shake, bloom; attach to joints and events.",
    "chunks": [
     "Port the flame, smoke and glow from Last Ascent as effect types",
     "Decals, trails, camera shake; attaching effects to events in the editor"
    ],
-   "note": "",
-   "order": 69
+   "note": "Reuses Last Ascent's flame, smoke, glow and decals.",
+   "order": 53,
+   "first_game": true
   },
   {
    "id": "health",
@@ -1070,7 +892,8 @@
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
    "note": "",
-   "order": 70
+   "order": 54,
+   "first_game": true
   },
   {
    "id": "tools",
@@ -1088,7 +911,8 @@
     "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
    ],
    "note": "",
-   "order": 71
+   "order": 55,
+   "first_game": true
   },
   {
    "id": "inventory",
@@ -1106,7 +930,8 @@
     "Gear traits stacking, consumables; inventory screen (with Screens)"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 72
+   "order": 56,
+   "first_game": true
   },
   {
    "id": "brain",
@@ -1126,8 +951,9 @@
     "Presets: guard, wanderer, animal, NPC driver",
     "Flock preset (the bird code: land on perch spots, scatter, flock)"
    ],
-   "note": "",
-   "order": 73
+   "note": "The Flock preset reuses the user's bird code.",
+   "order": 57,
+   "first_game": true
   },
   {
    "id": "hud",
@@ -1147,7 +973,8 @@
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 74
+   "order": 58,
+   "first_game": true
   },
   {
    "id": "animatics",
@@ -1166,53 +993,8 @@
     "Character recordings into editable keys; letterbox and skippable"
    ],
    "note": "",
-   "order": 75
-  },
-  {
-   "id": "gamepad",
-   "name": "Gamepad",
-   "area": "HUD, menus and animatics",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "char-camera"
-   ],
-   "what": "Gamepad controls for games and the input map. Last, as asked.",
-   "chunks": [],
-   "note": "",
-   "order": 76
-  },
-  {
-   "id": "dungeon-gen",
-   "name": "Dungeon generator",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "kits",
-    "navmesh"
-   ],
-   "what": "Lays out rooms and corridors as a graph, then places kit pieces along it; a seed per run; hand-placed rooms mixed in.",
-   "chunks": [
-    "Room-and-corridor layout from a graph with a seed",
-    "Placing kit pieces, doors, keys and spawns along it"
-   ],
-   "note": "",
-   "order": 77
-  },
-  {
-   "id": "portals",
-   "name": "Rooms and portals",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "kits"
-   ],
-   "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
-   "chunks": [],
-   "note": "",
-   "order": 78
+   "order": 59,
+   "first_game": true
   },
   {
    "id": "streaming",
@@ -1230,21 +1012,8 @@
     "Loading around the player in play, with far regions shown as their simplest LOD"
    ],
    "note": "",
-   "order": 79
-  },
-  {
-   "id": "plane-lock",
-   "name": "Side-on and top-down games",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "char-camera"
-   ],
-   "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
-   "chunks": [],
-   "note": "",
-   "order": 80
+   "order": 60,
+   "first_game": true
   },
   {
    "id": "ragdolls",
@@ -1259,7 +1028,8 @@
    "what": "Characters go limp on death or big hits and blend back when they get up.",
    "chunks": [],
    "note": "",
-   "order": 81
+   "order": 61,
+   "first_game": true
   },
   {
    "id": "time-of-day",
@@ -1274,35 +1044,8 @@
    "what": "A running clock with day and night, schedules for lights and NPCs; slow motion and pause.",
    "chunks": [],
    "note": "",
-   "order": 82
-  },
-  {
-   "id": "achievements",
-   "name": "Achievements and stats",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "variables"
-   ],
-   "what": "Achievements and stats wired to variables, shown in a screen.",
-   "chunks": [],
-   "note": "",
-   "order": 83
-  },
-  {
-   "id": "platforms",
-   "name": "Mac and Linux builds",
-   "area": "Shipping and players",
-   "status": "hold",
-   "effort": "M",
-   "needs": [
-    "export-panel"
-   ],
-   "what": "Export for macOS and Linux as well as Windows.",
-   "chunks": [],
-   "note": "On hold (user, 2026-11-15).",
-   "order": 84
+   "order": 62,
+   "first_game": true
   },
   {
    "id": "destructibles",
@@ -1321,7 +1064,8 @@
     "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
    ],
    "note": "",
-   "order": 85
+   "order": 63,
+   "first_game": true
   },
   {
    "id": "spawner",
@@ -1336,7 +1080,8 @@
    "what": "Spawner parts and spawn waves on the timeline.",
    "chunks": [],
    "note": "",
-   "order": 86
+   "order": 64,
+   "first_game": true
   },
   {
    "id": "idle",
@@ -1355,7 +1100,8 @@
     "Interaction targets: look-at, hand reach (two-bone IK with blend in and out), sit / lean spots"
    ],
    "note": "",
-   "order": 87
+   "order": 65,
+   "first_game": true
   },
   {
    "id": "char-templates",
@@ -1375,21 +1121,8 @@
     "Vehicle and Enemy (with vehicles and the swarm)"
    ],
    "note": "",
-   "order": 88
-  },
-  {
-   "id": "builtin-chars",
-   "name": "Built-in rigged characters",
-   "area": "Characters",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "clips"
-   ],
-   "what": "A generic humanoid and a small cartoon character, rigged and animated, so any project can test from day one.",
-   "chunks": [],
-   "note": "Open-licence models and clips, checked before use.",
-   "order": 89
+   "order": 66,
+   "first_game": true
   },
   {
    "id": "mech-port",
@@ -1409,7 +1142,8 @@
     "Effects and HUD hooked up; Last Ascent editor and player removed"
    ],
    "note": "",
-   "order": 90
+   "order": 67,
+   "first_game": true
   },
   {
    "id": "particles",
@@ -1423,7 +1157,8 @@
    "what": "Bursts and streams with size and colour over life; edited on the timeline.",
    "chunks": [],
    "note": "bevy_hanabi supports Bevy 0.20.",
-   "order": 91
+   "order": 68,
+   "first_game": true
   },
   {
    "id": "damage",
@@ -1437,7 +1172,8 @@
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
    "note": "",
-   "order": 92
+   "order": 69,
+   "first_game": true
   },
   {
    "id": "jet-grapple",
@@ -1451,8 +1187,9 @@
    ],
    "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
    "chunks": [],
-   "note": "",
-   "order": 93
+   "note": "Reuses Last Ascent's jets and grapple.",
+   "order": 70,
+   "first_game": true
   },
   {
    "id": "defence",
@@ -1470,21 +1207,8 @@
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
    "note": "",
-   "order": 94
-  },
-  {
-   "id": "stealth",
-   "name": "Stealth",
-   "area": "Abilities and combat",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "brain"
-   ],
-   "what": "Hide in shadow or grass, noise enemies hear, distract.",
-   "chunks": [],
-   "note": "",
-   "order": 95
+   "order": 71,
+   "first_game": true
   },
   {
    "id": "swarm",
@@ -1505,7 +1229,8 @@
     "Combat: bites, goo splash, damage and death"
    ],
    "note": "",
-   "order": 96
+   "order": 72,
+   "first_game": true
   },
   {
    "id": "dialog",
@@ -1520,7 +1245,8 @@
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
    "note": "",
-   "order": 97
+   "order": 73,
+   "first_game": true
   },
   {
    "id": "screens",
@@ -1540,7 +1266,8 @@
     "Live 3D backgrounds; transitions on the timeline"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 98
+   "order": 74,
+   "first_game": true
   },
   {
    "id": "terrain",
@@ -1560,7 +1287,8 @@
     "Terrain LOD and seams between chunks"
    ],
    "note": "Height images from other tools could be converted into strokes later, if wanted.",
-   "order": 99
+   "order": 75,
+   "first_game": true
   },
   {
    "id": "water-play",
@@ -1571,12 +1299,14 @@
    "needs": [
     "ocean",
     "physics",
-    "swim"
+    "swim",
+    "zones"
    ],
    "what": "Every water body is a swim volume; floating objects bob with drag; splashes; underwater fog and tint; water puts out fire.",
    "chunks": [],
    "note": "",
-   "order": 100
+   "order": 76,
+   "first_game": true
   },
   {
    "id": "big-coords",
@@ -1590,22 +1320,8 @@
    "what": "A floating origin so worlds bigger than about 10 km don't jitter.",
    "chunks": [],
    "note": "big_space has a pre-release for Bevy 0.20.",
-   "order": 101
-  },
-  {
-   "id": "world-map",
-   "name": "World map and fast travel",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "streaming",
-    "hud"
-   ],
-   "what": "A map screen of the regions and travel points between them.",
-   "chunks": [],
-   "note": "",
-   "order": 102
+   "order": 77,
+   "first_game": true
   },
   {
    "id": "foliage-wind",
@@ -1623,7 +1339,8 @@
     "Cloth: flags, banners, sails and capes on characters"
    ],
    "note": "",
-   "order": 103
+   "order": 78,
+   "first_game": true
   },
   {
    "id": "decals",
@@ -1637,88 +1354,26 @@
    "what": "Bullet holes, scorch marks, graffiti and signs projected onto surfaces.",
    "chunks": [],
    "note": "",
-   "order": 104
-  },
-  {
-   "id": "quests",
-   "name": "Objectives and quests",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "variables",
-    "hud"
-   ],
-   "what": "Objectives with steps, markers and completion wired to the level; a quest log screen.",
-   "chunks": [
-    "Objectives and steps wired to variables; on-screen objective",
-    "Quest log, markers on the map and compass"
-   ],
-   "note": "",
-   "order": 105
-  },
-  {
-   "id": "retarget",
-   "name": "Shared humanoid animations",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "clips"
-   ],
-   "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
-   "chunks": [],
-   "note": "",
-   "order": 106
-  },
-  {
-   "id": "space",
-   "name": "Space levels",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "world-settings",
-    "physics",
-    "flight"
-   ],
-   "what": "A level type with no ground and no gravity: starfield sky, Newtonian movement (things keep drifting), ships in six directions with flight assist on or off, zero-g for walking characters.",
-   "chunks": [
-    "Space level type: no gravity, starfield and distant planets; loose objects drift and spin",
-    "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
-   ],
-   "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
-   "order": 107
+   "order": 79,
+   "first_game": true
   },
   {
    "id": "boundaries",
    "name": "Level boundaries",
    "area": "World and maps",
    "status": "planned",
-   "effort": "M",
+   "effort": "S",
    "needs": [
     "world-settings",
-    "hud"
+    "hud",
+    "zones",
+    "paths"
    ],
-   "what": "The edge of a level as a shape with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap to the other side; for space, open worlds and arenas.",
+   "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
    "chunks": [],
    "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D.",
-   "order": 108
-  },
-  {
-   "id": "launcher",
-   "name": "Project launcher and templates",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "char-templates",
-    "bev-files"
-   ],
-   "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
-   "chunks": [],
-   "note": "",
-   "order": 109
+   "order": 80,
+   "first_game": true
   },
   {
    "id": "fire",
@@ -1733,22 +1388,8 @@
    "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
    "chunks": [],
    "note": "",
-   "order": 110
-  },
-  {
-   "id": "test-snapshot",
-   "name": "Test snapshot and keep changes",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "physics",
-    "destructibles"
-   ],
-   "what": "Leaving test mode restores everything destroyed or moved; values tuned while testing are offered to keep.",
-   "chunks": [],
-   "note": "",
-   "order": 111
+   "order": 81,
+   "first_game": true
   },
   {
    "id": "two-point",
@@ -1763,7 +1404,8 @@
    "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
    "chunks": [],
    "note": "",
-   "order": 112
+   "order": 82,
+   "first_game": true
   },
   {
    "id": "melee",
@@ -1779,7 +1421,8 @@
    "what": "Close attacks with combos, takedowns from behind.",
    "chunks": [],
    "note": "",
-   "order": 113
+   "order": 83,
+   "first_game": true
   },
   {
    "id": "weapons",
@@ -1798,7 +1441,8 @@
     "Beams, muzzle effects and sounds, aim with lock-on"
    ],
    "note": "",
-   "order": 114
+   "order": 84,
+   "first_game": true
   },
   {
    "id": "terrain-paint",
@@ -1816,7 +1460,8 @@
     "Automatic rules: rock on steep slopes, snow above a height"
    ],
    "note": "",
-   "order": 115
+   "order": 85,
+   "first_game": true
   },
   {
    "id": "lakes-rivers",
@@ -1834,7 +1479,570 @@
     "Rivers on paths: flow along the curve, foam, carving the bed, joining lakes"
    ],
    "note": "",
-   "order": 116
+   "order": 86,
+   "first_game": true
+  },
+  {
+   "id": "graphics-settings",
+   "name": "Graphics settings and quality presets",
+   "area": "Shipping and players",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "screens",
+    "post",
+    "lod"
+   ],
+   "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
+   "chunks": [],
+   "note": "",
+   "order": 87,
+   "first_game": true
+  },
+  {
+   "id": "accessibility",
+   "name": "Accessibility",
+   "area": "Shipping and players",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "screens",
+    "dialog"
+   ],
+   "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
+   "chunks": [],
+   "note": "",
+   "order": 88,
+   "first_game": true
+  },
+  {
+   "id": "waterfalls",
+   "name": "Waterfalls and fountains",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "lakes-rivers",
+    "particles"
+   ],
+   "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
+   "chunks": [],
+   "note": "",
+   "order": 89,
+   "first_game": true
+  },
+  {
+   "id": "perf-meter",
+   "name": "Editor stats",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "A small toggle-able overlay: FPS, frame time, RAM, entities, draw calls, triangles and lights, coloured green, amber or red.",
+   "chunks": [],
+   "note": "Bevy's diagnostics give FPS, frame time and the process's memory.",
+   "order": 90,
+   "first_game": false
+  },
+  {
+   "id": "pointer-tour",
+   "name": "Pointer tours",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
+   "chunks": [],
+   "note": "",
+   "order": 91,
+   "first_game": false
+  },
+  {
+   "id": "autosave",
+   "name": "Autosave and recovery",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "projects"
+   ],
+   "what": "Saves a recovery copy every few minutes; offers it after a crash.",
+   "chunks": [],
+   "note": "",
+   "order": 92,
+   "first_game": false
+  },
+  {
+   "id": "profiler",
+   "name": "Performance profiler",
+   "area": "Shipping and players",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "perf-meter"
+   ],
+   "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
+   "chunks": [],
+   "note": "",
+   "order": 93,
+   "first_game": false
+  },
+  {
+   "id": "saved-views",
+   "name": "Saved views",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "navigation"
+   ],
+   "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
+   "chunks": [],
+   "note": "",
+   "order": 94,
+   "first_game": false
+  },
+  {
+   "id": "scale-widget",
+   "name": "Scale handles",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Cubes on the corners scale; type a number during any drag to set it exactly.",
+   "chunks": [],
+   "note": "",
+   "order": 95,
+   "first_game": false
+  },
+  {
+   "id": "context-menu",
+   "name": "Right-click menus",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Right-click on parts, assets and keys: duplicate, delete, rename, make unique.",
+   "chunks": [],
+   "note": "",
+   "order": 96,
+   "first_game": false
+  },
+  {
+   "id": "array-tool",
+   "name": "Array tool",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "scale-widget"
+   ],
+   "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
+   "chunks": [],
+   "note": "",
+   "order": 97,
+   "first_game": false
+  },
+  {
+   "id": "reflections",
+   "name": "Reflection boxes",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "lights"
+   ],
+   "what": "Reflection box parts with their influence box always drawn.",
+   "chunks": [],
+   "note": "",
+   "order": 98,
+   "first_game": false
+  },
+  {
+   "id": "triggers",
+   "name": "Triggers",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires",
+    "auto-panels"
+   ],
+   "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
+   "chunks": [],
+   "note": "",
+   "order": 99,
+   "first_game": false
+  },
+  {
+   "id": "flow",
+   "name": "Flow parts",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires"
+   ],
+   "what": "Timer, Relay, Counter, Random.",
+   "chunks": [],
+   "note": "",
+   "order": 100,
+   "first_game": false
+  },
+  {
+   "id": "logic",
+   "name": "Logic gates",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "wires"
+   ],
+   "what": "AND, OR, NOR, XOR, NOT.",
+   "chunks": [],
+   "note": "",
+   "order": 101,
+   "first_game": false
+  },
+  {
+   "id": "wire-view",
+   "name": "Wire pulses and the flat view",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires"
+   ],
+   "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
+   "chunks": [],
+   "note": "",
+   "order": 102,
+   "first_game": false
+  },
+  {
+   "id": "pointer-tours-chars",
+   "name": "Character tours",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "pointer-tour",
+    "char-core"
+   ],
+   "what": "The pointer tour for each card the first time it opens.",
+   "chunks": [],
+   "note": "",
+   "order": 103,
+   "first_game": false
+  },
+  {
+   "id": "export-panel",
+   "name": "Export panel and GitHub builds",
+   "area": "Shipping",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "export"
+   ],
+   "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
+   "chunks": [],
+   "note": "",
+   "order": 104,
+   "first_game": false
+  },
+  {
+   "id": "kits",
+   "name": "Modular kits",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "prism-import",
+    "instancing"
+   ],
+   "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
+   "chunks": [],
+   "note": "",
+   "order": 105,
+   "first_game": false
+  },
+  {
+   "id": "prefabs",
+   "name": "Prefabs",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "wires",
+    "variables"
+   ],
+   "what": "Select parts, Make prefab: one part with only the chosen ports showing.",
+   "chunks": [
+    "Make prefab, place copies, edit the original",
+    "Exposed ports and settings, nested prefabs"
+   ],
+   "note": "",
+   "order": 106,
+   "first_game": false
+  },
+  {
+   "id": "vehicles",
+   "name": "Vehicles",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "char-modes",
+    "physics"
+   ],
+   "what": "Arcade driving: steering, traction, suspension, drift with handbrake, boost; seats; enter and exit; vehicle as a character or entered by one.",
+   "chunks": [
+    "Raycast wheels: suspension, steering limited by speed, traction, braking",
+    "Drift and handbrake, boost (refilled by drifting), air control, reset when flipped",
+    "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
+    "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
+   ],
+   "note": "",
+   "order": 107,
+   "first_game": false
+  },
+  {
+   "id": "other-modes",
+   "name": "More ways of moving",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes",
+    "surface-tags"
+   ],
+   "what": "Climb, burrow, swing, grind rails, zero-g, ride, perch.",
+   "chunks": [
+    "Climb on tagged surfaces, swing on ropes and grapple lines",
+    "Grind rails, zero-g, burrow, ride, perch"
+   ],
+   "note": "",
+   "order": 108,
+   "first_game": false
+  },
+  {
+   "id": "gamepad",
+   "name": "Gamepad",
+   "area": "HUD, menus and animatics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-camera"
+   ],
+   "what": "Gamepad controls for games and the input map. Last, as asked.",
+   "chunks": [],
+   "note": "",
+   "order": 109,
+   "first_game": false
+  },
+  {
+   "id": "dungeon-gen",
+   "name": "Dungeon generator",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "kits",
+    "navmesh"
+   ],
+   "what": "Lays out rooms and corridors as a graph, then places kit pieces along it; a seed per run; hand-placed rooms mixed in.",
+   "chunks": [
+    "Room-and-corridor layout from a graph with a seed",
+    "Placing kit pieces, doors, keys and spawns along it"
+   ],
+   "note": "",
+   "order": 110,
+   "first_game": false
+  },
+  {
+   "id": "portals",
+   "name": "Rooms and portals",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "kits"
+   ],
+   "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
+   "chunks": [],
+   "note": "",
+   "order": 111,
+   "first_game": false
+  },
+  {
+   "id": "plane-lock",
+   "name": "Side-on and top-down games",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "char-camera"
+   ],
+   "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
+   "chunks": [],
+   "note": "",
+   "order": 112,
+   "first_game": false
+  },
+  {
+   "id": "achievements",
+   "name": "Achievements and stats",
+   "area": "Game systems",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "variables"
+   ],
+   "what": "Achievements and stats wired to variables, shown in a screen.",
+   "chunks": [],
+   "note": "",
+   "order": 113,
+   "first_game": false
+  },
+  {
+   "id": "builtin-chars",
+   "name": "Built-in rigged characters",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "clips"
+   ],
+   "what": "A generic humanoid and a small cartoon character, rigged and animated, so any project can test from day one.",
+   "chunks": [],
+   "note": "Made by the user, not asset packs (2026-11-15).",
+   "order": 114,
+   "first_game": false
+  },
+  {
+   "id": "stealth",
+   "name": "Stealth",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain"
+   ],
+   "what": "Hide in shadow or grass, noise enemies hear, distract.",
+   "chunks": [],
+   "note": "",
+   "order": 115,
+   "first_game": false
+  },
+  {
+   "id": "world-map",
+   "name": "World map and fast travel",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "streaming",
+    "hud"
+   ],
+   "what": "A map screen of the regions and travel points between them.",
+   "chunks": [],
+   "note": "",
+   "order": 116,
+   "first_game": false
+  },
+  {
+   "id": "quests",
+   "name": "Objectives and quests",
+   "area": "Game systems",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "variables",
+    "hud"
+   ],
+   "what": "Objectives with steps, markers and completion wired to the level; a quest log screen.",
+   "chunks": [
+    "Objectives and steps wired to variables; on-screen objective",
+    "Quest log, markers on the map and compass"
+   ],
+   "note": "",
+   "order": 117,
+   "first_game": false
+  },
+  {
+   "id": "retarget",
+   "name": "Shared humanoid animations",
+   "area": "Game systems",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "clips"
+   ],
+   "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
+   "chunks": [],
+   "note": "",
+   "order": 118,
+   "first_game": false
+  },
+  {
+   "id": "space",
+   "name": "Space levels",
+   "area": "World and maps",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "world-settings",
+    "physics",
+    "flight"
+   ],
+   "what": "A level type with no ground and no gravity: starfield sky, Newtonian movement (things keep drifting), ships in six directions with flight assist on or off, zero-g for walking characters.",
+   "chunks": [
+    "Space level type: no gravity, starfield and distant planets; loose objects drift and spin",
+    "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
+   ],
+   "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
+   "order": 119,
+   "first_game": false
+  },
+  {
+   "id": "launcher",
+   "name": "Project launcher and templates",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-templates",
+    "bev-files"
+   ],
+   "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
+   "chunks": [],
+   "note": "",
+   "order": 120,
+   "first_game": false
+  },
+  {
+   "id": "test-snapshot",
+   "name": "Test snapshot and keep changes",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "physics",
+    "destructibles"
+   ],
+   "what": "Leaving test mode restores everything destroyed or moved; values tuned while testing are offered to keep.",
+   "chunks": [],
+   "note": "",
+   "order": 121,
+   "first_game": false
   },
   {
    "id": "caves",
@@ -1853,7 +2061,8 @@
     "Cave dressing: drips, rubble and lights along the walls"
    ],
    "note": "fast-surface-nets does the meshing (no Bevy dependency).",
-   "order": 117
+   "order": 122,
+   "first_game": false
   },
   {
    "id": "roads",
@@ -1868,7 +2077,8 @@
    "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
    "chunks": [],
    "note": "",
-   "order": 118
+   "order": 123,
+   "first_game": false
   },
   {
    "id": "sailing",
@@ -1884,7 +2094,8 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 119
+   "order": 124,
+   "first_game": false
   },
   {
    "id": "dialog-trees",
@@ -1902,7 +2113,8 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 120
+   "order": 125,
+   "first_game": false
   },
   {
    "id": "economy",
@@ -1920,7 +2132,8 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "",
-   "order": 121
+   "order": 126,
+   "first_game": false
   },
   {
    "id": "photo-mode",
@@ -1935,7 +2148,8 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 122
+   "order": 127,
+   "first_game": false
   },
   {
    "id": "multiplayer",
@@ -1956,38 +2170,8 @@
     "Multiplayer test mode in the editor (several windows)"
    ],
    "note": "Beverly is built with multiplayer in mind (user, 2026-11-15): game state lives in data that can be sent over a network, input goes through named actions, effects and sounds react to events. Built late. bevy_replicon supports Bevy 0.20.",
-   "order": 123
-  },
-  {
-   "id": "graphics-settings",
-   "name": "Graphics settings and quality presets",
-   "area": "Shipping and players",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "screens",
-    "post",
-    "lod"
-   ],
-   "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
-   "chunks": [],
-   "note": "",
-   "order": 124
-  },
-  {
-   "id": "accessibility",
-   "name": "Accessibility",
-   "area": "Shipping and players",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "screens",
-    "dialog"
-   ],
-   "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
-   "chunks": [],
-   "note": "",
-   "order": 125
+   "order": 128,
+   "first_game": false
   },
   {
    "id": "localisation",
@@ -2002,22 +2186,23 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 126
+   "order": 129,
+   "first_game": false
   },
   {
-   "id": "waterfalls",
-   "name": "Waterfalls and fountains",
-   "area": "World and maps",
-   "status": "planned",
+   "id": "platforms",
+   "name": "Mac and Linux builds",
+   "area": "Shipping and players",
+   "status": "hold",
    "effort": "M",
    "needs": [
-    "lakes-rivers",
-    "particles"
+    "export-panel"
    ],
-   "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
+   "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
-   "note": "",
-   "order": 127
+   "note": "On hold (user, 2026-11-15).",
+   "order": 130,
+   "first_game": false
   }
  ],
  "notes": [
