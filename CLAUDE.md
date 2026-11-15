@@ -27,3 +27,7 @@ character sets `play::Play::custom` and takes over while `Play::on` (see the doc
 
 Push work to the repository freely, but only cut a release (commit message containing `[release]`, or a manual
 run of the Windows build) for finished features, never half-done work.
+
+Every release updates the feature list: `editor/features.json` (status of what the release finished, new features
+with their needs, effort S / M / L / XL and, for L and XL, session-sized parts), then `python3 tools/roadmap.py`,
+which checks it, renumbers the build order and writes `docs/roadmap.html`. Help > Features shows the same list.

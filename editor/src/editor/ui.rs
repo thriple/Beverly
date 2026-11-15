@@ -61,6 +61,7 @@ pub fn ui(
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
     if ed.about_open { about_modal(&ctx, &mut ed); }
     if ed.updates_open { updates_modal(&ctx, &mut ed); }
+    if ed.features_open { features_modal(&ctx, &mut ed); }
     Ok(())
 }
 
@@ -117,6 +118,10 @@ fn top_bar(root: &mut Ui, ed: &mut Editor, exit: &mut MessageWriter<AppExit>) {
                 if ui.add(egui::Button::new("Check for updates…").frame(false)).clicked() {
                     ed.updates_open = true;
                     ed.updater.check();
+                    ui.close();
+                }
+                if ui.add(egui::Button::new("Features").frame(false)).clicked() {
+                    ed.features_open = true;
                     ui.close();
                 }
             });
@@ -811,6 +816,97 @@ fn unsaved_modal(ctx: &egui::Context, ed: &mut Editor, what: Pending, exit: &mut
     }
 }
 
+/// Help > Features: what's built and what's planned, in build order (editor/features.json, updated with every
+/// release).
+#[derive(serde::Deserialize)]
+struct Roadmap { updated: String, features: Vec<Feature> }
+
+#[derive(serde::Deserialize)]
+struct Feature { id: String, name: String, area: String, status: String, effort: String, needs: Vec<String>, what: String, chunks: Vec<String>, note: String, order: u32 }
+
+fn roadmap() -> &'static Roadmap {
+    static R: std::sync::OnceLock<Roadmap> = std::sync::OnceLock::new();
+    R.get_or_init(|| serde_json::from_str(include_str!("../../features.json")).expect("features.json"))
+}
+
+fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
+    let r = roadmap();
+    let done = |id: &str| r.features.iter().any(|f| f.id == id && f.status == "done");
+    let ready = |f: &Feature| f.status != "done" && f.needs.iter().all(|n| done(n));
+    let id = Id::new("features");
+    let mut filter = ctx.data(|d| d.get_temp::<usize>(id)).unwrap_or(1);
+    let mut open = ctx.data(|d| d.get_temp::<String>(id.with("open"))).unwrap_or_default();
+    let mut close = false;
+    let h = (ctx.viewport_rect().height() - 280.0).max(240.0);
+    egui::Modal::new(id).frame(dialog_frame()).show(ctx, |ui| {
+        ui.set_width(720.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Features").font(semi(18.0)).color(TEXT));
+            let n_done = r.features.iter().filter(|f| f.status == "done").count();
+            ui.label(egui::RichText::new(format!("{n_done} of {} built · updated {} · {}", r.features.len(), r.updated, this_build())).color(MUTED));
+        });
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            theme::segmented(ui, "feat-filter", &["All, in build order", "Ready to build", "Built"], &mut filter, false);
+            ui.label(egui::RichText::new("S under a session · M one · L and XL in session-sized parts").size(11.0).color(MUTED));
+        });
+        ui.add_space(8.0);
+        egui::ScrollArea::vertical().max_height(h).show(ui, |ui| {
+            for f in r.features.iter().filter(|f| match filter { 1 => ready(f), 2 => f.status == "done", _ => true }) {
+                let is_open = open == f.id;
+                let (dot, word) = match f.status.as_str() {
+                    "done" => (theme::OK, "built"),
+                    _ if ready(f) => (ACCENT, "ready"),
+                    _ => (white(60), "planned"),
+                };
+                let resp = egui::Frame::new().fill(if is_open { white(10) } else { Color32::TRANSPARENT }).corner_radius(CornerRadius { nw: 10, ne: 10, se: 10, sw: 3 }).inner_margin(egui::Margin::symmetric(8, 5)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(format!("{:>2}", f.order)).font(mono(11.0)).color(MUTED));
+                        let (d, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
+                        ui.painter().circle_filled(d.center(), 3.5, dot);
+                        ui.label(egui::RichText::new(&f.name).font(semi(13.0)).color(TEXT));
+                        ui.label(egui::RichText::new(&f.area).size(11.0).color(MUTED));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(&f.effort).font(mono(11.0)).color(ACCENT));
+                            ui.label(egui::RichText::new(word).size(11.0).color(dot));
+                        });
+                    });
+                    if is_open {
+                        ui.add(egui::Label::new(egui::RichText::new(&f.what).color(TEXT)).wrap());
+                        if !f.needs.is_empty() {
+                            let names: Vec<String> = f.needs.iter().map(|n| {
+                                let g = r.features.iter().find(|g| &g.id == n);
+                                format!("{}{}", g.map_or(n.as_str(), |g| g.name.as_str()), if done(n) { " ✓" } else { "" })
+                            }).collect();
+                            ui.add(egui::Label::new(egui::RichText::new(format!("Needs: {}", names.join(" · "))).size(12.0).color(MUTED)).wrap());
+                        }
+                        for (i, c) in f.chunks.iter().enumerate() {
+                            ui.add(egui::Label::new(egui::RichText::new(format!("Part {}: {c}", i + 1)).size(12.0).color(MUTED)).wrap());
+                        }
+                        if !f.note.is_empty() { ui.label(egui::RichText::new(&f.note).size(11.0).italics().color(MUTED)); }
+                    }
+                });
+                if resp.response.interact(Sense::click()).clicked() { open = if is_open { String::new() } else { f.id.clone() }; }
+            }
+        });
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Click a feature for what it needs and its parts.").size(11.0).color(MUTED));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                theme::kbd(ui, "Esc");
+                if ui.add(egui::Button::new("Close").min_size(vec2(80.0, 32.0))).clicked() { close = true; }
+            });
+        });
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) { close = true; }
+    });
+    ctx.data_mut(|d| {
+        d.insert_temp(id, filter);
+        d.insert_temp(id.with("open"), open);
+    });
+    if close { ed.features_open = false; }
+}
+
 fn dialog_frame() -> egui::Frame { egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(R_CARD).inner_margin(egui::Margin::same(22)) }
 
 fn this_build() -> String { update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")) }
@@ -1002,5 +1098,22 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
             p.add(egui::Shape::line(pts, st));
         }
         Shape::Model | Shape::PlayerStart | Shape::Interact => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn the_features_list_reads_and_every_feature_comes_after_what_it_needs() {
+        let r = roadmap();
+        for f in &r.features {
+            assert!(["S", "M", "L", "XL"].contains(&f.effort.as_str()), "{}: effort", f.id);
+            assert_eq!(f.chunks.is_empty(), matches!(f.effort.as_str(), "S" | "M"), "{}: L and XL come in parts", f.id);
+            for n in &f.needs {
+                let g = r.features.iter().find(|g| &g.id == n).unwrap_or_else(|| panic!("{} needs unknown {n}", f.id));
+                assert!(g.order < f.order, "{} is ordered before {n}", f.id);
+            }
+        }
     }
 }

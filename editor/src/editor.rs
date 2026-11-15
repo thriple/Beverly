@@ -68,6 +68,7 @@ pub struct Editor {
     /// Help > About Beverly / Check for updates.
     pub about_open: bool,
     pub updates_open: bool,
+    pub features_open: bool,
     pub updater: update::Updater,
 }
 
@@ -130,6 +131,7 @@ impl Editor {
             wire_pick: None,
             about_open: false,
             updates_open: false,
+            features_open: false,
             updater: default(),
         };
         ed.refresh_assets();
@@ -139,7 +141,7 @@ impl Editor {
     pub fn dirty(&self) -> bool { self.level != self.saved }
 
     /// A window over the editor (the unsaved-changes question, Help's windows): the 3D view ignores the keys.
-    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open }
+    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open }
 
     pub fn refresh_assets(&mut self) {
         self.assets = level::ASSET_FOLDERS.iter().map(|f| (*f, level::list_assets(&self.dir, f))).collect();

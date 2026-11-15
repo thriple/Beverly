@@ -1,0 +1,1457 @@
+{
+ "updated": "2026-11-15",
+ "build_note": "Update this file with every release.",
+ "features": [
+  {
+   "id": "shell",
+   "name": "Editor shell and Motion kit look",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [],
+   "what": "Top bar, panels, status island, keycaps, springs: the kit ported to egui.",
+   "chunks": [],
+   "note": "",
+   "order": 1
+  },
+  {
+   "id": "navigation",
+   "name": "Editor and Builder movement",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "shell"
+   ],
+   "what": "Caps Lock switches; orbit, pan, proximity zoom; fly with 12 speeds; F frames the selection.",
+   "chunks": [],
+   "note": "",
+   "order": 2
+  },
+  {
+   "id": "projects",
+   "name": "Projects, save, undo and file drop",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "shell"
+   ],
+   "what": "Project folders of plain text; save / open / new; undo and redo; unsaved-changes question; Assets panel with dropped files.",
+   "chunks": [],
+   "note": "",
+   "order": 3
+  },
+  {
+   "id": "updater",
+   "name": "Help menu, About and updates",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "About Beverly and Check for updates (download, check, swap; runs from the next start).",
+   "chunks": [],
+   "note": "",
+   "order": 4
+  },
+  {
+   "id": "shapes",
+   "name": "Basic shapes, placing and the move widget",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "navigation"
+   ],
+   "what": "Box, ramp, stairs, arch, cylinder, sphere, plane; drop on surfaces; move and turn with snapping; shapes double as colliders.",
+   "chunks": [],
+   "note": "",
+   "order": 5
+  },
+  {
+   "id": "models",
+   "name": "glTF model import",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "projects"
+   ],
+   "what": "Drop .glb / .gltf files and place them like shapes; they collide too.",
+   "chunks": [],
+   "note": "",
+   "order": 6
+  },
+  {
+   "id": "features-window",
+   "name": "Features window",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "updater"
+   ],
+   "what": "Help > Features: what's planned, built and next, updated with every release.",
+   "chunks": [],
+   "note": "",
+   "order": 7
+  },
+  {
+   "id": "test-mode",
+   "name": "Test mode with the walker",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "shapes"
+   ],
+   "what": "` plays from the reticle, Shift+` from the Player start; a plain walker until characters exist.",
+   "chunks": [],
+   "note": "",
+   "order": 8
+  },
+  {
+   "id": "scene-list",
+   "name": "Scene list",
+   "area": "Level building",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Find, select and hide parts by name.",
+   "chunks": [],
+   "note": "",
+   "order": 9
+  },
+  {
+   "id": "export",
+   "name": "Windows game export",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "File > Export Windows game zips the game player with the project.",
+   "chunks": [],
+   "note": "",
+   "order": 10
+  },
+  {
+   "id": "wires",
+   "name": "Wires, buttons and moving parts",
+   "area": "Scripting",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "Interact buttons, Moves on any shape (Go / Back / Toggle), wires picked in the properties panel, the walker rides moving parts.",
+   "chunks": [],
+   "note": "",
+   "order": 11
+  },
+  {
+   "id": "perf-meter",
+   "name": "Performance meter",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "Frame time, draw calls, triangles and lights in green, amber or red.",
+   "chunks": [],
+   "note": "",
+   "order": 12
+  },
+  {
+   "id": "pointer-tour",
+   "name": "Pointer tours",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
+   "chunks": [],
+   "note": "",
+   "order": 13
+  },
+  {
+   "id": "bev-files",
+   "name": "The .bev file extension",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "projects"
+   ],
+   "what": "project.bev, levels/*.bev, characters/*.bev; old .ron projects still open.",
+   "chunks": [],
+   "note": "",
+   "order": 14
+  },
+  {
+   "id": "autosave",
+   "name": "Autosave and recovery",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "projects"
+   ],
+   "what": "Saves a recovery copy every few minutes; offers it after a crash.",
+   "chunks": [],
+   "note": "",
+   "order": 15
+  },
+  {
+   "id": "scale-widget",
+   "name": "Scale handles",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Cubes on the corners scale; type a number during any drag to set it exactly.",
+   "chunks": [],
+   "note": "",
+   "order": 16
+  },
+  {
+   "id": "context-menu",
+   "name": "Right-click menus",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Right-click on parts, assets and keys: duplicate, delete, rename, make unique.",
+   "chunks": [],
+   "note": "",
+   "order": 17
+  },
+  {
+   "id": "instancing",
+   "name": "Instancing and Unique",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "models"
+   ],
+   "what": "Mesh-plus-material parts are drawn as instances; changing one asks “change all, or make this one unique?”",
+   "chunks": [],
+   "note": "",
+   "order": 18
+  },
+  {
+   "id": "materials",
+   "name": "Textures and materials",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Drop a texture on a face or a whole shape, texture handles, reusable materials in Assets.",
+   "chunks": [
+    "Textures on parts and faces: drop, scale, offset, the violet texture handles",
+    "Material assets shared by many surfaces, the Materials panel, glowing-surface material"
+   ],
+   "note": "",
+   "order": 19
+  },
+  {
+   "id": "lights",
+   "name": "Lights, sun and sky",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Point and spot light parts with handles; sun and sky with time of day; Interior mode; a light budget meter.",
+   "chunks": [
+    "Point and spot light parts with radius and cone handles, shadows on or off",
+    "Sun and sky with a time-of-day slider, Interior mode, light budget meter"
+   ],
+   "note": "",
+   "order": 20
+  },
+  {
+   "id": "surface-tags",
+   "name": "Surface tags",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Mark parts climbable, diggable, water, grind rail, perch spot, slippery.",
+   "chunks": [],
+   "note": "",
+   "order": 21
+  },
+  {
+   "id": "cameras",
+   "name": "Camera parts",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Fixed, Rail, Orbit and Follow cameras with frustum pyramids; Look through; Camera focus and Release actions.",
+   "chunks": [
+    "Fixed / Orbit / Follow camera parts, frustums, Look through",
+    "Rail cameras on paths, Camera focus / Release actions with ease"
+   ],
+   "note": "Rail cameras need Paths.",
+   "order": 22
+  },
+  {
+   "id": "physics",
+   "name": "Physics for loose objects",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Avian physics: crates, barrels and thrown things tumble; characters push them; explosions shove them.",
+   "chunks": [
+    "Avian added beside the character collision: dynamic parts, mass, friction, sleeping",
+    "Characters push and stand on dynamic parts; impulses from blasts and the winch"
+   ],
+   "note": "avian3d 0.8 supports Bevy 0.20.",
+   "order": 23
+  },
+  {
+   "id": "navmesh",
+   "name": "Navigation areas",
+   "area": "AI and enemies",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "shapes"
+   ],
+   "what": "One button builds where enemies can walk; patrol paths.",
+   "chunks": [],
+   "note": "vleue_navigator supports Bevy 0.20.",
+   "order": 24
+  },
+  {
+   "id": "audio",
+   "name": "Sound parts and audio zones",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes"
+   ],
+   "what": "Sound parts, the Sound action, ambient loops, music regions, reverb boxes blended like weather zones.",
+   "chunks": [
+    "Sound parts and the Sound action, 3D sound, volume and range",
+    "Audio zones: ambience, music regions, reverb, blending at edges"
+   ],
+   "note": "bevy_kira_audio supports Bevy 0.20.",
+   "order": 25
+  },
+  {
+   "id": "array-tool",
+   "name": "Array tool",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "scale-widget"
+   ],
+   "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
+   "chunks": [],
+   "note": "",
+   "order": 26
+  },
+  {
+   "id": "prism-import",
+   "name": "Prism models: named pieces",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "models",
+    "instancing"
+   ],
+   "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
+   "chunks": [],
+   "note": "",
+   "order": 27
+  },
+  {
+   "id": "reflections",
+   "name": "Reflection boxes",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "lights"
+   ],
+   "what": "Reflection box parts with their influence box always drawn.",
+   "chunks": [],
+   "note": "",
+   "order": 28
+  },
+  {
+   "id": "atmosphere",
+   "name": "Haze, weather and zones",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "lights"
+   ],
+   "what": "Haze, wind, rain / snow / ash / embers; zone boxes that override them; Set weather action over time.",
+   "chunks": [
+    "Level atmosphere: haze colour and density, wind, precipitation particles",
+    "Zone parts that blend their settings at the edge; Interior preset; Set weather action"
+   ],
+   "note": "Precipitation uses the particle system.",
+   "order": 29
+  },
+  {
+   "id": "jump-pads",
+   "name": "Jump pads",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "physics",
+    "shapes"
+   ],
+   "what": "Step on it and get launched in its direction; works on enemies and objects.",
+   "chunks": [],
+   "note": "",
+   "order": 30
+  },
+  {
+   "id": "char-core",
+   "name": "Character files and the Characters tab",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "bev-files",
+    "test-mode"
+   ],
+   "what": "characters/*.bev, the Characters tab: list, preview, character sheet and cards; the walker becomes the first character file.",
+   "chunks": [
+    "Character file and loader; the player is spawned from it; the walker becomes characters/humanoid.bev",
+    "Characters tab: list, live preview, character sheet with cards that open when relevant, card pages",
+    "Create steps: template, model, fit (auto collision); Body card"
+   ],
+   "note": "",
+   "order": 31
+  },
+  {
+   "id": "levels",
+   "name": "Several levels and level exits",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires",
+    "bev-files"
+   ],
+   "what": "More than one level per project; Level exit parts wired to the next level.",
+   "chunks": [],
+   "note": "",
+   "order": 32
+  },
+  {
+   "id": "lod",
+   "name": "Automatic LOD and draw distance",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "instancing",
+    "atmosphere"
+   ],
+   "what": "3 simpler versions per model, swap rings you can drag, Colour by LOD, size classes linked to the haze.",
+   "chunks": [
+    "Auto-LOD on import with cross-fades, LOD rings on the ground, Colour by LOD",
+    "Draw-distance classes tied to the haze end, Always visible flag"
+   ],
+   "note": "",
+   "order": 33
+  },
+  {
+   "id": "triggers",
+   "name": "Triggers",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires"
+   ],
+   "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
+   "chunks": [],
+   "note": "",
+   "order": 34
+  },
+  {
+   "id": "flow",
+   "name": "Flow parts",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires"
+   ],
+   "what": "Timer, Relay, Counter, Random.",
+   "chunks": [],
+   "note": "",
+   "order": 35
+  },
+  {
+   "id": "logic",
+   "name": "Logic gates",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "wires"
+   ],
+   "what": "AND, OR, NOR, XOR, NOT.",
+   "chunks": [],
+   "note": "",
+   "order": 36
+  },
+  {
+   "id": "variables",
+   "name": "Variables",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires"
+   ],
+   "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
+   "chunks": [],
+   "note": "",
+   "order": 37
+  },
+  {
+   "id": "wire-view",
+   "name": "Wire pulses and the flat view",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires"
+   ],
+   "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
+   "chunks": [],
+   "note": "",
+   "order": 38
+  },
+  {
+   "id": "timeline",
+   "name": "The shared timeline",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "wires"
+   ],
+   "what": "One timeline widget for sequences, animatics, light FX, weather, spawn waves and menus.",
+   "chunks": [
+    "Timeline panel: ruler, transport, playhead, scrubbing the level live",
+    "Tracks, clips, keys and markers: add, drag, trim, Alt-copy; markers fire wires",
+    "Sequence part: the timeline as a part with Play / Stop / Jump to and an output per marker; list view",
+    "Curve lane and easing; clips that are timelines (dive in, breadcrumb)",
+    "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
+   ],
+   "note": "",
+   "order": 39
+  },
+  {
+   "id": "char-modes",
+   "name": "Ways of moving and switching rules",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-core"
+   ],
+   "what": "A character's movement modes (states it stays in) and the rules that switch them; feel in words with numbers under More.",
+   "chunks": [
+    "Mode machine: walk & run, fall, jump with feel settings, coyote time, jump buffer",
+    "Rules editor and the library picker (+ Add) with needs; editable ranges"
+   ],
+   "note": "",
+   "order": 40
+  },
+  {
+   "id": "char-camera",
+   "name": "Character camera and controls",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-core"
+   ],
+   "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
+   "chunks": [],
+   "note": "",
+   "order": 41
+  },
+  {
+   "id": "joints",
+   "name": "Joint chains and procedural animation",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "char-core"
+   ],
+   "what": "Chains with a job (Walk, Aim, Look, Follow, Driven), found automatically, fixed by clicking joints, joint tree for power users.",
+   "chunks": [
+    "Chain model; Look, Aim and Follow solvers (springy follow-through)",
+    "Walk job: foot planting and gaits for any number of legs (the mech's legs, generalised)",
+    "Auto-detect chains from the model's shape; click-to-fix on the model",
+    "Joint tree by name: drag joints between chains, rename"
+   ],
+   "note": "",
+   "order": 42
+  },
+  {
+   "id": "pointer-tours-chars",
+   "name": "Character tours",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "pointer-tour",
+    "char-core"
+   ],
+   "what": "The pointer tour for each card the first time it opens.",
+   "chunks": [],
+   "note": "",
+   "order": 43
+  },
+  {
+   "id": "abilities",
+   "name": "Attributes, effects and abilities",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-core"
+   ],
+   "what": "Values like health, fuel, heat and ammo; effects that change them; abilities with costs and cooldowns; events that trigger cues.",
+   "chunks": [
+    "Attributes and effects (instant and over time), events",
+    "Abilities with costs and cooldowns; the Abilities card with its tags"
+   ],
+   "note": "",
+   "order": 44
+  },
+  {
+   "id": "export-panel",
+   "name": "Export panel and GitHub builds",
+   "area": "Shipping",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "export"
+   ],
+   "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
+   "chunks": [],
+   "note": "",
+   "order": 45
+  },
+  {
+   "id": "paths",
+   "name": "Paths tool and animating overlay",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "timeline"
+   ],
+   "what": "Draw curves for rails, patrols, camera paths and roads; P shows paths with key widgets and handles, synced to the timeline.",
+   "chunks": [
+    "Paths tool: click points, bend handles, closed loops; paths as level parts",
+    "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
+   ],
+   "note": "",
+   "order": 46
+  },
+  {
+   "id": "foliage",
+   "name": "Foliage painting",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "lod",
+    "materials"
+   ],
+   "what": "A brush scattering variants with random turn, scale and tint; always instanced and LOD'd.",
+   "chunks": [
+    "Foliage brush, variant sets, density and erase",
+    "Wind sway and performance pass"
+   ],
+   "note": "",
+   "order": 47
+  },
+  {
+   "id": "prefabs",
+   "name": "Prefabs",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "wires",
+    "variables"
+   ],
+   "what": "Select parts, Make prefab: one part with only the chosen ports showing.",
+   "chunks": [
+    "Make prefab, place copies, edit the original",
+    "Exposed ports and settings, nested prefabs"
+   ],
+   "note": "",
+   "order": 48
+  },
+  {
+   "id": "save-system",
+   "name": "Save points and saved games",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "variables",
+    "levels"
+   ],
+   "what": "Save point parts store the player, variables and which parts fired; load from the menu.",
+   "chunks": [],
+   "note": "",
+   "order": 49
+  },
+  {
+   "id": "clips",
+   "name": "Animation clips and blending",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Clips from the model matched to modes and moves, blended by speed, with crossfades and events.",
+   "chunks": [
+    "Clip playback and blending by speed; one clip slot per mode",
+    "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
+   ],
+   "note": "",
+   "order": 50
+  },
+  {
+   "id": "moves-jump",
+   "name": "Jump family",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
+   "chunks": [],
+   "note": "",
+   "order": 51
+  },
+  {
+   "id": "moves-dash",
+   "name": "Dash, sprint and roll",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
+   "chunks": [],
+   "note": "",
+   "order": 52
+  },
+  {
+   "id": "moves-low",
+   "name": "Crouch, prone, slide and lean",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Crouch, prone crawl, slide at speed, lean around corners.",
+   "chunks": [],
+   "note": "",
+   "order": 53
+  },
+  {
+   "id": "moves-ledge",
+   "name": "Mantle, ledge grab and wall moves",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes",
+    "surface-tags"
+   ],
+   "what": "Mantle onto ledges, hang and shimmy, wall-run, wall-cling.",
+   "chunks": [
+    "Ledge detection; mantle; ledge grab and shimmy",
+    "Wall-run and wall-cling with their exits into jumps"
+   ],
+   "note": "",
+   "order": 54
+  },
+  {
+   "id": "flight",
+   "name": "Flying",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Fly, glide, hover; banking turns, rolls (aileron and barrel), dives, loops, stalls, boost.",
+   "chunks": [
+    "Fly / glide / hover modes: pitch, yaw, roll with auto-banking, speed and lift",
+    "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
+   ],
+   "note": "",
+   "order": 55
+  },
+  {
+   "id": "swim",
+   "name": "Swimming and diving",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-modes",
+    "surface-tags"
+   ],
+   "what": "Swim at the surface, dive under with breath, water volumes.",
+   "chunks": [],
+   "note": "",
+   "order": 56
+  },
+  {
+   "id": "vehicles",
+   "name": "Vehicles",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "char-modes",
+    "physics"
+   ],
+   "what": "Arcade driving: steering, traction, suspension, drift with handbrake, boost; seats; enter and exit; vehicle as a character or entered by one.",
+   "chunks": [
+    "Raycast wheels: suspension, steering limited by speed, traction, braking",
+    "Drift and handbrake, boost (refilled by drifting), air control, reset when flipped",
+    "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
+    "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
+   ],
+   "note": "",
+   "order": 57
+  },
+  {
+   "id": "other-modes",
+   "name": "More ways of moving",
+   "area": "Movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes",
+    "surface-tags"
+   ],
+   "what": "Climb, burrow, swing, grind rails, zero-g, ride, perch.",
+   "chunks": [
+    "Climb on tagged surfaces, swing on ropes and grapple lines",
+    "Grind rails, zero-g, burrow, ride, perch"
+   ],
+   "note": "",
+   "order": 58
+  },
+  {
+   "id": "effects",
+   "name": "Visual effects",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities"
+   ],
+   "what": "Built-in effects: flame plume, smoke, scorch and crack decals, trails, glow, camera shake, bloom; attach to joints and events.",
+   "chunks": [
+    "Port the flame, smoke and glow from Last Ascent as effect types",
+    "Decals, trails, camera shake; attaching effects to events in the editor"
+   ],
+   "note": "",
+   "order": 59
+  },
+  {
+   "id": "health",
+   "name": "Health, shields and death",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "abilities"
+   ],
+   "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
+   "chunks": [],
+   "note": "",
+   "order": 60
+  },
+  {
+   "id": "tools",
+   "name": "Tools",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "physics"
+   ],
+   "what": "Teleport, recall, pick up and throw, flare, demo charge, scan, lock-on.",
+   "chunks": [
+    "Teleport, recall, lock-on, scan",
+    "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
+   ],
+   "note": "",
+   "order": 61
+  },
+  {
+   "id": "inventory",
+   "name": "Inventory",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "variables"
+   ],
+   "what": "Items, slots, pickups, keys, consumables, gear that stacks its traits onto the character.",
+   "chunks": [
+    "Item definitions, pickups in levels, slots, keys",
+    "Gear traits stacking, consumables; inventory screen (with Screens)"
+   ],
+   "note": "Gets its own planning pass before building.",
+   "order": 62
+  },
+  {
+   "id": "brain",
+   "name": "Brains",
+   "area": "AI and enemies",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "navmesh",
+    "char-core",
+    "abilities"
+   ],
+   "what": "How characters act on their own: perception (sight, hearing), states (idle, patrol, chase, attack, flee), presets.",
+   "chunks": [
+    "Perception: sight cones, hearing, memory",
+    "States and the Brain card: idle, patrol (paths), chase, attack, flee",
+    "Presets: guard, wanderer, animal, NPC driver",
+    "Flock preset (the bird code: land on perch spots, scatter, flock)"
+   ],
+   "note": "",
+   "order": 63
+  },
+  {
+   "id": "hud",
+   "name": "HUD editor",
+   "area": "HUD, menus and animatics",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "variables",
+    "abilities"
+   ],
+   "what": "F4 swaps to HUD editing: text, image, bar, crosshair, objective, dialog box, minimap; 9 anchors, safe area, 16:9 / 21:9 / 4:3; bind by wire.",
+   "chunks": [
+    "HUD runtime and widgets: text, image, bar, crosshair",
+    "HUD edit mode: select, anchors, safe area, aspect previews",
+    "Binding values by wire (fuel, health, counters); warnings on the timeline",
+    "In-world panels (the mech's fuel gauge), objective, minimap"
+   ],
+   "note": "Gets its own planning pass before building.",
+   "order": 64
+  },
+  {
+   "id": "animatics",
+   "name": "Animatics",
+   "area": "HUD, menus and animatics",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "timeline",
+    "cameras",
+    "char-core"
+   ],
+   "what": "Camera cuts, character recordings, subtitles, letterbox, skippable.",
+   "chunks": [
+    "Animatics tab: camera-cut and subtitle tracks, the Animatic action",
+    "Character recordings into editable keys; letterbox and skippable"
+   ],
+   "note": "",
+   "order": 65
+  },
+  {
+   "id": "gamepad",
+   "name": "Gamepad",
+   "area": "HUD, menus and animatics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-camera"
+   ],
+   "what": "Gamepad controls for games and the input map. Last, as asked.",
+   "chunks": [],
+   "note": "",
+   "order": 66
+  },
+  {
+   "id": "destructibles",
+   "name": "Destructible props",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "health",
+    "physics",
+    "prism-import"
+   ],
+   "what": "Crates, panels, barrels, windows, barricades, pillars, floor panels and custom parts break into their pieces.",
+   "chunks": [
+    "Destructible part: health, swap whole model A for pieces B, presets in the Props section",
+    "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
+   ],
+   "note": "",
+   "order": 67
+  },
+  {
+   "id": "spawner",
+   "name": "Spawner and waves",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain",
+    "timeline"
+   ],
+   "what": "Spawner parts and spawn waves on the timeline.",
+   "chunks": [],
+   "note": "",
+   "order": 68
+  },
+  {
+   "id": "idle",
+   "name": "Idles, barks and interaction",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "clips",
+    "joints",
+    "audio"
+   ],
+   "what": "Idle variations and fidgets after a while, idle sounds and barks, look at nearby things, hands reach handles and seats.",
+   "chunks": [
+    "Idle variations, fidgets after time idle, random offsets so crowds don't sync; idle sounds and barks",
+    "Interaction targets: look-at, hand reach (two-bone IK with blend in and out), sit / lean spots"
+   ],
+   "note": "",
+   "order": 69
+  },
+  {
+   "id": "char-templates",
+   "name": "Character templates",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes",
+    "joints",
+    "clips"
+   ],
+   "what": "Humanoid, Mech, Drone, Vehicle, Small creature, Bird, Enemy (swarm), Blank.",
+   "chunks": [
+    "Humanoid and Blank, with the built-in rigged characters",
+    "Drone, Small creature and Bird (with flight)",
+    "Vehicle and Enemy (with vehicles and the swarm)"
+   ],
+   "note": "",
+   "order": 70
+  },
+  {
+   "id": "builtin-chars",
+   "name": "Built-in rigged characters",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "clips"
+   ],
+   "what": "A generic humanoid and a small cartoon character, rigged and animated, so any project can test from day one.",
+   "chunks": [],
+   "note": "Open-licence models and clips, checked before use.",
+   "order": 71
+  },
+  {
+   "id": "mech-port",
+   "name": "The mech as a character file",
+   "area": "Characters",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "joints",
+    "abilities",
+    "effects",
+    "char-camera"
+   ],
+   "what": "Last Ascent's mech rebuilt from Beverly's blocks; the extra Last Ascent editor and player retire.",
+   "chunks": [
+    "Mech legs, jets and grapple as blocks; mech.bev plays like today's mech",
+    "Effects and HUD hooked up; Last Ascent editor and player removed"
+   ],
+   "note": "",
+   "order": 72
+  },
+  {
+   "id": "particles",
+   "name": "Particle effects",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "effects"
+   ],
+   "what": "Bursts and streams with size and colour over life; edited on the timeline.",
+   "chunks": [],
+   "note": "bevy_hanabi supports Bevy 0.20.",
+   "order": 73
+  },
+  {
+   "id": "damage",
+   "name": "Damage types",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "health"
+   ],
+   "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
+   "chunks": [],
+   "note": "",
+   "order": 74
+  },
+  {
+   "id": "jet-grapple",
+   "name": "Jetpack and grapple",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "abilities",
+    "effects"
+   ],
+   "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
+   "chunks": [],
+   "note": "",
+   "order": 75
+  },
+  {
+   "id": "defence",
+   "name": "Block, parry, dodge and shields",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "health"
+   ],
+   "what": "Block, parry, dodge with invulnerability, perfect dodge with slow time, shield bubble, cover.",
+   "chunks": [
+    "Block, parry and dodge windows",
+    "Shield bubble, take cover, perfect dodge and time slow"
+   ],
+   "note": "",
+   "order": 76
+  },
+  {
+   "id": "stealth",
+   "name": "Stealth",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain"
+   ],
+   "what": "Hide in shadow or grass, noise enemies hear, distract.",
+   "chunks": [],
+   "note": "",
+   "order": 77
+  },
+  {
+   "id": "swarm",
+   "name": "Goo swarm enemies",
+   "area": "AI and enemies",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "brain",
+    "joints",
+    "effects"
+   ],
+   "what": "Goo bugs that swarm; close neighbours' goo merges into one surface, legs stop being worked out, gaps show where links fail.",
+   "chunks": [
+    "Swarm movement for many bugs at once, cheap per bug",
+    "Goo drawing: merged soft shapes in a shader (approved), colours and holes",
+    "Merge levels: threshold, leg culling, splitting apart again",
+    "Combat: bites, goo splash, damage and death"
+   ],
+   "note": "",
+   "order": 78
+  },
+  {
+   "id": "dialog",
+   "name": "Dialog",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "audio",
+    "hud"
+   ],
+   "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
+   "chunks": [],
+   "note": "",
+   "order": 79
+  },
+  {
+   "id": "screens",
+   "name": "Screens and menus",
+   "area": "HUD, menus and animatics",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "hud",
+    "wires"
+   ],
+   "what": "Every screen as a card in a flow chart; buttons wire to Go to screen, Start level, Continue, Quit; default Settings screen; loading screen; live 3D backgrounds.",
+   "chunks": [
+    "Screens tab: flow chart of cards, screen editing with the HUD's widgets",
+    "Buttons, sliders, toggles, lists; wiring to actions",
+    "Default Settings screen (graphics, audio, keys) and loading screen",
+    "Live 3D backgrounds; transitions on the timeline"
+   ],
+   "note": "Gets its own planning pass before building.",
+   "order": 80
+  },
+  {
+   "id": "launcher",
+   "name": "Project launcher and templates",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-templates",
+    "bev-files"
+   ],
+   "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
+   "chunks": [],
+   "note": "",
+   "order": 81
+  },
+  {
+   "id": "fire",
+   "name": "Fire and extinguishing",
+   "area": "Level building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "effects",
+    "damage"
+   ],
+   "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
+   "chunks": [],
+   "note": "",
+   "order": 82
+  },
+  {
+   "id": "test-snapshot",
+   "name": "Test snapshot and keep changes",
+   "area": "Scripting",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "physics",
+    "destructibles"
+   ],
+   "what": "Leaving test mode restores everything destroyed or moved; values tuned while testing are offered to keep.",
+   "chunks": [],
+   "note": "",
+   "order": 83
+  },
+  {
+   "id": "two-point",
+   "name": "Two-point grapple",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "jet-grapple",
+    "physics"
+   ],
+   "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
+   "chunks": [],
+   "note": "",
+   "order": 84
+  },
+  {
+   "id": "melee",
+   "name": "Melee and takedowns",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "abilities",
+    "clips",
+    "damage"
+   ],
+   "what": "Close attacks with combos, takedowns from behind.",
+   "chunks": [],
+   "note": "",
+   "order": 85
+  },
+  {
+   "id": "weapons",
+   "name": "Weapons",
+   "area": "Abilities and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "effects",
+    "damage"
+   ],
+   "what": "Hitscan, projectile and beam weapons; ammo, fire rate, muzzle joint, effect and sound.",
+   "chunks": [
+    "Weapon definitions, hitscan and projectiles, ammo",
+    "Beams, muzzle effects and sounds, aim with lock-on"
+   ],
+   "note": "",
+   "order": 86
+  }
+ ],
+ "notes": [
+  {
+   "title": "Idles, barks and interaction",
+   "text": "Crowds look wrong when everyone plays the same idle: guides suggest 3–5 idle variations per character type and random offsets so footsteps don't sync. Fidgets (scratching, looking around) start after standing still a while. Head look-at is a cheap procedural layer, and hands reach handles with two-bone IK that blends in and out; holding is easy, the blend is the hard part.",
+   "sources": [
+    [
+     "NPC animation guide (MoCap Online)",
+     "https://mocaponline.com/blogs/mocap-news/npc-animation"
+    ],
+    [
+     "One line of look-at IK (Ergastulum)",
+     "https://www.moddb.com/games/ergastulum/features/inverse-kinematics-how-one-line-of-code-gave-my-npc-more-life"
+    ],
+    [
+     "Roblox IKControl (doorknob example)",
+     "https://create.roblox.com/docs/animation/inverse-kinematics"
+    ],
+    [
+     "Hand IK blend weights (Unreal forum)",
+     "https://forums.unrealengine.com/t/best-ik-solution-for-putting-hands-on-motorcycle-handle/1191561"
+    ]
+   ]
+  },
+  {
+   "title": "Driving",
+   "text": "Arcade handling starts simple and adds mechanics until it feels right: steering limited by speed (curbs understeer), the handbrake locks the rear wheels to start a drift, clean drifts refill boost, boost is spent on the way out. Simulation adds weight transfer and counter-steering; Beverly's vehicles start arcade with those as settings.",
+   "sources": [
+    [
+     "Racing game approaches and trade-offs (Game Developer)",
+     "https://gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs"
+    ],
+    [
+     "Need for Speed Heat handling model (EA)",
+     "https://ea.com/games/need-for-speed/need-for-speed-heat/news/under-the-hood-the-handling-model"
+    ],
+    [
+     "Disney Speedstorm drift diary",
+     "https://disneyspeedstorm.com/news/disney-speedstorm-dev-diary-drift-mechanics"
+    ]
+   ]
+  },
+  {
+   "title": "Flying",
+   "text": "Arcade flight keeps pitch, yaw and roll with automatic banking in turns, plus speed and lift limits. Manoeuvres become moves: aileron roll (a full roll), barrel roll (a roll with a pull, evasive), dive, loop, Immelmann (half loop and half roll: turn back, gain height), split-S (the reverse: turn back, gain speed), stall turn, boost.",
+   "sources": [
+    [
+     "Arcade-style airplane (Godot recipes)",
+     "https://kidscancode.org/godot_recipes/4.x/3d/simple_airplane"
+    ],
+    [
+     "How to Immelmann (World of Warplanes)",
+     "https://worldofwarplanes.eu/news/how-to-immelmann/"
+    ],
+    [
+     "How to barrel roll (World of Warplanes)",
+     "https://worldofwarplanes.eu/news/how-to-barrel-roll/"
+    ],
+    [
+     "How to split-S (World of Warplanes)",
+     "https://worldofwarplanes.eu/news/how-to-split-s/"
+    ]
+   ]
+  },
+  {
+   "title": "Moves and abilities",
+   "text": "Platformers hide forgiveness in jumping: coyote time (jump just after leaving an edge) and jump buffering. Air dashes usually reset on landing. Dodges pair a short invulnerability with a step; parries are timed blocks. Shooters add slide, wall-run and mantle; stealth adds crouch tiers, lean, cover and hiding in shadow.",
+   "sources": [
+    [
+     "GDevelop advanced jump",
+     "https://wiki.gdevelop.io/gdevelop5/extensions/advanced-jump/"
+    ],
+    [
+     "Celeste and forgiveness",
+     "https://maddymakesgames.com/articles/celeste_and_forgiveness/index.html"
+    ],
+    [
+     "Defensive mechanics",
+     "https://gamesense15.substack.com/p/defensive-mechanics"
+    ],
+    [
+     "Stealth game animation design",
+     "https://mocaponline.com/blogs/mocap-news/stealth-game-animation-design"
+    ]
+   ]
+  }
+ ]
+}
