@@ -47,3 +47,7 @@ Every release updates the feature list, `editor/features.json`: what the release
 (the date) and `build` (its build number: the next run of the Windows build); new features get their needs, effort
 S / M / L / XL and, for L and XL, session-sized parts. Then `python3 tools/roadmap.py` checks it, renumbers the build
 order and writes `docs/roadmap.html`. Help > Features shows the same list.
+
+Keep the roadmap current as work goes (user, 2026-11-15): after each finished part or release, run
+`python3 tools/roadmap.py` and republish `docs/roadmap.html` to the user's roadmap page,
+https://claude.ai/artifact/BJagb2bzFZoMVBUKw8m6z7 (the Artifact tool with that `url`).
