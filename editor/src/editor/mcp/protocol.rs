@@ -17,6 +17,8 @@ const SERVER_INFO_KEY: &str = "io.modelcontextprotocol/serverInfo";
 #[derive(Clone, Debug, PartialEq)]
 pub enum Output {
     Text(String),
+    /// A PNG picture, with a line about it.
+    Image { png: Vec<u8>, text: String },
 }
 
 impl From<String> for Output {
@@ -64,9 +66,12 @@ fn server_info() -> Value {
 }
 
 const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes the open project; list_parts and \
-    get_part show the level's parts and every setting they have (with ranges and units); list_actions shows what \
-    can run now and run_action runs one exactly as its menu item or key would. Changes can be undone with \
-    run_action edit.undo.";
+    get_part show the level's parts and every setting they have (with ranges and units); list_part_kinds shows what \
+    can be placed. add_part, change_part and delete_part edit the level, wire connects one part's output to \
+    another's input. screenshot shows the window or the level from any point; get_camera and move_camera move the \
+    view. list_actions shows what can run now and run_action runs one exactly as its menu item or key would. Every \
+    change is one undo step (run_action edit.undo). Metres, Y up; a part's position is its middle (a model's is its \
+    origin), so a 2 m box stands on the ground at y = 1.";
 
 /// The tools, in a fixed order.
 pub fn tools() -> Value {
@@ -138,6 +143,97 @@ pub fn tools() -> Value {
             "inputSchema": none,
         },
         {
+            "name": "list_part_kinds",
+            "title": "List part kinds",
+            "description": "What add_part can place: each kind with what it is, its size when placed, its outputs, and the settings every part has (as get_part lists them, with ranges and units).",
+            "inputSchema": none,
+        },
+        {
+            "name": "add_part",
+            "title": "Add a part",
+            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "description": "From list_part_kinds, such as Box, Ramp or Player start; Model for a model file."},
+                    "model": {"type": "string", "description": "For a Model: its file in the project, such as assets/models/tower.glb (list_assets)."},
+                    "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Its middle in metres [x, y, z], Y up (a model's origin)."},
+                    "settings": {"type": "object", "description": "Settings by label or field, as change_part takes them."},
+                },
+                "required": ["kind"],
+            },
+        },
+        {
+            "name": "change_part",
+            "title": "Change a part",
+            "description": "Change any of a part's settings (the ones get_part lists), by label or field name in any case: numbers (kept in range), [x, y, z] for Position and Size (a model's Size is its scale), degrees about the vertical or a quaternion for Turn, [r, g, b] from 0 to 1 or \"#rrggbb\" for Colour, true/false for toggles, a choice by name, and for an optional part true, false or an object of its own settings, such as {\"Moves\": {\"By\": [0, 4, 0], \"Speed\": 1.5}}. All or nothing: one bad setting changes none.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "settings": {"type": "object", "description": "Setting label or field → new value."},
+                },
+                "required": ["settings"],
+            },
+        },
+        {
+            "name": "delete_part",
+            "title": "Delete a part",
+            "description": "Delete a part, by id or name, and its wires.",
+            "inputSchema": part,
+        },
+        {
+            "name": "wire",
+            "title": "Wire two parts",
+            "description": "When part `from` sends `output`, part `to` gets `input` (get_part lists each part's outputs and inputs; a part that moves has inputs Go, Back and Toggle). Parts by id or name. With remove: true, takes the wire out instead.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "from": {"type": ["integer", "string"]},
+                    "output": {"type": "string"},
+                    "to": {"type": ["integer", "string"]},
+                    "input": {"type": "string"},
+                    "remove": {"type": "boolean"},
+                },
+                "required": ["from", "output", "to", "input"],
+            },
+        },
+        {
+            "name": "screenshot",
+            "title": "Screenshot",
+            "description": "A picture of Beverly's window as the user sees it, or, given `from` (and `look_at`), of the level seen from that point without moving the user's view.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "from": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Where to look from, [x, y, z] in metres."},
+                    "look_at": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "What to look at (default: the selected part, or the middle of the level)."},
+                    "width": {"type": "integer", "description": "Pixels wide, 256 to 1920 (default 1024)."},
+                },
+            },
+        },
+        {
+            "name": "get_camera",
+            "title": "Where the view is",
+            "description": "The editor view's position, where it looks, and its turn and tilt in degrees.",
+            "inputSchema": none,
+        },
+        {
+            "name": "move_camera",
+            "title": "Move the view",
+            "description": "Move the editor's view (the user sees it move): to `position`, looking at `look_at`; or turned by `yaw` / `pitch` in degrees; or framing a part given by `frame` (id or name). Any left out stay as they are.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "look_at": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "yaw": {"type": "number", "description": "Turn in degrees, 0 looking along -Z, 90 along -X."},
+                    "pitch": {"type": "number", "description": "Tilt in degrees, up positive, -89 to 89."},
+                    "frame": {"type": ["integer", "string"], "description": "A part to frame, by id or name."},
+                },
+            },
+        },
+        {
             "name": "list_actions",
             "title": "List actions",
             "description": "Beverly's actions (the same ones as the menus and keys): id, name, menu, keys, and whether it can run now (and why not). Filter with an optional query matched against id, name and menu.",
@@ -157,6 +253,19 @@ pub fn tools() -> Value {
             },
         },
     ])
+}
+
+/// Standard base64, for pictures.
+pub fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut s = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for c in bytes.chunks(3) {
+        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
+        for k in 0..4 {
+            s.push(if k <= c.len() { A[((n >> (18 - 6 * k)) & 63) as usize] as char } else { '=' });
+        }
+    }
+    s
 }
 
 /// Handle one message. `header` is the `MCP-Protocol-Version` header.
@@ -250,6 +359,13 @@ pub fn handle(msg: &Value, header: Option<&str>, host: &mut dyn Host) -> Reply {
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
             let (content, is_error) = match host.call(name, &args) {
                 Ok(Output::Text(t)) => (json!([{"type": "text", "text": t}]), false),
+                Ok(Output::Image { png, text }) => (
+                    json!([
+                        {"type": "image", "data": base64(&png), "mimeType": "image/png"},
+                        {"type": "text", "text": text},
+                    ]),
+                    false,
+                ),
                 Err(e) => (json!([{"type": "text", "text": e}]), true),
             };
             finish(json!({
@@ -289,6 +405,14 @@ mod tests {
     fn modern(method: &str, mut params: Value) -> Value {
         params["_meta"] = json!({ VERSION_KEY: MODERN });
         req(method, params)
+    }
+
+    #[test]
+    fn base64_matches_known_values() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
     }
 
     fn result(r: &Reply) -> &Value {
@@ -356,6 +480,14 @@ mod tests {
                 "list_wires",
                 "list_assets",
                 "get_log",
+                "list_part_kinds",
+                "add_part",
+                "change_part",
+                "delete_part",
+                "wire",
+                "screenshot",
+                "get_camera",
+                "move_camera",
                 "list_actions",
                 "run_action"
             ]

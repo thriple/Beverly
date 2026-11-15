@@ -13,7 +13,8 @@
 //!
 //! `section` draws a section of any such value as a panel in the Motion kit style: word sliders (the numbers and
 //! the slider's range ends under More), numbers, toggles, colours, choices, optional parts and lists. `describe`
-//! lists the same settings with their values, for the MCP server (and later the timeline's keyable values).
+//! lists the same settings with their values, for the MCP server (and later the timeline's keyable values), and
+//! `apply` sets them from the same JSON.
 //! Fields without a `Setting` are not shown. Range ends changed under More are kept per file in a `Ranges` map.
 use crate::editor::theme::{self, ACCENT, LINE, MUTED, TEXT};
 use bevy::reflect::{
@@ -184,7 +185,13 @@ fn small(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting) -> bool {
     ui.label(egui::RichText::new(s.label).color(MUTED));
     match s.kind {
         Kind::Toggle => f.try_downcast_mut::<bool>().is_some_and(|b| tip(theme::toggle(ui, b), s).changed()),
-        _ => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| tip(ui.color_edit_button_rgb(c), s).changed()),
+        // on a copy: the button nudges the numbers through its colour conversions even when nothing is picked
+        _ => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| {
+            let mut copy = *c;
+            let picked = tip(ui.color_edit_button_rgb(&mut copy), s).changed();
+            if picked { *c = copy; }
+            picked
+        }),
     }
 }
 
@@ -420,7 +427,15 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
         let kind = match &s.kind {
             Kind::Feel { group, ends, lo, hi, log } => { d["slider"] = json!({ "group": group, "ends": [ends.0, ends.1], "values": [num(*lo), num(*hi)], "by_ratio": log }); "feel" }
             Kind::Number { min, max, .. } => { d["min"] = num(*min); d["max"] = num(*max); "number" }
-            Kind::Toggle => "toggle", Kind::Colour => "colour", Kind::Text => "text", Kind::Turn => "turn",
+            Kind::Turn => {
+                if let Some(r) = f.try_downcast_ref::<[f32; 4]>() {
+                    let (yaw, pitch, roll) = bevy::math::Quat::from_array(*r).to_euler(bevy::math::EulerRot::YXZ);
+                    d["degrees"] = num((yaw.to_degrees() * 100.0).round() / 100.0);
+                    d["upright"] = json!(pitch.abs() < 1e-3 && roll.abs() < 1e-3);
+                }
+                "turn"
+            }
+            Kind::Toggle => "toggle", Kind::Colour => "colour", Kind::Text => "text",
             Kind::Optional { .. } => "optional", Kind::Choice => "choice", Kind::List => "list",
         };
         d["kind"] = json!(kind);
@@ -429,6 +444,104 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
         out.push(d);
     }
     Value::Array(out)
+}
+
+/// Set settings of `value` from JSON, as `describe` gives them: an object keyed by field or label (any case).
+/// Numbers are kept in their range; a turn is degrees about the vertical (standing upright) or a quaternion; a
+/// colour is [r, g, b] from 0 to 1 or "#rrggbb"; a choice is its name; an optional part is true, false or an object
+/// of its own settings (turned on as needed). Returns the fields changed; on an error `value` may be half changed.
+pub fn apply(value: &mut dyn PartialReflect, changes: &serde_json::Value) -> Result<Vec<&'static str>, String> {
+    let serde_json::Value::Object(m) = changes else { return Err("Settings go in an object, such as {\"Colour\": [1, 0, 0]}".into()) };
+    let list = fields(value);
+    let ReflectMut::Struct(st) = value.reflect_mut() else { return Err("This has no settings".into()) };
+    let mut done = vec![];
+    for (key, v) in m {
+        let k = key.to_lowercase();
+        let Some((name, s)) = list.iter().find(|(n, s)| n.to_lowercase() == k || s.label.to_lowercase() == k) else {
+            let names: Vec<&str> = list.iter().map(|(_, s)| s.label).collect();
+            return Err(format!("No setting called \"{key}\" (there are: {})", names.join(", ")));
+        };
+        let f = st.field_mut(name).ok_or("missing field")?;
+        apply_one(f, s, v).map_err(|e| format!("{}: {e}", s.label))?;
+        done.push(*name);
+    }
+    Ok(done)
+}
+
+fn apply_one(f: &mut dyn PartialReflect, s: &Setting, v: &serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let keep = |x: f32| match s.kind {
+        Kind::Number { min, max, .. } => x.clamp(min, max),
+        Kind::Feel { log: true, .. } => x.max(1e-3),
+        _ => x,
+    };
+    let num = |v: &Value| v.as_f64().map(|x| keep(x as f32)).ok_or_else(|| format!("expected a number, not {v}"));
+    if let Some(x) = f.try_downcast_mut::<f32>() {
+        *x = num(v)?;
+    } else if let Some(x) = f.try_downcast_mut::<bool>() {
+        *x = v.as_bool().ok_or_else(|| format!("expected true or false, not {v}"))?;
+    } else if let Some(x) = f.try_downcast_mut::<String>() {
+        *x = v.as_str().ok_or_else(|| format!("expected text, not {v}"))?.to_string();
+    } else if let Some(x) = f.try_downcast_mut::<[f32; 3]>() {
+        if let (Kind::Colour, Some(h)) = (&s.kind, v.as_str()) {
+            let h = h.trim_start_matches('#');
+            let c = (h.len() == 6).then(|| u32::from_str_radix(h, 16).ok()).flatten().ok_or("expected \"#rrggbb\"")?;
+            *x = [(c >> 16) as f32 / 255.0, ((c >> 8) & 255) as f32 / 255.0, (c & 255) as f32 / 255.0];
+        } else {
+            let a = v.as_array().filter(|a| a.len() == 3).ok_or_else(|| format!("expected [x, y, z], not {v}"))?;
+            for i in 0..3 { x[i] = num(&a[i])?; }
+            if matches!(s.kind, Kind::Colour) { for c in x.iter_mut() { *c = c.clamp(0.0, 1.0); } }
+        }
+    } else if let Some(x) = f.try_downcast_mut::<[f32; 4]>() {
+        use bevy::math::Quat;
+        let q = match v {
+            Value::Number(d) => Quat::from_rotation_y((d.as_f64().unwrap_or(0.0) as f32).to_radians()),
+            Value::Array(a) if a.len() == 4 => {
+                let mut q = [0.0; 4];
+                for i in 0..4 { q[i] = num(&a[i])?; }
+                { let q = Quat::from_array(q); if q.length() < 1e-6 { return Err("that quaternion has no length".into()) } q.normalize() }
+            }
+            _ => return Err(format!("expected degrees or a quaternion [x, y, z, w], not {v}")),
+        };
+        *x = q.to_array();
+    } else if let Kind::Optional { .. } = s.kind {
+        let Some(TypeInfo::Enum(info)) = f.get_represented_type_info() else { return Err("not an optional part".into()) };
+        let ReflectMut::Enum(e) = f.reflect_mut() else { return Err("not an optional part".into()) };
+        let on = e.variant_name() == "Some";
+        match v {
+            Value::Bool(false) | Value::Null => { e.apply(&DynamicEnum::new("None", DynamicVariant::Unit)); }
+            Value::Bool(true) | Value::Object(_) => {
+                if !on {
+                    let inner = info.variant("Some").and_then(|v| v.as_tuple_variant().ok()).and_then(|t| t.field_at(0)).and_then(|f| default_of(f.type_id()));
+                    let mut t = DynamicTuple::default();
+                    t.insert_boxed(inner.ok_or("it has no default")?.into_partial_reflect());
+                    e.apply(&DynamicEnum::new("Some", DynamicVariant::Tuple(t)));
+                }
+                if v.is_object() { apply(e.field_at_mut(0).ok_or("it didn't turn on")?, v)?; }
+            }
+            _ => return Err(format!("expected true, false or an object of its settings, not {v}")),
+        }
+    } else if let Kind::Choice = s.kind {
+        let Some(TypeInfo::Enum(info)) = f.get_represented_type_info() else { return Err("not a choice".into()) };
+        let want = v.as_str().ok_or_else(|| format!("expected a name, not {v}"))?.to_lowercase();
+        let pick = info.iter().find(|x| x.name().to_lowercase() == want || x.get_attribute::<Label>().is_some_and(|l| l.0.to_lowercase() == want));
+        let names: Vec<&str> = info.iter().map(|x| x.get_attribute::<Label>().map_or(x.name(), |l| l.0)).collect();
+        let pick = pick.ok_or_else(|| format!("expected one of {}", names.join(", ")))?;
+        f.apply(&DynamicEnum::new(pick.name(), DynamicVariant::Unit));
+    } else if let Kind::List = s.kind {
+        let item_ty = match f.get_represented_type_info() { Some(TypeInfo::List(l)) => l.item_ty().id(), _ => return Err("not a list".into()) };
+        let a = v.as_array().ok_or_else(|| format!("expected a list of objects, not {v}"))?;
+        let ReflectMut::List(l) = f.reflect_mut() else { return Err("not a list".into()) };
+        while l.len() > 0 { l.remove(l.len() - 1); }
+        for item in a {
+            let mut d = default_of(item_ty).ok_or("its items have no default")?;
+            apply(d.as_partial_reflect_mut(), item)?;
+            l.push(d.into_partial_reflect());
+        }
+    } else {
+        return Err("this kind of setting can't be set yet".into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -480,5 +593,26 @@ mod tests {
         let ReflectMut::Struct(st) = p.reflect_mut() else { panic!() };
         st.field_mut("collision").unwrap().apply(&DynamicEnum::new("Trigger", DynamicVariant::Unit));
         assert_eq!(p.collision, Collision::Trigger);
+    }
+
+    #[test]
+    fn settings_are_set_from_json_by_label_or_field_in_range() {
+        let mut p = part();
+        p.mover = None;
+        let done = apply(&mut p, &serde_json::json!({
+            "colour": "#ff8000", "Turn": 90, "size": [3, 0, 2], "Collision": "walk-through", "Moves": {"Speed": 0.5}, "visible": false,
+        })).unwrap();
+        assert_eq!(done.len(), 6);
+        assert_eq!(p.color, [1.0, 128.0 / 255.0, 0.0]);
+        assert!((bevy::math::Quat::from_array(p.rot).to_euler(bevy::math::EulerRot::YXZ).0.to_degrees() - 90.0).abs() < 1e-3);
+        assert_eq!(p.size, [3.0, 0.02, 2.0], "kept in range");
+        assert_eq!(p.collision, Collision::WalkThrough);
+        assert_eq!(p.mover, Some(Mover { to: [0.0, 3.0, 0.0], secs: 0.5 }));
+        assert!(!p.visible);
+        assert!(apply(&mut p, &serde_json::json!({"Moves": false})).is_ok() && p.mover.is_none());
+        assert!(apply(&mut p, &serde_json::json!({"Wobble": 1})).unwrap_err().contains("Colour"));
+        assert!(apply(&mut p, &serde_json::json!({"Collision": "Sticky"})).unwrap_err().contains("Walk-through"));
+        let d = describe(&p);
+        assert_eq!(d.as_array().unwrap().iter().find(|x| x["field"] == "rot").unwrap()["degrees"], 90.0);
     }
 }

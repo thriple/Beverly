@@ -1,6 +1,6 @@
 //! Editing the level in the 3D view: picking, placing shapes on surfaces, the move / rotate widget, keyboard
 //! shortcuts, dropped files, undo, and keeping the 3D entities in step with the level.
-use crate::level::{self, Collision, Level, Part, Shape};
+use crate::level::{self, Level, Part, Shape};
 use crate::models::{ModelLib, ProjectRoot};
 use crate::play::Play;
 use crate::shapes::{self, ShapeLib};
@@ -417,19 +417,7 @@ pub fn interact(
                         None => shape.label().to_string(),
                     };
                     let name = ed.level.fresh_name(&base);
-                    let part = Part {
-                        id: 0,
-                        name: name.clone(),
-                        shape,
-                        pos: pos.to_array(),
-                        rot: rot.to_array(),
-                        size: size.to_array(),
-                        color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
-                        visible: true,
-                        collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
-                        model: model.clone(),
-                        mover: None,
-                    };
+                    let part = Part::placed(shape, model.clone(), name.clone(), pos.to_array(), rot.to_array(), size.to_array());
                     ed.selected = Some(ed.level.add(part));
                     ed.placing = None;
                     ed.island.show(shape.glyph(), format!("Placed {name}"), "Drag the arrows to move it · Tab for more", Tone::Plain);
@@ -852,6 +840,7 @@ pub fn close_requested(mut ed: ResMut<Editor>, mut closes: MessageReader<WindowC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::level::Collision;
     #[test]
     fn clicks_hit_parts() {
         let mut ed = Editor::at(std::env::temp_dir());

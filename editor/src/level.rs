@@ -186,6 +186,17 @@ pub struct Part {
 }
 
 impl Part {
+    /// A part as it is first placed: the default colour, and Walk-through for a player start.
+    pub fn placed(shape: Shape, model: Option<String>, name: String, pos: [f32; 3], rot: [f32; 4], size: [f32; 3]) -> Part {
+        Part {
+            id: 0, name, shape, pos, rot, size,
+            color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
+            visible: true,
+            collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
+            model, mover: None,
+        }
+    }
+
     pub fn outputs(&self) -> Vec<&'static str> {
         let mut v = self.shape.outputs().to_vec();
         if self.mover.is_some() { v.extend(Mover::OUTPUTS); }
