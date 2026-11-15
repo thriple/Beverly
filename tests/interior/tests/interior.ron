@@ -1,0 +1,10 @@
+// Interior: no sun, a dim warm fill, a closed room lit by five shadowed lamps (more than the light budget, so the
+// editor's meter shows red). The walker walks into the room's middle, past the crate's front.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 1.5, release: ["W"]),
+        (at: 2.0, shot: "walked", expect: [Feet((0, 0, 1), 0.3)]),
+    ],
+)

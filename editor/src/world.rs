@@ -155,10 +155,29 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
         MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::srgb(0.075, 0.068, 0.085), perceptual_roughness: 1.0, ..default() })),
     ));
     commands.spawn((
+        Sun,
         DirectionalLight { illuminance: 9000.0, shadow_maps_enabled: shadows, ..default() },
         Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.7, -0.95, 0.0)),
     ));
     shared
+}
+
+/// The stage's sun.
+#[derive(Component)]
+pub struct Sun;
+
+/// Light the stage as the level says: its sun (dark for Interior) and the fill light. `shadows`: false turns the
+/// sun's shadows off whatever the level says (slow software renderers).
+pub fn light_stage(l: &level::Lighting, shadows: bool, sun: &mut Query<(&mut DirectionalLight, &mut Transform), With<Sun>>, fill: &mut GlobalAmbientLight) {
+    let rgb = |c: [f32; 3]| Color::srgb(c[0], c[1], c[2]);
+    for (mut light, mut tf) in sun.iter_mut() {
+        light.color = rgb(l.colour);
+        light.illuminance = if l.interior { 0.0 } else { l.brightness };
+        light.shadow_maps_enabled = l.shadows && shadows && !l.interior;
+        tf.rotation = l.sun_rotation();
+    }
+    fill.color = rgb(l.fill_colour);
+    fill.brightness = l.fill;
 }
 
 /// What spawning a part's look needs. `materials`: the project's, by path.

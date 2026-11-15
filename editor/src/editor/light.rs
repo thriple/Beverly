@@ -143,3 +143,54 @@ pub fn draw(ed: &Editor, view: &View, g: &mut Gizmos<super::edit::WidgetGizmos>)
         g.circle(facing(at), s * 0.5, col);
     }
 }
+
+/// How many shadowed lights may reach one place before the game slows down.
+pub const BUDGET: usize = 4;
+
+/// The most shadowed lights that reach any one place, and which they are. Checked at each light and in the middle
+/// of where each two of them overlap.
+pub fn budget(level: &crate::level::Level) -> Vec<u64> {
+    let lit: Vec<(u64, Vec3, f32)> = level.parts.iter()
+        .filter_map(|p| p.light.as_ref().filter(|l| l.shadows && p.shape.is_light()).map(|l| (p.id, Vec3::from(p.pos), l.reach)))
+        .collect();
+    let mut spots: Vec<Vec3> = lit.iter().map(|l| l.1).collect();
+    for (i, a) in lit.iter().enumerate() {
+        for b in &lit[i + 1..] {
+            let d = a.1.distance(b.1);
+            if d > 1e-4 && d < a.2 + b.2 { spots.push(a.1 + (b.1 - a.1) / d * ((d - b.2 + a.2) * 0.5)); }
+        }
+    }
+    spots.iter()
+        .map(|s| lit.iter().filter(|l| l.1.distance(*s) <= l.2 + 1e-4).map(|l| l.0).collect::<Vec<_>>())
+        .max_by_key(|g| g.len())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::level::Level;
+
+    #[test]
+    fn the_budget_counts_shadowed_lights_reaching_one_place() {
+        let mut lvl = Level::default();
+        let mut lamp = |lvl: &mut Level, x: f32, shadows: bool| {
+            let mut p = Part::placed(Shape::PointLight, None, format!("Lamp {x}"), [x, 1.0, 0.0], Quat::IDENTITY.to_array(), [0.3; 3]);
+            p.light.as_mut().unwrap().reach = 3.0;
+            p.light.as_mut().unwrap().shadows = shadows;
+            lvl.add(p)
+        };
+        // a chain: 0 and 4 each overlap 2 but not each other, so no place has all three
+        let a = lamp(&mut lvl, 0.0, true);
+        let b = lamp(&mut lvl, 4.0, true);
+        lamp(&mut lvl, 8.0, true);
+        assert_eq!(budget(&lvl).len(), 2);
+        // one more over the first two: three reach the place between them; one without shadows doesn't count
+        let c = lamp(&mut lvl, 2.0, true);
+        lamp(&mut lvl, 2.0, false);
+        let mut worst = budget(&lvl);
+        worst.sort();
+        assert_eq!(worst, vec![a, b, c]);
+        assert!(budget(&Level::default()).is_empty());
+    }
+}

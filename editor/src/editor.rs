@@ -231,6 +231,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::shortcuts,
                 edit::files,
                 edit::sync,
+                edit::stage,
                 edit::draw,
                 view::grid,
                 view::apply_viewport,

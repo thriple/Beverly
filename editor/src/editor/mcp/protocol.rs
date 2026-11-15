@@ -65,7 +65,8 @@ fn server_info() -> Value {
     json!({"name": "Beverly", "version": env!("CARGO_PKG_VERSION")})
 }
 
-const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes the open project; list_parts and \
+const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes the open project and get_level the level's lighting (sun or Interior, \
+    fill light) and light budget, which change_level changes; list_parts and \
     get_part show the level's parts and every setting they have (with ranges and units); list_part_kinds shows what \
     can be placed. add_part, change_part and delete_part edit the level, wire connects one part's output to \
     another's input. screenshot shows the window or the level from any point; get_camera and move_camera move the \
@@ -91,6 +92,22 @@ pub fn tools() -> Value {
             "title": "Describe the project",
             "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, and Beverly's build.",
             "inputSchema": none,
+        },
+        {
+            "name": "get_level",
+            "title": "Describe the level",
+            "description": "The level's own settings as its panel shows them with nothing selected: Lighting (Interior: no sun; Fill and Fill colour: the flat light from every side) and the sun (Direction: where the sun is round the level in degrees, 0 toward +z and 90 toward +x; Height above the horizon in degrees; Colour, Brightness in lux, Shadows), with ranges; and the light budget: the most shadowed lights reaching one place (worst, with their names) against the budget the meter in the corner shows.",
+            "inputSchema": none,
+        },
+        {
+            "name": "change_level",
+            "title": "Change the level's settings",
+            "description": "Change the level's settings (as get_level lists them, by label or field, as change_part takes them), such as {\"Interior\": true, \"Fill\": 200} or {\"Height\": 15, \"Direction\": 270}.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"settings": {"type": "object", "description": "Setting label or field → new value."}},
+                "required": ["settings"],
+            },
         },
         {
             "name": "list_parts",
@@ -590,6 +607,8 @@ mod tests {
             names,
             [
                 "get_project",
+                "get_level",
+                "change_level",
                 "list_parts",
                 "get_part",
                 "get_selection",

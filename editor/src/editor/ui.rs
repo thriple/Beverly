@@ -255,22 +255,7 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             return;
         }
         let Some(id) = ed.selected.filter(|id| ed.level.get(*id).is_some()) else {
-            ui.vertical_centered(|ui| {
-                ui.add_space(34.0);
-                ui.label(egui::RichText::new("Select a part to see its settings").font(semi(14.0)).color(MUTED));
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    let w = 560.0;
-                    ui.add_space(((ui.available_width() - w) / 2.0).max(0.0));
-                    theme::hint(ui, "Parts", &["Tab"]);
-                    ui.add_space(10.0);
-                    theme::hint(ui, "Fly / edit", &["Caps Lock"]);
-                    ui.add_space(10.0);
-                    theme::hint(ui, "Undo", &["Ctrl", "Z"]);
-                    ui.add_space(10.0);
-                    theme::hint(ui, "Save", &["Ctrl", "S"]);
-                });
-            });
+            level_panel(ui, ed);
             return;
         };
         let mut p = ed.level.get(id).unwrap().clone();
@@ -403,6 +388,32 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             if let Some(m) = ed.level.get_mut(id) { *m = p; }
         }
     });
+}
+
+/// With nothing selected: the level's own settings (its lighting) and the main shortcuts.
+fn level_panel(ui: &mut Ui, ed: &mut Editor) {
+    let mut l = ed.level.lighting.clone();
+    let mut ranges = ed.level.ranges.clone();
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
+    egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+        column(ui, 220.0, "LEVEL", |ui| {
+            ui.label(egui::RichText::new(&ed.level.name).font(semi(13.0)).color(TEXT));
+            ui.label(egui::RichText::new("Select a part to see its settings").color(MUTED));
+            ui.add_space(2.0);
+            theme::hint(ui, "Parts", &["Tab"]);
+            theme::hint(ui, "Fly / edit", &["Caps Lock"]);
+            theme::hint(ui, "Undo", &["Ctrl", "Z"]);
+            theme::hint(ui, "Save", &["Ctrl", "S"]);
+        });
+        column(ui, 260.0, level::LIGHTING, |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
+        // Interior: no sun
+        if !l.interior { column(ui, 260.0, level::SUN, |ui| { settings::section(ui, &mut l, level::SUN, &mut ctx); }); }
+    });
+        ui.add_space(12.0);
+    });
+    if ctx.ranges_changed { ed.level.ranges = ranges; }
+    if l != ed.level.lighting { ed.level.lighting = l; }
 }
 
 /// "Change all 12, or make this one Unique?" after a change to a part's contents that its instances didn't get.
@@ -577,9 +588,47 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         wire_menu(ctx, ed, from, out, to, pos2(at.x, at.y));
     }
 
+    light_budget(ctx, ed, r);
+
     if let Some((at, text, color)) = ed.label.clone() {
         let keys: &[&str] = if ed.drag.is_some() { &[] } else { &["drag"] };
         theme::float_label(ctx, "widget", pos2(at.x, at.y), &text, color, keys);
+    }
+}
+
+/// The light budget meter (top right, while the level has shadowed lights): the most shadowed lights reaching one
+/// place, against the budget. Clicking it selects them in turn.
+fn light_budget(ctx: &egui::Context, ed: &mut Editor, r: Rect) {
+    let id = Id::new("light-budget");
+    let worst = super::light::budget(&ed.level);
+    if worst.is_empty() { theme::spring_reset(ctx, id.with("fade")); return; }
+    let (n, max) = (worst.len(), super::light::BUDGET);
+    let col = if n > max { theme::DANGER } else if n == max { ACCENT } else { theme::OK };
+    let t = theme::spring_from(ctx, id.with("fade"), 0.0, 1.0, theme::SNAPPY);
+    let names: Vec<String> = worst.iter().filter_map(|i| ed.level.get(*i)).map(|p| p.name.clone()).collect();
+    let help = format!(
+        "Shadowed lights reaching the same place: {} of the {max} that stay smooth.\n{}\n{}Click to select them in turn.",
+        n, names.join(", "), if n > max { "Turn Shadows off on some, or make their reach smaller.\n" } else { "" }
+    );
+    let res = egui::Area::new(id).order(egui::Order::Foreground).pivot(egui::Align2::RIGHT_TOP).fixed_pos(pos2(r.max.x - 14.0, r.min.y + 12.0)).show(ctx, |ui| {
+        ui.multiply_opacity(t.clamp(0.0, 1.0));
+        let card = egui::Frame::new().fill(INK).corner_radius(R_CARD).stroke(Stroke::new(1.0, if n > max { col } else { white(20) })).inner_margin(egui::Margin::symmetric(10, 7)).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("LIGHT BUDGET").font(mono(10.0)).color(MUTED));
+                let (bar, _) = ui.allocate_exact_size(vec2(max as f32 * 14.0, 10.0), Sense::hover());
+                for i in 0..max {
+                    let cell = ERect::from_min_size(pos2(bar.min.x + i as f32 * 14.0, bar.min.y), vec2(11.0, 10.0));
+                    ui.painter().rect_filled(cell, CornerRadius::same(2), if i < n { col } else { white(24) });
+                }
+                ui.label(egui::RichText::new(format!("{n} / {max}")).font(semi(12.0)).color(if n > max { col } else { TEXT }));
+            });
+        });
+        ui.interact(card.response.rect, id.with("click"), Sense::click()).on_hover_text(help)
+    }).inner;
+    if res.clicked() {
+        let next = ed.selected.and_then(|s| worst.iter().position(|i| *i == s)).map_or(0, |k| (k + 1) % n);
+        ed.selected = Some(worst[next]);
+        ed.material_open = None;
     }
 }
 

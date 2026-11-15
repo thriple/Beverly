@@ -1,0 +1,20 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Roof", shape: Box, pos: (0.0, 4.1, -1.0), rot: (0.0, 0.0, 0.0, 1.0), size: (12.0, 0.2, 14.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 3, name: "Left wall", shape: Box, pos: (-6.1, 2.0, -1.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.2, 4.0, 14.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 4, name: "Right wall", shape: Box, pos: (6.1, 2.0, -1.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.2, 4.0, 14.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 5, name: "Back wall", shape: Box, pos: (0.0, 2.0, -8.1), rot: (0.0, 0.0, 0.0, 1.0), size: (12.0, 4.0, 0.2), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 6, name: "Front wall", shape: Box, pos: (0.0, 2.0, 7.4), rot: (0.0, 0.0, 0.0, 1.0), size: (12.0, 4.0, 0.2), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 7, name: "Lamp 1", shape: PointLight, pos: (-2.0, 3.0, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.3, 0.3, 0.3), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, light: Some((colour: (1.0, 0.75, 0.45), shadows: true, brightness: 300000.0, reach: 5.0, cone: 50.0))),
+        (id: 8, name: "Lamp 2", shape: PointLight, pos: (2.0, 3.0, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.3, 0.3, 0.3), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, light: Some((colour: (1.0, 0.75, 0.45), shadows: true, brightness: 300000.0, reach: 5.0, cone: 50.0))),
+        (id: 9, name: "Lamp 3", shape: PointLight, pos: (0.0, 3.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.3, 0.3, 0.3), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, light: Some((colour: (1.0, 0.9, 0.8), shadows: true, brightness: 300000.0, reach: 5.0, cone: 50.0))),
+        (id: 10, name: "Lamp 4", shape: PointLight, pos: (-2.0, 3.0, 2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.3, 0.3, 0.3), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, light: Some((colour: (0.6, 0.75, 1.0), shadows: true, brightness: 300000.0, reach: 5.0, cone: 50.0))),
+        (id: 11, name: "Lamp 5", shape: PointLight, pos: (2.0, 3.0, 2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.3, 0.3, 0.3), color: (0.62, 0.64, 0.7), visible: true, collision: WalkThrough, light: Some((colour: (0.6, 0.75, 1.0), shadows: true, brightness: 300000.0, reach: 5.0, cone: 50.0))),
+        (id: 12, name: "Crate", shape: Box, pos: (0.0, 0.5, -1.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+    ],
+    next_id: 12,
+    lighting: (interior: true, fill: 60.0, fill_colour: (1.0, 0.9, 0.8)),
+)

@@ -54,9 +54,13 @@ check("a bad setting changes nothing", "error" in bad and tool("get_part", name=
 l = tool("add_part", kind="Spot light", position=[2, 4, 2], aim=[2, 0, 2], settings={"Light": {"Cone": 30}})
 light = {s["field"]: s["value"] for s in setting(l, "light") or []}
 check("a spot light shines at its aim, reaching it, with the cone asked for", l.get("shines") == [0, -1, 0] and light.get("reach") == 4 and light.get("cone") == 30, l)
-for _ in range(4): tool("run_action", id="edit.undo")
+check("the light budget counts the shadowed spot", tool("get_level").get("light_budget", {}).get("worst") == 1)
+lv = tool("change_level", settings={"Interior": True, "Height": 15})
+check("change_level turns the sun off and lowers it", setting(lv.get("level", {"settings": []}), "interior") is True and setting(lv["level"], "height") == 15, lv)
+for _ in range(5): tool("run_action", id="edit.undo")
+check("undo brings the sun back", setting(tool("get_level"), "interior") is False)
 p = tool("get_project")
-check("four undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
+check("five undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
 
 img = tool("screenshot", **{"from": [8, 6, 6], "look_at": [0, 2, -4], "width": 640})
 check("a screenshot from elsewhere is a PNG", img.get("type") == "image" and base64.b64decode(img["data"])[:8] == b"\x89PNG\r\n\x1a\n", str(img)[:200])

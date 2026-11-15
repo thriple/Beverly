@@ -1,0 +1,12 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Pillar 1", shape: Box, pos: (-3.0, 2.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.6, 4.0, 0.6), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 3, name: "Pillar 2", shape: Box, pos: (0.0, 2.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.6, 4.0, 0.6), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 4, name: "Pillar 3", shape: Box, pos: (3.0, 2.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.6, 4.0, 0.6), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+    ],
+    next_id: 4,
+    lighting: (direction: 270.0, height: 12.0, colour: (1.0, 0.78, 0.55), brightness: 20000.0, fill: 250.0, fill_colour: (0.55, 0.6, 0.9)),
+)

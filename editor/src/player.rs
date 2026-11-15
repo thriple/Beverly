@@ -61,7 +61,7 @@ pub fn run(extra: fn(&mut App)) {
     .init_resource::<ModelLib>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, start, cursor).chain());
+    .add_systems(Update, (models::build_geometry, stage, start, cursor).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
@@ -83,6 +83,13 @@ fn setup(
         world::spawn_visual(&mut commands, p, &mut looks, false);
     }
     commands.insert_resource(mats);
+}
+
+/// The sun and fill light as the level says (once, when the stage's sun exists).
+fn stage(game: Res<Game>, mut done: Local<bool>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>) {
+    if *done || sun.is_empty() { return; }
+    world::light_stage(&game.level.lighting, true, &mut sun, &mut fill);
+    *done = true;
 }
 
 /// Start playing once every model has loaded (so the walker collides with them too).

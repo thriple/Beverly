@@ -602,10 +602,10 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
     <div class="card">
       <span class="tag">Lighting</span><h3>Real-time, with honest widgets</h3>
       <ul>
-        <li>Each level has a Sun and Sky with a time-of-day slider, or "Interior", which turns them off and uses flat ambient light plus your own lights.</li>
+        <li>Each level has its Lighting, shown in the bottom panel when nothing is selected: the sun (its direction round the level, its height above the horizon, colour, brightness and shadows) and a fill light (flat light from every side, with its colour, so shade is never black). "Interior" turns the sun off, leaving the fill plus your own lights. The sky and its time-of-day slider come with Sky and clouds.</li>
         <li>Light parts (the Lights section of the parts pop-up): point (a sphere showing its reach, with a handle to size it) and spot (its cone drawn: drag the tip to aim it and set its reach, the rim to widen or narrow it). A spot shines away from the surface it is placed on, so on a ceiling it points down. Each has a colour, brightness, reach and shadows on or off; the editor shows a small bulb to click, the game only the light. Lights are always individual and never collide. Plus a glowing-surface material for screens and strips.</li>
         <li>Reflection box parts for shiny areas. Their influence box is always drawn, so a stray reflection, like the mech's silver square, is easy to find.</li>
-        <li>A light budget meter in the corner warns when too many shadowed lights overlap.</li>
+        <li>A light budget meter in the view's top-right corner shows the most shadowed lights reaching one place, against a budget of 4; it turns red when over, says which lights they are, and clicking it selects them in turn. It shows only while the level has shadowed lights.</li>
         <li>No light baking at first. It can come later if interiors need it.</li>
       </ul>
     </div>

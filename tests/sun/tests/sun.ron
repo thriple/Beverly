@@ -1,0 +1,10 @@
+// A low evening sun from the west (the level's Lighting: Direction 270, Height 12) throws long shadows from three
+// pillars across the walker's path; the walker walks between the pillars.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 1.5, release: ["W"]),
+        (at: 2.0, shot: "walked", expect: [Feet((0, 0, 1), 0.3)]),
+    ],
+)

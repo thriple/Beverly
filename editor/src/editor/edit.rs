@@ -796,6 +796,13 @@ pub fn sync(
     }
 }
 
+/// The sun and fill light follow the level's Lighting.
+pub fn stage(ed: Res<Editor>, mut applied: Local<Option<level::Lighting>>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>) {
+    if applied.as_ref() == Some(&ed.level.lighting) { return; }
+    world::light_stage(&ed.level.lighting, std::env::var_os("BEVERLY_LITE").is_none(), &mut sun, &mut fill);
+    *applied = Some(ed.level.lighting.clone());
+}
+
 /// Outlines (selection, hidden colliders) and the widget.
 pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
     if ed.testing.is_some() { return; }

@@ -14,6 +14,7 @@
 //! misreading them. Projects from before `.bev` (project.ron, levels/*.ron, format 0) still open; saving one writes
 //! .bev files in place of its .ron ones.
 use crate::settings::{Label, Ranges, Setting};
+use bevy::math::{EulerRot, Quat};
 use bevy::reflect::{std_traits::ReflectDefault, Reflect};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -170,6 +171,50 @@ pub const LOOK: &str = "SIZE  ·  LOOK";
 pub const MOVES: &str = "MOVES";
 pub const LIGHT: &str = "LIGHT";
 pub const CONE: &str = "CONE";
+/// The level panel's sections (shown when nothing is selected).
+pub const LIGHTING: &str = "LIGHTING";
+pub const SUN: &str = "SUN";
+
+/// The level's light: the sun, or Interior (no sun), and the fill light everywhere.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Lighting {
+    #[reflect(@Setting::toggle("Interior").section(LIGHTING).help("No sun: only the fill light and your own lights"))]
+    pub interior: bool,
+    /// The flat light from every side (sky light outdoors).
+    #[reflect(@Setting::feel("Fill", ("Dark", "Bright"), 10.0, 5000.0, "").log().section(LIGHTING).help("Flat light from every side, so shade is never black"))]
+    pub fill: f32,
+    /// sRGB, 0..1.
+    #[reflect(@Setting::colour("Fill colour").section(LIGHTING))]
+    pub fill_colour: [f32; 3],
+    /// The compass direction the sunlight comes from, in degrees.
+    #[reflect(@Setting::number("Direction", "°", 1.0, 0.0, 360.0).section(SUN).help("Which way the sun is, round the level"))]
+    pub direction: f32,
+    /// How high the sun is above the horizon, in degrees.
+    #[reflect(@Setting::feel("Height", ("Low", "Overhead"), 2.0, 90.0, "°").section(SUN).help("Low: long shadows"))]
+    pub height: f32,
+    /// sRGB, 0..1.
+    #[reflect(@Setting::colour("Colour").section(SUN))]
+    pub colour: [f32; 3],
+    /// Lux.
+    #[reflect(@Setting::feel("Brightness", ("Dim", "Bright"), 500.0, 100000.0, "lx").log().section(SUN))]
+    pub brightness: f32,
+    #[reflect(@Setting::toggle("Shadows").section(SUN))]
+    pub shadows: bool,
+}
+
+impl Default for Lighting {
+    fn default() -> Self {
+        Lighting { interior: false, fill: 500.0, fill_colour: [0.85, 0.88, 1.0], direction: 40.0, height: 54.0, colour: [1.0, 1.0, 1.0], brightness: 9000.0, shadows: true }
+    }
+}
+
+impl Lighting {
+    fn is_default(&self) -> bool { *self == Lighting::default() }
+    /// Which way the sunlight shines (down from the sun).
+    pub fn sun_rotation(&self) -> Quat { Quat::from_euler(EulerRot::YXZ, self.direction.to_radians(), -self.height.to_radians(), 0.0) }
+}
 
 impl Mover {
     pub const INPUTS: [&str; 3] = ["Go", "Back", "Toggle"];
@@ -404,6 +449,8 @@ pub struct Level {
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
     pub ranges: Ranges,
+    #[serde(default, skip_serializing_if = "Lighting::is_default")]
+    pub lighting: Lighting,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]

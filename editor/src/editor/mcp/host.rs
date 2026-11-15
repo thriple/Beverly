@@ -136,6 +136,15 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             "tests": super::jobs::tests_in(&ed.dir),
             "beverly": crate::update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")),
         })),
+        "get_level" => Ok(describe_level(ed)),
+        "change_level" => {
+            editable(ed)?;
+            let mut l = ed.level.lighting.clone();
+            let changed = settings::apply(&mut l, args.get("settings").ok_or("Give settings, such as {\"Interior\": true}")?)?;
+            ed.level.lighting = l;
+            ed.commit();
+            Ok(json!({"changed": changed, "level": describe_level(ed)}))
+        }
         "list_parts" => {
             let q = args.get("query").and_then(Value::as_str).unwrap_or("").to_lowercase();
             let words: Vec<&str> = q.split_whitespace().collect();
@@ -645,6 +654,19 @@ fn settle_instances(ed: &mut Editor, args: &Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn describe_level(ed: &Editor) -> Value {
+    let worst = crate::editor::light::budget(&ed.level);
+    json!({
+        "name": ed.level.name,
+        "settings": settings::describe(&ed.level.lighting),
+        "light_budget": {
+            "worst": worst.len(),
+            "budget": crate::editor::light::BUDGET,
+            "lights": worst.iter().filter_map(|i| ed.level.get(*i)).map(|p| p.name.clone()).collect::<Vec<_>>(),
+        },
+    })
 }
 
 fn describe(ed: &Editor, p: &Part) -> Value {
