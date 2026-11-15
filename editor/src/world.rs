@@ -6,7 +6,6 @@ use crate::shapes::{self, ShapeLib, Tris};
 use bevy::math::Affine3A;
 use bevy::prelude::*;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 
 /// `face`: which face of a basic shape was hit (see `shapes::Tris::faces`).
@@ -86,7 +85,6 @@ pub struct Mats {
     pub collider: Handle<StandardMaterial>,
     pub ghost: Handle<StandardMaterial>,
     laid: HashMap<(String, [u32; 4]), Handle<StandardMaterial>>,
-    files: HashMap<String, Option<level::Material>>,
     images: HashMap<String, Handle<Image>>,
 }
 
@@ -99,13 +97,11 @@ impl Mats {
             .clone()
     }
 
-    /// How a surface looks: its material file (read once from the project in `dir`), laid at its size and offset.
-    /// `None` when the file can't be read.
-    pub fn surface(&mut self, assets: &mut Assets<StandardMaterial>, server: &AssetServer, dir: &Path, s: &Surface) -> Option<Handle<StandardMaterial>> {
-        let file = self.files.entry(s.material.clone()).or_insert_with(|| level::load_material(dir, &s.material).ok()).clone()?;
-        let key = (s.material.clone(), [s.tile[0], s.tile[1], s.offset[0], s.offset[1]].map(f32::to_bits));
-        if let Some(h) = self.laid.get(&key) { return Some(h.clone()); }
-        let texture = file.texture.map(|t| {
+    /// How a surface looks: its material, laid at the surface's size and offset.
+    pub fn surface(&mut self, assets: &mut Assets<StandardMaterial>, server: &AssetServer, m: &level::Material, s: &Surface) -> Handle<StandardMaterial> {
+        let key = (format!("{m:?}"), [s.tile[0], s.tile[1], s.offset[0], s.offset[1]].map(f32::to_bits));
+        if let Some(h) = self.laid.get(&key) { return h.clone(); }
+        let texture = m.texture.as_ref().map(|t| {
             self.images.entry(t.clone()).or_insert_with(|| {
                 use bevy::image::{ImageAddressMode as A, ImageFilterMode as F, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
                 server.load_builder().with_settings(|l: &mut ImageLoaderSettings| {
@@ -116,20 +112,22 @@ impl Mats {
             }).clone()
         });
         let tile = Vec2::from(s.tile).max(Vec2::splat(0.01));
+        let tint = Color::srgb(m.tint[0], m.tint[1], m.tint[2]);
+        let see_through = m.opacity < 0.999;
         let h = assets.add(StandardMaterial {
-            base_color_texture: texture,
+            base_color: tint.with_alpha(m.opacity.clamp(0.0, 1.0)),
+            base_color_texture: texture.clone(),
+            // Glow 1: its own colour at full brightness, whatever the light (alpha stays 1)
+            emissive: LinearRgba { alpha: 1.0, ..tint.to_linear() * m.glow },
+            emissive_texture: if m.glow > 0.0 { texture } else { None },
             uv_transform: bevy::math::Affine2::from_scale_angle_translation(1.0 / tile, 0.0, -Vec2::from(s.offset) / tile),
-            perceptual_roughness: 0.75,
+            metallic: m.metal.clamp(0.0, 1.0),
+            perceptual_roughness: m.roughness.clamp(0.0, 1.0),
+            alpha_mode: if see_through { AlphaMode::Blend } else { AlphaMode::Opaque },
             ..default()
         });
         self.laid.insert(key, h.clone());
-        Some(h)
-    }
-
-    /// Read material files again (one was changed or made).
-    pub fn forget_files(&mut self) {
-        self.files.clear();
-        self.laid.clear();
+        h
     }
 }
 
@@ -139,7 +137,7 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
     let see_through = |c: Color| StandardMaterial { base_color: c, alpha_mode: AlphaMode::Blend, unlit: true, cull_mode: None, double_sided: true, ..default() };
     let collider = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.10)));
     let ghost = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.28)));
-    let shared = Mats { cache: HashMap::new(), collider, ghost, laid: HashMap::new(), files: HashMap::new(), images: HashMap::new() };
+    let shared = Mats { cache: HashMap::new(), collider, ghost, laid: HashMap::new(), images: HashMap::new() };
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(4000.0, 4000.0))),
         MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::srgb(0.075, 0.068, 0.085), perceptual_roughness: 1.0, ..default() })),
@@ -151,7 +149,7 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
     shared
 }
 
-/// What spawning a part's look needs. `dir`: the project folder (for material files).
+/// What spawning a part's look needs. `materials`: the project's, by path.
 pub struct Looks<'a> {
     pub lib: &'a ShapeLib,
     pub models: &'a mut ModelLib,
@@ -159,13 +157,13 @@ pub struct Looks<'a> {
     pub mats: &'a mut Mats,
     pub assets: &'a mut Assets<StandardMaterial>,
     pub meshes: &'a mut Assets<Mesh>,
-    pub dir: &'a Path,
+    pub materials: &'a std::collections::BTreeMap<String, level::Material>,
 }
 
 /// Spawn how a part looks. `editor`: hidden colliders and the player start show as see-through stand-ins;
 /// in the game they are not drawn. A textured shape is an entity with a child per material it shows.
 pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bool) -> Option<Entity> {
-    let Looks { lib, models, server, mats, assets, meshes, dir } = k;
+    let Looks { lib, models, server, mats, assets, meshes, materials } = k;
     let tf = (part_transform(p), PartId(p.id));
     match p.shape {
         Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()))).id()),
@@ -187,7 +185,7 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
                 }
                 let parent = commands.spawn((tf, Visibility::default())).id();
                 for (s, faces) in groups {
-                    let mat = s.and_then(|s| mats.surface(assets, server, dir, s)).unwrap_or_else(|| mats.color(assets, p.color));
+                    let mat = s.and_then(|s| Some(mats.surface(assets, server, materials.get(&s.material)?, s))).unwrap_or_else(|| mats.color(assets, p.color));
                     let mesh = meshes.add(tris.faces_mesh(Vec3::from(p.size), |f| faces.contains(&f)));
                     commands.spawn((Mesh3d(mesh), MeshMaterial3d(mat), Transform::default(), ChildOf(parent)));
                 }

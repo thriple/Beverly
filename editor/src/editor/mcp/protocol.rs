@@ -204,17 +204,52 @@ pub fn tools() -> Value {
         {
             "name": "lay_texture",
             "title": "Lay a texture on a part",
-            "description": "Lay a texture from assets/textures (list_assets) on a basic shape: on one face by name (get_part lists its faces, such as Top or Front) or all over. It goes through a material in assets/materials made for that texture (the same one every time, so surfaces share it). tile is how big one copy is in metres [across, down]; offset slides it [across, down]. Without texture, changes the tile or offset of the texture already there; with remove: true, takes it off.",
+            "description": "Lay a texture from assets/textures (list_assets) on a basic shape: on one face by name (get_part lists its faces, such as Top or Front) or all over. It goes through a material in assets/materials made for that texture (the same one every time, so surfaces share it); or give material to lay one you made. tile is how big one copy is in metres [across, down]; offset slides it [across, down]. Without texture, changes the tile or offset of the texture already there; with remove: true, takes it off.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": {"type": "integer"},
                     "name": {"type": "string"},
                     "texture": {"type": "string", "description": "Such as assets/textures/brick.png, or just brick.png."},
+                    "material": {"type": "string", "description": "Lay a material instead (get_material), such as brick or assets/materials/brick.bev."},
                     "face": {"type": "string", "description": "A face name from get_part, or \"all\" (the default)."},
                     "tile": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
                     "offset": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
                     "remove": {"type": "boolean"},
+                },
+            },
+        },
+        {
+            "name": "get_material",
+            "title": "Describe a material",
+            "description": "A material (list_assets lists them under materials): its texture, how many surfaces and parts use it, and its settings as the Materials panel shows them (Tint, Opacity, Metal, Roughness, Glow, with ranges).",
+            "inputSchema": {"type": "object", "properties": {"material": {"type": "string", "description": "Such as brick, brick.bev or assets/materials/brick.bev."}}, "required": ["material"]},
+        },
+        {
+            "name": "change_material",
+            "title": "Change a material",
+            "description": "Change a material's settings (as get_material lists them, by label or field, as change_part takes them) and/or its texture (a file in assets/textures, or null for none). Every surface using it changes. Saved with the project.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "material": {"type": "string"},
+                    "settings": {"type": "object", "description": "Setting label or field → new value, such as {\"Glow\": 3, \"Tint\": \"#ff8000\"}."},
+                    "texture": {"type": ["string", "null"]},
+                },
+                "required": ["material"],
+            },
+        },
+        {
+            "name": "new_material",
+            "title": "Make a material",
+            "description": "Make a new material, plain or as a copy of another (copy_of), with settings and a texture if given; answers with its path for lay_texture.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Its name (a number is added), such as Glass."},
+                    "copy_of": {"type": "string"},
+                    "texture": {"type": "string"},
+                    "settings": {"type": "object"},
                 },
             },
         },
@@ -564,6 +599,9 @@ mod tests {
                 "delete_part",
                 "wire",
                 "lay_texture",
+                "get_material",
+                "change_material",
+                "new_material",
                 "screenshot",
                 "get_camera",
                 "move_camera",

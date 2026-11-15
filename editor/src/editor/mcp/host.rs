@@ -167,7 +167,9 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         }
         "list_assets" => {
             ed.refresh_assets();
-            Ok(Value::Object(ed.assets.iter().map(|(f, files)| (f.to_string(), json!(files))).collect()))
+            let mut v: serde_json::Map<String, Value> = ed.assets.iter().map(|(f, files)| (f.to_string(), json!(files))).collect();
+            v.insert("materials".into(), json!(ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/")).collect::<Vec<_>>()));
+            Ok(Value::Object(v))
         }
         "get_log" => Ok(json!(ed.island.history().iter().collect::<Vec<_>>())),
         "list_part_kinds" => {
@@ -287,14 +289,14 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 let before = p.surfaces.len();
                 p.surfaces.retain(|s| s.face != face);
                 if p.surfaces.len() == before { return Err("There's no texture there".into()); }
+            } else if let Some(m) = args.get("material").and_then(Value::as_str) {
+                let m = material_ref(ed, m)?;
+                ed.lay_texture(id, face, &m)?;
             } else if let Some(t) = args.get("texture").and_then(Value::as_str) {
-                let t = t.replace('\\', "/");
-                let t = if t.contains('/') { t } else { format!("assets/textures/{t}") };
-                if !ed.dir.join(&t).is_file() { return Err(format!("No file {t} in the project (list_assets)")); }
-                if !crate::editor::texture::is_texture(&t) { return Err("Textures are .png or .jpg files".into()); }
+                let t = texture_ref(ed, t)?;
                 ed.lay_texture(id, face, &t)?;
             } else if !ed.level.get(id).is_some_and(|p| p.surfaces.iter().any(|s| s.face == face)) {
-                return Err("Give a texture (there's none there to change)".into());
+                return Err("Give a texture or material (there's none there to change)".into());
             }
             if let Some(s) = ed.level.get_mut(id).and_then(|p| p.surfaces.iter_mut().find(|s| s.face == face)) {
                 if let Some(t) = tile { s.tile = t; }
@@ -302,6 +304,36 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             }
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
+        }
+        "get_material" => {
+            let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
+            Ok(describe_material(ed, &path))
+        }
+        "change_material" => {
+            editable(ed)?;
+            let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
+            let mut m = ed.level.materials[&path].clone();
+            let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut m, set)?, None => vec![] };
+            if let Some(t) = args.get("texture") {
+                m.texture = match t.as_str() { Some(t) => Some(texture_ref(ed, t)?), None => None };
+                changed.push("texture");
+            }
+            ed.level.materials.insert(path.clone(), m);
+            ed.commit();
+            Ok(json!({"changed": changed, "material": describe_material(ed, &path)}))
+        }
+        "new_material" => {
+            editable(ed)?;
+            let mut m = match args.get("copy_of").and_then(Value::as_str) {
+                Some(c) => ed.level.materials[&material_ref(ed, c)?].clone(),
+                None => crate::level::Material::default(),
+            };
+            if let Some(t) = args.get("texture").and_then(Value::as_str) { m.texture = Some(texture_ref(ed, t)?); }
+            if let Some(set) = args.get("settings") { settings::apply(&mut m, set)?; }
+            let name = args.get("name").and_then(Value::as_str).unwrap_or("Material").replace(['/', '\\'], " ");
+            let path = ed.level.new_material(&name, m);
+            ed.commit();
+            Ok(describe_material(ed, &path))
         }
         "get_camera" => {
             let (yaw, pitch) = (view.yaw.to_degrees(), view.pitch.to_degrees());
@@ -552,6 +584,31 @@ fn summary(p: &Part) -> Value {
 }
 
 /// A part with every setting it has (from the same descriptions its panel is drawn from) and its wires.
+/// A material by name, file name or path.
+fn material_ref(ed: &Editor, m: &str) -> Result<String, String> {
+    let m = m.replace('\\', "/");
+    let name = m.trim_start_matches("assets/materials/").trim_end_matches(".bev");
+    let path = format!("assets/materials/{name}.bev");
+    if ed.level.materials.contains_key(&path) { return Ok(path); }
+    let have: Vec<&str> = ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/").trim_end_matches(".bev")).collect();
+    Err(format!("No material {name} (there are: {})", list_or_none(&have)))
+}
+
+/// A texture file by path or file name.
+fn texture_ref(ed: &Editor, t: &str) -> Result<String, String> {
+    let t = t.replace('\\', "/");
+    let t = if t.contains('/') { t } else { format!("assets/textures/{t}") };
+    if !ed.dir.join(&t).is_file() { return Err(format!("No file {t} in the project (list_assets)")); }
+    if !crate::editor::texture::is_texture(&t) { return Err("Textures are .png or .jpg files".into()); }
+    Ok(t)
+}
+
+fn describe_material(ed: &Editor, path: &str) -> Value {
+    let m = &ed.level.materials[path];
+    let (surfaces, parts) = ed.level.material_users(path);
+    json!({"material": path, "texture": m.texture, "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)})
+}
+
 fn describe(ed: &Editor, p: &Part) -> Value {
     let name = |id: u64| ed.level.get(id).map(|q| q.name.clone()).unwrap_or_default();
     let mut v = summary(p);
@@ -566,7 +623,7 @@ fn describe(ed: &Editor, p: &Part) -> Value {
         v["textures"] = Value::Array(p.surfaces.iter().map(|s| json!({
             "face": s.face.map_or("all".into(), |f| names.get(f as usize).cloned().unwrap_or_default()),
             "material": s.material,
-            "texture": crate::level::load_material(&ed.dir, &s.material).ok().and_then(|m| m.texture),
+            "texture": ed.level.materials.get(&s.material).and_then(|m| m.texture.clone()),
             "tile": settings::nums(&s.tile), "offset": settings::nums(&s.offset),
         })).collect());
     }

@@ -1,4 +1,4 @@
-// Textured parts (every shape, one face or all over, a textured floor) load and play: the walker stands on the
+// Textured parts (every shape, one face or all over, a textured floor, a glowing column, a glass ball) load and play: the walker stands on the
 // textured floor and walks across it. The screenshots show how the textures lie.
 (
     steps: [

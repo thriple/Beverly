@@ -163,14 +163,33 @@ impl Part {
     }
 }
 
+/// The material panel's section.
+pub const MATERIAL: &str = "MATERIAL";
+
 /// A material file (assets/materials/NAME.bev): what every surface using it looks like.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
 pub struct Material {
-    #[serde(default)]
     pub format: u32,
-    /// The texture, e.g. "assets/textures/brick.png".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The texture, e.g. "assets/textures/brick.png" (none: plain, in the tint).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub texture: Option<String>,
+    /// sRGB, 0..1; multiplies the texture.
+    #[reflect(@Setting::colour("Tint").section(MATERIAL).help("Colours the texture (white leaves it as it is)"))]
+    pub tint: [f32; 3],
+    #[reflect(@Setting::feel("Opacity", ("Clear", "Solid"), 0.0, 1.0, "").section(MATERIAL).help("See-through below Solid, like glass"))]
+    pub opacity: f32,
+    #[reflect(@Setting::feel("Metal", ("Not metal", "Metal"), 0.0, 1.0, "").section(MATERIAL))]
+    pub metal: f32,
+    #[reflect(@Setting::feel("Roughness", ("Glossy", "Rough"), 0.0, 1.0, "").section(MATERIAL))]
+    pub roughness: f32,
+    #[reflect(@Setting::feel("Glow", ("None", "Bright"), 0.0, 10.0, "").section(MATERIAL).help("Gives off its own light, for screens, signs and light strips"))]
+    pub glow: f32,
+}
+
+impl Default for Material {
+    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0 } }
 }
 
 pub fn load_material(dir: &Path, path: &str) -> Result<Material, String> {
@@ -186,22 +205,42 @@ pub fn save_material(dir: &Path, path: &str, m: &Material) -> Result<(), String>
     std::fs::write(dir.join(path), text).map_err(|e| e.to_string())
 }
 
-/// The material for a texture: the one already made for it, or a new assets/materials/<texture name>.bev.
-pub fn material_for_texture(dir: &Path, texture: &str) -> Result<String, String> {
-    let stem = Path::new(texture).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "material".into());
-    for n in 1.. {
-        let path = if n == 1 { format!("assets/materials/{stem}.bev") } else { format!("assets/materials/{stem} {n}.bev") };
-        match load_material(dir, &path) {
-            Ok(m) if m.texture.as_deref() == Some(texture) => return Ok(path),
-            Ok(_) => continue,
-            Err(_) if dir.join(&path).exists() => continue,
-            Err(_) => {
-                save_material(dir, &path, &Material { texture: Some(texture.into()), ..Default::default() })?;
-                return Ok(path);
+/// Every material file in the project, by path.
+pub fn load_materials(dir: &Path) -> std::collections::BTreeMap<String, Material> {
+    list_assets(dir, "materials").into_iter().filter(|f| f.ends_with(".bev")).filter_map(|f| {
+        let path = format!("assets/materials/{f}");
+        load_material(dir, &path).ok().map(|m| (path, m))
+    }).collect()
+}
+
+impl Level {
+    /// The material for a texture: the one already made for it, or a new "assets/materials/<texture name>.bev".
+    pub fn material_for_texture(&mut self, texture: &str) -> String {
+        let stem = Path::new(texture).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "material".into());
+        for n in 1.. {
+            let path = if n == 1 { format!("assets/materials/{stem}.bev") } else { format!("assets/materials/{stem} {n}.bev") };
+            match self.materials.get(&path) {
+                Some(m) if m.texture.as_deref() == Some(texture) => return path,
+                Some(_) => continue,
+                None => {
+                    self.materials.insert(path.clone(), Material { texture: Some(texture.into()), ..Default::default() });
+                    return path;
+                }
             }
         }
+        unreachable!()
     }
-    unreachable!()
+    /// A new plain material, "assets/materials/<base> N.bev".
+    pub fn new_material(&mut self, base: &str, m: Material) -> String {
+        let path = (1..).map(|n| format!("assets/materials/{base} {n}.bev")).find(|p| !self.materials.contains_key(p)).unwrap();
+        self.materials.insert(path.clone(), m);
+        path
+    }
+    /// How many surfaces use a material, on how many parts.
+    pub fn material_users(&self, path: &str) -> (usize, usize) {
+        let per = self.parts.iter().map(|p| p.surfaces.iter().filter(|s| s.material == path).count());
+        per.clone().fold((0, 0), |(s, p), n| (s + n, p + (n > 0) as usize))
+    }
 }
 
 /// A wire: when part `from` sends `out`, part `to` gets `input`.
@@ -297,6 +336,10 @@ pub struct Level {
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
     pub ranges: Ranges,
+    /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
+    /// kept here so undo and the unsaved-changes dot cover them.
+    #[serde(skip)]
+    pub materials: std::collections::BTreeMap<String, Material>,
 }
 
 impl Level {
@@ -388,6 +431,9 @@ pub fn save(dir: &Path, name: &str, level: &Level) -> Result<(), String> {
     let l = ron::ser::to_string_pretty(&Level { format: FORMAT, ..level.clone() }, cfg).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("project.bev"), p).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("levels").join("main.bev"), l).map_err(|e| e.to_string())?;
+    for (path, m) in &level.materials {
+        if load_material(dir, path).ok().as_ref() != Some(&Material { format: FORMAT, ..m.clone() }) { save_material(dir, path, m)?; }
+    }
     // the .ron files these replace, in a project from before .bev files
     for old in [dir.join("project.ron"), dir.join("levels").join("main.ron")] {
         if old.is_file() { std::fs::remove_file(old).map_err(|e| e.to_string())?; }
@@ -408,6 +454,7 @@ pub fn load(dir: &Path) -> Result<(String, Level), String> {
     }
     // format 0 (.ron) to 1 (.bev) changed nothing inside the files
     level.format = FORMAT;
+    level.materials = load_materials(dir).into_iter().map(|(k, m)| (k, Material { format: 0, ..m })).collect();
     Ok((pf.name, level))
 }
 
@@ -505,12 +552,12 @@ mod tests {
     fn surfaces_cover_faces_and_share_one_material_per_texture() {
         let dir = std::env::temp_dir().join(format!("beverly-mat-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        make_folders(&dir).unwrap();
-        let brick = material_for_texture(&dir, "assets/textures/brick.png").unwrap();
+        let mut lvl = Level { name: "main".into(), ..Default::default() };
+        let brick = lvl.material_for_texture("assets/textures/brick.png");
         assert_eq!(brick, "assets/materials/brick.bev");
-        assert_eq!(material_for_texture(&dir, "assets/textures/brick.png").unwrap(), brick, "the same texture reuses its material");
-        assert_eq!(material_for_texture(&dir, "assets/textures/other/brick.png").unwrap(), "assets/materials/brick 2.bev");
-        assert_eq!(load_material(&dir, &brick).unwrap().texture.as_deref(), Some("assets/textures/brick.png"));
+        assert_eq!(lvl.material_for_texture("assets/textures/brick.png"), brick, "the same texture reuses its material");
+        assert_eq!(lvl.material_for_texture("assets/textures/other/brick.png"), "assets/materials/brick 2.bev");
+        lvl.materials.get_mut(&brick).unwrap().glow = 2.0;
         let mut p = Part::placed(Shape::Box, None, "Box 1".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [2.0; 3]);
         let s = |face, m: &str| Surface { face, material: m.into(), tile: [1.0, 1.0], offset: [0.0, 0.0] };
         p.lay(s(None, "all"));
@@ -518,8 +565,16 @@ mod tests {
         assert_eq!((p.surface(2).unwrap().material.as_str(), p.surface(0).unwrap().material.as_str()), ("top", "all"));
         p.lay(s(Some(2), "top again"));
         assert_eq!(p.surfaces.len(), 2, "a face holds one surface");
-        p.lay(s(None, "everything"));
+        p.lay(s(None, &brick));
         assert_eq!(p.surfaces.len(), 1, "all over replaces the faces' own");
+        lvl.add(p);
+        assert_eq!(lvl.material_users(&brick), (1, 1));
+        // materials are saved as their own files and come back with the level
+        save(&dir, "Mats", &lvl).unwrap();
+        assert!(dir.join("assets/materials/brick 2.bev").is_file());
+        let (_, back) = load(&dir).unwrap();
+        assert_eq!(back.materials[&brick].glow, 2.0);
+        assert_eq!(back.materials, lvl.materials);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -3,7 +3,7 @@
 use super::theme::{self, Tone};
 use super::view::View;
 use super::Editor;
-use crate::level::{self, Part, Shape, Surface};
+use crate::level::{Part, Shape, Surface};
 use crate::shapes::{self, Lay, Tris};
 use crate::world::part_affine;
 use bevy::prelude::*;
@@ -82,13 +82,18 @@ impl Editor {
         if !takes_textures(p) { return Err(format!("{} can't take textures (basic shapes only)", p.name)); }
         let tris = &self.geo.shapes[&p.shape];
         if face.is_some_and(|f| f as usize >= tris.faces.len()) { return Err("No such face".into()); }
-        let material = level::material_for_texture(&self.dir, texture)?;
         let tile = face.and_then(|f| p.surface(f)).or(p.surfaces.first()).map_or([1.0, 1.0], |s| s.tile);
         let what = format!("{} of {}", face_name(tris, face), p.name);
+        // a material file is laid as it is; a texture through its own material
+        let material = if texture.ends_with(".bev") {
+            if !self.level.materials.contains_key(texture) { return Err(format!("No material {texture}")); }
+            texture.to_string()
+        } else {
+            self.level.material_for_texture(texture)
+        };
         self.level.get_mut(id).unwrap().lay(Surface { face, material, tile, offset: [0.0, 0.0] });
         self.selected = Some(id);
         self.tex_face = face;
-        self.refresh_assets();
         Ok(what)
     }
 }

@@ -167,12 +167,19 @@ fn assets_panel(root: &mut Ui, ed: &mut Editor) {
         p.text(r.center() + vec2(0.0, 10.0), Align2::CENTER_CENTER, "textures · models · sounds", body(11.0), MUTED);
         ui.add_space(4.0);
         egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(ui.available_height() * 0.5).show(ui, |ui| {
-            let assets = ed.assets.clone();
+            let mut assets = ed.assets.clone();
+            // materials as the editor holds them (new and changed ones are saved with the project)
+            if let Some(m) = assets.iter_mut().find(|(f, _)| *f == "materials") {
+                m.1 = ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/").to_string()).collect();
+            }
             for (folder, files) in &assets {
                 let title = format!("{}{}  ({})", folder[..1].to_uppercase(), &folder[1..], files.len());
                 egui::CollapsingHeader::new(title).id_salt(folder).default_open(*folder == "textures").show(ui, |ui| {
                     if files.is_empty() {
                         ui.label(egui::RichText::new("empty").color(MUTED).size(11.0));
+                    }
+                    if *folder == "materials" && ui.small_button("+ New material").on_hover_text("A plain material: give it a texture, tint, shine or glow").clicked() {
+                        ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
                     }
                     for f in files {
                         let path = format!("assets/{folder}/{f}");
@@ -184,6 +191,12 @@ fn assets_panel(root: &mut Ui, ed: &mut Editor) {
                                 ed.placing_model = Some(path);
                                 ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
                             }
+                        } else if *folder == "materials" {
+                            // materials: click to change, drag onto a face
+                            let open = ed.material_open.as_deref() == Some(path.as_str());
+                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).sense(Sense::click_and_drag()))
+                                .on_hover_text("Click to change it (every surface using it changes) · drag onto a face");
+                            if r.clicked() { ed.material_open = Some(path); } else if r.drag_started() { ed.texturing = Some(path); }
                         } else if super::texture::is_texture(f) {
                             // textures: drag onto a face (or click, then click a face)
                             let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).sense(Sense::click_and_drag()))
@@ -215,7 +228,7 @@ fn assets_panel(root: &mut Ui, ed: &mut Editor) {
                     if ui.add(egui::Button::selectable(on, txt).frame(false)).clicked() { pick = Some(p.id); }
                 });
             }
-            if let Some(id) = pick { ed.selected = Some(id); }
+            if let Some(id) = pick { ed.selected = Some(id); ed.material_open = None; }
             if let Some(id) = flip {
                 if let Some(p) = ed.level.get_mut(id) { p.visible = !p.visible; }
             }
@@ -236,6 +249,10 @@ fn dashed_rect(p: &egui::Painter, r: ERect, color: Color32) {
 fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
     let frame = egui::Frame::new().fill(PANEL).inner_margin(egui::Margin::symmetric(16, 12)).stroke(Stroke::new(1.0, LINE));
     egui::Panel::bottom("props").min_size(168.0).max_size(420.0).resizable(false).frame(frame).show(root, |ui| {
+        if let Some(path) = ed.material_open.clone().filter(|p| ed.level.materials.contains_key(p)) {
+            material_panel(ui, ed, &path);
+            return;
+        }
         let Some(id) = ed.selected.filter(|id| ed.level.get(*id).is_some()) else {
             ui.vertical_centered(|ui| {
                 ui.add_space(34.0);
@@ -362,6 +379,53 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
 }
 
 /// A port chip: an output ("Pressed ▸") or an input ("▸ Go") in its category colour.
+/// A material's settings: every surface using it changes with it.
+fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
+    let mut m = ed.level.materials[path].clone();
+    let before = m.clone();
+    let mut ranges = ed.level.ranges.clone();
+    let mut ranges_changed = false;
+    let (surfaces, parts) = ed.level.material_users(path);
+    let name = path.trim_start_matches("assets/materials/").trim_end_matches(".bev").to_string();
+    let textures: Vec<String> = ed.assets.iter().find(|(f, _)| *f == "textures").map(|(_, t)| t.iter().filter(|t| super::texture::is_texture(t)).cloned().collect()).unwrap_or_default();
+    let (mut copy, mut close) = (false, false);
+    egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+        column(ui, 220.0, "MATERIAL", |ui| {
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
+                ui.painter().rect_filled(r, CornerRadius::same(2), theme::VIOLET);
+                ui.label(egui::RichText::new(&name).font(semi(13.0)));
+            });
+            let s = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
+            ui.label(egui::RichText::new(format!("Used by {} on {}", s(surfaces, "surface"), s(parts, "part"))).color(MUTED));
+            ui.horizontal(|ui| {
+                if ui.button("Copy").on_hover_text("A new material like this one, to change on its own").clicked() { copy = true; }
+                if ui.button("Close").on_hover_ui(|ui| theme::hint(ui, "Back to the selected part", &["Esc"])).clicked() { close = true; }
+            });
+        });
+        column(ui, 230.0, "TEXTURE", |ui| {
+            let shown = m.texture.as_deref().and_then(|t| t.rsplit('/').next()).unwrap_or("None (plain)").to_string();
+            egui::ComboBox::from_id_salt("material texture").selected_text(shown).width(200.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut m.texture, None, "None (plain)");
+                for t in &textures { ui.selectable_value(&mut m.texture, Some(format!("assets/textures/{t}")), t); }
+            });
+            ui.label(egui::RichText::new("Drag the material from Assets onto faces").color(MUTED).size(11.0));
+        });
+        let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
+        column(ui, 300.0, "LOOK", |ui| { settings::section(ui, &mut m, level::MATERIAL, &mut ctx); });
+        ranges_changed = ctx.ranges_changed;
+    }); });
+    if m != before { ed.level.materials.insert(path.to_string(), m.clone()); }
+    if ranges_changed { ed.level.ranges = ranges; }
+    if copy {
+        let new = ed.level.new_material(&format!("{name} copy"), m);
+        ed.island.show("◈", "Copied the material", new.trim_start_matches("assets/materials/").to_string(), theme::Tone::Accent);
+        ed.material_open = Some(new);
+    }
+    if close || ui.input(|i| i.key_pressed(egui::Key::Escape)) { ed.material_open = None; }
+}
+
 fn port(ui: &mut Ui, text: &str, color: Color32) {
     egui::Frame::new().fill(color.gamma_multiply(0.22)).stroke(Stroke::new(1.0, color.gamma_multiply(0.7))).corner_radius(CornerRadius { nw: 8, ne: 8, se: 8, sw: 3 }).inner_margin(egui::Margin::symmetric(7, 2)).show(ui, |ui| {
         ui.label(egui::RichText::new(text).font(semi(12.0)).color(TEXT));

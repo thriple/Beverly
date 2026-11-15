@@ -72,6 +72,8 @@ pub struct Editor {
     pub tex_face: Option<u8>,
     pub tex_drag: Option<texture::Drag>,
     pub tex_hot: Option<texture::Grip>,
+    /// The material shown in the bottom panel instead of the selected part (clicked in Assets).
+    pub material_open: Option<String>,
     pub hover_handle: Option<edit::Grip>,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
@@ -149,6 +151,7 @@ impl Editor {
             tex_face: None,
             tex_drag: None,
             tex_hot: None,
+            material_open: None,
             hover_handle: None,
             label: None,
             player: "beverly-player",

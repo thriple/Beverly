@@ -281,7 +281,7 @@
    "id": "materials",
    "name": "Textures and materials",
    "area": "Level building",
-   "status": "planned",
+   "status": "done",
    "effort": "L",
    "needs": [
     "shapes"
@@ -291,10 +291,11 @@
     "Textures on parts and faces: drop, scale, offset, the violet texture handles",
     "Material assets shared by many surfaces, the Materials panel, glowing-surface material"
    ],
-   "note": "Part 1 built 2026-11-15 (pushed, released with part 2): faces on the basic shapes (named, for the panel and the MCP), textures laid in metres (flat faces across, round faces wrapped), a material file per texture in assets/materials, drag from Assets onto a face (Shift: the whole shape), violet handles, the Textures section, png/jpeg loading (also fixes textures inside models). Test project: tests/textures. MCP: lay_texture, and get_part lists faces and textures.",
+   "note": "Faces on the basic shapes (named, for the panel and the MCP); textures laid in metres (flat faces across, round faces wrapped); drag a texture or material from Assets onto a face (Shift: the whole shape); violet handles slide and size it; the part panel's Textures section. Materials (assets/materials/*.bev): texture, tint, opacity, metal, roughness, glow; one made per texture automatically, + New material, Copy; the Materials panel (click one in Assets) changes every surface using it. The editor keeps materials with the level, so undo and the unsaved dot cover them; Save writes their files. png/jpeg loading (also fixes textures inside models). Test project: tests/textures. MCP: lay_texture (texture or material, per face), get_material, change_material, new_material; get_part lists faces and textures.",
    "order": 17,
    "first_game": true,
-   "next": true
+   "built": "2026-11-15",
+   "build": 28
   },
   {
    "id": "instancing",

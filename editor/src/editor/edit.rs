@@ -679,6 +679,7 @@ pub fn interact(
             if a.distance(b) < 5.0 || view.mode == Mode::Builder {
                 let hit = ray.and_then(|r| ed.hit(r));
                 ed.selected = hit.as_ref().and_then(|h| h.part);
+                ed.material_open = None;
                 ed.tex_face = hit.and_then(|h| h.face);
             }
         }
@@ -755,11 +756,14 @@ pub fn sync(
     mut assets: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut views: Query<(Entity, &mut PartView, &mut Transform)>,
+    mut materials: Local<std::collections::BTreeMap<String, level::Material>>,
 ) {
     if !ed.is_changed() { return; }
-    // a textured part's mesh is laid out for its size
+    // a textured part's mesh is laid out for its size, and its look follows its materials
+    let mats_changed = *materials != ed.level.materials;
+    if mats_changed { *materials = ed.level.materials.clone(); }
     let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color
-        && a.surfaces == b.surfaces && (a.surfaces.is_empty() || a.size == b.size);
+        && a.surfaces == b.surfaces && (a.surfaces.is_empty() || (a.size == b.size && !mats_changed));
     let mut seen = std::collections::HashSet::new();
     for (e, mut v, mut t) in &mut views {
         match ed.level.get(v.id) {
@@ -774,7 +778,7 @@ pub fn sync(
         }
     }
     for p in ed.level.parts.iter().filter(|p| !seen.contains(&p.id)) {
-        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, dir: &ed.dir };
+        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &ed.level.materials };
         if let Some(e) = world::spawn_visual(&mut commands, p, &mut looks, true) {
             commands.entity(e).insert(PartView { id: p.id, applied: p.clone() });
         }

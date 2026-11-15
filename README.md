@@ -13,7 +13,8 @@ together. Code is only for new kinds of parts.
 - Move and turn widgets with snapping, a properties panel, undo / redo.
 - **Models:** drop `.glb` / `.gltf` files on the window, then place them from the Assets panel.
 - **Textures:** drop `.png` / `.jpg` files on the window, then drag one from the Assets panel onto a face (Shift: the
-  whole shape); the violet handles slide and size it.
+  whole shape); the violet handles slide and size it. Materials (Assets > Materials) hold a texture plus tint,
+  opacity, metal, roughness and glow; changing one changes every surface that uses it.
 - **Test it:** press `` ` `` to walk the level with a stand-in character (Shift+`` ` `` starts at the Player start).
 - **Export:** File > Export Windows game writes a zip with `<project>.exe` and the project's files.
 - Projects are folders of plain text files (`project.bev`, `levels/*.bev`, `assets/`); projects saved as `.ron`
