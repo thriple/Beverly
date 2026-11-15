@@ -559,8 +559,9 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <div class="said">Non-script, non-character parts are instanced unless toggled Unique. Foliage gets its own system later.</div>
       <ul>
         <li><b>Rule:</b> anything that is only a mesh plus a material (shapes and imported models with no wires, no skeleton, no behaviour) is instanced. Script parts, characters, lights and cameras are always individual.</li>
-        <li>Instances can still differ in position, rotation, scale and a tint colour. Changing anything else asks "Change all 12, or make this one Unique?"</li>
-        <li>Unique copies the mesh and material so that copy can be edited alone.</li>
+        <li><b>The box and its contents:</b> each part is a box (name, position, turn, size, tint colour), and instances share everything inside it: the shape or model, the textures and how they lie, Visible, Collision. Parts with the same contents are instances of each other; changing one's contents asks "Change all 12, or make this one Unique?" (<kbd>Enter</kbd> / <kbd>U</kbd>), with the others outlined. One undo takes back the change and the answer.</li>
+        <li>Unique (a toggle in the part panel) gives a part contents of its own: its changes never ask, and it is never changed with others. Material files stay shared assets (the Materials panel's Copy makes one of its own).</li>
+        <li>Drawing: parts sharing a mesh and a material are batched by Bevy. One mesh per shape, one loaded copy per model, and textured shapes share one mesh per shape, size and textured faces.</li>
         <li>Foliage later: a paint brush that scatters from a set of variants with random rotation, scale and tint, so repeats aren't obvious. It's always instanced and always LOD'd.</li>
       </ul>
     </div>

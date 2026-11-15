@@ -91,6 +91,9 @@ pub struct Editor {
     /// Help > MCP Server: the window, and the server (off unless the user turned it on).
     pub mcp_open: bool,
     pub mcp: mcp::Mcp,
+    /// "Change all 12, or make this one Unique?": the part whose contents were just changed, and its instances
+    /// that kept theirs (see `Level::split_from`).
+    pub ask: Option<(u64, Vec<u64>)>,
 }
 
 impl Editor {
@@ -163,6 +166,7 @@ impl Editor {
             updater: default(),
             mcp_open: false,
             mcp: mcp::Mcp::off(),
+            ask: None,
         };
         ed.refresh_assets();
         ed

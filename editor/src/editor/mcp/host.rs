@@ -227,6 +227,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             let changed = settings::apply(&mut p, set)?;
             let id = p.id;
             *ed.level.get_mut(id).expect("found above") = p;
+            settle_instances(ed, args)?;
             // a part that stopped moving keeps no wires to its inputs
             let inputs = ed.level.get(id).map(|p| p.inputs()).unwrap_or_default();
             let outputs = ed.level.get(id).map(|p| p.outputs()).unwrap_or_default();
@@ -302,6 +303,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 if let Some(t) = tile { s.tile = t; }
                 if let Some(o) = offset { s.offset = o; }
             }
+            settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
         }
@@ -609,12 +611,31 @@ fn describe_material(ed: &Editor, path: &str) -> Value {
     json!({"material": path, "texture": m.texture, "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)})
 }
 
+/// A change to a part's contents that its instances didn't get: settled by `instances` ("all", or "this one",
+/// which makes the part Unique), or, without it, taken back and refused.
+fn settle_instances(ed: &mut Editor, args: &Value) -> Result<(), String> {
+    let Some((id, them)) = ed.level.split_from(&ed.committed) else { return Ok(()) };
+    match args.get("instances").and_then(Value::as_str) {
+        Some("all") => ed.level.change_all(id, &them),
+        Some("this one") => ed.level.get_mut(id).expect("in the level").unique = true,
+        other => {
+            ed.level = ed.committed.clone();
+            let name = ed.level.get(id).map(|p| p.name.clone()).unwrap_or_default();
+            if let Some(o) = other { return Err(format!("instances is \"all\" or \"this one\", not {o:?}")); }
+            return Err(format!("{name} has {} instances (parts with the same shape and textures): say instances \"all\" to change them all, or \"this one\" to make {name} Unique and change only it", them.len()));
+        }
+    }
+    Ok(())
+}
+
 fn describe(ed: &Editor, p: &Part) -> Value {
     let name = |id: u64| ed.level.get(id).map(|q| q.name.clone()).unwrap_or_default();
     let mut v = summary(p);
     v["settings"] = settings::describe(p);
     v["outputs"] = json!(p.outputs());
     v["inputs"] = json!(p.inputs());
+    // parts with the same contents; changing those asks for instances "all" or "this one"
+    v["instances"] = json!(ed.level.instances(p.id).len());
     v["wires_out"] = Value::Array(ed.level.wires.iter().filter(|w| w.from == p.id).map(|w| json!({"output": w.out, "to": name(w.to), "to_id": w.to, "input": w.input})).collect());
     v["wires_in"] = Value::Array(ed.level.wires.iter().filter(|w| w.to == p.id).map(|w| json!({"input": w.input, "from": name(w.from), "from_id": w.from, "output": w.out})).collect());
     if crate::editor::texture::takes_textures(p) {

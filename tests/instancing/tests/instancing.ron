@@ -1,0 +1,10 @@
+// Instances (four crates with the same contents, each with its own place, turn, size and colour) and a Unique crate
+// load and play: they share one mesh where their boxes match, and the walker is stopped by an instance.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 3.0, release: ["W"]),
+        (at: 3.2, shot: "stopped", expect: [Feet((0, 0, 1.4), 0.3)]),
+    ],
+)

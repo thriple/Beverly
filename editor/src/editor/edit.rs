@@ -60,6 +60,7 @@ impl Editor {
     }
 
     pub fn undo(&mut self) {
+        self.ask = None;
         if let Some(prev) = self.undo.pop() {
             self.redo.push(std::mem::replace(&mut self.level, prev.clone()));
             self.committed = prev;
@@ -71,6 +72,7 @@ impl Editor {
     }
 
     pub fn redo(&mut self) {
+        self.ask = None;
         if let Some(next) = self.redo.pop() {
             self.undo.push(std::mem::replace(&mut self.level, next.clone()));
             self.committed = next;
@@ -148,6 +150,7 @@ impl Editor {
         self.level = lvl;
         self.undo.clear();
         self.redo.clear();
+        self.ask = None;
         self.selected = None;
         self.placing = None;
         self.project_changed = true;
@@ -714,6 +717,8 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::Escape) && !parts_open { act("edit.deselect"); }
     if jp(KeyCode::Delete) || jp(KeyCode::Backspace) { act("edit.delete"); }
     if jp(KeyCode::KeyF) { act("view.frame"); }
+    if jp(KeyCode::Enter) || jp(KeyCode::NumpadEnter) { act("edit.change_all"); }
+    if jp(KeyCode::KeyU) { act("edit.make_unique"); }
 }
 
 /// Files dragged in from Explorer are copied into the project's assets.
@@ -825,6 +830,8 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
         let tip = pts[23];
         g.arrow(tip, b, col);
     }
+    // while asking "Change all?": the instances it would change
+    for q in ed.ask.iter().flat_map(|(_, them)| them).filter_map(|id| ed.level.get(*id)) { outline(&mut o, q, Color::srgba(0.96, 0.86, 0.29, 0.4)); }
     let Some(p) = ed.selected.and_then(|id| ed.level.get(id)) else { return };
     outline(&mut o, p, Color::srgb(0.96, 0.86, 0.29));
     if ed.placing.is_some() { return; }
@@ -852,6 +859,23 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     }
 }
 
+impl Editor {
+    /// Answer the question: give the instances the part's new contents (`all`), or make the part Unique.
+    pub fn settle(&mut self, all: bool) {
+        let Some((id, them)) = self.ask.take() else { return };
+        let Some(name) = self.level.get(id).map(|p| p.name.clone()) else { return };
+        if all {
+            self.level.change_all(id, &them);
+            self.island.show("◇", format!("Changed all {}", them.len() + 1), format!("{name} and its instances"), Tone::Accent);
+        } else {
+            self.level.get_mut(id).expect("found above").unique = true;
+            self.island.show("◆", format!("{name} is Unique"), "Its changes stay on it", Tone::Accent);
+        }
+        // the answer to a question joins the change's step; Make Unique on its own is a step of its own
+        if !them.is_empty() { self.committed = self.level.clone(); }
+    }
+}
+
 /// One undo step per finished change: when the level differs from the last step and no drag is going on.
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     if ed.drag.is_some() || mouse.pressed(MouseButton::Left) { return; }
@@ -859,9 +883,11 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
 }
 
 impl Editor {
-    /// Make the change since the last undo step a step of its own (if there is one).
+    /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
+    /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
         if self.level == self.committed { return; }
+        if let Some(split) = self.level.split_from(&self.committed) { self.ask = Some(split); }
         let now = self.level.clone();
         let prev = std::mem::replace(&mut self.committed, now);
         self.undo.push(prev);
@@ -883,7 +909,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![],
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -897,7 +923,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![],
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;
@@ -914,5 +940,37 @@ mod tests {
         assert!(Vec3::from(q.pos).distance(Vec3::from(p.pos)) < 1e-5);
         // never down to nothing
         assert!(scaled(&p, bx, Grip::Face(1, true), -3.0, false).size[1] >= 0.02);
+    }
+
+    #[test]
+    fn changing_an_instance_asks_and_change_all_or_unique_is_one_undo_step() {
+        let mut ed = Editor::at(std::env::temp_dir());
+        let boxed = |x: f32| Part::placed(Shape::Box, None, format!("Box {x}"), [x, 1.0, 0.0], Quat::IDENTITY.to_array(), [2.0; 3]);
+        let (a, b, c) = (ed.level.add(boxed(0.0)), ed.level.add(boxed(3.0)), ed.level.add(boxed(6.0)));
+        ed.commit();
+        let steps = ed.undo.len();
+        ed.lay_texture(a, Some(2), "assets/textures/brick.png").unwrap();
+        ed.commit();
+        assert_eq!(ed.ask, Some((a, vec![b, c])), "it asks");
+        ed.settle(true);
+        assert!(ed.ask.is_none());
+        assert!([b, c].iter().all(|id| ed.level.get(*id).unwrap().surfaces == ed.level.get(a).unwrap().surfaces), "all changed");
+        ed.commit();
+        assert_eq!(ed.undo.len(), steps + 1, "one step");
+        ed.undo();
+        assert!(ed.level.parts.iter().all(|p| p.surfaces.is_empty()), "one undo takes it all back");
+        // Make Unique: only this one changes, and later changes to it never ask
+        ed.lay_texture(b, None, "assets/textures/brick.png").unwrap();
+        ed.commit();
+        ed.settle(false);
+        assert!(ed.level.get(b).unwrap().unique && ed.level.get(a).unwrap().surfaces.is_empty());
+        ed.level.get_mut(b).unwrap().visible = false;
+        ed.commit();
+        assert!(ed.ask.is_none());
+        // the box (colour, size, place) is each part's own: no question
+        ed.level.get_mut(a).unwrap().color = [1.0, 0.0, 0.0];
+        ed.level.get_mut(a).unwrap().size = [1.0; 3];
+        ed.commit();
+        assert!(ed.ask.is_none());
     }
 }

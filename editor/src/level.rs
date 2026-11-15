@@ -298,6 +298,11 @@ pub struct Part {
     /// Textures laid on the part (basic shapes): all over, or face by face.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub surfaces: Vec<Surface>,
+    /// Off (the default): parts with the same contents (what is inside the box: see [`Part::same_contents`]) are
+    /// instances of each other, and changing one asks whether to change them all. On: its contents are its own.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[reflect(@Setting::toggle("Unique").section(PART).help("On: changing its look never changes the parts just like it"))]
+    pub unique: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
@@ -311,7 +316,7 @@ impl Part {
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
             collision: if shape == Shape::PlayerStart { Collision::WalkThrough } else { Collision::Solid },
-            model, mover: None, surfaces: vec![],
+            model, mover: None, surfaces: vec![], unique: false,
         }
     }
 
@@ -321,6 +326,20 @@ impl Part {
         v
     }
     pub fn inputs(&self) -> &'static [&'static str] { if self.mover.is_some() { &Mover::INPUTS } else { &[] } }
+
+    /// Whether two parts hold the same contents: what is inside the box (the shape or model, its textures and how
+    /// they lie, Visible, Collision). The box itself (name, position, turn, size, colour) is each part's own.
+    pub fn same_contents(&self, o: &Part) -> bool {
+        self.shape == o.shape && self.model == o.model && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
+    }
+    /// Take `from`'s contents, keeping this part's box.
+    pub fn set_contents(&mut self, from: &Part) {
+        self.shape = from.shape;
+        self.model = from.model.clone();
+        self.surfaces = from.surfaces.clone();
+        self.visible = from.visible;
+        self.collision = from.collision;
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -349,6 +368,32 @@ impl Level {
     /// A new name like "Box 3": the lowest number not used by another part of that shape.
     pub fn fresh_name(&self, base: &str) -> String {
         (1..).map(|n| format!("{base} {n}")).find(|n| !self.parts.iter().any(|p| &p.name == n)).unwrap()
+    }
+
+    /// Whether a part is instanced: only a mesh plus a material (a basic shape or a model), not Unique, with no
+    /// behaviour (Moves, wires), which keeps a part individual.
+    pub fn instanced(&self, p: &Part) -> bool {
+        (Shape::ALL.contains(&p.shape) || p.shape == Shape::Model) && !p.unique && p.mover.is_none()
+            && !self.wires.iter().any(|w| w.from == p.id || w.to == p.id)
+    }
+    /// The other parts that are instances of the same contents as part `id`.
+    pub fn instances(&self, id: u64) -> Vec<u64> {
+        let Some(p) = self.get(id).filter(|p| self.instanced(p)) else { return vec![] };
+        self.parts.iter().filter(|q| q.id != id && self.instanced(q) && q.same_contents(p)).map(|q| q.id).collect()
+    }
+    /// The part whose contents changed since `before` while its instances there kept theirs: (it, them). Changing
+    /// them all, or making it Unique, settles it.
+    pub fn split_from(&self, before: &Level) -> Option<(u64, Vec<u64>)> {
+        self.parts.iter().find_map(|p| {
+            let old = before.get(p.id).filter(|o| !o.same_contents(p) && self.instanced(p))?;
+            let them: Vec<u64> = before.instances(p.id).into_iter().filter(|o| self.get(*o).is_some_and(|q| q.same_contents(old) && self.instanced(q))).collect();
+            (!them.is_empty()).then_some((p.id, them))
+        })
+    }
+    /// Give `them` part `id`'s contents.
+    pub fn change_all(&mut self, id: u64, them: &[u64]) {
+        let Some(p) = self.get(id).cloned() else { return };
+        for q in self.parts.iter_mut().filter(|q| them.contains(&q.id)) { q.set_contents(&p); }
     }
 
     pub fn add(&mut self, mut part: Part) -> u64 {
@@ -576,5 +621,39 @@ mod tests {
         assert_eq!(back.materials[&brick].glow, 2.0);
         assert_eq!(back.materials, lvl.materials);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn instances_share_their_contents_and_unique_or_behaviour_keeps_a_part_alone() {
+        let mut lvl = Level { name: "main".into(), ..Default::default() };
+        let boxed = |x: f32| Part::placed(Shape::Box, None, format!("Box {x}"), [x, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], [2.0; 3]);
+        let a = lvl.add(boxed(0.0));
+        let b = lvl.add(Part { color: [1.0, 0.0, 0.0], size: [1.0, 3.0, 1.0], ..boxed(3.0) });
+        let c = lvl.add(boxed(6.0));
+        let ball = lvl.add(Part::placed(Shape::Sphere, None, "Ball".into(), [9.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], [2.0; 3]));
+        // the box (place, size, colour) is each part's own; the contents are shared
+        assert_eq!(lvl.instances(a), [b, c]);
+        assert!(lvl.instances(ball).is_empty());
+        // texturing one splits it from the others until they all change or it is made Unique
+        let before = lvl.clone();
+        lvl.get_mut(a).unwrap().lay(Surface { face: None, material: "assets/materials/brick.bev".into(), tile: [1.0, 1.0], offset: [0.0, 0.0] });
+        assert_eq!(lvl.split_from(&before), Some((a, vec![b, c])));
+        let mut all = lvl.clone();
+        all.change_all(a, &[b, c]);
+        assert_eq!(all.split_from(&before), None);
+        assert_eq!(all.instances(a), [b, c]);
+        assert_eq!((all.get(b).unwrap().color, all.get(b).unwrap().size), ([1.0, 0.0, 0.0], [1.0, 3.0, 1.0]), "their boxes stay theirs");
+        lvl.get_mut(a).unwrap().unique = true;
+        assert_eq!(lvl.split_from(&before), None);
+        assert_eq!(lvl.instances(b), [c]);
+        // moving or wired parts are individual
+        let mut lvl = before.clone();
+        lvl.get_mut(c).unwrap().mover = Some(Mover::default());
+        assert_eq!(lvl.instances(a), [b]);
+        lvl.wires.push(Wire { from: b, out: "x".into(), to: ball, input: "y".into() });
+        assert!(lvl.instances(a).is_empty());
+        // Unique is saved only when on
+        let text = ron::to_string(&Part { unique: true, ..boxed(0.0) }).unwrap();
+        assert!(text.contains("unique:true") && !ron::to_string(&boxed(0.0)).unwrap().contains("unique"), "{text}");
     }
 }

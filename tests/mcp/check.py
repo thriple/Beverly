@@ -27,6 +27,8 @@ def tool(name, /, **args):
     if r["isError"]: return {"error": c["text"]}
     return c if c["type"] == "image" else json.loads(c["text"])
 
+def setting(part, field): return next((s["value"] for s in part.get("settings", []) if s["field"] == field), None)
+
 def check(what, ok, got=""):
     global failed
     print(("✓ " if ok else "✗ FAIL ") + what + ("" if ok else f": {got}"))
@@ -40,13 +42,18 @@ undo0 = p["undo_steps"]
 
 a = tool("add_part", kind="Box", position=[5, 1, 0], settings={"Name": "Check box", "Colour": "#ff8000", "Turn": 30})
 check("add_part places a part with settings", a.get("name") == "Check box", a)
+check("a plain box is an instance of the lift's ledge (same contents)", tool("get_part", name="Check box").get("instances") == 1)
+r = tool("change_part", name="Check box", settings={"Visible": False})
+check("changing an instance's contents asks for instances", "error" in r and "instances" in r["error"] and setting(tool("get_part", name="Check box"), "visible"), r)
+u = tool("change_part", name="Check box", settings={"Visible": False}, instances="this one")
+check("instances \"this one\" makes it Unique and changes only it", setting(u.get("part", {"settings": []}), "unique") and setting(tool("get_part", name="Ledge 1"), "visible"), u)
 c = tool("change_part", name="Check box", settings={"Size": [3, 1, 1], "Moves": {"Speed": 1}})
 check("change_part changes settings", sorted(c.get("changed", [])) == ["mover", "size"], c)
 bad = tool("change_part", name="Check box", settings={"Size": [1, 1, 1], "Collision": "Sticky"})
 check("a bad setting changes nothing", "error" in bad and tool("get_part", name="Check box")["size"] == [3, 1, 1], bad)
-for _ in range(2): tool("run_action", id="edit.undo")
+for _ in range(3): tool("run_action", id="edit.undo")
 p = tool("get_project")
-check("two undos take both edits back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
+check("three undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
 
 img = tool("screenshot", **{"from": [8, 6, 6], "look_at": [0, 2, -4], "width": 640})
 check("a screenshot from elsewhere is a PNG", img.get("type") == "image" and base64.b64decode(img["data"])[:8] == b"\x89PNG\r\n\x1a\n", str(img)[:200])

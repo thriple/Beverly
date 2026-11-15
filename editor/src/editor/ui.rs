@@ -58,6 +58,7 @@ pub fn ui(
     view.rect = Rect::new(r.left(), r.top(), r.right(), r.bottom());
 
     overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
+    if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
     if ed.about_open { about_modal(&ctx, &mut ed); }
@@ -288,6 +289,22 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                 });
                 let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
                 ui.label(egui::RichText::new(format!("{} {}{file}", p.shape.glyph(), p.shape.label())).color(MUTED));
+                // instances: the parts with the same contents (shape, textures, Visible, Collision)
+                let n = ed.level.instances(id).len();
+                ui.horizontal(|ui| {
+                    theme::toggle(ui, &mut p.unique).on_hover_text("On: changing its look never changes the parts just like it");
+                    let (text, help) = if p.unique {
+                        ("Unique", "Its contents are its own")
+                    } else if !ed.level.instanced(&p) {
+                        ("Its own", "Moving and wired parts are always individual")
+                    } else if n > 0 {
+                        ("", "Parts with the same shape and textures; changing one asks first")
+                    } else {
+                        ("No instances", "Parts with the same shape and textures would be its instances")
+                    };
+                    let text = if text.is_empty() { format!("Instance · {} alike", n + 1) } else { text.to_string() };
+                    ui.label(egui::RichText::new(text).color(MUTED)).on_hover_text(help);
+                });
                 ui.horizontal(|ui| {
                     if ui.button("Duplicate").on_hover_ui(|ui| theme::hint(ui, "Duplicate", &["Ctrl", "D"])).clicked() { ed.duplicate_selected(); }
                     if ui.button("Delete").on_hover_ui(|ui| theme::hint(ui, "Delete", &["Del"])).clicked() { delete = true; }
@@ -376,6 +393,42 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
             if let Some(m) = ed.level.get_mut(id) { *m = p; }
         }
     });
+}
+
+/// "Change all 12, or make this one Unique?" after a change to a part's contents that its instances didn't get.
+fn ask_card(ctx: &egui::Context, ed: &mut Editor, view: &View) {
+    let Some((id, them)) = ed.ask.clone() else { return };
+    let Some(name) = ed.level.get(id).map(|p| p.name.clone()) else { return };
+    let key = Id::new("ask");
+    // fade and scale in (SNAPPY), above the hints at the bottom of the view
+    let t = theme::spring_from(ctx, key, 0.0, 1.0, theme::SNAPPY);
+    let at = pos2(view.rect.center().x, view.rect.max.y - 58.0);
+    let (mut all, mut unique) = (false, false);
+    let resp = egui::Area::new(key).order(egui::Order::Foreground).pivot(Align2::CENTER_BOTTOM).fixed_pos(at).show(ctx, |ui| {
+        ui.multiply_opacity(t.clamp(0.0, 1.0));
+        egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0, white(24))).corner_radius(R_CARD).inner_margin(egui::Margin::same(14)).show(ui, |ui| {
+            ui.label(egui::RichText::new(format!("{name} has {} like it", them.len())).font(semi(14.0)));
+            ui.label(egui::RichText::new("Its instances share what is inside the box: shape, textures, Visible, Collision").color(MUTED).size(12.0));
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let button = |ui: &mut Ui, label: String, key: &str| {
+                    let r = ui.add(egui::Button::new(egui::RichText::new(label).font(semi(13.0))).min_size(vec2(0.0, 28.0)));
+                    theme::kbd(ui, key);
+                    r.clicked()
+                };
+                all = button(ui, format!("Change all {}", them.len() + 1), "Enter");
+                ui.add_space(10.0);
+                unique = button(ui, "Make this one Unique".into(), "U");
+                ui.add_space(10.0);
+                theme::hint(ui, "Undo", &["Ctrl", "Z"]);
+            });
+        });
+    });
+    let s = 0.94 + 0.06 * t;
+    let c = resp.response.rect.center_bottom();
+    ctx.set_transform_layer(resp.response.layer_id, TSTransform::new(c.to_vec2() * (1.0 - s), s));
+    if all { ed.settle(true); }
+    if unique { ed.settle(false); }
 }
 
 /// A port chip: an output ("Pressed ▸") or an input ("▸ Go") in its category colour.

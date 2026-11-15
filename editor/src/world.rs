@@ -78,7 +78,8 @@ pub fn raycast(parts: &[Part], geo: &Geometry, ray: Ray3d, skip: Option<u64>, ke
 }
 
 /// Shared materials: one per colour, one per material file and way it is laid, plus the see-through ones for
-/// hidden colliders and ghosts.
+/// hidden colliders and ghosts. Also the meshes of textured shapes, one per shape, size and faces, so instances
+/// share them (Bevy draws parts sharing a mesh and a material in one batch).
 #[derive(Resource)]
 pub struct Mats {
     cache: HashMap<[u8; 3], Handle<StandardMaterial>>,
@@ -86,6 +87,8 @@ pub struct Mats {
     pub ghost: Handle<StandardMaterial>,
     laid: HashMap<(String, [u32; 4]), Handle<StandardMaterial>>,
     images: HashMap<String, Handle<Image>>,
+    /// Weak, so a mesh goes once no part uses it (a textured part being resized makes one per size).
+    faces: HashMap<(Shape, [u32; 3], Vec<u8>), AssetId<Mesh>>,
 }
 
 impl Mats {
@@ -95,6 +98,15 @@ impl Mats {
             .entry(key)
             .or_insert_with(|| assets.add(StandardMaterial { base_color: Color::srgb_u8(key[0], key[1], key[2]), perceptual_roughness: 0.75, ..default() }))
             .clone()
+    }
+
+    /// The faces `faces` of a basic shape of this size, laid out for textures in metres.
+    pub fn faces_mesh(&mut self, meshes: &mut Assets<Mesh>, shape: Shape, size: [f32; 3], faces: &[u8]) -> Handle<Mesh> {
+        let key = (shape, size.map(f32::to_bits), faces.to_vec());
+        if let Some(h) = self.faces.get(&key).and_then(|id| meshes.get_strong_handle(*id)) { return h; }
+        let h = meshes.add(shapes::build(shape).faces_mesh(Vec3::from(size), |f| faces.contains(&f)));
+        self.faces.insert(key, h.id());
+        h
     }
 
     /// How a surface looks: its material, laid at the surface's size and offset.
@@ -137,7 +149,7 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
     let see_through = |c: Color| StandardMaterial { base_color: c, alpha_mode: AlphaMode::Blend, unlit: true, cull_mode: None, double_sided: true, ..default() };
     let collider = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.10)));
     let ghost = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.28)));
-    let shared = Mats { cache: HashMap::new(), collider, ghost, laid: HashMap::new(), images: HashMap::new() };
+    let shared = Mats { cache: HashMap::new(), collider, ghost, laid: HashMap::new(), images: HashMap::new(), faces: HashMap::new() };
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(4000.0, 4000.0))),
         MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::srgb(0.075, 0.068, 0.085), perceptual_roughness: 1.0, ..default() })),
@@ -177,16 +189,16 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
             if !p.visible && !editor { return None; }
             if p.visible && !p.surfaces.is_empty() {
                 // the faces, grouped by the surface that covers them (none: the part's colour)
-                let tris = shapes::build(s);
+                let count = shapes::build(s).faces.len() as u8;
                 let mut groups: Vec<(Option<&Surface>, Vec<u8>)> = vec![];
-                for f in 0..tris.faces.len() as u8 {
+                for f in 0..count {
                     let s = p.surface(f);
                     match groups.iter_mut().find(|g| g.0 == s) { Some(g) => g.1.push(f), None => groups.push((s, vec![f])) }
                 }
                 let parent = commands.spawn((tf, Visibility::default())).id();
-                for (s, faces) in groups {
-                    let mat = s.and_then(|s| Some(mats.surface(assets, server, materials.get(&s.material)?, s))).unwrap_or_else(|| mats.color(assets, p.color));
-                    let mesh = meshes.add(tris.faces_mesh(Vec3::from(p.size), |f| faces.contains(&f)));
+                for (laid, faces) in groups {
+                    let mat = laid.and_then(|s| Some(mats.surface(assets, server, materials.get(&s.material)?, s))).unwrap_or_else(|| mats.color(assets, p.color));
+                    let mesh = mats.faces_mesh(meshes, s, p.size, &faces);
                     commands.spawn((Mesh3d(mesh), MeshMaterial3d(mat), Transform::default(), ChildOf(parent)));
                 }
                 return Some(parent);

@@ -36,6 +36,8 @@ pub const ACTIONS: &[Action] = &[
     a("edit.duplicate", "Duplicate", "Part panel", "Ctrl+D"),
     a("edit.delete", "Delete", "Part panel", "Del"),
     a("edit.deselect", "Select nothing", "Keys", "Esc"),
+    a("edit.change_all", "Change all instances", "Change all question", "Enter"),
+    a("edit.make_unique", "Make Unique", "Part panel", "U"),
     a("view.parts", "Parts pop-up", "Top bar", "Tab"),
     a("view.frame", "Frame the selection", "Keys", "F"),
     a("help.about", "About Beverly", "Help", ""),
@@ -56,6 +58,9 @@ pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
         "edit.redo" if ed.redo.is_empty() => Some("Nothing to redo"),
         "edit.duplicate" | "edit.delete" | "view.frame" if ed.selected.is_none() => Some("Nothing is selected"),
         "edit.deselect" if ed.selected.is_none() && ed.placing.is_none() => Some("Nothing is selected"),
+        "edit.change_all" if ed.ask.is_none() => Some("Nothing to change all of (it asks after a change to a part with instances)"),
+        "edit.make_unique" if ed.ask.is_none() && ed.selected.is_none() => Some("Nothing is selected"),
+        "edit.make_unique" if ed.ask.is_none() && ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.unique) => Some("It is Unique already"),
         _ => None,
     }
 }
@@ -79,6 +84,11 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "edit.snap" => ed.snap = !ed.snap,
         "edit.duplicate" => ed.duplicate_selected(),
         "edit.delete" => ed.delete_selected(),
+        "edit.change_all" => ed.settle(true),
+        "edit.make_unique" => {
+            if ed.ask.is_none() { ed.ask = ed.selected.map(|id| (id, vec![])); }
+            ed.settle(false);
+        }
         "edit.deselect" => {
             if ed.placing.is_some() { ed.placing = None } else { ed.selected = None }
         }
