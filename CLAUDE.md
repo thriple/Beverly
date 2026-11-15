@@ -5,6 +5,7 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 
 ## Rules from the user
 
+- **Work on `main` only:** every session commits and pushes to `main`, never to a session branch (user, 2026-11-15).
 - **UI kit:** use the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/theme.rs`) wherever a component
   fits, and build any new UI in its style: its springs (SPRING / SNAPPY / SOFT), fade-and-scale entrances, colours,
   asymmetric corner radii (14/14/14/4) and keycaps for every shortcut.
