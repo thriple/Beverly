@@ -2,7 +2,7 @@
 
 mod caps;
 mod edit;
-mod theme;
+pub(crate) mod theme;
 mod ui;
 mod view;
 

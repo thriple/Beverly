@@ -141,6 +141,7 @@ mod tests {
                 Wire { from: 1, out: "Pressed".into(), to: 2, input: "Toggle".into() },
                 Wire { from: 2, out: "Arrived".into(), to: 2, input: "Back".into() },
             ],
+            ..Default::default()
         };
         let mut world = CollisionWorld::build(&level, &Geometry::default());
         let mut s = Script::new(&level, &world);

@@ -7,10 +7,12 @@
 //!   assets/textures/ ... files dropped onto the Assets panel are copied here
 //!   assets/models/ assets/sounds/ assets/other/
 //! ```
+use crate::settings::{Label, Ranges, Setting};
+use bevy::reflect::{std_traits::ReflectDefault, Reflect};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum Shape {
     Box,
     Ramp,
@@ -101,12 +103,25 @@ impl Shape {
 }
 
 /// A part that moves: from where it was placed to `pos + to` over `secs`, eased, when told to.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
 pub struct Mover {
     /// The end position, relative to the start (metres).
+    #[reflect(@Setting::number("By", "m", 0.05, -100000.0, 100000.0).section(MOVES).help("Where it moves to, from where it was placed"))]
     pub to: [f32; 3],
+    #[reflect(@Setting::feel("Speed", ("Slow", "Quick"), 20.0, 0.2, "s").log().section(MOVES).help("How long it takes to get there"))]
     pub secs: f32,
 }
+
+impl Default for Mover {
+    fn default() -> Self { Mover { to: [0.0, 3.0, 0.0], secs: 2.0 } }
+}
+
+/// The part panel's sections.
+pub const PART: &str = "PART";
+pub const PLACE: &str = "POSITION  ·  ROTATION";
+pub const LOOK: &str = "SIZE  ·  LOOK";
+pub const MOVES: &str = "MOVES";
 
 impl Mover {
     pub const INPUTS: [&str; 3] = ["Go", "Back", "Toggle"];
@@ -122,8 +137,13 @@ pub struct Wire {
     pub input: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Collision { Solid, WalkThrough, Trigger }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
+pub enum Collision {
+    Solid,
+    #[reflect(@Label("Walk-through"))]
+    WalkThrough,
+    Trigger,
+}
 
 impl Collision {
     pub const ALL: [Collision; 3] = [Collision::Solid, Collision::WalkThrough, Collision::Trigger];
@@ -137,23 +157,31 @@ impl Collision {
 }
 
 /// One basic shape placed in a level. With `visible` off it is only a collider.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
 pub struct Part {
     pub id: u64,
+    #[reflect(@Setting::text("Name").section(PART))]
     pub name: String,
     pub shape: Shape,
+    #[reflect(@Setting::number("", "m", 0.05, -100000.0, 100000.0).section(PLACE))]
     pub pos: [f32; 3],
     /// Rotation as a quaternion (x, y, z, w).
+    #[reflect(@Setting::turn("Turn").section(PLACE))]
     pub rot: [f32; 4],
+    #[reflect(@Setting::number("", "m", 0.02, 0.02, 100000.0).section(LOOK))]
     pub size: [f32; 3],
     /// sRGB, 0..1.
+    #[reflect(@Setting::colour("Colour").section(LOOK))]
     pub color: [f32; 3],
+    #[reflect(@Setting::toggle("Visible").section(LOOK).help("Off: an invisible collider (shown hatched in the editor only)"))]
     pub visible: bool,
+    #[reflect(@Setting::choice("").section(LOOK))]
     pub collision: Collision,
     /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
 }
 
@@ -173,6 +201,9 @@ pub struct Level {
     pub next_id: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wires: Vec<Wire>,
+    /// Slider range ends changed under More in the panels (see `settings`).
+    #[serde(default, skip_serializing_if = "Ranges::is_empty")]
+    pub ranges: Ranges,
 }
 
 impl Level {

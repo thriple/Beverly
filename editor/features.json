@@ -208,17 +208,18 @@
    "id": "auto-panels",
    "name": "Settings panels from data",
    "area": "Editor basics",
-   "status": "planned",
+   "status": "done",
    "effort": "M",
    "needs": [
     "shell"
    ],
    "what": "Every building block's settings panel is generated from its data: word sliders with numbers under More, toggles, colours, lists, in the Motion kit style; key panels get custom designs later.",
    "chunks": [],
-   "note": "Built on bevy_reflect with range attributes on each setting: one description of a building block's settings serves its panel, saving, the timeline's keyable values and, later, sending it over the network (Prism's Inspector works the same way).",
+   "note": "Built on bevy_reflect: each setting is an attribute on its field (label, kind, section, unit, help; word sliders with their words and end values). One description serves the panel, the MCP server (settings::describe), and later saving, the timeline's keyable values and the network. Range ends changed under More are kept in the file they belong to. The part panel is the first one drawn this way.",
    "order": 13,
    "first_game": true,
-   "next": true
+   "built": "2026-11-15",
+   "build": 18
   },
   {
    "id": "mcp",

@@ -9,6 +9,7 @@ pub mod play;
 pub mod player;
 pub mod script;
 pub mod scripted;
+pub mod settings;
 pub mod shapes;
 pub mod update;
 pub mod world;

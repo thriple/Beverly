@@ -1,7 +1,8 @@
 //! The 2D parts of the editor, in the Motion kit's style: top bar with the File menu, the collapsible Assets
 //! panel, the bottom properties panel, the parts pop-up (Tab), the status island, the speed strip, hints, and the
 //! unsaved-changes question.
-use crate::level::{Collision, Mover, Shape, Wire};
+use crate::level::{self, Shape, Wire};
+use crate::settings::{self, Setting};
 use crate::update::{self, Status};
 use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
 use super::view::{Mode, SPEED_LABELS, View};
@@ -259,7 +260,7 @@ fn dashed_rect(p: &egui::Painter, r: ERect, color: Color32) {
 
 fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
     let frame = egui::Frame::new().fill(PANEL).inner_margin(egui::Margin::symmetric(16, 12)).stroke(Stroke::new(1.0, LINE));
-    egui::Panel::bottom("props").exact_size(168.0).resizable(false).frame(frame).show(root, |ui| {
+    egui::Panel::bottom("props").min_size(168.0).max_size(420.0).resizable(false).frame(frame).show(root, |ui| {
         let Some(id) = ed.selected.filter(|id| ed.level.get(*id).is_some()) else {
             ui.vertical_centered(|ui| {
                 ui.add_space(34.0);
@@ -283,7 +284,9 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
         let before = p.clone();
         let mut delete = false;
         let mut unwire: Option<usize> = None;
-        egui::ScrollArea::horizontal().show(ui, |ui| ui.horizontal_top(|ui| {
+        let mut ranges = ed.level.ranges.clone();
+        let mut ranges_changed = false;
+        egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
             column(ui, 190.0, "PART", |ui| {
                 ui.horizontal(|ui| {
@@ -298,54 +301,16 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     if ui.button("Delete").on_hover_ui(|ui| theme::hint(ui, "Delete", &["Del"])).clicked() { delete = true; }
                 });
             });
-            column(ui, 250.0, "POSITION  ·  ROTATION", |ui| {
-                xyz(ui, &mut p.pos, 0.05, -100000.0, " m");
-                let q = Quat::from_array(p.rot);
-                let (yaw, pitch, roll) = q.to_euler(EulerRot::YXZ);
-                let mut deg = yaw.to_degrees();
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Turn").color(MUTED));
-                    if ui.add(egui::DragValue::new(&mut deg).speed(1.0).suffix("°")).changed() {
-                        p.rot = Quat::from_euler(EulerRot::YXZ, deg.to_radians(), pitch, roll).to_array();
-                    }
-                    if (pitch.abs() > 1e-3 || roll.abs() > 1e-3) && ui.small_button("Stand upright").clicked() {
-                        p.rot = Quat::from_rotation_y(yaw).to_array();
-                    }
-                });
-            });
-            let (title, speed, min, suffix) = if p.shape == Shape::Model { ("SCALE  ·  LOOK", 0.01, 0.001, "×") } else { ("SIZE  ·  LOOK", 0.02, 0.02, " m") };
-            column(ui, 260.0, title, |ui| {
-                xyz(ui, &mut p.size, speed, min, suffix);
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Colour").color(MUTED));
-                    ui.color_edit_button_rgb(&mut p.color);
-                    ui.add_space(12.0);
-                    ui.label(egui::RichText::new("Visible").color(MUTED));
-                    theme::toggle(ui, &mut p.visible).on_hover_text("Off: an invisible collider (shown hatched in the editor only)");
-                });
-                let mut c = Collision::ALL.iter().position(|x| *x == p.collision).unwrap_or(0);
-                let labels: Vec<&str> = Collision::ALL.iter().map(|c| c.label()).collect();
-                if theme::segmented(ui, "collision", &labels, &mut c, false) { p.collision = Collision::ALL[c]; }
-            });
-            if p.shape != Shape::PlayerStart {
-                column(ui, 250.0, "MOVES", |ui| {
-                    ui.horizontal(|ui| {
-                        let mut on = p.mover.is_some();
-                        if theme::toggle(ui, &mut on).on_hover_text("Moves to an end position and back when wired to").changed() {
-                            p.mover = on.then(|| Mover { to: [0.0, 3.0, 0.0], secs: 2.0 });
-                        }
-                        ui.label(egui::RichText::new(if on { "Moves when told to" } else { "Stays put" }).color(MUTED));
-                    });
-                    if let Some(m) = &mut p.mover {
-                        xyz(ui, &mut m.to, 0.05, -100000.0, " m");
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Takes").color(MUTED));
-                            ui.add(egui::DragValue::new(&mut m.secs).speed(0.05).range(0.05..=600.0).max_decimals(2).suffix(" s"));
-                            ui.label(egui::RichText::new("to the end").color(MUTED));
-                        });
-                    }
-                });
+            // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
+            let model = p.shape == Shape::Model;
+            let scale = [("size", Setting::number("", "×", 0.01, 0.001, 100000.0).section(level::LOOK))];
+            let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
+            for sec in settings::sections(&p) {
+                if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
+                let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
+                column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
             }
+            ranges_changed = ctx.ranges_changed;
             let outs = p.outputs();
             let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
             if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
@@ -380,8 +345,11 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor) {
                     }
                 });
             }
-        }));
+        });
+            ui.add_space(12.0); // room for the scroll bar, which floats over the bottom
+        });
         if let Some(i) = unwire { ed.level.wires.remove(i); }
+        if ranges_changed { ed.level.ranges = ranges; }
         if delete {
             ed.delete_selected();
         } else if p != before {
@@ -413,15 +381,6 @@ fn column(ui: &mut Ui, w: f32, title: &str, add: impl FnOnce(&mut Ui)) {
     let r = ui.max_rect();
     ui.painter().line_segment([pos2(x, r.top() + 4.0), pos2(x, r.bottom() - 4.0)], Stroke::new(1.0, LINE));
     ui.add_space(14.0);
-}
-
-fn xyz(ui: &mut Ui, v: &mut [f32; 3], speed: f64, min: f32, suffix: &str) {
-    ui.horizontal(|ui| {
-        for (i, c) in [theme::AXIS_X, theme::AXIS_Y, theme::AXIS_Z].iter().enumerate() {
-            ui.label(egui::RichText::new(["X", "Y", "Z"][i]).font(mono(11.0)).color(*c));
-            ui.add(egui::DragValue::new(&mut v[i]).speed(speed).range(min..=100000.0).max_decimals(2).suffix(suffix));
-        }
-    });
 }
 
 fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
