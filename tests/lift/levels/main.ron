@@ -1,0 +1,11 @@
+(
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 1.0, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Pad 1", shape: Plane, pos: (0.0, 0.05, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (4.0, 0.1, 4.0), color: (0.36, 0.61, 0.94), visible: true, collision: Solid, mover: Some((to: (0.0, 5.0, 0.0), secs: 3.0))),
+        (id: 3, name: "Interact 1", shape: Interact, pos: (1.0, 0.6, -4.5), rot: (0.0, 0.0, 0.0, 1.0), size: (0.5, 1.0, 0.5), color: (0.94, 0.55, 0.26), visible: true, collision: Solid),
+        (id: 4, name: "Ledge 1", shape: Box, pos: (0.0, 2.5, -8.0), rot: (0.0, 0.0, 0.0, 1.0), size: (6.0, 5.0, 4.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+    ],
+    next_id: 4,
+    wires: [(from: 3, out: "Pressed", to: 2, input: "Toggle")],
+)

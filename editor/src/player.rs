@@ -1,6 +1,6 @@
 //! The game player: runs a Beverly project as a game. An exported game is this program, renamed after the
-//! project, with the project's files beside it. Usage: `beverly-player [PROJECT FOLDER]` (default: the folder the
-//! program is in, then the current folder).
+//! project, with the project's files beside it. Usage: `beverly-player [PROJECT FOLDER] [--test FILE [--record]]`
+//! (default folder: the folder the program is in, then the current folder; `--test`: see `scripted`).
 use crate::level::{self, Shape};
 use crate::models::{self, ModelLib, ProjectRoot};
 use crate::play::{Play, PlayCamera, PlayPlugin};
@@ -13,8 +13,22 @@ use std::path::PathBuf;
 #[derive(Resource)]
 struct Game { level: level::Level, geo: Geometry, started: bool }
 
-fn project_dir() -> PathBuf {
-    if let Some(a) = std::env::args().nth(1) { return PathBuf::from(a); }
+/// The command line: the project folder, a test to run, and whether to record its trace again.
+fn args() -> (Option<PathBuf>, Option<PathBuf>, bool) {
+    let (mut dir, mut test, mut record) = (None, None, false);
+    let mut a = std::env::args().skip(1);
+    while let Some(x) = a.next() {
+        match x.as_str() {
+            "--test" => test = a.next().map(PathBuf::from),
+            "--record" => record = true,
+            _ => dir = Some(PathBuf::from(x)),
+        }
+    }
+    (dir, test, record)
+}
+
+fn project_dir(arg: Option<PathBuf>) -> PathBuf {
+    if let Some(a) = arg { return a; }
     let beside = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_path_buf()));
     match beside {
         Some(d) if d.join("project.ron").is_file() => d,
@@ -24,7 +38,8 @@ fn project_dir() -> PathBuf {
 
 /// Run the game. A game with its own code builds its own player with this; `extra` adds its plugins.
 pub fn run(extra: fn(&mut App)) {
-    let dir = project_dir();
+    let (dir, test, record) = args();
+    let dir = project_dir(dir);
     let (name, level) = match level::load(&dir) {
         Ok(x) => x,
         Err(e) => {
@@ -33,20 +48,22 @@ pub fn run(extra: fn(&mut App)) {
         }
     };
     let mut app = App::new();
-    models::register_source(&mut app, &ProjectRoot::new(dir));
+    models::register_source(&mut app, &ProjectRoot::new(dir.clone()));
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window { title: name, resolution: (1600, 900).into(), ..default() }),
         ..default()
     }));
     extra(&mut app);
+    if let Some(t) = test { crate::scripted::add(&mut app, &dir, &t, &level, record); }
     app.add_plugins(PlayPlugin)
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, start, cursor).chain())
-    .run();
+    .add_systems(Update, (models::build_geometry, start, cursor).chain());
+    // a scripted test that failed quits with code 1
+    if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
 
 #[allow(clippy::too_many_arguments)]

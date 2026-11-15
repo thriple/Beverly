@@ -8,6 +8,7 @@ pub mod models;
 pub mod play;
 pub mod player;
 pub mod script;
+pub mod scripted;
 pub mod shapes;
 pub mod update;
 pub mod world;

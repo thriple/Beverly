@@ -26,6 +26,10 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 Bevy 0.20.1 + bevy_egui 0.43.1 (egui 0.36), pinned together with the toolchain in `editor/rust-toolchain.toml`.
 Windows build: `.github/workflows/windows.yml` (release per push) or `tools/make-zip.ps1` locally.
 
+Scripted tests: `beverly-player PROJECT --test tests/NAME.ron` plays a level on a fixed clock, presses keys on a
+timeline, saves screenshots and checks positions (file format in `editor/src/scripted.rs`); `tools/run-tests.sh`
+runs every test project under `tests/`. Give each finished feature a test project there.
+
 A game with its own code (e.g. its player character) depends on this crate and builds its own copy of the editor
 and player: `beverly::editor::run(title, player_exe, plugins)`, `beverly::player::run(plugins)`. A custom player
 character sets `play::Play::custom` and takes over while `Play::on` (see the doc comment there).
