@@ -1,0 +1,10 @@
+// The walker climbs stairs (six steps of a third of a metre, rising toward -Z) and walks on along the landing at the
+// top, 2 m up.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 2.7, release: ["W"]),
+        (at: 3.2, shot: "up", expect: [Feet((0, 2, -2.6), 0.3)]),
+    ],
+)

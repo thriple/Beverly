@@ -1,0 +1,10 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Stairs", shape: Stairs, pos: (0.0, 1.0, 2.0), rot: (0.0, 0.70710677, 0.0, 0.70710677), size: (4.0, 2.0, 2.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid),
+        (id: 3, name: "Landing", shape: Box, pos: (0.0, 1.0, -2.0), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 2.0, 4.0), color: (0.5, 0.55, 0.62), visible: true, collision: Solid),
+    ],
+    next_id: 3,
+)

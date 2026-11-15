@@ -543,6 +543,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "atterate"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "818180a30c6a052a079dd5619ddf04ea6ef9f773c7d57f0ba8f6fde7c181e0f6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -605,6 +616,8 @@ version = "0.1.0"
 dependencies = [
  "avian3d",
  "bevy",
+ "bevy-tnua",
+ "bevy-tnua-avian3d",
  "bevy_egui",
  "image",
  "rfd",
@@ -627,6 +640,54 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78a6c6136c38a50f3d20069adb99064636afcb109cbdf27a00a8c1742f5d630c"
 dependencies = [
  "bevy_internal",
+]
+
+[[package]]
+name = "bevy-tnua"
+version = "0.33.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bca956de7ec823611b58856eb607e23b55c8a0fd944a298629a9232e66bea30"
+dependencies = [
+ "bevy",
+ "bevy-tnua-macros",
+ "bevy-tnua-physics-integration-layer",
+ "ron",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bevy-tnua-avian3d"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c0c1f98b4c0c846cf6081c760e308fbc2c89f41c26211084490c2d72b726ed1"
+dependencies = [
+ "avian3d",
+ "bevy",
+ "bevy-tnua-physics-integration-layer",
+ "ordered-float",
+]
+
+[[package]]
+name = "bevy-tnua-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37a2016668a85bbf54d28a8e53c8fa951de2f4e05fd8d905516ca06f8d2a2c76"
+dependencies = [
+ "atterate",
+ "convert_case 0.11.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "bevy-tnua-physics-integration-layer"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2827f1b1410fdc147990200028d6092918a251acda56f88745d377f836afbf5a"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
@@ -2641,6 +2702,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "convert_case"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2921,7 +2991,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
 dependencies = [
- "convert_case",
+ "convert_case 0.10.0",
  "proc-macro2",
  "quote",
  "rustc_version",

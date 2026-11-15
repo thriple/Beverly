@@ -2,7 +2,7 @@
 //! in the game player.
 use crate::level::{Level, Mover, Shape, Wire};
 use crate::physics::PartBody;
-use crate::play::{CollisionWorld, Play};
+use crate::play::Play;
 use crate::world::part_transform;
 use avian3d::prelude::{LinearVelocity, Position};
 use bevy::prelude::*;
@@ -12,7 +12,6 @@ pub const REACH: f32 = 1.5;
 
 struct Moving {
     id: u64,
-    piece: Option<usize>,
     /// Where it was placed.
     home: Transform,
     to: Vec3,
@@ -40,13 +39,13 @@ pub struct Script {
 }
 
 impl Script {
-    pub fn new(level: &Level, world: &CollisionWorld) -> Self {
+    pub fn new(level: &Level) -> Self {
         let movers = level
             .parts
             .iter()
             .filter_map(|p| {
                 let m: &Mover = p.mover.as_ref()?;
-                Some(Moving { id: p.id, piece: world.piece_of(p.id), home: part_transform(p), to: Vec3::from(m.to), secs: m.secs.max(0.05), t: 0.0, goal: 0.0 })
+                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), secs: m.secs.max(0.05), t: 0.0, goal: 0.0 })
             })
             .collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
@@ -72,9 +71,11 @@ impl Script {
         self.fired.clear();
     }
 
-    /// Move the moving parts on by `dt` seconds (their solid pieces in `world` too); those that get where they
-    /// were going send Arrived / Returned.
-    pub fn tick(&mut self, world: &mut CollisionWorld, dt: f32) {
+    /// How far moving part `id` is from where it was placed.
+    pub fn offset_of(&self, id: u64) -> Option<Vec3> { self.movers.iter().find(|m| m.id == id).map(Moving::offset) }
+
+    /// Move the moving parts on by `dt` seconds; those that get where they were going send Arrived / Returned.
+    pub fn tick(&mut self, dt: f32) {
         let mut done = vec![];
         for m in &mut self.movers {
             if m.t != m.goal {
@@ -82,7 +83,6 @@ impl Script {
                 m.t = if m.goal > m.t { (m.t + step).min(m.goal) } else { (m.t - step).max(m.goal) };
                 if m.t == m.goal { done.push((m.id, if m.goal > 0.5 { "Arrived" } else { "Returned" })); }
             }
-            if let Some(i) = m.piece { world.set_offset(i, m.offset()); }
         }
         for (id, out) in done { self.send(id, out); }
     }
@@ -108,13 +108,12 @@ impl Script {
 /// takes them where they should be by the end of the step (so what stands on them rides along).
 pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody, &Position, &mut LinearVelocity)>) {
     let play = &mut *play;
-    play.world.clear_deltas();
     play.script.fired.clear();
     if std::mem::take(&mut play.press) {
         if let Some(id) = play.script.button_near(play.feet) { play.script.send(id, "Pressed"); }
     }
     let dt = time.delta_secs();
-    play.script.tick(&mut play.world, dt);
+    play.script.tick(dt);
     if dt <= 0.0 { return; }
     for (b, at, mut v) in &mut bodies {
         if let Some(m) = play.script.movers.iter().find(|m| m.id == b.0) { v.0 = (m.home.translation + m.offset() - at.0) / dt; }
@@ -125,7 +124,6 @@ pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody
 mod tests {
     use super::*;
     use crate::level::{Collision, Part};
-    use crate::world::Geometry;
 
     fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
         Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], body: crate::level::Body::Still, light: None, camera: None }
@@ -145,18 +143,17 @@ mod tests {
             ],
             ..Default::default()
         };
-        let mut world = CollisionWorld::build(&level, &Geometry::default());
-        let mut s = Script::new(&level, &world);
+        let mut s = Script::new(&level);
         assert_eq!(s.button_near(Vec3::new(1.0, 0.0, 0.0)), Some(1));
         assert_eq!(s.button_near(Vec3::new(4.0, 0.0, 0.0)), None);
         s.send(1, "Pressed");
-        let i = world.piece_of(2).unwrap();
-        s.tick(&mut world, 1.0);
-        assert!((world.offsets().nth(i).unwrap().y - 3.0).abs() < 1e-4, "halfway up after half the time");
-        s.tick(&mut world, 1.0);
-        assert!((world.offsets().nth(i).unwrap().y - 6.0).abs() < 1e-4);
+        let up = |s: &Script| s.offset_of(2).unwrap().y;
+        s.tick(1.0);
+        assert!((up(&s) - 3.0).abs() < 1e-4, "halfway up after half the time");
+        s.tick(1.0);
+        assert!((up(&s) - 6.0).abs() < 1e-4);
         // Arrived is wired to its own Back: it heads home again
-        s.tick(&mut world, 2.0);
-        assert!(world.offsets().nth(i).unwrap().y.abs() < 1e-4);
+        s.tick(2.0);
+        assert!(up(&s).abs() < 1e-4);
     }
 }

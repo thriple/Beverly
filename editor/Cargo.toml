@@ -18,6 +18,9 @@ bevy = { version = "=0.20.1", default-features = false, features = [
 bevy_egui = { version = "=0.43.1", default-features = false, features = ["render", "manage_clipboard"] }
 # physics: the one collision world while playing (physics.rs); pinned with bevy
 avian3d = { version = "=0.8.0", default-features = false, features = ["3d", "parry-f32", "parallel"] }
+# the walker: a floating character controller on Avian (play.rs)
+bevy-tnua = "=0.33.2"
+bevy-tnua-avian3d = { version = "=0.13.1", default-features = false }
 serde = { version = "1", features = ["derive"] }
 ron = "0.12"
 rfd = "0.15"

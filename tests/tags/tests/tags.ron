@@ -1,11 +1,11 @@
 // Surface tags: the walker walks on Slippery ice for a second and lets go of W. On ice it gathers speed slowly (only
-// 1.9 m in that second; on plain ground about 4.7 m) and keeps sliding another 2.7 m after letting go (plain
+// 1.9 m in that second; on plain ground about 4.7 m) and keeps sliding another 1.5 m after letting go (plain
 // ground: it stops at once). The other parts carry the other tags (Climbable, Grind rail, Water) for the editor.
 (
     steps: [
         (at: 0.4, shot: "start", expect: [Feet((0, 0.2, 6), 0.1)]),
         (at: 0.5, press: ["W"]),
         (at: 1.5, release: ["W"], expect: [Feet((0, 0.2, 4.14), 0.2)]),
-        (at: 3.5, shot: "slid", expect: [Feet((0, 0.2, 1.42), 0.2)]),
+        (at: 3.5, shot: "slid", expect: [Feet((0, 0.2, 2.64), 0.2)]),
     ],
 )

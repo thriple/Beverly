@@ -889,7 +889,7 @@ mod tests {
         let a = lvl.add(spot.clone());
         lvl.add(spot);
         assert!(lvl.instances(a).is_empty(), "lights are always individual");
-        assert_eq!(crate::play::CollisionWorld::build(&lvl, &crate::world::Geometry::default()).pieces().count(), 0, "not even set Solid");
+        assert!(lvl.parts.iter().all(|p| crate::physics::kind(p).is_none()), "not even set Solid");
         let text = ron::to_string(&lvl.parts[0]).unwrap();
         assert_eq!(ron::from_str::<Part>(&text).unwrap(), lvl.parts[0]);
         assert!(!ron::to_string(&Part::placed(Shape::Box, None, "Box".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [1.0; 3])).unwrap().contains("light"));
