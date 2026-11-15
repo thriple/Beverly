@@ -67,11 +67,18 @@ import datetime
 def day(s): d = datetime.date.fromisoformat(s); return f"{d.day} {d:%b %Y}"
 def card(f):
     needs = " · ".join(f'<a href="#{n}">{e(by[n]["name"])}</a>{" ✓" if done(n) else ""}' for n in f["needs"]) or ("everything before it" if "pass_after" in f else "nothing")
-    parts = "".join(f"<li>{e(c)}</li>" for c in f["chunks"])
     st = f"built {day(f['built'])}, build {f['build']}" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if f in ready else "planned")
     cls = "built" if f["status"] == "done" else st.replace(" ", "")
     return f'''<article class="f {cls}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
-<p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f"<ol>{parts}</ol>" if parts else ""}{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
+<p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
+
+def tiles(f):
+    """One tile per session-sized part (an S or M feature is one tile), so a row's length shows the work."""
+    parts = f["chunks"] or [{"S": "In one go", "M": "In one go"}[f["effort"]]]
+    size = {"S": "half a session", "M": "a session"}.get(f["effort"], "a session")
+    return "".join(f'<div class="t"><b>{f["order"]}.{k + 1} · {size}</b><span>{e(c)}</span></div>' for k, c in enumerate(parts))
+
+def row(f): return f'<div class="row">{card(f)}<div class="tiles">{tiles(f)}</div></div>'
 
 phases = {}
 for f in todo + held: phases.setdefault(("Last Ascent path" if f["first_game"] else "After Last Ascent", depth[f["id"]]), []).append(f)
@@ -81,7 +88,7 @@ def phase_head(k, v):
     if k[1] % 1:  # a polish pass
         return f'<section class="phase pass"><h2><span class="sw"></span>{k[0]} · polish pass</h2><p class="sub">about {sum(sessions(f) for f in v):g} sessions · after everything above it, before what follows</p>'
     return f'<section class="phase" style="--h:{hue(k[1])}"><h2><span class="sw"></span>{k[0]} · step {k[1]}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p>'
-phase_html = "".join(f'{phase_head(k, v)}<div class="grid">{"".join(card(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
+phase_html = "".join(f'{phase_head(k, v)}<div class="rows">{"".join(row(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
 paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) for x in chain(t) if not done(x))}</li>' for t in ["mech-port", "swarm", "screens", "vehicles", "destructibles"])
 
 builds = {}
@@ -116,7 +123,6 @@ dl {{ padding-left:0 !important; display:grid; grid-template-columns:auto 1fr; g
 dt {{ font:600 12px var(--f-mono); background:var(--chip); color:#1b1820; border-radius:6px; padding:0 6px; height:fit-content; }}
 dd {{ margin:0; color:var(--muted); }}
 .sub {{ color:var(--muted); margin:0 0 10px; }}
-.grid {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:10px; }}
 .f {{ background:var(--panel); border:1px solid var(--line); border-radius:14px 14px 14px 4px; padding:12px 14px; min-width:0; }}
 .phase {{ --c:oklch(var(--step-l) 0.15 var(--h)); }}
 .phase .f {{ border-left:4px solid var(--c); background:linear-gradient(90deg, oklch(var(--step-l) 0.15 var(--h) / .07), transparent 40%), var(--panel); }}
@@ -134,7 +140,13 @@ dd {{ margin:0; color:var(--muted); }}
 .f .st {{ font-weight:600; }}
 .f.onhold {{ opacity:.6; }}
 .f.built .st {{ color:var(--ok); }} .f.ready .st {{ color:var(--ready); }}
-.f ol {{ margin:8px 0 0; padding-left:20px; font-size:13px; }}
+.rows {{ display:grid; gap:12px; }}
+.row {{ display:grid; grid-template-columns:minmax(0, 360px) minmax(0, 1fr); gap:10px; align-items:start; }}
+@media (max-width:760px) {{ .row {{ grid-template-columns:minmax(0, 1fr); }} }}
+.tiles {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:8px; }}
+.t {{ background:var(--panel); border:1px solid var(--line); border-top:3px solid var(--c, var(--accent)); border-radius:12px 12px 12px 4px; padding:8px 10px; font-size:13px; min-width:0; }}
+.t b {{ display:block; font:600 11px var(--f-mono); color:var(--c, var(--accent)); margin-bottom:3px; }}
+.phase.pass .t {{ border-style:dashed; border-top-style:solid; }}
 .f .note {{ font-size:12px; color:var(--muted); font-style:italic; }}
 .f:target {{ outline:2px solid var(--accent); }}
 a {{ color:var(--accent); }}
@@ -143,7 +155,7 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
 </style>
 <div class="wrap">
 <h1>Beverly roadmap</h1>
-<p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. What Last Ascent needs (and what that needs) comes first; the rest follows. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
+<p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. What Last Ascent needs (and what that needs) comes first; the rest follows. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Next to each feature, one tile per part (about a session each), so a row's length shows the work. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
 <div class="stats">
  <div class="stat"><b>{len(F) - len(todo) - len(held)}</b><span>built</span></div>
  <div class="stat"><b>{len(todo)}</b><span>to build</span></div>
