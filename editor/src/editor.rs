@@ -1,6 +1,7 @@
 //! The editor: a simple, no-code-first 3D game editor for Bevy. See README.md and docs/design.html.
 
 mod actions;
+mod bev_type;
 mod caps;
 mod edit;
 mod mcp;
@@ -166,6 +167,8 @@ impl Editor {
 /// character, see [`play::Play::custom`]).
 pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
     update::clean_up();
+    // Beverly itself opens .bev files; a game's own editor leaves that to it
+    if title == "Beverly" { bev_type::register(); }
     let mut ed = Editor::new();
     ed.player = player;
     ed.mcp = mcp::Mcp::start();
