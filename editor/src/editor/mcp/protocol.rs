@@ -96,17 +96,19 @@ pub fn tools() -> Value {
         {
             "name": "get_level",
             "title": "Describe the level",
-            "description": "The level's own settings as its panel shows them with nothing selected: Lighting (Interior: no sun; Fill and Fill colour: the flat light from every side) and the sun (Direction: where the sun is round the level in degrees, 0 toward +z and 90 toward +x; Height above the horizon in degrees; Colour, Brightness in lux, Shadows), with ranges; and the light budget: the most shadowed lights reaching one place (worst, with their names) against the budget the meter in the corner shows.",
+            "description": "The level's own settings as its panel shows them with nothing selected: Lighting (Interior: no sun; Fill and Fill colour: the flat light from every side) and the sun (Direction: where the sun is round the level in degrees, 0 toward +z and 90 toward +x; Height above the horizon in degrees; Colour, Brightness in lux, Shadows), with ranges; the light budget: the most shadowed lights reaching one place (worst, with their names) against the budget the meter in the corner shows; and the navigation area (where characters such as enemies can walk, across floors, stairs and ramps): its settings (Width, Height, Step, Slope of the characters), whether it is built (run_action level.build_navigation) and out of date, how many square metres are walkable and in how many separate areas.",
             "inputSchema": none,
         },
         {
             "name": "change_level",
             "title": "Change the level's settings",
-            "description": "Change the level's settings (as get_level lists them, by label or field, as change_part takes them), such as {\"Interior\": true, \"Fill\": 200} or {\"Height\": 15, \"Direction\": 270}.",
+            "description": "Change the level's settings (as get_level lists them, by label or field, as change_part takes them): lighting in settings, such as {\"Interior\": true, \"Fill\": 200} or {\"Height\": 15, \"Direction\": 270}; the navigation area's in navigation, such as {\"Step\": 0.3, \"Width\": 1.2}.",
             "inputSchema": {
                 "type": "object",
-                "properties": {"settings": {"type": "object", "description": "Setting label or field → new value."}},
-                "required": ["settings"],
+                "properties": {
+                    "settings": {"type": "object", "description": "Lighting: setting label or field → new value."},
+                    "navigation": {"type": "object", "description": "Navigation: setting label or field → new value."},
+                },
             },
         },
         {

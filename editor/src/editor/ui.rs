@@ -410,6 +410,8 @@ fn bottom_panel(root: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut Mess
 /// With nothing selected: the level's own settings (its lighting) and the main shortcuts.
 fn level_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut l = ed.level.lighting.clone();
+    let mut n = ed.level.navigation.clone();
+    let mut build = false;
     let mut ranges = ed.level.ranges.clone();
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
     egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
@@ -426,11 +428,34 @@ fn level_panel(ui: &mut Ui, ed: &mut Editor) {
         column(ui, 260.0, level::LIGHTING, |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
         // Interior: no sun
         if !l.interior { column(ui, 260.0, level::SUN, |ui| { settings::section(ui, &mut l, level::SUN, &mut ctx); }); }
+        // where enemies can walk: who for, Build, and how it stands
+        column(ui, 250.0, level::NAVIGATION, |ui| {
+            settings::section(ui, &mut n, level::NAVIGATION, &mut ctx);
+            ui.add_space(2.0);
+            let (status, colour) = match &ed.nav {
+                None => ("Not built yet".to_string(), MUTED),
+                Some(_) if ed.nav_out_of_date() => ("Out of date: the level changed".to_string(), theme::DANGER),
+                Some((m, _)) => {
+                    let k = crate::nav::islands(m).len();
+                    (format!("{:.0} m² · {k} area{}", crate::nav::area(m), if k == 1 { "" } else { "s" }), theme::OK)
+                }
+            };
+            ui.label(egui::RichText::new(status).color(colour));
+            ui.horizontal(|ui| {
+                if ui.button(if ed.nav.is_some() { "Build again" } else { "Build navigation" }).on_hover_text("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
+                if ed.nav.is_some() {
+                    theme::toggle(ui, &mut ed.nav_shown).on_hover_text("Draw the walkable area over the level");
+                    ui.label(egui::RichText::new("Show").color(MUTED));
+                }
+            });
+        });
     });
         ui.add_space(12.0);
     });
     if ctx.ranges_changed { ed.level.ranges = ranges; }
     if l != ed.level.lighting { ed.level.lighting = l; }
+    if n != ed.level.navigation { ed.level.navigation = n; }
+    if build { ed.build_navigation(); }
 }
 
 /// "Change all 12, or make this one Unique?" after a change to a part's contents that its instances didn't get.

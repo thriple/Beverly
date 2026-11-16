@@ -142,9 +142,13 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         "get_level" => Ok(describe_level(ed)),
         "change_level" => {
             editable(ed)?;
+            if args.get("settings").is_none() && args.get("navigation").is_none() { return Err("Give settings, such as {\"Interior\": true}, or navigation, such as {\"Step\": 0.3}".into()); }
             let mut l = ed.level.lighting.clone();
-            let changed = settings::apply(&mut l, args.get("settings").ok_or("Give settings, such as {\"Interior\": true}")?)?;
+            let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut l, set)?, None => vec![] };
+            let mut n = ed.level.navigation.clone();
+            if let Some(set) = args.get("navigation") { changed.extend(settings::apply(&mut n, set)?); }
             ed.level.lighting = l;
+            ed.level.navigation = n;
             ed.commit();
             Ok(json!({"changed": changed, "level": describe_level(ed)}))
         }
@@ -727,6 +731,13 @@ fn describe_level(ed: &Editor) -> Value {
     json!({
         "name": ed.level.name,
         "settings": settings::describe(&ed.level.lighting),
+        "navigation": {
+            "settings": settings::describe(&ed.level.navigation),
+            "built": ed.nav.is_some(),
+            "out_of_date": ed.nav_out_of_date(),
+            "walkable_m2": ed.nav.as_ref().map(|(m, _)| settings::num((crate::nav::area(m) * 10.0).round() / 10.0)),
+            "separate_areas": ed.nav.as_ref().map(|(m, _)| crate::nav::islands(m).len()),
+        },
         "light_budget": {
             "worst": worst.len(),
             "budget": crate::editor::light::BUDGET,

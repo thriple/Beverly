@@ -1,0 +1,10 @@
+// The navigation test level (stairs and a ramp up to a landing, a tower with no way up, a wall). Played: the walker
+// walks up the stairs onto the landing.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 8), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 3.1, release: ["W"]),
+        (at: 3.6, shot: "landing", expect: [Feet((0, 1.95, -2.57), 0.3)]),
+    ],
+)

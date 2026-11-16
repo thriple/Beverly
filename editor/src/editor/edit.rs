@@ -151,6 +151,7 @@ impl Editor {
         self.undo.clear();
         self.redo.clear();
         self.ask = None;
+        self.nav = None;
         self.selected = None;
         self.placing = None;
         self.project_changed = true;
@@ -816,6 +817,25 @@ pub fn sync(
             commands.entity(e).insert(PartView { id: p.id, applied: p.clone() });
         }
     }
+}
+
+/// The navigation area drawn over the level (green; orange once the level has changed since it was built).
+pub fn nav_overlay(ed: Res<Editor>, mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>, mut drawn: Local<Option<(Entity, (u32, bool, bool))>>) {
+    let want = (ed.nav_builds, ed.nav_out_of_date(), ed.nav_shown && ed.testing.is_none());
+    if drawn.as_ref().map(|d| d.1) == Some(want) { return; }
+    if let Some((e, _)) = drawn.take() { commands.entity(e).despawn(); }
+    let Some((m, _)) = ed.nav.as_ref().filter(|_| want.2) else {
+        *drawn = Some((commands.spawn(Transform::default()).id(), want));
+        return;
+    };
+    // a little above the ground it covers
+    let pos: Vec<[f32; 3]> = crate::nav::surface(m).iter().flatten().map(|v| (*v + Vec3::Y * 0.04).to_array()).collect();
+    let mut mesh = Mesh::new(bevy::mesh::PrimitiveTopology::TriangleList, bevy::asset::RenderAssetUsages::default());
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; pos.len()]);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, pos);
+    let colour = if want.1 { Color::srgba(0.94, 0.55, 0.26, 0.35) } else { Color::srgba(0.28, 0.75, 0.55, 0.35) };
+    let mat = mats.add(StandardMaterial { base_color: colour, unlit: true, alpha_mode: AlphaMode::Blend, cull_mode: None, double_sided: true, ..default() });
+    *drawn = Some((commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(mat), Transform::default(), world::EDITOR_ONLY)).id(), want));
 }
 
 /// The sun and fill light follow the level's Lighting.

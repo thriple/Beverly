@@ -274,6 +274,31 @@ impl Default for Lighting {
     }
 }
 
+pub const NAVIGATION: &str = "NAVIGATION";
+
+/// Who the level's navigation area is for: the size of the characters that walk it (enemies) and what they climb.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Navigation {
+    #[reflect(@Setting::number("Width", "m", 0.05, 0.1, 10.0).section(NAVIGATION).help("How wide the characters are: they keep this far from walls"))]
+    pub width: f32,
+    #[reflect(@Setting::number("Height", "m", 0.05, 0.2, 20.0).section(NAVIGATION).help("How tall they are: they don't go where it is lower"))]
+    pub height: f32,
+    #[reflect(@Setting::number("Step", "m", 0.05, 0.0, 5.0).section(NAVIGATION).help("The highest step they walk up"))]
+    pub step: f32,
+    #[reflect(@Setting::number("Slope", "°", 1.0, 0.0, 89.0).section(NAVIGATION).help("The steepest slope they walk up"))]
+    pub slope: f32,
+}
+
+impl Default for Navigation {
+    fn default() -> Self { Navigation { width: 0.8, height: 1.8, step: 0.45, slope: 45.0 } }
+}
+
+impl Navigation {
+    fn is_default(&self) -> bool { *self == Navigation::default() }
+}
+
 impl Lighting {
     fn is_default(&self) -> bool { *self == Lighting::default() }
     /// Which way the sunlight shines (down from the sun).
@@ -563,6 +588,8 @@ pub struct Level {
     pub ranges: Ranges,
     #[serde(default, skip_serializing_if = "Lighting::is_default")]
     pub lighting: Lighting,
+    #[serde(default, skip_serializing_if = "Navigation::is_default")]
+    pub navigation: Navigation,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]

@@ -84,6 +84,11 @@ pub struct Editor {
     pub looking: Option<camera::Looking>,
     pub camera_drag: bool,
     pub camera_hot: bool,
+    /// The level's navigation area as last built (Build navigation), with what it was built from; how many builds.
+    pub nav: Option<(bevy_rerecast::Navmesh, Vec<(level::Shape, Option<String>, [u32; 10])>)>,
+    pub nav_builds: u32,
+    /// The navigation area is drawn over the level.
+    pub nav_shown: bool,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
@@ -170,6 +175,9 @@ impl Editor {
             looking: None,
             camera_drag: false,
             camera_hot: false,
+            nav: None,
+            nav_builds: 0,
+            nav_shown: true,
             label: None,
             player: "beverly-player",
             wiring: None,
@@ -190,6 +198,22 @@ impl Editor {
 
     /// A window over the editor (the unsaved-changes question, Help's windows): the 3D view ignores the keys.
     pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open || self.mcp_open }
+
+    /// Work out the level's navigation area (Build navigation).
+    pub fn build_navigation(&mut self) {
+        match crate::nav::build(&self.level, &self.geo) {
+            Ok(m) => {
+                let (islands, area) = (crate::nav::islands(&m).len(), crate::nav::area(&m));
+                self.nav = Some((m, crate::nav::key(&self.level)));
+                self.nav_builds += 1;
+                self.nav_shown = true;
+                self.island.show("⬡", format!("Navigation built: {area:.0} m²"), format!("{islands} separate area{}", if islands == 1 { "" } else { "s" }), theme::Tone::Accent);
+            }
+            Err(e) => self.island.show("!", "Couldn't build the navigation", e, theme::Tone::Danger),
+        }
+    }
+    /// The navigation area was built from a level that has changed since (parts moved, settings changed).
+    pub fn nav_out_of_date(&self) -> bool { self.nav.as_ref().is_some_and(|(_, k)| *k != crate::nav::key(&self.level)) }
 
     pub fn refresh_assets(&mut self) {
         self.assets = level::ASSET_FOLDERS.iter().map(|f| (*f, level::list_assets(&self.dir, f))).collect();
@@ -241,6 +265,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::files,
                 edit::sync,
                 edit::stage,
+                edit::nav_overlay,
                 edit::draw,
                 view::grid,
                 view::apply_viewport,
