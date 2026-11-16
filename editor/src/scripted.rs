@@ -12,6 +12,7 @@
 //!         (at: 0.5, look: (200, 0)),     // mouse moved this much (pixels) in that step
 //!         (at: 1.0, release: ["W"], shot: "walked", expect: [Feet((0, 0, -4.6), 0.3)]),
 //!         (at: 2.0, expect: [Part("Lift", (0, 3, 0), 0.1)]),
+//!         (at: 2.0, expect: [Path((0, 0, 8), (0, 2, -2), Some(12.5), 0.5)]),  // a walk this long; None: no way
 //!     ],
 //! )
 //! ```
@@ -69,6 +70,8 @@ pub enum Expect {
     Feet((f32, f32, f32), f32),
     /// The named part is within this distance of a point.
     Part(String, (f32, f32, f32), f32),
+    /// The path along the navigation area from one point to another is this long (within a distance), or there is none.
+    Path((f32, f32, f32), (f32, f32, f32), Option<f32>, f32),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -231,6 +234,16 @@ fn drive(
         }
         if !said.is_empty() { run.lines.push(format!("{t:6.2}s  {}", said.join(", "))); }
         for e in &st.expect {
+            if let Expect::Path(a, b, want, d) = e {
+                let got = play.nav.as_ref().map(|f| f.path(Vec3::from(*a), Vec3::from(*b)).map(|p| crate::nav::length(&p)));
+                let ok = match (got, want) { (Some(Ok(l)), Some(w)) => (l - w).abs() <= *d, (Some(Err(_)), None) => true, _ => false };
+                run.checks += 1;
+                if !ok { run.failed += 1; }
+                let said = |l: Option<f32>| l.map_or("no way".to_string(), |l| format!("{l:.2} m"));
+                let got = match got { Some(Ok(l)) => said(Some(l)), Some(Err(e)) => e.to_string(), None => "no navigation area".into() };
+                run.lines.push(format!("{t:6.2}s  {} path {} → {}: {} ± {d}: {got}", if ok { "✓" } else { "✗ FAIL" }, v(Vec3::from(*a)), v(Vec3::from(*b)), said(*want)));
+                continue;
+            }
             let (what, at, want, d) = match e {
                 Expect::Feet(p, d) => ("feet".to_string(), Some(play.feet), Vec3::from(*p), *d),
                 Expect::Part(n, p, d) => {
@@ -238,6 +251,7 @@ fn drive(
                     let at = parts.iter().find(|(pid, _)| Some(pid.0) == id).map(|(_, tr)| tr.translation);
                     (format!("part \"{n}\""), at, Vec3::from(*p), *d)
                 }
+                Expect::Path(..) => unreachable!("checked above"),
             };
             run.checks += 1;
             let ok = at.is_some_and(|a| a.distance(want) <= d);

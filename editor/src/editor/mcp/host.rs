@@ -140,6 +140,17 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             "beverly": crate::update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")),
         })),
         "get_level" => Ok(describe_level(ed)),
+        "find_path" => {
+            let a = args.get("from").and_then(vec3_of).ok_or("from is [x, y, z]")?;
+            let b = args.get("to").and_then(vec3_of).ok_or("to is [x, y, z]")?;
+            let f = ed.finder.as_ref().ok_or("The navigation area isn't built yet (run_action level.build_navigation)")?;
+            let found = f.path(a, b);
+            // shown in the view, as Try a path shows it
+            ed.path_try = Some(super::super::PathTry { from: Some(a), to: Some(b), found: Some(found.clone()) });
+            let p = found?;
+            let corners: Vec<Value> = p.iter().map(|c| json!(settings::nums(&((*c * 100.0).round() / 100.0).to_array()))).collect();
+            Ok(json!({"length_m": settings::num((crate::nav::length(&p) * 100.0).round() / 100.0), "corners": corners, "out_of_date": ed.nav_out_of_date()}))
+        }
         "change_level" => {
             editable(ed)?;
             if args.get("settings").is_none() && args.get("navigation").is_none() { return Err("Give settings, such as {\"Interior\": true}, or navigation, such as {\"Step\": 0.3}".into()); }

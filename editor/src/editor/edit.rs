@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, camera, light, texture, Editor, Pending, Saved, TestRequest};
+use super::{actions, camera, light, texture, Editor, PathTry, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -152,6 +152,8 @@ impl Editor {
         self.redo.clear();
         self.ask = None;
         self.nav = None;
+        self.finder = None;
+        self.path_try = None;
         self.selected = None;
         self.placing = None;
         self.project_changed = true;
@@ -490,6 +492,26 @@ pub fn interact(
         return;
     }
     if ed.wire_pick.is_some() {
+        press.at = None;
+        return;
+    }
+
+    // ---- trying a path: click its start, then its end (a third click starts again)
+    if ed.path_try.is_some() {
+        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
+            ed.path_try = None;
+        } else if mouse.just_pressed(MouseButton::Left) {
+            if let Some(at) = ray.and_then(|r| ed.hit(r)).map(|h| h.point) {
+                let t = ed.path_try.as_mut().expect("checked above");
+                if t.from.is_none() || t.to.is_some() { *t = PathTry { from: Some(at), ..default() }; } else { t.to = Some(at); }
+                ed.find_path();
+                match ed.path_try.as_ref().and_then(|t| t.found.clone()) {
+                    Some(Ok(p)) => ed.island.show("⬡", format!("A {:.1} m walk", crate::nav::length(&p)), "Click to try another · Esc stops", Tone::Accent),
+                    Some(Err(e)) => ed.island.show("!", "No path", e, Tone::Danger),
+                    None => {}
+                }
+            }
+        }
         press.at = None;
         return;
     }
@@ -851,6 +873,18 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     texture::draw(&ed, &view, &mut w);
     light::draw(&ed, &view, &mut w);
     camera::draw(&ed, &view, &mut g, &mut w);
+    // a tried path: its ends, and the way (yellow), or a red line where there is none
+    if let Some(t) = &ed.path_try {
+        let up = Vec3::Y * 0.12;
+        for (at, c) in [(t.from, Color::srgb(0.45, 0.85, 0.55)), (t.to, Color::srgb(0.96, 0.86, 0.29))] {
+            if let Some(at) = at { w.circle(Isometry3d::new(at + up, Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)), 0.3, c); }
+        }
+        match (&t.found, t.from, t.to) {
+            (Some(Ok(p)), ..) => w.linestrip(p.iter().map(|v| *v + up), Color::srgb(0.96, 0.86, 0.29)),
+            (Some(Err(_)), Some(a), Some(b)) => w.line(a + up, b + up, Color::srgb(1.0, 0.37, 0.23)),
+            _ => {}
+        }
+    }
     // the part's box: unit box for shapes, the model's bounds for models
     let corner = |p: &Part, i: usize| {
         let (lo, hi) = ed.geo.local_box(p);

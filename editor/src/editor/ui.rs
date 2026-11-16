@@ -448,6 +448,13 @@ fn level_panel(ui: &mut Ui, ed: &mut Editor) {
                     ui.label(egui::RichText::new("Show").color(MUTED));
                 }
             });
+            if ed.finder.is_some() {
+                let on = ed.path_try.is_some();
+                if ui.add(egui::Button::selectable(on, "Try a path")).on_hover_text("Click a start, then an end, in the view: the way a character would walk").clicked() {
+                    ed.path_try = if on { None } else { Some(Default::default()) };
+                }
+                if on { theme::hint(ui, "Stop", &["Esc"]); }
+            }
         });
     });
         ui.add_space(12.0);

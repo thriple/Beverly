@@ -100,6 +100,19 @@ pub fn tools() -> Value {
             "inputSchema": none,
         },
         {
+            "name": "find_path",
+            "title": "Find a path",
+            "description": "The way a character would walk from `from` to `to` along the level's navigation area (build it first with run_action level.build_navigation; get_level says whether it is out of date): its corners from the start to the end and its length in metres, or why there is none (a point off the walkable area, or no way between them, such as onto a block with no stairs). The path is also drawn in the view, as Try a path draws it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "from": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "to": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                },
+                "required": ["from", "to"],
+            },
+        },
+        {
             "name": "change_level",
             "title": "Change the level's settings",
             "description": "Change the level's settings (as get_level lists them, by label or field, as change_part takes them): lighting in settings, such as {\"Interior\": true, \"Fill\": 200} or {\"Height\": 15, \"Direction\": 270}; the navigation area's in navigation, such as {\"Step\": 0.3, \"Width\": 1.2}.",
@@ -642,6 +655,7 @@ mod tests {
             [
                 "get_project",
                 "get_level",
+                "find_path",
                 "change_level",
                 "list_parts",
                 "get_part",

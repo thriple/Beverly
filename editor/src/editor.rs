@@ -31,6 +31,14 @@ pub enum TestRequest { Start(Vec3), Stop }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pending { Quit, New, Open }
 
+/// Trying a path on the navigation area: the start and end picked (clicks in the view) and the way found.
+#[derive(Default)]
+pub struct PathTry {
+    pub from: Option<Vec3>,
+    pub to: Option<Vec3>,
+    pub found: Option<Result<Vec<Vec3>, &'static str>>,
+}
+
 /// The whole editing state. The level is the source of truth; 3D entities are rebuilt from it (edit::sync).
 #[derive(Resource)]
 pub struct Editor {
@@ -89,6 +97,10 @@ pub struct Editor {
     pub nav_builds: u32,
     /// The navigation area is drawn over the level.
     pub nav_shown: bool,
+    /// Finds paths on the area as last built.
+    pub finder: Option<crate::nav::Finder>,
+    /// Trying a path on the area (Try a path).
+    pub path_try: Option<PathTry>,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
@@ -178,6 +190,8 @@ impl Editor {
             nav: None,
             nav_builds: 0,
             nav_shown: true,
+            finder: None,
+            path_try: None,
             label: None,
             player: "beverly-player",
             wiring: None,
@@ -204,13 +218,23 @@ impl Editor {
         match crate::nav::build(&self.level, &self.geo) {
             Ok(m) => {
                 let (islands, area) = (crate::nav::islands(&m).len(), crate::nav::area(&m));
+                self.finder = crate::nav::Finder::new(&m, &self.level.navigation).ok();
                 self.nav = Some((m, crate::nav::key(&self.level)));
                 self.nav_builds += 1;
                 self.nav_shown = true;
+                self.find_path();
                 self.island.show("⬡", format!("Navigation built: {area:.0} m²"), format!("{islands} separate area{}", if islands == 1 { "" } else { "s" }), theme::Tone::Accent);
             }
             Err(e) => self.island.show("!", "Couldn't build the navigation", e, theme::Tone::Danger),
         }
+    }
+    /// The way between the tried path's start and end, once both are picked.
+    pub fn find_path(&mut self) {
+        let Some(t) = self.path_try.as_mut() else { return };
+        t.found = match (t.from, t.to, &self.finder) {
+            (Some(a), Some(b), Some(f)) => Some(f.path(a, b)),
+            _ => None,
+        };
     }
     /// The navigation area was built from a level that has changed since (parts moved, settings changed).
     pub fn nav_out_of_date(&self) -> bool { self.nav.as_ref().is_some_and(|(_, k)| *k != crate::nav::key(&self.level)) }

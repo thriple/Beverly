@@ -1,11 +1,14 @@
 //! Navigation areas: where characters such as enemies can walk, across floors, stairs and ramps, built from the
 //! level with one button (Recast, through `bevy_rerecast`). The area is worked out from the level's still, solid
-//! parts and the ground; it is never stored in files, only rebuilt from the level.
+//! parts and the ground; it is never stored in files, only rebuilt from the level. A [`Finder`] finds the way
+//! between two points on it (landmass).
 use crate::level::{Collision, Level, Navigation, Part, Shape};
 use crate::world::{Geometry, part_affine};
 use bevy::math::{Quat, UVec3, Vec2, Vec3, Vec3A};
 use bevy_rerecast::rerecast::{AreaType, ConfigBuilder, ConvexVolume, DetailNavmesh, HeightfieldBuilder, TriMesh};
 use bevy_rerecast::{Navmesh, NavmeshSettings};
+use landmass::{Archipelago, ArchipelagoOptions, FromAgentRadius, Island, PathStep, PermittedAnimationLinks, PointSampleDistance3d};
+use std::sync::Arc;
 
 /// The part of the level the area is worked out from: still, solid parts (loose and moving ones go around).
 fn counts(p: &Part) -> bool { crate::physics::kind(p).is_some_and(|k| k.is_static()) && p.collision == Collision::Solid }
@@ -152,6 +155,37 @@ pub fn middle(m: &Navmesh, i: usize) -> Vec3 {
     vs.iter().sum::<Vec3>() / vs.len().max(1) as f32
 }
 
+/// Finds paths on a navigation area.
+pub struct Finder(Archipelago<bevy_landmass::coords::ThreeD>);
+
+impl Finder {
+    pub fn new(m: &Navmesh, n: &Navigation) -> Result<Self, String> {
+        let mesh = landmass_rerecast::convert_rerecast_navmesh_to_landmass_navmesh(m).validate().map_err(|e| e.to_string())?;
+        // points up to 1.5 m to the side of the area, or 2 m above it, count as on it
+        let point_sample_distance = PointSampleDistance3d { horizontal_distance: 1.5, distance_above: 2.0, distance_below: 1.0, vertical_preference_ratio: 2.0, animation_link_max_vertical_distance: 0.5 };
+        let mut a = Archipelago::new(ArchipelagoOptions { point_sample_distance, ..ArchipelagoOptions::from_agent_radius(n.width * 0.5) });
+        a.add_island(Island::new(landmass::Transform { translation: Vec3::ZERO, rotation: 0.0 }, Arc::new(mesh)));
+        a.update(0.0);
+        Ok(Self(a))
+    }
+
+    /// The way from `from` to `to` along the area: its corners, from the start (on the area) to the end.
+    pub fn path(&self, from: Vec3, to: Vec3) -> Result<Vec<Vec3>, &'static str> {
+        let a = self.0.sample_point(from, &self.0.archipelago_options.point_sample_distance).map_err(|_| "The start isn't on the walkable area")?;
+        let b = self.0.sample_point(to, &self.0.archipelago_options.point_sample_distance).map_err(|_| "The end isn't on the walkable area")?;
+        let steps = self.0.find_path(&a, &b, &Default::default(), PermittedAnimationLinks::All).map_err(|_| "There is no way there")?;
+        let mut out = vec![a.point()];
+        for s in steps {
+            let p = match s { PathStep::Waypoint(p) => p, PathStep::AnimationLink { end_point, .. } => end_point };
+            if out.last() != Some(&p) { out.push(p); }
+        }
+        Ok(out)
+    }
+}
+
+/// How long a path is, in metres.
+pub fn length(path: &[Vec3]) -> f32 { path.windows(2).map(|w| w[0].distance(w[1])).sum() }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +203,12 @@ mod tests {
         let ground = |g: &Vec<usize>| g.iter().any(|&i| middle(&m, i).y < 0.2);
         assert!(groups.iter().any(|g| top(g) && ground(g)), "the landing is reached from the ground by the stairs");
         assert!(!surface(&m).is_empty());
+        // the way up goes round to the stairs and climbs them
+        let f = Finder::new(&m, &lvl.navigation).unwrap();
+        let p = f.path(Vec3::new(0.0, 0.0, 8.0), Vec3::new(0.0, 2.0, -2.5)).unwrap();
+        assert!(p.last().unwrap().distance(Vec3::new(0.0, 2.0, -2.5)) < 0.3, "{p:?}");
+        assert!(length(&p) > 10.4, "longer than the straight line: {}", length(&p));
+        assert!(f.path(Vec3::new(0.0, 0.0, 8.0), Vec3::new(30.0, 0.0, 0.0)).is_err(), "off the area");
         // a box 3 m tall with no stairs: its top is walkable, but on its own
         lvl.parts.clear();
         lvl.add(Part::placed(Shape::Box, None, "Block".into(), [0.0, 1.5, 0.0], bevy::math::Quat::IDENTITY.to_array(), [4.0, 3.0, 4.0]));
@@ -177,5 +217,7 @@ mod tests {
         let high = |g: &Vec<usize>| g.iter().any(|&i| middle(&m, i).y > 2.8);
         assert!(groups.iter().any(|g| high(g)) && !groups.iter().any(|g| high(g) && g.iter().any(|&i| middle(&m, i).y < 0.2)), "the block's top is an island");
         assert_eq!(groups.len(), 2, "the ground and the top: not the floor inside the block");
+        let f = Finder::new(&m, &lvl.navigation).unwrap();
+        assert_eq!(f.path(Vec3::new(0.0, 0.0, 6.0), Vec3::new(0.0, 3.0, 0.0)), Err("There is no way there"));
     }
 }

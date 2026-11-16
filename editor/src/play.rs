@@ -80,6 +80,8 @@ pub struct Play {
     pub feet: Vec3,
     /// Buttons, wires and moving parts.
     pub script: Script,
+    /// Finds paths on the level's navigation area (worked out when play starts) for characters that walk on their own.
+    pub nav: Option<crate::nav::Finder>,
 }
 
 #[derive(Component)]
@@ -114,6 +116,7 @@ impl Play {
         self.stop(commands);
         self.script = Script::new(level);
         self.bodies = crate::physics::spawn(commands, level, geo);
+        self.nav = crate::nav::build(level, geo).ok().and_then(|m| crate::nav::Finder::new(&m, &level.navigation).ok());
         self.homes = level.parts.iter().filter(|p| crate::physics::kind(p).is_some_and(|k| !k.is_static())).map(|p| (p.id, part_transform(p))).collect();
         self.slippery = level.parts.iter().filter(|p| p.tags.contains(&Tag::Slippery)).map(|p| p.id).collect();
         self.press = false;
