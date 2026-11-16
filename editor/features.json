@@ -395,15 +395,20 @@
    "name": "Navigation areas",
    "area": "AI and enemies",
    "status": "planned",
-   "effort": "M",
+   "effort": "L",
    "needs": [
-    "shapes"
+    "shapes",
+    "physics"
    ],
-   "what": "One button builds where enemies can walk; patrol paths.",
-   "chunks": [],
-   "note": "vleue_navigator supports Bevy 0.20.",
+   "what": "One button builds where enemies can walk, across floors, stairs and ramps; paths found on it.",
+   "chunks": [
+    "The walkable area: Build navigation (one button) from the level's still parts with bevy_rerecast, across floors, stairs and ramps; the enemy's size and climbing as settings; the area drawn in the editor",
+    "Paths on it with bevy_landmass: the editor shows the path between two points you pick; play can find paths for characters (Brains use it)"
+   ],
+   "note": "Across floors automatically, and patrol paths wait for the Paths tool (user, 2026-11-16). bevy_rerecast 0.6 (a Rust port of Recast) builds one 3D walkable area; bevy_landmass 0.13 with landmass_rerecast 0.4 finds paths on it and steers agents; all three support Bevy 0.20. The area is rebuilt from the level, never stored in files (no baked meshes).",
    "order": 23,
-   "first_game": true
+   "first_game": true,
+   "next": true
   },
   {
    "id": "world-settings",
@@ -868,7 +873,7 @@
     "Paths tool: click points, bend handles, closed loops; paths as level parts; Rail cameras that travel along a path",
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
-   "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries. Rail cameras (a camera part that travels along a path) moved here from Camera parts (user, 2026-11-15).",
+   "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries. Rail cameras (a camera part that travels along a path) moved here from Camera parts (user, 2026-11-15). Patrol paths (points an enemy walks between, looped or back and forth) come here, drawn with the Paths tool (user, 2026-11-16).",
    "order": 50,
    "first_game": true
   },
