@@ -3,7 +3,8 @@
 //! The design is scaled to fit the window; a wider or taller window stretches only a few straight runs between the
 //! corners and notches, so every curve, angle and the logo stay as drawn.
 use bevy_egui::egui::{self, Color32, Pos2, Rect, pos2};
-use lyon_tessellation::path::{Path as LPath, PathEvent, iterator::PathIterator};
+pub(super) use lyon_tessellation::path::Path as LPath;
+use lyon_tessellation::path::{PathEvent, iterator::PathIterator};
 use lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex, VertexBuffers, math::point};
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -15,8 +16,8 @@ const ART: Rect = Rect { min: pos2(31.8, 36.6), max: pos2(1238.2, 764.4) };
 const STRETCH_X: [(f32, f32); 2] = [(200.0, 280.0), (990.0, 1070.0)];
 const STRETCH_Y: (f32, f32) = (250.0, 550.0);
 
-/// One part of the design: triangles in its own units, coloured, and for each triangle the edges of its shape
-/// nearby (so each pixel's coverage comes from the real edges).
+/// One part of the design: triangles in its own units, coloured, and its shapes' edges (each pixel's coverage is
+/// worked out from them).
 pub struct Part {
     pub verts: Vec<(Pos2, Color32)>,
     pub indices: Vec<u32>,
@@ -24,8 +25,10 @@ pub struct Part {
     /// Each edge vertex's outward direction (zero inside); the edge vertices step a pixel out when drawn, so the
     /// shader can fade the edge over the pixels on both sides of it.
     normals: Vec<egui::Vec2>,
-    /// Per triangle, up to six edge segments near it (vertex pairs): those at its corners that step out first.
-    edges: Vec<[Option<[u32; 2]>; 6]>,
+    /// The shapes' edges (vertex pairs, each walked with its shape on the right), and per triangle which of them
+    /// are its shape's (first, count).
+    rims: Vec<[u32; 2]>,
+    shape_of: Vec<[u32; 2]>,
 }
 
 pub struct Art {
@@ -47,7 +50,7 @@ impl Art {
         let mut view = vec![];
         for node in tree.root().children() {
             let usvg::Node::Group(g) = node else { continue };
-            let mut part = Part { verts: vec![], indices: vec![], bounds: Rect::NOTHING, normals: vec![], edges: vec![] };
+            let mut part = Part { verts: vec![], indices: vec![], bounds: Rect::NOTHING, normals: vec![], rims: vec![], shape_of: vec![] };
             add_group(&mut part, g, 1.0, if g.id() == "frame" { Some(&mut view) } else { None });
             parts.insert(g.id().to_string(), part);
         }
@@ -70,14 +73,14 @@ fn add_group(part: &mut Part, g: &usvg::Group, opacity: f32, mut outline: Option
                     FillTessellator::new()
                         .tessellate_path(&path, &FillOptions::tolerance(0.02).with_fill_rule(rule), &mut BuffersBuilder::new(&mut b, |v: FillVertex| pos2(v.position().x, v.position().y)))
                         .expect("the design's shapes tessellate");
-                    push(part, b, t, f.paint(), f.opacity().get() * opacity);
+                    push(part, b, t, colouring(f.paint(), f.opacity().get() * opacity));
                 }
                 if let Some(s) = p.stroke() {
                     let mut b: VertexBuffers<Pos2, u32> = VertexBuffers::new();
                     StrokeTessellator::new()
                         .tessellate_path(&path, &StrokeOptions::tolerance(0.02).with_line_width(s.width().get()), &mut BuffersBuilder::new(&mut b, |v: StrokeVertex| pos2(v.position().x, v.position().y)))
                         .expect("the design's strokes tessellate");
-                    push(part, b, t, s.paint(), s.opacity().get() * opacity);
+                    push(part, b, t, colouring(s.paint(), s.opacity().get() * opacity));
                 }
                 // the frame's hole is the view
                 if let Some(o) = outline.as_deref_mut() {
@@ -136,9 +139,9 @@ fn lyon_path(d: &usvg::tiny_skia_path::Path) -> LPath {
 }
 
 /// Add tessellated triangles (in the path's own space) to a part, coloured by its paint.
-fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, paint: &usvg::Paint, opacity: f32) {
-    let base = part.verts.len() as u32;
-    let colour = |local: Pos2| -> Color32 {
+/// A paint's colour at a point of its path (gradients worked out per point).
+fn colouring(paint: &usvg::Paint, opacity: f32) -> impl Fn(Pos2) -> Color32 + '_ {
+    move |local: Pos2| -> Color32 {
         let (c, a) = match paint {
             usvg::Paint::Color(c) => (*c, 1.0),
             usvg::Paint::LinearGradient(g) => {
@@ -158,7 +161,12 @@ fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, paint: &usvg
             _ => (usvg::Color::black(), 1.0),
         };
         Color32::from_rgba_unmultiplied(c.red, c.green, c.blue, (a * opacity * 255.0).round() as u8)
-    };
+    }
+}
+
+/// Add tessellated triangles (in the path's own space, placed by `t`) to a part, coloured by `colour`.
+fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, colour: impl Fn(Pos2) -> Color32) {
+    let base = part.verts.len() as u32;
     for v in &b.vertices {
         let w = map(t, *v);
         part.bounds = part.bounds.union(Rect::from_pos(w));
@@ -176,7 +184,6 @@ fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, paint: &usvg
     let at = |i: u32| part.verts[(base + i) as usize].0;
     let n = b.vertices.len();
     let mut rim: Vec<[u32; 2]> = vec![];
-    let mut touching: Vec<Vec<usize>> = vec![vec![]; n];
     let mut sums = vec![(egui::Vec2::ZERO, Vec::<egui::Vec2>::new()); n];
     for (a, c, o, count) in sides.into_values() {
         if count != 1 { continue; }
@@ -185,7 +192,6 @@ fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, paint: &usvg
         let (a, c) = if out.dot(at(o) - at(a)) > 0.0 { out = -out; (c, a) } else { (a, c) };
         if !out.is_finite() { continue; }
         for k in [a, c] {
-            touching[k as usize].push(rim.len());
             sums[k as usize].0 += out;
             sums[k as usize].1.push(out);
         }
@@ -197,57 +203,63 @@ fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, paint: &usvg
         let k = outs.iter().map(|m| d.dot(*m)).fold(1.0f32, f32::min).max(0.5);
         part.normals[base as usize + i] = d / k;
     }
-    // each triangle's nearby edges: its own first (the pixels pushed out past them are its), then those at its
-    // corners that step out, nearest first
-    for tri in b.indices.chunks_exact(3) {
-        let mid = (at(tri[0]).to_vec2() + at(tri[1]).to_vec2() + at(tri[2]).to_vec2()) / 3.0;
-        let mut near: Vec<usize> = tri.iter().flat_map(|v| touching[*v as usize].iter().copied()).collect();
-        near.sort_unstable();
-        near.dedup();
-        let dist = |e: usize| {
-            let (p, q) = (part.verts[rim[e][0] as usize].0.to_vec2(), part.verts[rim[e][1] as usize].0.to_vec2());
-            let t = ((mid - p).dot(q - p) / (q - p).length_sq().max(1e-9)).clamp(0.0, 1.0);
-            (mid - (p + (q - p) * t)).length()
-        };
-        let own = |e: usize| tri.contains(&(rim[e][0] - base)) && tri.contains(&(rim[e][1] - base));
-        near.sort_by(|x, y| own(*y).cmp(&own(*x)).then(dist(*x).total_cmp(&dist(*y))));
-        let mut slots = [None; 6];
-        for (k, e) in near.into_iter().take(6).enumerate() { slots[k] = Some(rim[e]); }
-        part.edges.push(slots);
+    // every triangle of this shape uses all its edges
+    let range = [part.rims.len() as u32, rim.len() as u32];
+    part.rims.extend(rim);
+    part.shape_of.extend(std::iter::repeat_n(range, b.indices.len() / 3));
+}
+
+/// A filled outline (a letter's) as a white part, in the outline's own units.
+pub(super) fn filled(path: &LPath) -> Part {
+    let mut part = Part { verts: vec![], indices: vec![], bounds: Rect::NOTHING, normals: vec![], rims: vec![], shape_of: vec![] };
+    let mut b: VertexBuffers<Pos2, u32> = VertexBuffers::new();
+    if FillTessellator::new().tessellate_path(path, &FillOptions::tolerance(0.0005), &mut BuffersBuilder::new(&mut b, |v: FillVertex| pos2(v.position().x, v.position().y))).is_ok() {
+        push(&mut part, b, Transform::identity(), |_| Color32::WHITE);
     }
+    part
+}
+
+/// A part's triangles unplaced, for the GPU to place (letters): per corner its point and outward step, and which
+/// edges are its shape's (counted from `first`); and the edges (ends), in the part's own units.
+pub(super) fn unplaced(part: &Part, first: u32) -> (Vec<super::vector::LetterVertex>, Vec<[f32; 4]>) {
+    let mut verts = Vec::with_capacity(part.indices.len());
+    for (t, tri) in part.indices.chunks_exact(3).enumerate() {
+        let r = part.shape_of[t];
+        for &i in tri {
+            let (p, n) = (part.verts[i as usize].0, part.normals[i as usize]);
+            verts.push(super::vector::LetterVertex { pn: [p.x, p.y, n.x, n.y], range: [first + r[0], r[1]] });
+        }
+    }
+    let edges = part.rims.iter().map(|[a, b]| { let (p, q) = (part.verts[*a as usize].0, part.verts[*b as usize].0); [p.x, p.y, q.x, q.y] }).collect();
+    (verts, edges)
 }
 
 /// Draw a part: each design point placed in the window by `place`, its colours through `colour` (a tint, a fade).
 pub fn paint(p: &egui::Painter, part: &Part, place: impl Fn(Pos2) -> Pos2, colour: impl Fn(Color32) -> Color32) {
     let ctx = p.ctx();
-    super::vector::paint(p, vertices(part, place, colour, ctx.content_rect(), ctx.pixels_per_point()));
+    let (verts, edges) = vertices(part, place, colour, ctx.content_rect(), ctx.pixels_per_point());
+    super::vector::paint(p, verts, edges);
 }
 
-/// A part's vertices for the vector shader, in a window `screen` (points) of `ppp` pixels per point.
-fn vertices(part: &Part, place: impl Fn(Pos2) -> Pos2, colour: impl Fn(Color32) -> Color32, screen: Rect, ppp: f32) -> Vec<super::vector::Vertex> {
+/// A part's vertices and edges for the vector shader, in a window `screen` (points) of `ppp` pixels per point.
+fn vertices(part: &Part, place: impl Fn(Pos2) -> Pos2, colour: impl Fn(Color32) -> Color32, screen: Rect, ppp: f32) -> (Vec<super::vector::Vertex>, Vec<[f32; 4]>) {
     let size = (screen.size() * ppp).round();
     let px: Vec<Pos2> = part.verts.iter().map(|(v, _)| ((place(*v) - screen.min) * ppp).to_pos2()).collect();
-    // the outward directions as placed (so a mirrored or stretched part still knows its outside)
-    let out_dir: Vec<egui::Vec2> = part.verts.iter().zip(&part.normals).zip(&px).map(|(((v, _), n), q)| {
+    // the outward steps as placed (so a mirrored or stretched part still steps outward)
+    let step: Vec<egui::Vec2> = part.verts.iter().zip(&part.normals).zip(&px).map(|(((v, _), n), q)| {
         if *n == egui::Vec2::ZERO { return egui::Vec2::ZERO; }
         let d = (((place(*v + *n * 0.01) - screen.min) * ppp).to_pos2() - *q).normalized();
         if d.is_finite() { d * n.length() } else { egui::Vec2::ZERO }
     }).collect();
-    let angle = |i: u32| { let d = out_dir[i as usize]; d.y.atan2(d.x) };
     let mut out = Vec::with_capacity(part.indices.len());
     for (t, tri) in part.indices.chunks_exact(3).enumerate() {
-        let mut edges = [[0.0f32; 6]; 6];
-        for (k, e) in part.edges[t].iter().enumerate() {
-            let Some([a, b]) = e else { continue };
-            let (pa, pb) = (px[*a as usize], px[*b as usize]);
-            edges[k] = [pa.x, pa.y, pb.x, pb.y, angle(*a), angle(*b)];
-        }
         for &i in tri {
-            let q = px[i as usize] + out_dir[i as usize];
-            out.push(super::vector::Vertex { pos: [q.x / size.x * 2.0 - 1.0, 1.0 - q.y / size.y * 2.0], color: colour(part.verts[i as usize].1).to_array(), edges });
+            let q = px[i as usize] + step[i as usize];
+            out.push(super::vector::Vertex { pos: [q.x / size.x * 2.0 - 1.0, 1.0 - q.y / size.y * 2.0], color: colour(part.verts[i as usize].1).to_array(), range: part.shape_of[t] });
         }
     }
-    out
+    let edges = part.rims.iter().map(|[a, b]| { let (p, q) = (px[*a as usize], px[*b as usize]); [p.x, p.y, q.x, q.y] }).collect();
+    (out, edges)
 }
 
 /// How the design's units land in the window: scaled to fit, with the extra width and height going to the
@@ -348,9 +360,9 @@ mod tests {
             // every part's vertices land in or just around the window
             let win = Rect::from_min_size(Pos2::ZERO, vec2(w, h));
             for id in ["frame", "logo", "pill-left", "assets-card", "drop-files", "undo-icon", "panel-mode"] {
-                let v = vertices(a.part(id), |p| m.pos(p, Fit::Stretch, Fit::Stretch), |c| c, win, 1.0);
+                let (v, e) = vertices(a.part(id), |p| m.pos(p, Fit::Stretch, Fit::Stretch), |c| c, win, 1.0);
                 assert!(v.iter().all(|v| v.pos.iter().all(|x| x.is_finite() && x.abs() < 1.1)), "{id}: {:?}", v.iter().map(|v| v.pos).find(|p| !(p[0].abs() < 1.1 && p[1].abs() < 1.1)));
-                assert!(v.iter().all(|v| v.edges.iter().flatten().all(|x| x.is_finite())), "{id}: edges");
+                assert!(e.iter().flatten().all(|x| x.is_finite()) && v.iter().all(|v| v.range[0] + v.range[1] <= e.len() as u32), "{id}: edges");
             }
             // a pinned part keeps its size
             let r = bounds("assets-card", &m, Fit::Pin(1214.0), Fit::Pin(100.0));

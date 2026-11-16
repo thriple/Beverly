@@ -30,6 +30,8 @@ landmass_rerecast = "=0.4.0"
 # the editor's frame, logo and panels drawn from the user's SVG (editor/frame.rs)
 usvg = { version = "=0.50.0", default-features = false }
 lyon_tessellation = "=1.0.23"
+# letters' outlines for the editor's vector text (the version egui uses)
+skrifa = "=0.44.0"
 serde = { version = "1", features = ["derive"] }
 ron = "0.12"
 rfd = "0.15"

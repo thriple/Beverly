@@ -1,48 +1,64 @@
-// The editor's vector parts (vector.rs): triangles of the design's shapes, each pixel near an edge covered by how far
-// it is from the shape's real edges (up to six edge segments near its triangle, each with its ends' outward
-// directions), so edges are exact at any size: curves and thin strokes included.
+// The editor's vector shapes (vector.rs): the design's parts and every letter. Each is drawn as its triangles, and
+// each pixel is covered by exactly how much of the pixel's square the shape covers, summed from the shape's own
+// edges (the signed area each edge cuts off, as font rasterizers work it out): exact at any size, for curves,
+// corners, thin strokes and holes alike.
 
-struct VertexInput {
-    @location(0) position: vec2<f32>,
-    @location(1) color: vec4<f32>,
-    @location(2) e0: vec4<f32>, @location(3) e1: vec4<f32>, @location(4) e2: vec4<f32>,
-    @location(5) e3: vec4<f32>, @location(6) e4: vec4<f32>, @location(7) e5: vec4<f32>,
-    @location(8) e6: vec4<f32>, @location(9) e7: vec4<f32>, @location(10) e8: vec4<f32>,
-}
+// The shapes' edges, each walked with the shape on the same side (so holes cancel out).
+@group(0) @binding(0) var<storage, read> edges: array<vec4<f32>>;
 
-// Six edge segments, six numbers each: ends a, b (window pixels), then the outward directions at a and b (angles).
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
-    @location(1) @interpolate(flat) e0: vec4<f32>, @location(2) @interpolate(flat) e1: vec4<f32>,
-    @location(3) @interpolate(flat) e2: vec4<f32>, @location(4) @interpolate(flat) e3: vec4<f32>,
-    @location(5) @interpolate(flat) e4: vec4<f32>, @location(6) @interpolate(flat) e5: vec4<f32>,
-    @location(7) @interpolate(flat) e6: vec4<f32>, @location(8) @interpolate(flat) e7: vec4<f32>,
-    @location(9) @interpolate(flat) e8: vec4<f32>,
+    // which edges are this shape's (first, count)
+    @location(1) @interpolate(flat) range: vec2<u32>,
+    // how the edges are placed: origin (window pixels), size (pixels per unit), turn
+    @location(2) @interpolate(flat) place: vec4<f32>,
 }
 
+// A part (frame.rs): already placed in the window; its edges are in window pixels.
 @vertex
-fn vertex(v: VertexInput) -> VertexOutput {
-    return VertexOutput(vec4<f32>(v.position, 0.0, 1.0), v.color, v.e0, v.e1, v.e2, v.e3, v.e4, v.e5, v.e6, v.e7, v.e8);
+fn part(@location(0) position: vec2<f32>, @location(1) color: vec4<f32>, @location(2) range: vec2<u32>) -> VertexOutput {
+    return VertexOutput(vec4<f32>(position, 0.0, 1.0), color, range, vec4<f32>(0.0, 0.0, 1.0, 0.0));
 }
 
-// A pixel's place against an edge segment (s: its ends; n: their outward directions): its distance (negative
-// inside), and the way the segment faces. Past the segment's ends the side comes from the end's direction.
-fn against(p: vec2<f32>, s: vec4<f32>, angles: vec2<f32>) -> vec3<f32> {
-    let a = s.xy;
-    let ab = s.zw - s.xy;
-    let len2 = dot(ab, ab);
-    if len2 < 1e-8 { return vec3<f32>(1e9, 0.0, 0.0); }
-    let na = vec2<f32>(cos(angles.x), sin(angles.x));
-    let nb = vec2<f32>(cos(angles.y), sin(angles.y));
-    let t = dot(p - a, ab) / len2;
-    // the side facing out: the one the ends' outward directions lean to
-    var face = normalize(vec2<f32>(-ab.y, ab.x));
-    if dot(face, na + nb) < 0.0 { face = -face; }
-    let q = a + ab * clamp(t, 0.0, 1.0);
-    var side = dot(p - a, face);
-    if t < 0.0 { side = dot(p - a, na); } else if t > 1.0 { side = dot(p - s.zw, nb); }
-    return vec3<f32>(select(-1.0, 1.0, side > 0.0) * length(p - q), face);
+// A letter (text.rs): its shape in ems (y down) from the store, placed by its instance.
+@vertex
+fn letter(
+    @location(0) pn: vec4<f32>,
+    @location(1) range: vec2<u32>,
+    @location(2) place: vec4<f32>,
+    @location(3) screen: vec2<f32>,
+    @location(4) color: vec4<f32>,
+) -> VertexOutput {
+    let turn = mat2x2<f32>(cos(place.w), sin(place.w), -sin(place.w), cos(place.w));
+    // a corner on the outline steps a pixel out, so every pixel the letter touches is drawn
+    let p = place.xy + turn * (pn.xy * place.z + pn.zw);
+    let ndc = vec2<f32>(p.x / screen.x * 2.0 - 1.0, 1.0 - p.y / screen.y * 2.0);
+    return VertexOutput(vec4<f32>(ndc, 0.0, 1.0), color, range, place);
+}
+
+// The integral of clamp(x, -0.5, 0.5) from 0 to x.
+fn ramp(x: f32) -> f32 {
+    if x <= -0.5 { return -0.5 * x; }
+    if x >= 0.5 { return 0.5 * x; }
+    return 0.5 * x * x + 0.125;
+}
+
+// The signed area an edge from a to b (relative to the pixel's middle) covers of the pixel: the part of the pixel's
+// square between the edge and the square's right side, within the edge's rows.
+fn cut(a: vec2<f32>, b: vec2<f32>) -> f32 {
+    if a.y == b.y { return 0.0; }
+    let lo = max(min(a.y, b.y), -0.5);
+    let hi = min(max(a.y, b.y), 0.5);
+    if lo >= hi { return 0.0; }
+    // the edge within those rows
+    let k = (b.x - a.x) / (b.y - a.y);
+    let x0 = a.x + (lo - a.y) * k;
+    let x1 = a.x + (hi - a.y) * k;
+    // the mean of the edge's x clamped to the pixel, over those rows
+    var mean: f32;
+    if abs(x1 - x0) < 1e-4 { mean = clamp(x0, -0.5, 0.5); } else { mean = (ramp(x1) - ramp(x0)) / (x1 - x0); }
+    return sign(b.y - a.y) * (hi - lo) * (0.5 - mean);
 }
 
 // 0-1 linear from 0-1 sRGB gamma (as egui's own shader does, so colours match its).
@@ -56,25 +72,17 @@ fn linear_from_gamma_rgb(srgb: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let p = in.position.xy;
-    let e = array<vec3<f32>, 6>(
-        against(p, in.e0, in.e1.xy), against(p, vec4<f32>(in.e1.zw, in.e2.xy), in.e2.zw),
-        against(p, in.e3, in.e4.xy), against(p, vec4<f32>(in.e4.zw, in.e5.xy), in.e5.zw),
-        against(p, in.e6, in.e7.xy), against(p, vec4<f32>(in.e7.zw, in.e8.xy), in.e8.zw),
-    );
-    // the nearest edge says how much of the pixel is outside; pixels further than any edge is pushed out (two
-    // pixels) are inside
-    var k0 = 0u;
-    for (var k = 1u; k < 6u; k++) { if abs(e[k].x) < abs(e[k0].x) { k0 = k; } }
-    var coverage = 1.0;
-    if abs(e[k0].x) < 2.5 {
-        coverage = clamp(0.5 - e[k0].x, 0.0, 1.0);
-        // a thin stroke: the edge on its other side, close by, takes its share too
-        var other = 0.0;
-        for (var k = 0u; k < 6u; k++) {
-            if k != k0 && e[k].x < 0.0 && e[k].x > -1.0 && dot(e[k].yz, e[k0].yz) < -0.3 { other = max(other, 1.0 - clamp(0.5 - e[k].x, 0.0, 1.0)); }
-        }
-        coverage = clamp(coverage - other, 0.0, 1.0);
+    let turn = mat2x2<f32>(cos(in.place.w), sin(in.place.w), -sin(in.place.w), cos(in.place.w));
+    var area = 0.0;
+    for (var i = in.range.x; i < in.range.x + in.range.y; i++) {
+        let e = edges[i];
+        let a = in.place.xy + turn * (e.xy * in.place.z) - p;
+        let b = in.place.xy + turn * (e.zw * in.place.z) - p;
+        // an edge wholly right of the pixel, or above or below it, covers none of it
+        if min(a.x, b.x) >= 0.5 || max(a.y, b.y) <= -0.5 || min(a.y, b.y) >= 0.5 { continue; }
+        area += cut(a, b);
     }
+    let coverage = clamp(abs(area), 0.0, 1.0);
     let c = in.color * coverage;
     return vec4<f32>(linear_from_gamma_rgb(c.rgb), c.a);
 }

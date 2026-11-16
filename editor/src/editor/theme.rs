@@ -64,6 +64,7 @@ pub fn setup(ctx: &Context) {
     let mut semi_fam = vec!["inter-semi".to_string()];
     semi_fam.extend(f.families[&FontFamily::Proportional].iter().cloned());
     f.families.insert(FontFamily::Name("semi".into()), semi_fam);
+    super::text::set_fonts(&f);
     ctx.set_fonts(f);
 
     ctx.all_styles_mut(|s| {
