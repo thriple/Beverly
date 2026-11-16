@@ -103,18 +103,17 @@ fn art_area<R>(ctx: &egui::Context, id: &str, bounds: ERect, add: impl FnOnce(&m
     }).inner
 }
 
-fn draw(ui: &Ui, id: &str, m: &frame::Map, fx: Fit, fy: Fit) { ui.painter().add(egui::Shape::mesh(frame::mesh(frame::art().part(id), m, fx, fy, vec2(0.0, 0.0), None))); }
+fn draw(ui: &Ui, id: &str, m: &frame::Map, fx: Fit, fy: Fit) { frame::paint(ui.painter(), frame::art().part(id), |p| m.pos(p, fx, fy), |c| c); }
 
 /// The frame around the view and the band behind the tabs (behind everything).
 fn paint_frame(ctx: &egui::Context, lay: &frame::Layout) {
     let p = ctx.layer_painter(egui::LayerId::background());
     let f = frame::art().part("frame");
     // the design is drawn on white: its frame's shading is over opaque white (nothing of the view shows through)
-    let mut under = frame::mesh(f, &lay.m, S, S, vec2(0.0, 0.0), None);
-    for v in &mut under.vertices { if v.color.a() > 0 { v.color = Color32::WHITE; } }
-    p.add(egui::Shape::mesh(under));
-    p.add(egui::Shape::mesh(frame::mesh(f, &lay.m, S, S, vec2(0.0, 0.0), None)));
-    p.add(egui::Shape::mesh(frame::mesh(frame::art().part("tab-band"), &lay.m, S, S, vec2(0.0, 0.0), None)));
+    let m = lay.m;
+    frame::paint(&p, f, |q| m.pos(q, S, S), |_| Color32::WHITE);
+    frame::paint(&p, f, |q| m.pos(q, S, S), |c| c);
+    frame::paint(&p, frame::art().part("tab-band"), |q| m.pos(q, S, S), |c| c);
 }
 
 /// A button of the design's kind (dark, outlined, rounded) on a box of the design, its text's left end at `tx`
@@ -188,9 +187,7 @@ fn top(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, exit: &mut Mes
             let icon = frame::art().part("undo-icon");
             let c = icon.bounds.center();
             let mirror = |p: egui::Pos2| if k == 0 { p } else { pos2(2.0 * c.x - p.x + (1079.0 - 1032.4), p.y) };
-            let mut mesh = frame::mesh_with(icon, &m, RIGHT, S, mirror);
-            if !on { for v in &mut mesh.vertices { v.color = white(90); } }
-            ui.painter().add(egui::Shape::mesh(mesh));
+            frame::paint(ui.painter(), icon, |p| m.pos(mirror(p), RIGHT, S), |c| if on { c } else { white(90) });
             if b.on_hover_ui(|ui| theme::hint(ui, if k == 0 { "Undo" } else { "Redo" }, &keys)).clicked() { let _ = actions::run(ed, None, id, exit); }
         }
         svg_text(ui.painter(), &m, pos2(1121.0, 79.4), RIGHT, if ed.snap { "Snap 0.25 m · 15°" } else { "Snap off" }, 7.8, TEXT);
@@ -299,9 +296,9 @@ fn tabs(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
     egui::Area::new(id.with("menu-area")).order(egui::Order::Foreground).fixed_pos(r.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(r.size());
         ui.multiply_opacity(t);
-        let mut mesh = frame::mesh(frame::art().part(part), &m, S, S, vec2(0.0, 0.0), None);
-        for v in &mut mesh.vertices { v.pos = r.center_top() + (v.pos - r.center_top()) * egui::lerp(0.96..=1.0, t); }
-        ui.painter().add(egui::Shape::mesh(mesh));
+        // fading and growing in from its top
+        let grow = egui::lerp(0.96..=1.0, t);
+        frame::paint(ui.painter(), frame::art().part(part), |p| r.center_top() + (m.pos(p, S, S) - r.center_top()) * grow, |c| c.gamma_multiply(t));
         let x0 = frame::art().part(part).bounds;
         for (k, (label, mode, later)) in TABS[i].items.iter().enumerate() {
             let y = first + pitch * k as f32;
@@ -379,16 +376,15 @@ fn bottom(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::La
         let grip_at = pos2(panel.center().x, (panel.top() - m.len(4.6)).min(drawer.top() + m.len(8.0)));
         art_area(ctx, ["panel-mode", "panel-inspector", "panel-scene"][i], area.union(ERect::from_center_size(grip_at, vec2(m.len(110.0), m.len(10.0)))), |ui| {
             draw(ui, ["panel-mode", "panel-inspector", "panel-scene"][i], &m, S, fy);
-            if t > 0.0 { ui.painter().add(egui::Shape::mesh(frame::mesh_with(d, &m, S, fy, lift))); }
+            if t > 0.0 { frame::paint(ui.painter(), d, |p| m.pos(lift(p), S, fy), |c| c); }
             let g = frame::art().part("grip");
             let gc = g.bounds.center();
             let shift = grip_at - m.pos(gc, Fit::Pin(gc.x), Fit::Pin(gc.y));
             let gr = ui.interact(ERect::from_center_size(grip_at, vec2(m.len(105.0), m.len(9.0))), Id::new(("grip", i)), Sense::click_and_drag())
                 .on_hover_cursor(egui::CursorIcon::ResizeVertical)
                 .on_hover_text(if ed.drawers[i] { "Click to close · drag for its height" } else { "Click to open · drag for its height" });
-            let mut mesh = frame::mesh(g, &m, Fit::Pin(gc.x), Fit::Pin(gc.y), shift, None);
-            if gr.hovered() || gr.dragged() { for v in &mut mesh.vertices { v.color = theme::lerp_color(v.color, white(255), 0.35); } }
-            ui.painter().add(egui::Shape::mesh(mesh));
+            let hot = gr.hovered() || gr.dragged();
+            frame::paint(ui.painter(), g, |p| m.pos(p, Fit::Pin(gc.x), Fit::Pin(gc.y)) + shift, |c| if hot { theme::lerp_color(c, white(255), 0.35) } else { c });
             if gr.clicked() { ed.drawers[i] = !ed.drawers[i]; }
             if gr.drag_started() && !ed.drawers[i] { ed.drawer_h[i] = 0.0; }
             if gr.dragged() {
@@ -432,7 +428,7 @@ fn assets_card(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
         draw(ui, "assets-card", &m, RIGHT, S);
         // the design's drop header (its chevrons and lettering); lit up while files are dragged over the window
         let hot = ed.hovering_files;
-        ui.painter().add(egui::Shape::mesh(frame::mesh(frame::art().part("drop-files"), &m, RIGHT, S, vec2(0.0, 0.0), hot.then_some(ACCENT))));
+        frame::paint(ui.painter(), frame::art().part("drop-files"), |p| m.pos(p, RIGHT, S), |c| if hot { Color32::from_rgba_unmultiplied(ACCENT.r(), ACCENT.g(), ACCENT.b(), c.a()) } else { c });
         let help = if hot { "Drop to import" } else { "Drag textures, models and sounds here to import them" };
         ui.interact(lay.drop, Id::new("drop-files"), Sense::hover()).on_hover_text(help);
         let inner = ERect::from_min_max(pos2(lay.drop.left(), lay.drop.bottom() + m.len(6.0)), lay.assets.max - vec2(m.len(8.0), m.len(10.0)));
@@ -468,7 +464,7 @@ fn hint_strip(ctx: &egui::Context, lay: &frame::Layout, hints: &[(&str, &[&str])
     let w = x - 7.0;
     let c = 635.05;
     let (x0, y0, y1) = (c - w / 2.0, 639.0, 662.0);
-    if editor_mode { p.add(egui::Shape::mesh(frame::mesh(frame::art().part("view-hints"), &m, S, frame::BOTTOM, vec2(0.0, 0.0), None))); } else {
+    if editor_mode { frame::paint(&p, frame::art().part("view-hints"), |q| m.pos(q, S, frame::BOTTOM), |c| c); } else {
         let r = m.rect(ERect::from_min_max(pos2(x0 - 12.0, y0), pos2(x0 + w + 12.0, y1)), S, frame::BOTTOM);
         p.rect_filled(r, CornerRadius::same((r.height() / 2.0) as u8), GLASS);
     }

@@ -5,6 +5,7 @@ mod bev_type;
 mod caps;
 mod edit;
 mod frame;
+mod vector;
 mod camera;
 mod light;
 mod texture;
@@ -277,7 +278,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((EguiPlugin::default(), play::PlayPlugin))
+    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, play::PlayPlugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
