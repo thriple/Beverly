@@ -6,7 +6,12 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 ## Rules from the user
 
 - **Work on `main` only:** every session commits and pushes to `main`, never to a session branch (user, 2026-11-15).
-- **UI kit:** use the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/theme.rs`) wherever a component
+- **The editor's look (user, 2026-11-16):** the user's design, `docs/ui.svg`, drawn from its own shapes: its parts
+  are cut by id into `editor/assets/ui/editor.svg` (coordinates, colours and curves kept) and drawn by
+  `editor/src/editor/frame.rs`. Don't redraw what the design has; add new parts to the design file by id.
+- **No rasters in the GUI (user, 2026-11-16):** everything the editor's interface draws is vector, rendered at the
+  screen's resolution; no images, no scaled bitmaps.
+- **UI kit:** blended with the user's design: use the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/theme.rs`) wherever a component
   fits, and build any new UI in its style: its springs (SPRING / SNAPPY / SOFT), fade-and-scale entrances, colours,
   asymmetric corner radii (14/14/14/4) and keycaps for every shortcut.
 - Caps Lock is the movement-mode switch only. Tab opens the parts pop-up. Mouse 5 / ] faster, Mouse 4 / [ slower.

@@ -1,12 +1,12 @@
-//! The 2D parts of the editor, in the Motion kit's style: top bar with the File menu, the collapsible Assets
-//! panel, the bottom properties panel, the parts pop-up (Tab), the status island, the speed strip, hints, and the
-//! unsaved-changes question.
+//! The 2D parts of the editor: the user's framed layout (frame.rs, docs/ui.svg) in the Motion kit's style: the
+//! menus and tabs along the top, the Assets card, the three bottom panels with their drawers, the parts pop-up
+//! (Tab), the status island, the speed strip, hints, and the unsaved-changes question.
 use crate::level::{self, Shape, Wire};
 use crate::settings::{self, Setting};
 use crate::update::{self, Status};
 use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
 use super::view::{Mode, SPEED_LABELS, View};
-use super::{actions, mcp, Editor, Pending};
+use super::{actions, frame, mcp, Editor, LevelMode, Pending};
 use bevy::prelude::*;
 use bevy_egui::egui::{self, Align2, Color32, CornerRadius, Id, Rect as ERect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use bevy_egui::{EguiContexts, egui::emath::TSTransform};
@@ -46,18 +46,22 @@ pub fn ui(
     if ed.testing.is_some() {
         let r = ctx.viewport_rect();
         view.rect = Rect::new(r.left(), r.top(), r.right(), r.bottom());
+        view.outline.clear();
         ed.island.draw(&ctx, pos2(r.center().x, r.min.y + 14.0), "Testing", &["`"]);
         return Ok(());
     }
-    let mut root = Ui::new(ctx.clone(), "root".into(), egui::UiBuilder::new().layer_id(egui::LayerId::background()).max_rect(ctx.viewport_rect()));
+    // the frame: the view set into it, the menus and tabs along the top, the panels along the bottom
+    let lay = frame::layout(ctx.viewport_rect());
+    // (a pixel bigger than the frame's hole, so no seam shows between them)
+    let v = lay.view.expand(1.5);
+    view.rect = Rect::new(v.left(), v.top(), v.right(), v.bottom());
+    view.outline = lay.outline.clone();
+    paint_frame(&ctx, &lay);
+    top(&ctx, &mut ed, &lay, &mut exit);
+    assets_card(&ctx, &mut ed, &lay);
+    bottom(&ctx, &mut ed, &mut view, &lay, &mut exit);
 
-    top_bar(&mut root, &mut ed, &mut exit);
-    assets_panel(&mut root, &mut ed);
-    bottom_panel(&mut root, &mut ed, &mut view, &mut exit);
-    let r = root.available_rect_before_wrap();
-    view.rect = Rect::new(r.left(), r.top(), r.right(), r.bottom());
-
-    overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
+    overlays(&ctx, &mut ed, &view, &lay, time.elapsed_secs_f64());
     if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
@@ -72,47 +76,253 @@ fn small_caps(ui: &mut Ui, text: &str) {
     ui.label(egui::RichText::new(text).font(mono(10.0)).color(MUTED).extra_letter_spacing(1.2));
 }
 
-fn top_bar(root: &mut Ui, ed: &mut Editor, exit: &mut MessageWriter<AppExit>) {
-    let frame = egui::Frame::new().fill(PANEL).inner_margin(egui::Margin::symmetric(12, 0)).stroke(Stroke::new(1.0, LINE));
-    egui::Panel::top("top").exact_size(46.0).frame(frame).show(root, |ui| {
-        ui.horizontal_centered(|ui| {
-            ui.label(egui::RichText::new("Beverly").font(semi(16.0)).color(TEXT));
-            ui.add_space(6.0);
-            ui.menu_button("File", |ui| {
+/// Translucent black: the cards and pop-ups over the view (the design's panels).
+const GLASS: Color32 = Color32::from_black_alpha(166);
+/// The design's buttons and keycaps.
+pub(super) const CHIP: Color32 = Color32::from_rgb(0x17, 0x17, 0x17);
+pub(super) const CHIP_LINE: Color32 = Color32::from_rgb(0x2e, 0x2e, 0x2e);
+
+use frame::{Fit, LEFT, RIGHT};
+const S: Fit = Fit::Stretch;
+
+/// Text at a point of the design (its left end on the baseline, as SVG places text).
+fn svg_text(p: &egui::Painter, m: &frame::Map, at: egui::Pos2, fx: Fit, text: &str, size: f32, col: Color32) -> ERect {
+    let g = p.layout_no_wrap(text.to_owned(), theme::roboto(m.len(size)), col);
+    let pos = m.pos(at, fx, S) - vec2(0.0, g.size().y * 0.78);
+    let r = ERect::from_min_size(pos, g.size());
+    p.galley(pos, g, col);
+    r
+}
+
+/// A part of the design drawn in an area over the view (so the view ignores the pointer there).
+fn art_area<R>(ctx: &egui::Context, id: &str, bounds: ERect, add: impl FnOnce(&mut Ui) -> R) -> R {
+    egui::Area::new(Id::new(id)).order(egui::Order::Middle).fixed_pos(bounds.min).constrain(false).show(ctx, |ui| {
+        ui.set_min_size(bounds.size());
+        ui.set_max_size(bounds.size());
+        add(ui)
+    }).inner
+}
+
+fn draw(ui: &Ui, id: &str, m: &frame::Map, fx: Fit, fy: Fit) { ui.painter().add(egui::Shape::mesh(frame::mesh(frame::art().part(id), m, fx, fy, vec2(0.0, 0.0), None))); }
+
+/// The frame around the view and the band behind the tabs (behind everything).
+fn paint_frame(ctx: &egui::Context, lay: &frame::Layout) {
+    let p = ctx.layer_painter(egui::LayerId::background());
+    let f = frame::art().part("frame");
+    // the design is drawn on white: its frame's shading is over opaque white (nothing of the view shows through)
+    let mut under = frame::mesh(f, &lay.m, S, S, vec2(0.0, 0.0), None);
+    for v in &mut under.vertices { if v.color.a() > 0 { v.color = Color32::WHITE; } }
+    p.add(egui::Shape::mesh(under));
+    p.add(egui::Shape::mesh(frame::mesh(f, &lay.m, S, S, vec2(0.0, 0.0), None)));
+    p.add(egui::Shape::mesh(frame::mesh(frame::art().part("tab-band"), &lay.m, S, S, vec2(0.0, 0.0), None)));
+}
+
+/// A button of the design's kind (dark, outlined, rounded) on a box of the design, its text's left end at `tx`
+/// (None: centred).
+#[allow(clippy::too_many_arguments)]
+fn svg_box_button(ui: &mut Ui, m: &frame::Map, fx: Fit, b: ERect, tx: Option<f32>, label: &str, size: f32, enabled: bool) -> egui::Response {
+    let r = m.rect(b, fx, S);
+    let resp = ui.interact(r, ui.id().with(("svg-button", label)), if enabled { Sense::click() } else { Sense::hover() });
+    let hot = theme::spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() && enabled { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+    let p = ui.painter();
+    let round = CornerRadius::same(m.len(5.0) as u8);
+    p.rect_filled(r, round, theme::lerp_color(CHIP, Color32::from_rgb(0x3a, 0x3a, 0x3a), hot));
+    p.rect_stroke(r, round, Stroke::new(m.len(0.5).max(1.0), CHIP_LINE), StrokeKind::Inside);
+    let col = if enabled { TEXT } else { white(90) };
+    match tx {
+        Some(x) => { svg_text(p, m, pos2(x, b.bottom() - 4.2), fx, label, size, col); }
+        None => { p.text(r.center(), Align2::CENTER_CENTER, label, theme::roboto(m.len(size)), col); }
+    }
+    resp
+}
+
+/// A design button sized to its label, its left end at `x`; returns it and where the next one starts.
+fn svg_button(ui: &mut Ui, m: &frame::Map, fx: Fit, x: f32, (y0, y1): (f32, f32), label: &str, size: f32) -> (egui::Response, f32) {
+    let w = ui.painter().layout_no_wrap(label.to_owned(), theme::roboto(m.len(size)), TEXT).size().x / m.s + 9.2;
+    (svg_box_button(ui, m, fx, ERect::from_min_max(pos2(x, y0), pos2(x + w, y1)), None, label, size, true), x + w + 4.8)
+}
+
+/// The top: the left pill (logo and menus), the tabs, the right pill (Parts, Undo, Redo, Snap).
+fn top(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
+    let m = lay.m;
+    art_area(ctx, "left-pill", lay.left_pill, |ui| {
+        draw(ui, "pill-left", &m, LEFT, S);
+        draw(ui, "logo", &m, LEFT, S);
+        let menus: [(&str, &[&str]); 5] = [
+            ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"]),
+            ("Edit", &["edit.undo", "edit.redo", "", "edit.duplicate", "edit.delete", "edit.make_unique", "edit.deselect", "", "edit.snap"]),
+            ("View", &["view.parts", "view.frame", "view.look_through"]),
+            ("Play", &["play.test", "", "file.export"]),
+            ("Help", &["help.about", "help.updates", "help.features", "help.mcp"]),
+        ];
+        let mut x = 120.8;
+        for (name, ids) in menus {
+            let (resp, next) = svg_button(ui, &m, LEFT, x, (68.9, 84.5), name, 10.0);
+            x = next;
+            egui::Popup::menu(&resp).show(|ui| {
                 ui.set_min_width(230.0);
-                for id in ["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"] {
+                for id in ids {
                     if id.is_empty() { ui.separator(); } else { menu_action(ui, ed, id, exit); }
                 }
+                if name == "Play" { ui.label(egui::RichText::new("` tests from where the view looks").color(MUTED).size(11.0)); }
             });
-            ui.menu_button("Help", |ui| {
-                ui.set_min_width(200.0);
-                for id in ["help.about", "help.updates", "help.features", "help.mcp"] { menu_action(ui, ed, id, exit); }
-            });
-            ui.add_space(6.0);
-            ui.label(egui::RichText::new(&ed.name).color(MUTED));
-            if ed.dirty() {
-                let (r, _) = ui.allocate_exact_size(vec2(8.0, 8.0), Sense::hover());
-                ui.painter().circle_filled(r.center(), 3.5, ACCENT);
-            }
-            ui.add_space(14.0);
-            let mut tab = 0usize;
-            if theme::segmented(ui, "mode", &["Level", "Screens", "Animatics"], &mut tab, false) {
-                let when = if tab == 1 { "v0.3" } else { "v0.4" };
-                ed.island.show("…", format!("{} comes in {when}", ["Level", "Screens", "Animatics"][tab]), "Levels are what this version builds", Tone::Plain);
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let snap_label = if ed.snap { "Snap 0.25 m · 15°" } else { "Snap off" };
-                let mut s = ed.snap;
-                if theme::toggle(ui, &mut s).changed() { ed.snap = s; }
-                ui.label(egui::RichText::new(snap_label).color(MUTED));
-                ui.add_space(10.0);
-                if ui.add_enabled(!ed.redo.is_empty(), egui::Button::new("↷ Redo")).on_hover_ui(|ui| theme::hint(ui, "Redo", &["Ctrl", "Y"])).clicked() { let _ = actions::run(ed, None, "edit.redo", exit); }
-                if ui.add_enabled(!ed.undo.is_empty(), egui::Button::new("↶ Undo")).on_hover_ui(|ui| theme::hint(ui, "Undo", &["Ctrl", "Z"])).clicked() { let _ = actions::run(ed, None, "edit.undo", exit); }
-                ui.add_space(10.0);
-                if ui.button("Parts").on_hover_ui(|ui| theme::hint(ui, "Open the parts pop-up", &["Tab"])).clicked() { let _ = actions::run(ed, None, "view.parts", exit); }
-            });
-        });
+        }
+        // the project, and a dot while it has unsaved changes
+        let room = lay.left_pill.right() - m.x(x + 4.0, LEFT) - m.len(26.0);
+        if room > 20.0 {
+            let g = ui.painter().layout(ed.name.clone(), theme::roboto(m.len(10.0)), MUTED, f32::INFINITY);
+            let at = m.pos(pos2(x + 4.0, 80.3), LEFT, S) - vec2(0.0, g.size().y * 0.78);
+            let clip = ERect::from_min_size(at, vec2(room, g.size().y));
+            ui.painter().with_clip_rect(clip).galley(at, g.clone(), MUTED);
+            if ed.dirty() { ui.painter().circle_filled(pos2(at.x + g.size().x.min(room) + m.len(5.0), at.y + g.size().y * 0.55), m.len(2.6), ACCENT); }
+        }
     });
+    art_area(ctx, "right-pill", lay.right_pill, |ui| {
+        draw(ui, "pill-right", &m, RIGHT, S);
+        let parts = svg_box_button(ui, &m, RIGHT, ERect::from_min_max(pos2(987.8, 69.3), pos2(1020.2, 84.9)), Some(991.9), "Parts", 10.0, true);
+        if parts.on_hover_ui(|ui| theme::hint(ui, "Open the parts pop-up", &["Tab"])).clicked() { let _ = actions::run(ed, None, "view.parts", exit); }
+        // Undo and Redo: the design's boxes, and its arrow (mirrored for Redo) before the word
+        for (k, (x0, x1, tx, label, id, keys)) in [(1025.8, 1067.1, 1039.1, "Undo", "edit.undo", ["Ctrl", "Z"]), (1072.4, 1113.8, 1086.4, "Redo", "edit.redo", ["Ctrl", "Y"])].into_iter().enumerate() {
+            let on = if k == 0 { !ed.undo.is_empty() } else { !ed.redo.is_empty() };
+            let b = svg_box_button(ui, &m, RIGHT, ERect::from_min_max(pos2(x0, 69.3), pos2(x1, 84.9)), Some(tx), label, 10.0, on);
+            let icon = frame::art().part("undo-icon");
+            let c = icon.bounds.center();
+            let mirror = |p: egui::Pos2| if k == 0 { p } else { pos2(2.0 * c.x - p.x + (1079.0 - 1032.4), p.y) };
+            let mut mesh = frame::mesh_with(icon, &m, RIGHT, S, mirror);
+            if !on { for v in &mut mesh.vertices { v.color = white(90); } }
+            ui.painter().add(egui::Shape::mesh(mesh));
+            if b.on_hover_ui(|ui| theme::hint(ui, if k == 0 { "Undo" } else { "Redo" }, &keys)).clicked() { let _ = actions::run(ed, None, id, exit); }
+        }
+        svg_text(ui.painter(), &m, pos2(1121.0, 79.4), RIGHT, if ed.snap { "Snap 0.25 m · 15°" } else { "Snap off" }, 7.8, TEXT);
+        // the design's toggle: green with a black knob when on
+        let tr = m.rect(ERect::from_min_max(pos2(1185.1, 71.0), pos2(1205.6, 82.6)), RIGHT, S);
+        let resp = ui.interact(tr.expand(3.0), Id::new("snap-toggle"), Sense::click()).on_hover_text("Snap: moves in 0.25 m steps, turns in 15° steps (hold Ctrl to drag freely)");
+        if resp.clicked() { ed.snap = !ed.snap; }
+        paint_toggle(ui, tr, ed.snap, resp.id);
+    });
+    tabs(ctx, ed, lay);
+}
+
+/// The design's toggle (Snap, Auto Keyframe): a green track and a black knob when on; the knob springs across.
+pub(super) fn paint_toggle(ui: &Ui, r: ERect, on: bool, id: Id) {
+    let t = theme::spring(ui.ctx(), id.with("t"), if on { 1.0 } else { 0.0 }, theme::SNAPPY);
+    let p = ui.painter();
+    p.rect_filled(r, CornerRadius::same((r.height() / 2.0) as u8), theme::lerp_color(white(40), theme::GREEN, t.clamp(0.0, 1.0)));
+    let k = r.height() * 0.41;
+    let x = egui::lerp(r.left() + r.height() / 2.0..=r.right() - r.height() / 2.0, t);
+    p.circle_filled(pos2(x, r.center().y), k, if on { Color32::BLACK } else { TEXT });
+}
+
+/// A top tab: its name and where the design puts it (its text's left end), its menu (the design's box, where its
+/// first row starts, the row pitch, the text's left end; then each entry with its Level topic, or None and when it
+/// comes), or when the tab comes.
+struct Tab { name: &'static str, x: f32, menu: Option<(&'static str, f32, f32, f32)>, items: &'static [(&'static str, Option<LevelMode>, &'static str)], later: &'static str }
+
+const TABS: [Tab; 8] = [
+    Tab {
+        name: "Level",
+        x: 379.6,
+        menu: Some(("menu-level", 100.5, 20.04, 376.9)),
+        items: &[
+            ("Physics", Some(LevelMode::Physics), ""),
+            ("Water", None, "Water comes with the Ocean"),
+            ("Foliage", None, "Foliage comes with foliage painting"),
+            ("Cameras", Some(LevelMode::Cameras), ""),
+            ("Lighting", Some(LevelMode::Lighting), ""),
+        ],
+        later: "",
+    },
+    Tab { name: "Characters", x: 433.4, menu: None, items: &[], later: "Characters come with character files" },
+    Tab { name: "Vehicles", x: 508.9, menu: None, items: &[], later: "Vehicles come after characters" },
+    Tab { name: "UI/HUD", x: 580.3, menu: None, items: &[], later: "The HUD comes with the HUD editor" },
+    Tab { name: "Audio", x: 653.9, menu: None, items: &[], later: "Sounds come with sound parts" },
+    Tab {
+        name: "Effects",
+        x: 719.5,
+        menu: Some(("menu-effects", 96.9, 20.78, 717.9)),
+        items: &[("Plumes", None, "Plumes come with the Effects tab"), ("Particles", None, "Particles come with particle effects"), ("Fire", None, "Fire comes with visual effects"), ("Post Processing", None, "Post-processing comes later")],
+        later: "Effects come with the Effects tab",
+    },
+    Tab { name: "Screens", x: 785.9, menu: None, items: &[], later: "Screens come with screens and menus" },
+    Tab { name: "Animatics", x: 849.4, menu: None, items: &[], later: "Animatics come with the timeline" },
+];
+
+/// The tabs, at the design's places: Level (selected: the design's white box) works, with its menu of topics; the
+/// rest say when they come. A tab's menu opens under it while the pointer is on the tab or the menu.
+fn tabs(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
+    let m = lay.m;
+    let id = Id::new("tabs");
+    let band = frame::bounds("tab-band", &m, S, S);
+    let mut open: Option<usize> = ctx.data(|d| d.get_temp(id.with("open")));
+    let menu_rect: Option<ERect> = ctx.data(|d| d.get_temp(id.with("menu")));
+    let rects = art_area(ctx, "tabs", band, |ui| {
+        let p = ui.painter().clone();
+        let mut rects = vec![];
+        for (i, t) in TABS.iter().enumerate() {
+            let w = p.layout_no_wrap(t.name.into(), theme::roboto(m.len(12.0)), TEXT).size().x / m.s;
+            // the design's selected box: 20.6 either side of its text, the band's height
+            let tr = m.rect(ERect::from_min_max(pos2(t.x - 20.6, 44.7), pos2(t.x + w + 20.6, 74.2)), S, S);
+            let resp = ui.interact(tr, id.with(i), Sense::click());
+            let on = i == 0;
+            let hot = theme::spring(ctx, id.with(("hot", i)), if resp.hovered() && !on { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+            if on { p.rect_filled(tr, CornerRadius::ZERO, Color32::WHITE); } else if hot > 0.0 { p.rect_filled(tr.shrink2(vec2(m.len(8.0), 0.0)), CornerRadius::ZERO, white((hot * 30.0) as u8)); }
+            let col = if on { Color32::BLACK } else if t.later.is_empty() { TEXT } else { white(170 + (hot * 85.0) as u8) };
+            svg_text(&p, &m, pos2(t.x, 63.6), S, t.name, 12.0, col);
+            if resp.hovered() && t.menu.is_some() { open = Some(i); }
+            if resp.clicked() {
+                if t.later.is_empty() {
+                    ed.level_mode = LevelMode::Build;
+                    open = None;
+                } else {
+                    ed.island.show("…", t.later.to_string(), "Levels are what this version builds", Tone::Plain);
+                }
+            }
+            if !t.later.is_empty() { resp.on_hover_text(t.later); }
+            rects.push(tr);
+        }
+        rects
+    });
+    // keep the menu while the pointer is on its tab or on it
+    if let (Some(i), Some(at)) = (open, ctx.pointer_hover_pos()) {
+        if !(rects[i].contains(at) || menu_rect.is_some_and(|r| r.union(rects[i]).expand(6.0).contains(at))) { open = None; }
+    }
+    if ctx.pointer_hover_pos().is_none() { open = None; }
+    ctx.data_mut(|d| match open { Some(i) => { d.insert_temp(id.with("open"), i); } None => { d.remove::<usize>(id.with("open")); } });
+    let Some((i, (part, first, pitch, tx))) = open.and_then(|i| TABS[i].menu.map(|mm| (i, mm))) else {
+        theme::spring_reset(ctx, id.with("menu-in"));
+        ctx.data_mut(|d| d.remove::<ERect>(id.with("menu")));
+        return;
+    };
+    // the design's menu box, fading and growing in
+    let t = theme::spring_from(ctx, id.with("menu-in"), 0.0, 1.0, theme::SNAPPY).clamp(0.0, 1.0);
+    let r = frame::bounds(part, &m, S, S);
+    egui::Area::new(id.with("menu-area")).order(egui::Order::Foreground).fixed_pos(r.min).constrain(false).show(ctx, |ui| {
+        ui.set_min_size(r.size());
+        ui.multiply_opacity(t);
+        let mut mesh = frame::mesh(frame::art().part(part), &m, S, S, vec2(0.0, 0.0), None);
+        for v in &mut mesh.vertices { v.pos = r.center_top() + (v.pos - r.center_top()) * egui::lerp(0.96..=1.0, t); }
+        ui.painter().add(egui::Shape::mesh(mesh));
+        let x0 = frame::art().part(part).bounds;
+        for (k, (label, mode, later)) in TABS[i].items.iter().enumerate() {
+            let y = first + pitch * k as f32;
+            let row = m.rect(ERect::from_min_max(pos2(x0.left(), y), pos2(x0.right(), y + 16.7)), S, S);
+            let resp = ui.interact(row, id.with(("item", i, k)), if mode.is_some() { Sense::click() } else { Sense::hover() });
+            let hov = resp.hovered() && mode.is_some();
+            // the design's highlight: a white row
+            if hov { ui.painter().rect_filled(row, CornerRadius::ZERO, Color32::WHITE); }
+            let col = if hov { Color32::BLACK } else if mode.is_some() { TEXT } else { white(110) };
+            svg_text(ui.painter(), &m, pos2(tx, y + 11.9), S, label, 12.0, col);
+            if i == 0 && Some(ed.level_mode) == *mode { ui.painter().circle_filled(row.right_center() - vec2(m.len(7.0), 0.0), m.len(2.2), if hov { Color32::BLACK } else { ACCENT }); }
+            if resp.clicked() {
+                if let Some(mm) = mode {
+                    ed.level_mode = *mm;
+                    ed.drawers[0] = true;
+                }
+            }
+            if !later.is_empty() { resp.on_hover_text(*later); }
+        }
+    });
+    ctx.data_mut(|d| d.insert_temp(id.with("menu"), r));
 }
 
 /// A menu item for a named action (its name and keys from the list), greyed when it can't run; runs it when clicked.
@@ -137,332 +347,452 @@ pub(super) fn open_folder(dir: &std::path::Path) -> std::io::Result<()> {
     std::process::Command::new(cmd).arg(dir).spawn().map(|_| ())
 }
 
-fn assets_panel(root: &mut Ui, ed: &mut Editor) {
-    let open = ed.assets_open;
-    let frame = egui::Frame::new().fill(PANEL).inner_margin(egui::Margin::same(if open { 12 } else { 4 })).stroke(Stroke::new(1.0, LINE));
-    egui::Panel::right("assets").exact_size(if open { 240.0 } else { 34.0 }).resizable(false).frame(frame).show(root, |ui| {
-        if !open {
-            ui.vertical_centered(|ui| {
-                if ui.button("⇤").on_hover_ui(|ui| theme::hint(ui, "Show the Assets panel", &[])).clicked() { ed.assets_open = true; }
-                let g = ui.painter().layout_no_wrap("ASSETS".into(), mono(10.0), MUTED);
-                let at = pos2(ui.max_rect().center().x - g.size().y / 2.0, ui.min_rect().bottom() + 70.0);
-                ui.painter().add(egui::epaint::TextShape::new(at, g, MUTED).with_angle(std::f32::consts::FRAC_PI_2));
-            });
-            return;
-        }
-        ui.horizontal(|ui| {
-            small_caps(ui, "ASSETS");
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("⇥").on_hover_ui(|ui| theme::hint(ui, "Collapse the Assets panel", &[])).clicked() { ed.assets_open = false; }
+/// How far a drawer slides up to open (design units): from below the window until its bottom meets its panel's.
+const DRAWER_RISE: f32 = 1106.3 - 756.7;
+/// A drawer stretches between these heights of the design when dragged taller (its sides are straight there).
+const DRAWER_STRETCH: (f32, f32) = (850.0, 1050.0);
+
+/// The three panels along the bottom (the design's): the Level topic's settings, the inspector, the scene list.
+/// Each has a drawer (the design's, below the window) that slides up over the view: click the grip above the panel
+/// to open or close it, drag the grip for its height.
+fn bottom(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
+    let m = lay.m;
+    let fy = frame::BOTTOM;
+    for i in 0..3 {
+        let panel = lay.panels[i];
+        let drawer_id = ["drawer-mode", "drawer-inspector", "drawer-scene"][i];
+        let d = frame::art().part(drawer_id);
+        // how much taller than drawn (design units), and how far open
+        // at most up to just under the pills
+        let most = d.bounds.top() - DRAWER_RISE - 100.0;
+        let extra = ed.drawer_h[i].clamp(0.0, most.max(0.0));
+        let t = theme::spring(ctx, Id::new(("drawer", i)), if ed.drawers[i] { 1.0 } else { 0.0 }, theme::SPRING);
+        let lift = |p: egui::Pos2| {
+            let k = 1.0 - ((p.y - DRAWER_STRETCH.0) / (DRAWER_STRETCH.1 - DRAWER_STRETCH.0)).clamp(0.0, 1.0);
+            pos2(p.x, p.y - DRAWER_RISE * t - extra * k * t)
+        };
+        let top = m.y(lift(pos2(0.0, d.bounds.top())).y, fy);
+        let drawer = ERect::from_min_max(pos2(m.x(d.bounds.left(), S), top), pos2(m.x(d.bounds.right(), S), m.y(lift(pos2(0.0, d.bounds.bottom())).y, fy)));
+        let open = t > 0.02 && drawer.top() < panel.top();
+        let area = if open { drawer.union(panel) } else { panel };
+        // the grip: the design's handle, centred in the gap above the panel; inside the drawer's top once it rises
+        let grip_at = pos2(panel.center().x, (panel.top() - m.len(4.6)).min(drawer.top() + m.len(8.0)));
+        art_area(ctx, ["panel-mode", "panel-inspector", "panel-scene"][i], area.union(ERect::from_center_size(grip_at, vec2(m.len(110.0), m.len(10.0)))), |ui| {
+            draw(ui, ["panel-mode", "panel-inspector", "panel-scene"][i], &m, S, fy);
+            if t > 0.0 { ui.painter().add(egui::Shape::mesh(frame::mesh_with(d, &m, S, fy, lift))); }
+            let g = frame::art().part("grip");
+            let gc = g.bounds.center();
+            let shift = grip_at - m.pos(gc, Fit::Pin(gc.x), Fit::Pin(gc.y));
+            let gr = ui.interact(ERect::from_center_size(grip_at, vec2(m.len(105.0), m.len(9.0))), Id::new(("grip", i)), Sense::click_and_drag())
+                .on_hover_cursor(egui::CursorIcon::ResizeVertical)
+                .on_hover_text(if ed.drawers[i] { "Click to close · drag for its height" } else { "Click to open · drag for its height" });
+            let mut mesh = frame::mesh(g, &m, Fit::Pin(gc.x), Fit::Pin(gc.y), shift, None);
+            if gr.hovered() || gr.dragged() { for v in &mut mesh.vertices { v.color = theme::lerp_color(v.color, white(255), 0.35); } }
+            ui.painter().add(egui::Shape::mesh(mesh));
+            if gr.clicked() { ed.drawers[i] = !ed.drawers[i]; }
+            if gr.drag_started() && !ed.drawers[i] { ed.drawer_h[i] = 0.0; }
+            if gr.dragged() {
+                ed.drawers[i] = true;
+                ed.drawer_h[i] = (extra - gr.drag_delta().y / m.s).clamp(0.0, most.max(0.0));
+            }
+            // its contents: in the drawer while open, else in the panel
+            let r = if open { drawer } else { panel };
+            let pad = if open { vec2(m.len(22.0), m.len(20.0)) } else { vec2(m.len(14.0), m.len(11.0)) };
+            let inner = ERect::from_min_max(r.min + pad, r.max - vec2(pad.x, m.len(12.0)));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
+                ui.set_clip_rect(inner.expand2(vec2(6.0, 2.0)));
+                egui::ScrollArea::vertical().id_salt(("panel", i)).auto_shrink([false, false]).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+                    match i {
+                        0 => mode_panel(ui, ed),
+                        1 => inspector(ui, ed, view, exit),
+                        _ => scene_panel(ui, ed),
+                    }
+                    ui.add_space(6.0);
+                });
             });
         });
-        // drop target
-        let h = if ed.hovering_files { 110.0 } else { 54.0 };
-        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::hover());
+    }
+}
+
+/// The Assets card over the view's right side (the design's), with its DROP FILES header, and the project's assets.
+fn assets_card(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
+    let m = lay.m;
+    if !ed.assets_open {
+        // folded away: a small button where the card's top was
+        let r = ERect::from_min_size(pos2(lay.assets.right() - 92.0, lay.assets.top()), vec2(92.0, 26.0));
+        art_area(ctx, "assets", r, |ui| {
+            ui.painter().rect_filled(r, CornerRadius::same(13), GLASS);
+            if ui.interact(r, Id::new("assets-show"), Sense::click()).on_hover_text("Show the Assets panel").clicked() { ed.assets_open = true; }
+            ui.painter().text(r.center(), Align2::CENTER_CENTER, "⇤  ASSETS", mono(10.0), TEXT);
+        });
+        return;
+    }
+    art_area(ctx, "assets", lay.assets, |ui| {
+        draw(ui, "assets-card", &m, RIGHT, S);
+        // the design's drop header (its chevrons and lettering); lit up while files are dragged over the window
         let hot = ed.hovering_files;
-        let p = ui.painter();
-        p.rect_filled(r, R_CARD, if hot { Color32::from_rgba_unmultiplied(0xf5, 0xdc, 0x4a, 30) } else { white(6) });
-        dashed_rect(p, r, if hot { ACCENT } else { white(50) });
-        let msg = if hot { "Drop to import" } else { "Drag files here to import" };
-        p.text(r.center() - vec2(0.0, 7.0), Align2::CENTER_CENTER, msg, semi(12.0), if hot { ACCENT } else { TEXT });
-        p.text(r.center() + vec2(0.0, 10.0), Align2::CENTER_CENTER, "textures · models · sounds", body(11.0), MUTED);
-        ui.add_space(4.0);
-        egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(ui.available_height() * 0.5).show(ui, |ui| {
-            let mut assets = ed.assets.clone();
-            // materials as the editor holds them (new and changed ones are saved with the project)
-            if let Some(m) = assets.iter_mut().find(|(f, _)| *f == "materials") {
-                m.1 = ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/").to_string()).collect();
-            }
-            for (folder, files) in &assets {
-                let title = format!("{}{}  ({})", folder[..1].to_uppercase(), &folder[1..], files.len());
-                egui::CollapsingHeader::new(title).id_salt(folder).default_open(*folder == "textures").show(ui, |ui| {
-                    if files.is_empty() {
-                        ui.label(egui::RichText::new("empty").color(MUTED).size(11.0));
-                    }
-                    if *folder == "materials" && ui.small_button("+ New material").on_hover_text("A plain material: give it a texture, tint, shine or glow").clicked() {
-                        ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
-                    }
-                    for f in files {
-                        let path = format!("assets/{folder}/{f}");
-                        if crate::models::is_model(f) {
-                            // models: click to place
-                            let r = ui.add(egui::Button::new(egui::RichText::new(format!("◆  {f}")).size(12.0)).frame(false)).on_hover_text("Click, then click a surface to place it");
-                            if r.clicked() {
-                                ed.placing = Some(Shape::Model);
-                                ed.placing_model = Some(path);
-                                ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
-                            }
-                        } else if *folder == "materials" {
-                            // materials: click to change, drag onto a face
-                            let open = ed.material_open.as_deref() == Some(path.as_str());
-                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).selectable(false).sense(Sense::click_and_drag()))
-                                .on_hover_cursor(egui::CursorIcon::Grab)
-                                .on_hover_text("Click to change it (every surface using it changes) · drag onto a face");
-                            if r.clicked() { ed.material_open = Some(path); } else if r.drag_started() { ed.texturing = Some(path); }
-                        } else if super::texture::is_texture(f) {
-                            // textures: drag onto a face (or click, then click a face)
-                            let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).selectable(false).sense(Sense::click_and_drag()))
-                                .on_hover_cursor(egui::CursorIcon::Grab)
-                                .on_hover_text("Drag onto a face of a part (Shift: the whole part)");
-                            if r.drag_started() || r.clicked() { ed.texturing = Some(path); }
-                        } else {
-                            ui.label(egui::RichText::new(f).size(12.0));
-                        }
-                    }
+        ui.painter().add(egui::Shape::mesh(frame::mesh(frame::art().part("drop-files"), &m, RIGHT, S, vec2(0.0, 0.0), hot.then_some(ACCENT))));
+        let help = if hot { "Drop to import" } else { "Drag textures, models and sounds here to import them" };
+        ui.interact(lay.drop, Id::new("drop-files"), Sense::hover()).on_hover_text(help);
+        let inner = ERect::from_min_max(pos2(lay.drop.left(), lay.drop.bottom() + m.len(6.0)), lay.assets.max - vec2(m.len(8.0), m.len(10.0)));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
+            ui.horizontal(|ui| {
+                small_caps(ui, "ASSETS");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.small_button("⇥").on_hover_ui(|ui| theme::hint(ui, "Fold the Assets panel away", &[])).clicked() { ed.assets_open = false; }
                 });
-            }
-        });
-        ui.add_space(6.0);
-        small_caps(ui, "SCENE");
-        egui::ScrollArea::vertical().id_salt("scene").auto_shrink([false, false]).show(ui, |ui| {
-            if ed.level.parts.is_empty() {
-                ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.0));
-            }
-            let mut pick = None;
-            let mut flip = None;
-            for p in &ed.level.parts {
-                ui.horizontal(|ui| {
-                    let on = ed.selected == Some(p.id);
-                    let eye = if p.visible { "◉" } else { "○" };
-                    if ui.add(egui::Button::new(egui::RichText::new(eye).size(11.0)).frame(false)).on_hover_text(if p.visible { "Hide (keep as collider)" } else { "Show" }).clicked() {
-                        flip = Some(p.id);
-                    }
-                    let txt = egui::RichText::new(format!("{}  {}", p.shape.glyph(), p.name)).size(12.5).color(if on { ACCENT } else { TEXT });
-                    if ui.add(egui::Button::selectable(on, txt).frame(false)).clicked() { pick = Some(p.id); }
-                });
-            }
-            if let Some(id) = pick { ed.selected = Some(id); ed.material_open = None; }
-            if let Some(id) = flip {
-                if let Some(p) = ed.level.get_mut(id) { p.visible = !p.visible; }
-            }
+            });
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| { asset_tree(ui, ed); });
         });
     });
+}
+
+/// The hints along the view's bottom (the design's strip, its labels and keycaps): what the mouse does here.
+fn hint_strip(ctx: &egui::Context, lay: &frame::Layout, hints: &[(&str, &[&str])], editor_mode: bool) {
+    let m = lay.m;
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::new("hint-strip")));
+    // lay out in design units: label, keycaps, gaps as drawn
+    let tw = |t: &str, size: f32| p.layout_no_wrap(t.to_owned(), theme::roboto(m.len(size)), TEXT).size().x / m.s;
+    let mut items: Vec<(f32, &str, bool)> = vec![];
+    let mut x = 0.0;
+    for (label, keys) in hints {
+        items.push((x, label, false));
+        x += tw(label, 7.46) + 3.0;
+        for k in *keys {
+            items.push((x, k, true));
+            x += tw(k, 6.58) + 6.4 + 3.0;
+        }
+        x += 7.0;
+    }
+    let w = x - 7.0;
+    let c = 635.05;
+    let (x0, y0, y1) = (c - w / 2.0, 639.0, 662.0);
+    if editor_mode { p.add(egui::Shape::mesh(frame::mesh(frame::art().part("view-hints"), &m, S, frame::BOTTOM, vec2(0.0, 0.0), None))); } else {
+        let r = m.rect(ERect::from_min_max(pos2(x0 - 12.0, y0), pos2(x0 + w + 12.0, y1)), S, frame::BOTTOM);
+        p.rect_filled(r, CornerRadius::same((r.height() / 2.0) as u8), GLASS);
+    }
+    for (dx, t, key) in items {
+        let at = x0 + dx;
+        if key {
+            let kr = m.rect(ERect::from_min_max(pos2(at, 644.8), pos2(at + tw(t, 6.58) + 6.4, 656.2)), S, frame::BOTTOM);
+            p.rect_filled(kr, CornerRadius::same(m.len(3.1) as u8), CHIP);
+            p.rect_stroke(kr, CornerRadius::same(m.len(3.1) as u8), Stroke::new(m.len(0.53).max(1.0), CHIP_LINE), StrokeKind::Inside);
+            p.text(kr.center(), Align2::CENTER_CENTER, t, theme::roboto(m.len(6.58)), TEXT);
+        } else {
+            let g = p.layout_no_wrap(t.to_owned(), theme::roboto(m.len(7.46)), white(200));
+            let pos = pos2(m.x(at, S), m.y(652.8, frame::BOTTOM) - g.size().y * 0.78);
+            p.galley(pos, g, white(200));
+        }
+    }
+}
+
+/// The project's assets by folder: models to place, materials to change or drag, textures to drag onto faces.
+fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
+    let mut assets = ed.assets.clone();
+    // materials as the editor holds them (new and changed ones are saved with the project)
+    if let Some(m) = assets.iter_mut().find(|(f, _)| *f == "materials") {
+        m.1 = ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/").to_string()).collect();
+    }
+    for (folder, files) in &assets {
+        let title = format!("{}{}  ({})", folder[..1].to_uppercase(), &folder[1..], files.len());
+        egui::CollapsingHeader::new(title).id_salt(folder).default_open(*folder == "textures").show(ui, |ui| {
+            if files.is_empty() {
+                ui.label(egui::RichText::new("empty").color(MUTED).size(11.0));
+            }
+            if *folder == "materials" && ui.small_button("+ New material").on_hover_text("A plain material: give it a texture, tint, shine or glow").clicked() {
+                ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
+            }
+            for f in files {
+                let path = format!("assets/{folder}/{f}");
+                if crate::models::is_model(f) {
+                    // models: click to place
+                    let r = ui.add(egui::Button::new(egui::RichText::new(format!("◆  {f}")).size(12.0)).frame(false)).on_hover_text("Click, then click a surface to place it");
+                    if r.clicked() {
+                        ed.placing = Some(Shape::Model);
+                        ed.placing_model = Some(path);
+                        ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
+                    }
+                } else if *folder == "materials" {
+                    // materials: click to change, drag onto a face
+                    let open = ed.material_open.as_deref() == Some(path.as_str());
+                    let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).selectable(false).sense(Sense::click_and_drag()))
+                        .on_hover_cursor(egui::CursorIcon::Grab)
+                        .on_hover_text("Click to change it (every surface using it changes) · drag onto a face");
+                    if r.clicked() { ed.material_open = Some(path); } else if r.drag_started() { ed.texturing = Some(path); }
+                } else if super::texture::is_texture(f) {
+                    // textures: drag onto a face (or click, then click a face)
+                    let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).selectable(false).sense(Sense::click_and_drag()))
+                        .on_hover_cursor(egui::CursorIcon::Grab)
+                        .on_hover_text("Drag onto a face of a part (Shift: the whole part)");
+                    if r.drag_started() || r.clicked() { ed.texturing = Some(path); }
+                } else {
+                    ui.label(egui::RichText::new(f).size(12.0));
+                }
+            }
+        });
+    }
 }
 
 fn body(size: f32) -> egui::FontId { theme::body(size) }
 
-fn dashed_rect(p: &egui::Painter, r: ERect, color: Color32) {
-    let r = r.shrink(1.0);
-    let pts = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
-    for w in pts.windows(2) {
-        p.extend(egui::Shape::dashed_line(&[w[0], w[1]], Stroke::new(1.2, color), 6.0, 4.0));
+/// The inspector (bottom middle): the selected part's settings, or the open material's.
+fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWriter<AppExit>) {
+    if let Some(path) = ed.material_open.clone().filter(|p| ed.level.materials.contains_key(p)) {
+        material_panel(ui, ed, &path);
+        return;
+    }
+    let Some(id) = ed.selected.filter(|id| ed.level.get(*id).is_some()) else {
+        small_caps(ui, "INSPECTOR");
+        ui.label(egui::RichText::new("Nothing selected: click a part to see its settings").color(MUTED));
+        theme::hint(ui, "Parts", &["Tab"]);
+        return;
+    };
+    let mut p = ed.level.get(id).unwrap().clone();
+    let before = p.clone();
+    let mut delete = false;
+    let mut look = false;
+    let mut unwire: Option<usize> = None;
+    let mut ranges = ed.level.ranges.clone();
+    let mut ranges_changed = false;
+    { ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
+        column(ui, 190.0, "PART", |ui| {
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
+                ui.painter().rect_filled(r, CornerRadius::same(2), theme::CAT_SHAPES);
+                ui.add(egui::TextEdit::singleline(&mut p.name).desired_width(150.0).font(semi(13.0)));
+            });
+            let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
+            ui.label(egui::RichText::new(format!("{} {}{file}", p.shape.glyph(), p.shape.label())).color(MUTED));
+            // instances: the parts with the same contents (shape, colour, textures, Visible, Collision)
+            let n = ed.level.instances(id).len();
+            ui.horizontal(|ui| {
+                theme::toggle(ui, &mut p.unique).on_hover_text("On: changing its look never changes the parts just like it");
+                let (text, help) = if p.unique {
+                    ("Unique", "Its contents are its own")
+                } else if !ed.level.instanced(&p) {
+                    ("Its own", "Lights, cameras, moving and wired parts are always individual")
+                } else if n > 0 {
+                    ("", "Parts with the same shape, colour and textures; changing one asks first")
+                } else {
+                    ("No instances", "Parts with the same shape, colour and textures would be its instances")
+                };
+                let text = if text.is_empty() { format!("Instance · {} alike", n + 1) } else { text.to_string() };
+                ui.label(egui::RichText::new(text).color(MUTED)).on_hover_text(help);
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Duplicate").on_hover_ui(|ui| theme::hint(ui, "Duplicate", &["Ctrl", "D"])).clicked() { ed.duplicate_selected(); }
+                if ui.button("Delete").on_hover_ui(|ui| theme::hint(ui, "Delete", &["Del"])).clicked() { delete = true; }
+            });
+        });
+        // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
+        let model = p.shape == Shape::Model;
+        let scale = [("size", Setting::number("Scale", "×", 0.01, 0.001, 100000.0).section(level::LOOK).bare())];
+        let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
+        for sec in settings::sections(&p) {
+            if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
+            // the player start, lights and cameras have no surface to tag
+            if sec == level::TAGS && (p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera()) { continue; }
+            // a light or a camera: its settings in place of size and look (the cone for spots only)
+            if sec == level::LOOK && (p.shape.is_light() || p.shape.is_camera()) { continue; }
+            if sec == level::CAMERA {
+                let orbit = p.shape == Shape::OrbitCamera;
+                if let Some(c) = p.camera.as_mut() {
+                    column(ui, 250.0, "CAMERA", |ui| {
+                        settings::section(ui, c, level::CAMERA, &mut ctx);
+                        if ui.button("Look through").on_hover_ui(|ui| theme::hint(ui, "Fly it to aim it", &["L"])).clicked() { look = true; }
+                    });
+                    if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, &mut ctx); }); }
+                }
+                continue;
+            }
+            if sec == level::LIGHT {
+                let spot = p.shape == Shape::SpotLight;
+                if let Some(l) = p.light.as_mut() {
+                    column(ui, 260.0, "LIGHT", |ui| { settings::section(ui, l, level::LIGHT, &mut ctx); });
+                    if spot { column(ui, 250.0, "CONE", |ui| { settings::section(ui, l, level::CONE, &mut ctx); }); }
+                }
+                continue;
+            }
+            let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
+            column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
+        }
+        ranges_changed = ctx.ranges_changed;
+        if !p.surfaces.is_empty() {
+            column(ui, 250.0, "TEXTURES", |ui| {
+                let names = ed.geo.shapes[&p.shape].face_names();
+                let mut remove = None;
+                for (i, s) in p.surfaces.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        let face = s.face.map_or("All over".to_string(), |f| names.get(f as usize).cloned().unwrap_or_default());
+                        let mat = std::path::Path::new(&s.material).file_stem().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default();
+                        ui.label(egui::RichText::new(format!("{face} · {mat}")).color(TEXT));
+                        if ui.small_button("✕").on_hover_text("Take this texture off").clicked() { remove = Some(i); }
+                    });
+                    for (label, v, help) in [("Size", &mut s.tile, "How big one copy of the texture is (across, down)"), ("Slide", &mut s.offset, "How far the texture is slid along the surface")] {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(label).color(MUTED)).on_hover_text(help);
+                            let lo = if label == "Size" { 0.05 } else { -1000.0 };
+                            for x in v.iter_mut() { ui.add(egui::DragValue::new(x).speed(0.01).range(lo..=1000.0).max_decimals(2).suffix(" m")); }
+                        });
+                    }
+                }
+                if let Some(i) = remove { p.surfaces.remove(i); }
+            });
+        }
+        let outs = p.outputs();
+        let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
+        if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
+            column(ui, 260.0, "WIRES", |ui| {
+                let name_of = |pid: u64| ed.level.get(pid).map(|q| q.name.clone()).unwrap_or_default();
+                for out in &outs {
+                    ui.horizontal(|ui| {
+                        port(ui, &format!("{out} ▸"), theme::CAT_TRIGGERS);
+                        let wiring = ed.wiring == Some((id, out));
+                        if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).on_hover_text("Then click the part it goes to").clicked() {
+                            ed.wiring = if wiring { None } else { Some((id, out)) };
+                        }
+                    });
+                }
+                for (i, w) in ed.level.wires.iter().enumerate() {
+                    let text = if w.from == id {
+                        format!("{} → {} · {}", w.out, name_of(w.to), w.input)
+                    } else if w.to == id {
+                        format!("{} ← {} · {}", w.input, name_of(w.from), w.out)
+                    } else {
+                        continue;
+                    };
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(text).color(MUTED));
+                        if ui.small_button("✕").on_hover_text("Remove this wire").clicked() { unwire = Some(i); }
+                    });
+                }
+                if !p.inputs().is_empty() && !ed.level.wires.iter().any(|w| w.to == id) {
+                    ui.horizontal(|ui| {
+                        for i in p.inputs() { port(ui, &format!("▸ {i}"), theme::CAT_ACTIONS); }
+                    });
+                }
+            });
+        }
+    });
+    }
+    if let Some(i) = unwire { ed.level.wires.remove(i); }
+    if ranges_changed { ed.level.ranges = ranges; }
+    if look { let _ = actions::run(ed, Some(view), "view.look_through", exit); }
+    if delete {
+        ed.delete_selected();
+    } else if p != before {
+        if p.mover.is_none() {
+            // its inputs are gone: so are the wires into them
+            ed.level.wires.retain(|w| w.to != id || p.inputs().contains(&w.input.as_str()));
+            let outs = p.outputs();
+            ed.level.wires.retain(|w| w.from != id || outs.contains(&w.out.as_str()));
+        }
+        if let Some(m) = ed.level.get_mut(id) { *m = p; }
     }
 }
 
-fn bottom_panel(root: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWriter<AppExit>) {
-    let frame = egui::Frame::new().fill(PANEL).inner_margin(egui::Margin::symmetric(16, 12)).stroke(Stroke::new(1.0, LINE));
-    egui::Panel::bottom("props").min_size(168.0).max_size(420.0).resizable(false).frame(frame).show(root, |ui| {
-        if let Some(path) = ed.material_open.clone().filter(|p| ed.level.materials.contains_key(p)) {
-            material_panel(ui, ed, &path);
-            return;
-        }
-        let Some(id) = ed.selected.filter(|id| ed.level.get(*id).is_some()) else {
-            level_panel(ui, ed);
-            return;
-        };
-        let mut p = ed.level.get(id).unwrap().clone();
-        let before = p.clone();
-        let mut delete = false;
-        let mut look = false;
-        let mut unwire: Option<usize> = None;
-        let mut ranges = ed.level.ranges.clone();
-        let mut ranges_changed = false;
-        egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
-            column(ui, 190.0, "PART", |ui| {
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
-                    ui.painter().rect_filled(r, CornerRadius::same(2), theme::CAT_SHAPES);
-                    ui.add(egui::TextEdit::singleline(&mut p.name).desired_width(150.0).font(semi(13.0)));
-                });
-                let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
-                ui.label(egui::RichText::new(format!("{} {}{file}", p.shape.glyph(), p.shape.label())).color(MUTED));
-                // instances: the parts with the same contents (shape, colour, textures, Visible, Collision)
-                let n = ed.level.instances(id).len();
-                ui.horizontal(|ui| {
-                    theme::toggle(ui, &mut p.unique).on_hover_text("On: changing its look never changes the parts just like it");
-                    let (text, help) = if p.unique {
-                        ("Unique", "Its contents are its own")
-                    } else if !ed.level.instanced(&p) {
-                        ("Its own", "Lights, cameras, moving and wired parts are always individual")
-                    } else if n > 0 {
-                        ("", "Parts with the same shape, colour and textures; changing one asks first")
-                    } else {
-                        ("No instances", "Parts with the same shape, colour and textures would be its instances")
-                    };
-                    let text = if text.is_empty() { format!("Instance · {} alike", n + 1) } else { text.to_string() };
-                    ui.label(egui::RichText::new(text).color(MUTED)).on_hover_text(help);
-                });
-                ui.horizontal(|ui| {
-                    if ui.button("Duplicate").on_hover_ui(|ui| theme::hint(ui, "Duplicate", &["Ctrl", "D"])).clicked() { ed.duplicate_selected(); }
-                    if ui.button("Delete").on_hover_ui(|ui| theme::hint(ui, "Delete", &["Del"])).clicked() { delete = true; }
-                });
-            });
-            // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
-            let model = p.shape == Shape::Model;
-            let scale = [("size", Setting::number("Scale", "×", 0.01, 0.001, 100000.0).section(level::LOOK).bare())];
-            let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
-            for sec in settings::sections(&p) {
-                if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
-                // the player start, lights and cameras have no surface to tag
-                if sec == level::TAGS && (p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera()) { continue; }
-                // a light or a camera: its settings in place of size and look (the cone for spots only)
-                if sec == level::LOOK && (p.shape.is_light() || p.shape.is_camera()) { continue; }
-                if sec == level::CAMERA {
-                    let orbit = p.shape == Shape::OrbitCamera;
-                    if let Some(c) = p.camera.as_mut() {
-                        column(ui, 250.0, "CAMERA", |ui| {
-                            settings::section(ui, c, level::CAMERA, &mut ctx);
-                            if ui.button("Look through").on_hover_ui(|ui| theme::hint(ui, "Fly it to aim it", &["L"])).clicked() { look = true; }
-                        });
-                        if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, &mut ctx); }); }
-                    }
-                    continue;
-                }
-                if sec == level::LIGHT {
-                    let spot = p.shape == Shape::SpotLight;
-                    if let Some(l) = p.light.as_mut() {
-                        column(ui, 260.0, "LIGHT", |ui| { settings::section(ui, l, level::LIGHT, &mut ctx); });
-                        if spot { column(ui, 250.0, "CONE", |ui| { settings::section(ui, l, level::CONE, &mut ctx); }); }
-                    }
-                    continue;
-                }
-                let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
-                column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
-            }
-            ranges_changed = ctx.ranges_changed;
-            if !p.surfaces.is_empty() {
-                column(ui, 250.0, "TEXTURES", |ui| {
-                    let names = ed.geo.shapes[&p.shape].face_names();
-                    let mut remove = None;
-                    for (i, s) in p.surfaces.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
-                            let face = s.face.map_or("All over".to_string(), |f| names.get(f as usize).cloned().unwrap_or_default());
-                            let mat = std::path::Path::new(&s.material).file_stem().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default();
-                            ui.label(egui::RichText::new(format!("{face} · {mat}")).color(TEXT));
-                            if ui.small_button("✕").on_hover_text("Take this texture off").clicked() { remove = Some(i); }
-                        });
-                        for (label, v, help) in [("Size", &mut s.tile, "How big one copy of the texture is (across, down)"), ("Slide", &mut s.offset, "How far the texture is slid along the surface")] {
-                            ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new(label).color(MUTED)).on_hover_text(help);
-                                let lo = if label == "Size" { 0.05 } else { -1000.0 };
-                                for x in v.iter_mut() { ui.add(egui::DragValue::new(x).speed(0.01).range(lo..=1000.0).max_decimals(2).suffix(" m")); }
-                            });
-                        }
-                    }
-                    if let Some(i) = remove { p.surfaces.remove(i); }
-                });
-            }
-            let outs = p.outputs();
-            let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
-            if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
-                column(ui, 260.0, "WIRES", |ui| {
-                    let name_of = |pid: u64| ed.level.get(pid).map(|q| q.name.clone()).unwrap_or_default();
-                    for out in &outs {
-                        ui.horizontal(|ui| {
-                            port(ui, &format!("{out} ▸"), theme::CAT_TRIGGERS);
-                            let wiring = ed.wiring == Some((id, out));
-                            if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).on_hover_text("Then click the part it goes to").clicked() {
-                                ed.wiring = if wiring { None } else { Some((id, out)) };
-                            }
-                        });
-                    }
-                    for (i, w) in ed.level.wires.iter().enumerate() {
-                        let text = if w.from == id {
-                            format!("{} → {} · {}", w.out, name_of(w.to), w.input)
-                        } else if w.to == id {
-                            format!("{} ← {} · {}", w.input, name_of(w.from), w.out)
-                        } else {
-                            continue;
-                        };
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(text).color(MUTED));
-                            if ui.small_button("✕").on_hover_text("Remove this wire").clicked() { unwire = Some(i); }
-                        });
-                    }
-                    if !p.inputs().is_empty() && !ed.level.wires.iter().any(|w| w.to == id) {
-                        ui.horizontal(|ui| {
-                            for i in p.inputs() { port(ui, &format!("▸ {i}"), theme::CAT_ACTIONS); }
-                        });
-                    }
-                });
-            }
-        });
-            ui.add_space(12.0); // room for the scroll bar, which floats over the bottom
-        });
-        if let Some(i) = unwire { ed.level.wires.remove(i); }
-        if ranges_changed { ed.level.ranges = ranges; }
-        if look { let _ = actions::run(ed, Some(view), "view.look_through", exit); }
-        if delete {
-            ed.delete_selected();
-        } else if p != before {
-            if p.mover.is_none() {
-                // its inputs are gone: so are the wires into them
-                ed.level.wires.retain(|w| w.to != id || p.inputs().contains(&w.input.as_str()));
-                let outs = p.outputs();
-                ed.level.wires.retain(|w| w.from != id || outs.contains(&w.out.as_str()));
-            }
-            if let Some(m) = ed.level.get_mut(id) { *m = p; }
-        }
-    });
-}
-
-/// With nothing selected: the level's own settings (its lighting) and the main shortcuts.
-fn level_panel(ui: &mut Ui, ed: &mut Editor) {
+/// The bottom-left panel: what the Level tab's topic (its menu) sets, or the level and its topics.
+fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut l = ed.level.lighting.clone();
     let mut n = ed.level.navigation.clone();
     let mut build = false;
     let mut ranges = ed.level.ranges.clone();
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
-    egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
-        column(ui, 220.0, "LEVEL", |ui| {
-            ui.label(egui::RichText::new(&ed.level.name).font(semi(13.0)).color(TEXT));
-            ui.label(egui::RichText::new("Select a part to see its settings").color(MUTED));
-            ui.add_space(2.0);
-            theme::hint(ui, "Parts", &["Tab"]);
-            theme::hint(ui, "Fly / edit", &["Caps Lock"]);
-            theme::hint(ui, "Undo", &["Ctrl", "Z"]);
-            theme::hint(ui, "Save", &["Ctrl", "S"]);
-        });
-        column(ui, 260.0, level::LIGHTING, |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
-        // Interior: no sun
-        if !l.interior { column(ui, 260.0, level::SUN, |ui| { settings::section(ui, &mut l, level::SUN, &mut ctx); }); }
-        // where enemies can walk: who for, Build, and how it stands
-        column(ui, 250.0, level::NAVIGATION, |ui| {
-            settings::section(ui, &mut n, level::NAVIGATION, &mut ctx);
-            ui.add_space(2.0);
-            let (status, colour) = match &ed.nav {
-                None => ("Not built yet".to_string(), MUTED),
-                Some(_) if ed.nav_out_of_date() => ("Out of date: the level changed".to_string(), theme::DANGER),
-                Some((m, _)) => {
-                    let k = crate::nav::islands(m).len();
-                    (format!("{:.0} m² · {k} area{}", crate::nav::area(m), if k == 1 { "" } else { "s" }), theme::OK)
-                }
-            };
-            ui.label(egui::RichText::new(status).color(colour));
-            ui.horizontal(|ui| {
-                if ui.button(if ed.nav.is_some() { "Build again" } else { "Build navigation" }).on_hover_text("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
-                if ed.nav.is_some() {
-                    theme::toggle(ui, &mut ed.nav_shown).on_hover_text("Draw the walkable area over the level");
-                    ui.label(egui::RichText::new("Show").color(MUTED));
+    match ed.level_mode {
+        LevelMode::Build => {
+            column(ui, 0.0, "LEVEL", |ui| {
+                ui.label(egui::RichText::new(&ed.level.name).font(semi(13.0)).color(TEXT));
+                ui.horizontal_wrapped(|ui| {
+                    for (label, m) in [("Lighting", LevelMode::Lighting), ("Physics", LevelMode::Physics), ("Cameras", LevelMode::Cameras)] {
+                        if ui.button(label).on_hover_text("Also in the Level tab's menu").clicked() { ed.level_mode = m; }
+                    }
+                });
+                theme::hint(ui, "Parts", &["Tab"]);
+                theme::hint(ui, "Fly / edit", &["Caps Lock"]);
+                theme::hint(ui, "Test", &["`"]);
+                theme::hint(ui, "Save", &["Ctrl", "S"]);
+            });
+        }
+        LevelMode::Lighting => {
+            column(ui, 0.0, "LEVEL · LIGHTING", |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
+            // Interior: no sun
+            if !l.interior { column(ui, 0.0, level::SUN, |ui| { settings::section(ui, &mut l, level::SUN, &mut ctx); }); }
+        }
+        LevelMode::Physics => {
+            // where enemies can walk: who for, Build, and how it stands
+            column(ui, 0.0, "LEVEL · PHYSICS · NAVIGATION", |ui| {
+                settings::section(ui, &mut n, level::NAVIGATION, &mut ctx);
+                ui.add_space(2.0);
+                let (status, colour) = match &ed.nav {
+                    None => ("Not built yet".to_string(), MUTED),
+                    Some(_) if ed.nav_out_of_date() => ("Out of date: the level changed".to_string(), theme::DANGER),
+                    Some((m, _)) => {
+                        let k = crate::nav::islands(m).len();
+                        (format!("{:.0} m² · {k} area{}", crate::nav::area(m), if k == 1 { "" } else { "s" }), theme::OK)
+                    }
+                };
+                ui.label(egui::RichText::new(status).color(colour));
+                ui.horizontal(|ui| {
+                    if ui.button(if ed.nav.is_some() { "Build again" } else { "Build navigation" }).on_hover_text("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
+                    if ed.nav.is_some() {
+                        theme::toggle(ui, &mut ed.nav_shown).on_hover_text("Draw the walkable area over the level");
+                        ui.label(egui::RichText::new("Show").color(MUTED));
+                    }
+                });
+                if ed.finder.is_some() {
+                    let on = ed.path_try.is_some();
+                    if ui.add(egui::Button::selectable(on, "Try a path")).on_hover_text("Click a start, then an end, in the view: the way a character would walk").clicked() {
+                        ed.path_try = if on { None } else { Some(Default::default()) };
+                    }
+                    if on { theme::hint(ui, "Stop", &["Esc"]); }
                 }
             });
-            if ed.finder.is_some() {
-                let on = ed.path_try.is_some();
-                if ui.add(egui::Button::selectable(on, "Try a path")).on_hover_text("Click a start, then an end, in the view: the way a character would walk").clicked() {
-                    ed.path_try = if on { None } else { Some(Default::default()) };
+        }
+        LevelMode::Cameras => {
+            column(ui, 0.0, "LEVEL · CAMERAS", |ui| {
+                let cams: Vec<(u64, String)> = ed.level.parts.iter().filter(|p| p.shape.is_camera()).map(|p| (p.id, format!("{}  {}", p.shape.glyph(), p.name))).collect();
+                if cams.is_empty() { ui.label(egui::RichText::new("No cameras yet: the Cameras section of the parts pop-up (Tab)").color(MUTED)); }
+                for (id, name) in cams {
+                    let on = ed.selected == Some(id);
+                    if ui.add(egui::Button::selectable(on, egui::RichText::new(name).color(if on { ACCENT } else { TEXT })).frame(false)).clicked() { ed.selected = Some(id); ed.material_open = None; }
                 }
-                if on { theme::hint(ui, "Stop", &["Esc"]); }
-            }
-        });
-    });
-        ui.add_space(12.0);
-    });
+                theme::hint(ui, "Look through the selected one", &["L"]);
+            });
+        }
+    }
     if ctx.ranges_changed { ed.level.ranges = ranges; }
     if l != ed.level.lighting { ed.level.lighting = l; }
     if n != ed.level.navigation { ed.level.navigation = n; }
     if build { ed.build_navigation(); }
+}
+
+/// The bottom-right panel: the level's parts (those of the Level tab's topic).
+fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
+    let (title, shown): (&str, fn(&level::Part) -> bool) = match ed.level_mode {
+        LevelMode::Build => ("SCENE", |_| true),
+        LevelMode::Lighting => ("SCENE · LIGHTS", |p| p.shape.is_light()),
+        LevelMode::Cameras => ("SCENE · CAMERAS", |p| p.shape.is_camera()),
+        LevelMode::Physics => ("SCENE · SOLID PARTS", |p| crate::physics::kind(p).is_some()),
+    };
+    small_caps(ui, title);
+    if ed.level.parts.is_empty() { ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.0)); }
+    let mut pick = None;
+    let mut flip = None;
+    for p in ed.level.parts.iter().filter(|p| shown(p)) {
+        ui.horizontal(|ui| {
+            let on = ed.selected == Some(p.id);
+            let eye = if p.visible { "◉" } else { "○" };
+            if ui.add(egui::Button::new(egui::RichText::new(eye).size(11.0)).frame(false)).on_hover_text(if p.visible { "Hide (keep as collider)" } else { "Show" }).clicked() { flip = Some(p.id); }
+            let txt = egui::RichText::new(format!("{}  {}", p.shape.glyph(), p.name)).size(12.5).color(if on { ACCENT } else { TEXT });
+            if ui.add(egui::Button::selectable(on, txt).frame(false)).clicked() { pick = Some(p.id); }
+        });
+    }
+    if let Some(id) = pick { ed.selected = Some(id); ed.material_open = None; }
+    if let Some(id) = flip {
+        if let Some(p) = ed.level.get_mut(id) { p.visible = !p.visible; }
+    }
 }
 
 /// "Change all 12, or make this one Unique?" after a change to a part's contents that its instances didn't get.
@@ -555,7 +885,17 @@ fn port(ui: &mut Ui, text: &str, color: Color32) {
     });
 }
 
+/// A titled group of settings: side by side in a row, or stacked (full width, a line under each) down a panel.
 fn column(ui: &mut Ui, w: f32, title: &str, add: impl FnOnce(&mut Ui)) {
+    if !ui.layout().is_horizontal() {
+        small_caps(ui, title);
+        add(ui);
+        ui.add_space(4.0);
+        let (x0, x1, y) = (ui.max_rect().left(), ui.max_rect().right(), ui.cursor().top());
+        ui.painter().line_segment([pos2(x0, y), pos2(x1, y)], Stroke::new(1.0, LINE));
+        ui.add_space(8.0);
+        return;
+    }
     ui.allocate_ui_with_layout(vec2(w, ui.available_height()), egui::Layout::top_down(egui::Align::Min), |ui| {
         ui.set_width(w);
         small_caps(ui, title);
@@ -567,7 +907,7 @@ fn column(ui: &mut Ui, w: f32, title: &str, add: impl FnOnce(&mut Ui)) {
     ui.add_space(14.0);
 }
 
-fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
+fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, now: f64) {
     let r = view.rect;
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, Id::new("hud")));
     let c = pos2(r.center().x, r.center().y);
@@ -600,12 +940,13 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         Mode::Editor => "Editor movement".to_string(),
         Mode::Builder => format!("Builder · fly {}", speed_text(view.speed)),
     };
-    ed.island.draw(ctx, pos2(r.center().x, r.min.y + 12.0), &rest, &["Caps Lock"]);
+    // under the tabs
+    ed.island.draw(ctx, pos2(r.center().x, lay.m.y(92.0, frame::Fit::Stretch)), &rest, &["Caps Lock"]);
 
     // speed strip (Builder movement, or for 2 s after a change)
     let recent = now - view.speed_changed < 2.0;
     if view.mode == Mode::Builder || recent {
-        egui::Area::new(Id::new("speeds")).order(egui::Order::Foreground).fixed_pos(pos2(r.min.x + 14.0, r.max.y - 46.0)).interactable(false).show(ctx, |ui| {
+        egui::Area::new(Id::new("speeds")).order(egui::Order::Foreground).fixed_pos(pos2(r.min.x + 14.0, lay.panels[0].top() - 56.0)).interactable(false).show(ctx, |ui| {
             egui::Frame::new().fill(INK).corner_radius(R_CARD).stroke(Stroke::new(1.0, white(20))).inner_margin(egui::Margin::symmetric(8, 6)).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("FLY").font(mono(10.0)).color(MUTED));
@@ -623,20 +964,8 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Parts", &["Tab"]), ("Fly", &["Caps Lock"])],
         Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Parts", &["Tab"]), ("Edit", &["Caps Lock"])],
     };
-    if ed.placing.is_none() && !ed.parts_open && ed.wiring.is_none() && ed.looking.is_none() {
-        let id = Id::new("hint-bar");
-        let w_est = 120.0 * hints.len() as f32;
-        let at = pos2(r.center().x - w_est / 2.0, r.max.y - 44.0);
-        egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(pos2(at.x.max(r.min.x + 260.0), at.y)).interactable(false).show(ctx, |ui| {
-            egui::Frame::new().fill(Color32::from_rgba_unmultiplied(10, 8, 9, 200)).corner_radius(R_CARD).inner_margin(egui::Margin::symmetric(10, 6)).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for (label, keys) in hints {
-                        theme::hint(ui, label, keys);
-                        ui.add_space(6.0);
-                    }
-                });
-            });
-        });
+    if ed.placing.is_none() && !ed.parts_open && ed.wiring.is_none() && ed.looking.is_none() && !ed.drawers[1] {
+        hint_strip(ctx, lay, hints, view.mode == Mode::Editor);
     } else if let Some(shape) = ed.placing {
         theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Placing {} · click a surface", if shape == Shape::Model { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("model").to_string() } else { shape.label().to_string() }), ACCENT, &["Shift", "Esc"]);
     }
@@ -649,7 +978,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         wire_menu(ctx, ed, from, out, to, pos2(at.x, at.y));
     }
 
-    light_budget(ctx, ed, r);
+    light_budget(ctx, ed, pos2(lay.left_pill.left(), lay.left_pill.bottom() + 10.0));
 
     // a texture or material being dragged out: a grabbing hand and its name under the pointer, all the way
     if let Some(tex) = ed.texturing.as_deref() {
@@ -668,9 +997,9 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
     }
 }
 
-/// The light budget meter (top right, while the level has shadowed lights): the most shadowed lights reaching one
+/// The light budget meter (under the menus, while the level has shadowed lights): the most shadowed lights reaching one
 /// place, against the budget. Clicking it selects them in turn.
-fn light_budget(ctx: &egui::Context, ed: &mut Editor, r: Rect) {
+fn light_budget(ctx: &egui::Context, ed: &mut Editor, at: egui::Pos2) {
     let id = Id::new("light-budget");
     let worst = super::light::budget(&ed.level);
     if worst.is_empty() { theme::spring_reset(ctx, id.with("fade")); return; }
@@ -682,7 +1011,7 @@ fn light_budget(ctx: &egui::Context, ed: &mut Editor, r: Rect) {
         "Shadowed lights reaching the same place: {} of the {max} that stay smooth.\n{}\n{}Click to select them in turn.",
         n, names.join(", "), if n > max { "Turn Shadows off on some, or make their reach smaller.\n" } else { "" }
     );
-    let res = egui::Area::new(id).order(egui::Order::Foreground).pivot(egui::Align2::RIGHT_TOP).fixed_pos(pos2(r.max.x - 14.0, r.min.y + 12.0)).show(ctx, |ui| {
+    let res = egui::Area::new(id).order(egui::Order::Foreground).pivot(egui::Align2::LEFT_TOP).fixed_pos(at).show(ctx, |ui| {
         ui.multiply_opacity(t.clamp(0.0, 1.0));
         let card = egui::Frame::new().fill(INK).corner_radius(R_CARD).stroke(Stroke::new(1.0, if n > max { col } else { white(20) })).inner_margin(egui::Margin::symmetric(10, 7)).show(ui, |ui| {
             ui.horizontal(|ui| {

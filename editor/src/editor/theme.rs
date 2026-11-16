@@ -12,6 +12,8 @@ pub const ACCENT: Color32 = Color32::from_rgb(0xf5, 0xdc, 0x4a);
 pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x5e, 0x3a);
 #[allow(dead_code)]
 pub const OK: Color32 = Color32::from_rgb(0x7b, 0xe0, 0x8a);
+/// The design's toggles when on (docs/ui.svg).
+pub const GREEN: Color32 = Color32::from_rgb(0xc0, 0xef, 0x8f);
 pub const INK: Color32 = Color32::from_rgb(0x0a, 0x08, 0x09);
 pub const TEXT: Color32 = Color32::from_rgb(0xf2, 0xf0, 0xf3);
 pub const fn white(a: u8) -> Color32 { Color32::from_rgba_unmultiplied_const(255, 255, 255, a) }
@@ -43,6 +45,8 @@ pub const R_CTRL: CornerRadius = CornerRadius::same(10);
 pub fn mono(size: f32) -> FontId { FontId::new(size, FontFamily::Monospace) }
 pub fn semi(size: f32) -> FontId { FontId::new(size, FontFamily::Name("semi".into())) }
 pub fn body(size: f32) -> FontId { FontId::new(size, FontFamily::Proportional) }
+/// The design's lettering (docs/ui.svg): the frame's tabs, menus, buttons and hints.
+pub fn roboto(size: f32) -> FontId { FontId::new(size, FontFamily::Name("roboto".into())) }
 
 pub fn setup(ctx: &Context) {
     let mut f = FontDefinitions::default();
@@ -53,6 +57,10 @@ pub fn setup(ctx: &Context) {
     // Inter for text, DejaVu Sans for the symbols Inter lacks
     f.families.get_mut(&FontFamily::Proportional).unwrap().splice(0..0, ["inter".to_string(), "dejavu".to_string()]);
     f.families.get_mut(&FontFamily::Monospace).unwrap().splice(0..0, ["jbmono".to_string(), "dejavu".to_string()]);
+    f.font_data.insert("roboto".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))));
+    let mut roboto_fam = vec!["roboto".to_string()];
+    roboto_fam.extend(f.families[&FontFamily::Proportional].iter().cloned());
+    f.families.insert(FontFamily::Name("roboto".into()), roboto_fam);
     let mut semi_fam = vec!["inter-semi".to_string()];
     semi_fam.extend(f.families[&FontFamily::Proportional].iter().cloned());
     f.families.insert(FontFamily::Name("semi".into()), semi_fam);
@@ -148,10 +156,10 @@ pub fn kbd_size(ui: &Ui, key: &str) -> egui::Vec2 {
     vec2((g.size().x + 10.0).max(20.0), 20.0)
 }
 
+/// A keycap as the design draws them (docs/ui.svg): dark, finely outlined.
 pub fn paint_kbd(p: &egui::Painter, rect: Rect, key: &str, color: Color32) {
-    p.rect_filled(rect, CornerRadius::same(5), white(15));
-    p.rect_stroke(rect, CornerRadius::same(5), Stroke::new(1.0, white(56)), StrokeKind::Inside);
-    p.line_segment([pos2(rect.left() + 3.0, rect.bottom() - 1.0), pos2(rect.right() - 3.0, rect.bottom() - 1.0)], Stroke::new(1.0, white(56)));
+    p.rect_filled(rect, CornerRadius::same(5), Color32::from_rgb(0x17, 0x17, 0x17));
+    p.rect_stroke(rect, CornerRadius::same(5), Stroke::new(1.0, Color32::from_rgb(0x2e, 0x2e, 0x2e)), StrokeKind::Inside);
     p.text(rect.center() - vec2(0.0, 0.5), Align2::CENTER_CENTER, key, semi(10.0), color);
 }
 
@@ -223,7 +231,7 @@ pub fn segmented(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize, 
     changed
 }
 
-// ---- Toggle (kit style: accent when on, knob springs) ----
+// ---- Toggle (the design's colours, the kit's spring) ----
 pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
     let (rect, mut r) = ui.allocate_exact_size(vec2(32.0, 18.0), Sense::click());
     if r.clicked() {
@@ -232,10 +240,11 @@ pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
     }
     let t = spring(ui.ctx(), r.id.with("t"), if *on { 1.0 } else { 0.0 }, SNAPPY);
     let p = ui.painter();
-    let bg = lerp_color(white(30), ACCENT, t.clamp(0.0, 1.0));
+    // the design's toggle: green with a black knob when on
+    let bg = lerp_color(white(40), GREEN, t.clamp(0.0, 1.0));
     p.rect_filled(rect, CornerRadius::same(9), bg);
     let x = egui::lerp(rect.left() + 9.0..=rect.right() - 9.0, t);
-    p.circle_filled(pos2(x, rect.center().y), 7.0, if *on { INK } else { TEXT });
+    p.circle_filled(pos2(x, rect.center().y), 7.0, if *on { Color32::BLACK } else { TEXT });
     r
 }
 

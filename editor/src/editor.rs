@@ -4,6 +4,7 @@ mod actions;
 mod bev_type;
 mod caps;
 mod edit;
+mod frame;
 mod camera;
 mod light;
 mod texture;
@@ -30,6 +31,10 @@ pub enum TestRequest { Start(Vec3), Stop }
 /// Something that would lose unsaved work: asked about first.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Pending { Quit, New, Open }
+
+/// What the Level tab shows: building (the plain tab), or one topic from its menu.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum LevelMode { Build, Physics, Cameras, Lighting }
 
 /// Trying a path on the navigation area: the start and end picked (clicks in the view) and the way found.
 #[derive(Default)]
@@ -101,6 +106,12 @@ pub struct Editor {
     pub finder: Option<crate::nav::Finder>,
     /// Trying a path on the area (Try a path).
     pub path_try: Option<PathTry>,
+    /// What the Level tab is showing (its menu): the bottom-left panel's settings and the scene list follow it.
+    pub level_mode: LevelMode,
+    /// The bottom panels' drawers (the mode's settings, the inspector, the scene list): open, and how much taller
+    /// than drawn when open (design units).
+    pub drawers: [bool; 3],
+    pub drawer_h: [f32; 3],
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
@@ -192,6 +203,9 @@ impl Editor {
             nav_shown: true,
             finder: None,
             path_try: None,
+            level_mode: LevelMode::Build,
+            drawers: [false; 3],
+            drawer_h: [0.0; 3],
             label: None,
             player: "beverly-player",
             wiring: None,

@@ -31,6 +31,8 @@ pub struct View {
     pub speed_changed: f64,
     /// The 3D viewport in logical window pixels (the area the panels leave free).
     pub rect: Rect,
+    /// The view's shape within `rect` (its rounded outline, notches and all; empty: all of `rect`).
+    pub outline: Vec<bevy_egui::egui::Pos2>,
     /// Cursor in logical window pixels, if it is in the window.
     pub cursor: Option<Vec2>,
     /// The pointer is over a panel or a pop-up, so the 3D view ignores it.
@@ -49,6 +51,7 @@ impl Default for View {
             speed: 3,
             speed_changed: -10.0,
             rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
+            outline: vec![],
             cursor: None,
             over_ui: false,
             keyboard_in_ui: false,
@@ -64,7 +67,9 @@ impl View {
     pub fn pointer(&self) -> Option<Vec2> {
         match self.mode {
             Mode::Builder => Some(self.rect.center()),
-            Mode::Editor => self.cursor.filter(|c| self.rect.contains(*c) && !self.over_ui),
+            Mode::Editor => self.cursor.filter(|c| {
+                self.rect.contains(*c) && !self.over_ui && (self.outline.is_empty() || super::frame::inside(&self.outline, bevy_egui::egui::pos2(c.x, c.y)))
+            }),
         }
     }
     /// A window point (logical) to a ray through the camera. (Bevy's viewport functions take and give window

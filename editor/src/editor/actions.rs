@@ -41,6 +41,7 @@ pub const ACTIONS: &[Action] = &[
     a("view.parts", "Parts pop-up", "Top bar", "Tab"),
     a("view.frame", "Frame the selection", "Keys", "F"),
     a("view.look_through", "Look through the camera", "Part panel", "L"),
+    a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
     a("help.about", "About Beverly", "Help", ""),
     a("help.updates", "Check for updates…", "Help", ""),
@@ -52,7 +53,7 @@ pub fn get(id: &str) -> Option<&'static Action> { ACTIONS.iter().find(|a| a.id =
 
 /// Why an action can't run right now (None: it can).
 pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
-    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.");
+    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.");
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
     if editing && ed.looking.is_some() && id != "view.look_through" { return Some("Not while looking through a camera (Esc goes back)"); }
     if ed.pending.is_some() && id.starts_with("file.") { return Some("The unsaved-changes question is open"); }
@@ -64,6 +65,7 @@ pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
         "edit.change_all" if ed.ask.is_none() => Some("Nothing to change all of (it asks after a change to a part with instances)"),
         "edit.make_unique" if ed.ask.is_none() && ed.selected.is_none() => Some("Nothing is selected"),
         "edit.make_unique" if ed.ask.is_none() && ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.unique) => Some("It is Unique already"),
+        "play.test" if !ed.level.parts.iter().any(|p| p.shape == crate::level::Shape::PlayerStart) => Some("No Player start yet: place one from the Game section (Tab)"),
         "view.look_through" if ed.looking.is_none() && !ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.shape.is_camera()) => Some("Select a camera part first"),
         _ => None,
     }
@@ -95,6 +97,10 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         }
         "edit.deselect" => {
             if ed.placing.is_some() { ed.placing = None } else { ed.selected = None }
+        }
+        "play.test" => {
+            let p = ed.level.parts.iter().find(|p| p.shape == crate::level::Shape::PlayerStart).expect("checked in why_not");
+            ed.test_request = Some(super::TestRequest::Start(Vec3::from(p.pos) - Vec3::Y * p.size[1] * 0.5));
         }
         "view.parts" => {
             ed.parts_open = true;
