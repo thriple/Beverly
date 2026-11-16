@@ -61,6 +61,9 @@ pub struct Playing<'w, 's> {
     time: Res<'w, Time<Real>>,
     injected: ResMut<'w, Injected>,
     parts: Query<'w, 's, (&'static PartId, &'static Transform)>,
+    asleep: Query<'w, 's, (&'static crate::physics::PartBody, Has<avian3d::prelude::Sleeping>)>,
+    blasts: MessageWriter<'w, crate::physics::Blast>,
+    pulls: MessageWriter<'w, crate::physics::Pull>,
 }
 
 /// Answer the calls that arrived since the last frame.
@@ -77,7 +80,7 @@ pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWr
     }
     let calls = ed.mcp.take_calls();
     for c in calls {
-        if matches!(c.name.as_str(), "start_test" | "stop_test" | "press_keys") {
+        if matches!(c.name.as_str(), "start_test" | "stop_test" | "press_keys" | "blast" | "pull") {
             match playing(&mut ed, &view, &mut pl, &c.name, &c.args, now) {
                 Ok(until) => {
                     ed.mcp.note(c.name.clone());
@@ -478,6 +481,23 @@ fn playing(ed: &mut Editor, view: &View, pl: &mut Playing, name: &str, args: &Va
             pl.injected.held.extend(held);
             Ok(now + secs)
         }
+        "blast" | "pull" => {
+            if ed.testing.is_none() { return Err("Not testing (start_test first): blasts and pulls happen in the game".into()); }
+            let secs = args.get("secs").and_then(Value::as_f64).unwrap_or(1.0).clamp(0.02, 30.0);
+            if name == "blast" {
+                let at = args.get("at").and_then(vec3_of).ok_or("at is [x, y, z]")?;
+                let radius = args.get("radius").and_then(Value::as_f64).unwrap_or(4.0) as f32;
+                let strength = args.get("strength").and_then(Value::as_f64).unwrap_or(200.0) as f32;
+                pl.blasts.write(crate::physics::Blast { at, radius, strength });
+            } else {
+                let part = part_ref(ed, args.get("part"))?;
+                if !ed.level.get(part).is_some_and(|p| crate::physics::kind(p) == Some(avian3d::prelude::RigidBody::Dynamic)) { return Err("That part isn't loose".into()); }
+                let to = args.get("toward").and_then(vec3_of).ok_or("toward is [x, y, z]")?;
+                let force = args.get("force").and_then(Value::as_f64).unwrap_or(500.0) as f32;
+                pl.pulls.write(crate::physics::Pull { part, to, force, secs: secs as f32 });
+            }
+            Ok(now + secs)
+        }
         _ => unreachable!(),
     }
 }
@@ -504,7 +524,12 @@ fn play_state(ed: &Editor, pl: &Playing) -> Value {
         let moved = live.map(|l| l - part_transform(q).translation).unwrap_or(Vec3::ZERO);
         json!({"id": q.id, "name": q.name, "position": settings::nums(&(Vec3::from(q.pos) + moved).to_array()), "moved_by": settings::nums(&moved.to_array())})
     }).collect();
-    json!({"testing": true, "player": player, "moving_parts": moving, "controls": p.custom.unwrap_or("WASD walk · Shift run · Space jump · E press")})
+    let loose: Vec<Value> = ed.level.parts.iter().filter(|q| crate::physics::kind(q) == Some(avian3d::prelude::RigidBody::Dynamic)).map(|q| {
+        let live = pl.parts.iter().find(|(id, _)| id.0 == q.id).map(|(_, t)| t.translation).unwrap_or(Vec3::from(q.pos));
+        let asleep = pl.asleep.iter().any(|(b, s)| b.0 == q.id && s);
+        json!({"id": q.id, "name": q.name, "position": settings::nums(&live.to_array().map(|x| (x * 1e3).round() / 1e3)), "moved_by": settings::nums(&(live - Vec3::from(q.pos)).to_array().map(|x| (x * 1e3).round() / 1e3)), "asleep": asleep})
+    }).collect();
+    json!({"testing": true, "player": player, "moving_parts": moving, "loose_parts": loose, "controls": p.custom.unwrap_or("WASD walk · Shift run · Space jump · E press")})
 }
 
 /// Edits wait while testing or while the user is dragging something (so their drag stays one undo step).

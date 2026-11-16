@@ -1,3 +1,4 @@
+#![recursion_limit = "256"] // the MCP server's tool list is one long json! literal
 //! Beverly: the editor (`beverly`) and the game player (`beverly-player`), as a library so a game with its own
 //! code (e.g. its player character) can build its own copy of both with its plugins added: `editor::run`,
 //! `player::run`. Shared by both: the level format, the basic shapes, imported models, how a level looks in 3D,

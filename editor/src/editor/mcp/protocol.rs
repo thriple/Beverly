@@ -71,7 +71,7 @@ const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes t
     can be placed. add_part, change_part and delete_part edit the level, wire connects one part's output to \
     another's input. screenshot shows the window or the level from any point; get_camera and move_camera move the \
     view. start_test plays the level as the user's ` key does; press_keys holds keys in the game and get_play \
-    reads the player and the moving parts; stop_test goes back to editing. run_job runs the project's scripted tests \
+    reads the player, the moving and the loose parts; blast and pull shove loose parts; stop_test goes back to editing. run_job runs the project's scripted tests \
     or exports the game in the background (get_job checks on it). list_actions shows what can run now and run_action runs one exactly as its menu item or key would. Every \
     change is one undo step (run_action edit.undo). Metres, Y up; a part's position is its middle (a model's is its \
     origin), so a 2 m box stands on the ground at y = 1.";
@@ -335,8 +335,38 @@ pub fn tools() -> Value {
         {
             "name": "get_play",
             "title": "Play state",
-            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something, which way it faces and the part it stands on with that part's surface tags) and where every moving part is now.",
+            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something, which way it faces and the part it stands on with that part's surface tags), where every moving part is now, and every loose part (where it is, how far it has moved, whether it is asleep: at rest until something touches it).",
             "inputSchema": none,
+        },
+        {
+            "name": "blast",
+            "title": "Set off a blast",
+            "description": "While testing: a blast at `at` throws the loose parts within `radius` metres (default 4) away from it, by an impulse of `strength` kg·m/s (default 200) at the middle fading to none at the edge, so light parts fly further. Answers with get_play's state `secs` later (default 1).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "at": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "radius": {"type": "number"},
+                    "strength": {"type": "number"},
+                    "secs": {"type": "number"},
+                },
+                "required": ["at"],
+            },
+        },
+        {
+            "name": "pull",
+            "title": "Winch a loose part",
+            "description": "While testing: pull a loose part (id or name) toward `toward` with `force` newtons (default 500) for `secs` seconds (default 1), as a winch would. Answers with get_play's state when the pull ends.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "part": {"type": ["integer", "string"]},
+                    "toward": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "force": {"type": "number"},
+                    "secs": {"type": "number"},
+                },
+                "required": ["part", "toward"],
+            },
         },
         {
             "name": "stop_test",
@@ -633,6 +663,8 @@ mod tests {
                 "start_test",
                 "press_keys",
                 "get_play",
+                "blast",
+                "pull",
                 "stop_test",
                 "run_job",
                 "get_job",

@@ -373,7 +373,7 @@
    "id": "physics",
    "name": "Physics for loose objects",
    "area": "Level building",
-   "status": "planned",
+   "status": "done",
    "effort": "L",
    "needs": [
     "shapes"
@@ -384,10 +384,11 @@
     "The walker on bevy_tnua (slopes, steps, moving platforms); a game's own character collides through Avian, and the old collision code retires (Last Ascent's mech moves when it is rebuilt as a character file)",
     "Loose parts: mass, friction, sleeping; characters push and stand on them; impulses from blasts and the winch"
    ],
-   "note": "Two collision worlds side by side (today's and Avian's) would need every moving part kept in step twice, so Avian replaces today's. Loose things need convex shapes (Avian builds them from the mesh); exact mesh colliders only for things that never move. avian3d 0.8 supports Bevy 0.20 and has f64 and enhanced-determinism options for big worlds and multiplayer. Part 1 built (2026-11-15): avian3d 0.8 runs while playing on a fixed 60 Hz step, drawn smoothed between steps; each Solid part becomes a body (boxes as boxes; still shapes and models exact; loose ones a hull or convex pieces); a Physics setting (Still / Loose) on parts, shared by instances; Moves parts are moving bodies; the walker moves and slides through Avian and rides moving bodies; everything goes back when play stops. Test project: tests/physics. MCP: the Physics setting on add_part and change_part. Part 2 built (2026-11-15): the walker is a bevy_tnua 0.33 character, a dynamic body floating 1.1 m up (it walks up steps of up to 0.45 m and slopes, and rides moving parts), grip and slippery feels (Slippery ground: slow to speed up and to stop); the old triangle collision (Play::world) is gone, and a game's own character collides through Avian (Play's doc comment). The user chose to rebuild Last Ascent's mech after Beverly is built instead of porting it now: notes for that are on The mech as a character file. Test project: tests/steps; the lift traces re-recorded for the new walker. MCP: get_play's velocity, ground and standing_on come from the walker's body.",
+   "note": "Two collision worlds side by side (today's and Avian's) would need every moving part kept in step twice, so Avian replaces today's. Loose things need convex shapes (Avian builds them from the mesh); exact mesh colliders only for things that never move. avian3d 0.8 supports Bevy 0.20 and has f64 and enhanced-determinism options for big worlds and multiplayer. Part 1 (2026-11-15): avian3d 0.8 runs while playing on a fixed 60 Hz step, drawn smoothed between steps; each Solid part becomes a body (boxes as boxes; still shapes and models exact; loose ones a hull or convex pieces); a Physics setting (Still / Loose) on parts, shared by instances; Moves parts are moving bodies; the walker moves and slides through Avian and rides moving bodies; everything goes back when play stops. Test project: tests/physics. MCP: the Physics setting on add_part and change_part. Part 2 (2026-11-15): the walker is a bevy_tnua 0.33 character, a dynamic body floating 1.1 m up (it walks up steps of up to 0.45 m and slopes, and rides moving parts), grip and slippery feels (Slippery ground: slow to speed up and to stop); the old triangle collision (Play::world) is gone, and a game's own character collides through Avian (Play's doc comment). The user chose to rebuild Last Ascent's mech after Beverly is built instead of porting it now: notes for that are on The mech as a character file. Test project: tests/steps; the lift traces re-recorded for the new walker. MCP: get_play's velocity, ground and standing_on come from the walker's body. Part 3 (2026-11-16): the Physics setting is a switch (Still / Loose) with Weight (kg) and Grip under it; the walker (80 kg) shoves light loose parts and can't move heavy ones, and stands on them; resting loose parts fall asleep until touched (Avian's sleeping); Blast (an impulse outward, fading to the edge) and Pull (a winch: a force toward a point for a while) are messages for blasts and the grapple to send. Test project: tests/loose. MCP: blast and pull while testing, get_play's loose_parts (where, how far moved, asleep).",
    "order": 22,
    "first_game": true,
-   "next": true
+   "built": "2026-11-16",
+   "build": 41
   },
   {
    "id": "navmesh",

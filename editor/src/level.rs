@@ -394,8 +394,6 @@ impl Level {
     }
 }
 
-fn is_still(b: &Body) -> bool { *b == Body::Still }
-
 /// A wire: when part `from` sends `out`, part `to` gets `input`.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Wire {
@@ -438,14 +436,21 @@ pub enum Tag {
     Slippery,
 }
 
-/// How a part takes part in physics while playing. A part that Moves is a moving body whatever this says.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
-pub enum Body {
-    /// Stays where it is put; things stand on it and bump into it.
-    #[default]
-    Still,
-    /// Falls and tumbles (a crate, a barrel).
-    Loose,
+/// A loose part: it falls and tumbles when played (a crate, a barrel), is pushed by characters and blasts.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Loose {
+    /// Kilograms.
+    #[reflect(@Setting::feel("Weight", ("Light", "Heavy"), 1.0, 2000.0, "kg").log().section(LOOK).help("Light things are pushed and thrown easily"))]
+    pub mass: f32,
+    /// How much it grips what it lies on (0: slides like ice).
+    #[reflect(@Setting::feel("Grip", ("Slick", "Grippy"), 0.0, 1.5, "").section(LOOK).help("How much it grips what it lies on"))]
+    pub friction: f32,
+}
+
+impl Default for Loose {
+    fn default() -> Self { Loose { mass: 20.0, friction: 0.6 } }
 }
 
 /// One basic shape placed in a level. With `visible` off it is only a collider.
@@ -469,10 +474,11 @@ pub struct Part {
     pub visible: bool,
     #[reflect(@Setting::choice("Collision").section(LOOK).bare())]
     pub collision: Collision,
-    /// Still or Loose (only for Solid parts).
-    #[serde(default, skip_serializing_if = "is_still")]
-    #[reflect(@Setting::choice("Physics").section(LOOK).help("Loose: falls and tumbles when played (Solid parts)"))]
-    pub body: Body,
+    /// None: it stays where it is put (things stand on it and bump into it). Some: loose (Solid parts; a part that
+    /// Moves is a moving body whatever this says).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[reflect(@Setting::optional("Physics", "Still", "Loose").section(LOOK).help("Loose: falls and tumbles when played (Solid parts)"))]
+    pub loose: Option<Loose>,
     /// For `Shape::Model`: the model file, relative to the project folder (e.g. "assets/models/tower.glb").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -509,7 +515,7 @@ impl Part {
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
             collision: if shape == Shape::PlayerStart || shape.is_light() || shape.is_camera() { Collision::WalkThrough } else { Collision::Solid },
-            model, mover: None, surfaces: vec![], unique: false, tags: vec![], body: Body::Still,
+            model, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None,
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
         }
@@ -527,7 +533,7 @@ impl Part {
     /// own, as an instance's placement is in SketchUp.
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
-            && self.tags == o.tags && self.body == o.body
+            && self.tags == o.tags && self.loose == o.loose
     }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
@@ -538,7 +544,7 @@ impl Part {
         self.visible = from.visible;
         self.collision = from.collision;
         self.tags = from.tags.clone();
-        self.body = from.body;
+        self.loose = from.loose.clone();
     }
 }
 

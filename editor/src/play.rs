@@ -130,6 +130,7 @@ impl Play {
             Collider::capsule(RADIUS, LENGTH),
             LockedAxes::ROTATION_LOCKED,
             GravityScale(GRAVITY / 9.81),
+            Mass(80.0),
             TnuaController::<Moves>::default(),
             TnuaConfig::<Moves>(grip),
             TnuaAvian3dSensorShape(Collider::cylinder(RADIUS - 0.01, 0.0)),

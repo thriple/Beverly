@@ -1,0 +1,13 @@
+// Loose parts and the walker: it jumps onto a heavy crate (2000 kg: it doesn't budge) and stands on it, walks off
+// the far side and shoves a light crate (5 kg) along in front of it.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 6), 0.1)]),
+        (at: 0.5, press: ["W"]),
+        (at: 0.9, press: ["Space"]),
+        (at: 1.2, release: ["Space"]),
+        (at: 1.4, shot: "on-crate", expect: [Feet((0, 0.96, 1.75), 0.15), Part("Heavy crate", (0, 0.5, 2), 0.05)]),
+        (at: 3.5, release: ["W"]),
+        (at: 4.0, shot: "pushed", expect: [Part("Light crate", (-0.53, 0.41, -12.11), 0.5), Part("Heavy crate", (0, 0.5, 2), 0.05)]),
+    ],
+)
