@@ -494,7 +494,7 @@
     "Audio settings on Zone parts: ambience, music regions, reverb",
     "Sound hooks: any event (a footstep, a move, a hit, a wire firing) plays a sound; footsteps by surface; a Sounds list on characters and on zones that later features (weather, effects, idles) add to"
    ],
-   "note": "Gets its own planning pass before building (user, 2026-11-15: adding sounds to characters, sets and weather needs attention). bevy_kira_audio supports Bevy 0.20.",
+   "note": "Gets its own planning pass before building (user, 2026-11-15: adding sounds to characters, sets and weather needs attention). bevy_kira_audio supports Bevy 0.20. Its tab colours come from the redesign (docs/ui/HANDOFF.md): cyan frame, coral accent.",
    "order": 28,
    "first_game": true
   },
@@ -531,7 +531,7 @@
     "Characters tab: list, live preview, character sheet with cards that open when relevant, card pages",
     "Create steps: template, model, fit (auto collision); Body card"
    ],
-   "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo).",
+   "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo). Its look is the Characters board of the redesign (docs/ui/design/boards/Characters.dc.html): pink frame, mint accent, topics Body, Moves, Camera, Controls.",
    "order": 30,
    "first_game": true
   },
@@ -746,7 +746,7 @@
     "Curve lane and easing; clips that are timelines (dive in, breadcrumb)",
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
-   "note": "Laid out as the user's design shows (docs/ui.svg, 'timeline lower window'): the view's bottom edge gets a resize grip, the breadcrumb of the selected item and a toolbar (Auto Keyframe toggle, menus, options) sit in a notch at its bottom left, the timeline area below spans the window.",
+   "note": "Laid out as the user's design shows (docs/ui.svg, 'timeline lower window'): the view's bottom edge gets a resize grip, the breadcrumb of the selected item and a toolbar (Auto Keyframe toggle, menus, options) sit in a notch at its bottom left, the timeline area below spans the window. Its look is the Timeline board of the redesign (docs/ui/design/boards/Timeline.dc.html): resize grip, breadcrumb, transport, mono timecode, Seconds/Frames zoom, tracks with category icons, keys as diamonds and clips as bars, playhead in the accent, Auto key in the footer; opened from the bottom notch's Timeline button (T).",
    "order": 43,
    "first_game": true
   },
@@ -1145,7 +1145,7 @@
     "Binding values by wire (fuel, health, counters); warnings on the timeline",
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
-   "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code.",
+   "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink.",
    "order": 65,
    "first_game": true
   },
@@ -1165,7 +1165,7 @@
     "Animatics tab: camera-cut and subtitle tracks, the Animatic action",
     "Character recordings into editable keys; letterbox and skippable"
    ],
-   "note": "",
+   "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent.",
    "order": 66,
    "first_game": true
   },
@@ -1221,7 +1221,7 @@
     "Marks and glow: decals (scorch, cracks, grooves), trails, glow and camera shake",
     "Combined effects: several kinds layered and timed into one effect (a landing: dust, cracks, shake, a thud)"
    ],
-   "note": "User, 2026-11-15: integrate the Plume Editor; other kinds of effects get their own sections. Its fields already come with sections, labels, ranges and notes (references/plume/FIELDS.md in Last Ascent), which is what Settings panels from data needs, and Last Ascent's plume code already draws them the same as the editor.",
+   "note": "User, 2026-11-15: integrate the Plume Editor; other kinds of effects get their own sections. Its fields already come with sections, labels, ranges and notes (references/plume/FIELDS.md in Last Ascent), which is what Settings panels from data needs, and Last Ascent's plume code already draws them the same as the editor. Its look is the Effects board of the redesign (docs/ui/design/boards/Effects.dc.html): orange frame, azure accent.",
    "order": 69,
    "first_game": true
   },
@@ -1446,7 +1446,7 @@
     "Default Settings screen (graphics, audio, keys) and loading screen",
     "Live 3D backgrounds; transitions on the timeline"
    ],
-   "note": "Gets its own planning pass before building.",
+   "note": "Gets its own planning pass before building. Its look is the Screens board of the redesign (docs/ui/design/boards/Screens.dc.html): a flow graph of screen cards, with a Flow check card.",
    "order": 81,
    "first_game": true
   },
@@ -1723,6 +1723,26 @@
    "first_game": true
   },
   {
+   "id": "ui-redesign",
+   "name": "The editor's look, redesigned",
+   "area": "Editor basics",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "ui-frame"
+   ],
+   "what": "The editor drawn as the user's redesign (docs/ui/HANDOFF.md, boards in docs/ui/design/boards): a 44 px top bar with the BEVERLY menu (File, Edit, View, Play, Help), the eight tabs with icons and Parts / Undo / Redo / Snap and the window's own minimise, maximise and close; each tab with its own frame colour and accent; the view as one outline with a top notch of the tab's topics and a bottom notch of Saved, shortcut hints and the timeline button; status pills; the right dock (Inspect · list · Assets) that folds to a rail; and the controls (word sliders, number fields, colour picker, toggles, segmented, dropdowns, buttons, keycaps, focus rings), with the 82 icons. Blended with the Motion kit (user, 2026-11-17): its springs and entrances, tooltips, the dock panel's motion, the dynamic island and animated inputs. Still all vector (no rasters in the GUI).",
+   "chunks": [
+    "The frame: the handoff in the repository, its tokens, fonts (Roboto, Roboto Mono, Roboto Condensed) and icons drawn as vectors; the borderless window with its own title bar (drag, resize, minimise, maximise, close), the BEVERLY menu, tabs in each tab's colours, topic chips in the top notch, the bottom notch, status pills, and the dock's shell holding today's panels",
+    "The dock: Inspect (identity header, groups with coloured icon headings, an Advanced group), the list (search, sections, category icons, warnings with fixes), Assets (drop hint and folder tree), the folded rail, and the selection tag in the view",
+    "The controls: word sliders, number fields with scrubbing, the colour picker with project colours, toggles, segmented choices, dropdowns, buttons, keycaps, tooltips with shortcuts, focus rings and changed-from-default marks, used by every settings panel"
+   ],
+   "note": "Asked for by the user (2026-11-17), so built ahead of World settings. Replaces the look of The editor's frame (docs/ui.svg); the renderer of Beverly's own (vector.rs, text.rs) stays.",
+   "first_game": false,
+   "next": true,
+   "order": 97
+  },
+  {
    "id": "perf-meter",
    "name": "Editor stats",
    "area": "Editor basics",
@@ -1734,7 +1754,7 @@
    "what": "A small toggle-able overlay: FPS, frame time, RAM, entities, draw calls, triangles and lights, coloured green, amber or red.",
    "chunks": [],
    "note": "Bevy's diagnostics give FPS, frame time and the process's memory.",
-   "order": 97,
+   "order": 98,
    "first_game": false
   },
   {
@@ -1749,7 +1769,7 @@
    "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
    "chunks": [],
    "note": "",
-   "order": 98,
+   "order": 99,
    "first_game": false
   },
   {
@@ -1764,7 +1784,7 @@
    "what": "Saves a recovery copy every few minutes; offers it after a crash.",
    "chunks": [],
    "note": "",
-   "order": 99,
+   "order": 100,
    "first_game": false
   },
   {
@@ -1779,7 +1799,7 @@
    "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
    "chunks": [],
    "note": "",
-   "order": 100,
+   "order": 101,
    "first_game": false
   },
   {
@@ -1794,7 +1814,7 @@
    "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
    "chunks": [],
    "note": "",
-   "order": 101,
+   "order": 102,
    "first_game": false
   },
   {
@@ -1809,7 +1829,7 @@
    "what": "Right-click on parts, assets and keys: duplicate, delete, rename, make unique.",
    "chunks": [],
    "note": "",
-   "order": 102,
+   "order": 103,
    "first_game": false
   },
   {
@@ -1824,7 +1844,7 @@
    "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
    "chunks": [],
    "note": "",
-   "order": 103,
+   "order": 104,
    "first_game": false
   },
   {
@@ -1839,7 +1859,7 @@
    "what": "Reflection box parts with their influence box always drawn.",
    "chunks": [],
    "note": "Captured when the level loads (Bevy 0.20 generates environment maps at run time), so no images are stored.",
-   "order": 104,
+   "order": 105,
    "first_game": false
   },
   {
@@ -1855,7 +1875,7 @@
    "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
    "chunks": [],
    "note": "",
-   "order": 105,
+   "order": 106,
    "first_game": false
   },
   {
@@ -1870,7 +1890,7 @@
    "what": "Timer, Relay, Counter, Random.",
    "chunks": [],
    "note": "",
-   "order": 106,
+   "order": 107,
    "first_game": false
   },
   {
@@ -1885,7 +1905,7 @@
    "what": "AND, OR, NOR, XOR, NOT.",
    "chunks": [],
    "note": "",
-   "order": 107,
+   "order": 108,
    "first_game": false
   },
   {
@@ -1900,7 +1920,7 @@
    "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
    "chunks": [],
    "note": "",
-   "order": 108,
+   "order": 109,
    "first_game": false
   },
   {
@@ -1916,7 +1936,7 @@
    "what": "The pointer tour for each card the first time it opens.",
    "chunks": [],
    "note": "",
-   "order": 109,
+   "order": 110,
    "first_game": false
   },
   {
@@ -1931,7 +1951,7 @@
    "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
    "chunks": [],
    "note": "",
-   "order": 110,
+   "order": 111,
    "first_game": false
   },
   {
@@ -1947,7 +1967,7 @@
    "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
    "chunks": [],
    "note": "",
-   "order": 111,
+   "order": 112,
    "first_game": false
   },
   {
@@ -1966,7 +1986,7 @@
     "Exposed ports and settings, nested prefabs"
    ],
    "note": "",
-   "order": 112,
+   "order": 113,
    "first_game": false
   },
   {
@@ -1986,8 +2006,8 @@
     "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
     "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
    ],
-   "note": "",
-   "order": 113,
+   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent.",
+   "order": 114,
    "first_game": false
   },
   {
@@ -2006,7 +2026,7 @@
     "Grind rails, zero-g, burrow, ride, perch"
    ],
    "note": "",
-   "order": 114,
+   "order": 115,
    "first_game": false
   },
   {
@@ -2021,7 +2041,7 @@
    "what": "Gamepad controls for games and the input map. Last, as asked.",
    "chunks": [],
    "note": "",
-   "order": 115,
+   "order": 116,
    "first_game": false
   },
   {
@@ -2036,7 +2056,7 @@
    "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
    "chunks": [],
    "note": "",
-   "order": 116,
+   "order": 117,
    "first_game": false
   },
   {
@@ -2051,7 +2071,7 @@
    "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
-   "order": 117,
+   "order": 118,
    "first_game": false
   },
   {
@@ -2070,7 +2090,7 @@
     "Placing kit pieces, doors, keys and spawns along it"
    ],
    "note": "",
-   "order": 118,
+   "order": 119,
    "first_game": false
   },
   {
@@ -2085,7 +2105,7 @@
    "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
    "chunks": [],
    "note": "",
-   "order": 119,
+   "order": 120,
    "first_game": false
   },
   {
@@ -2100,7 +2120,7 @@
    "what": "A generic humanoid and a small cartoon character, skinned and animated, with walk, run, jump and idle clips, so any project can test from day one.",
    "chunks": [],
    "note": "Made by the user, not asset packs (2026-11-15), and skinned in another tool: Prism once it can skin (user, 2026-11-15). They arrive as GLB with their skeleton and clips.",
-   "order": 120,
+   "order": 121,
    "first_game": false
   },
   {
@@ -2115,7 +2135,7 @@
    "what": "Hide in shadow or grass, noise enemies hear, distract.",
    "chunks": [],
    "note": "",
-   "order": 121,
+   "order": 122,
    "first_game": false
   },
   {
@@ -2134,7 +2154,7 @@
     "Quest log, markers on the map and compass"
    ],
    "note": "",
-   "order": 122,
+   "order": 123,
    "first_game": false
   },
   {
@@ -2149,7 +2169,7 @@
    "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
    "chunks": [],
    "note": "",
-   "order": 123,
+   "order": 124,
    "first_game": false
   },
   {
@@ -2169,7 +2189,7 @@
     "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
    ],
    "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
-   "order": 124,
+   "order": 125,
    "first_game": false
   },
   {
@@ -2185,7 +2205,7 @@
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
    "note": "",
-   "order": 125,
+   "order": 126,
    "first_game": false
   },
   {
@@ -2201,7 +2221,7 @@
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 126,
+   "order": 127,
    "first_game": false
   },
   {
@@ -2221,7 +2241,7 @@
     "Cave dressing: drips, rubble and lights along the walls"
    ],
    "note": "fast-surface-nets does the meshing (no Bevy dependency).",
-   "order": 127,
+   "order": 128,
    "first_game": false
   },
   {
@@ -2237,7 +2257,7 @@
    "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
    "chunks": [],
    "note": "",
-   "order": 128,
+   "order": 129,
    "first_game": false
   },
   {
@@ -2254,7 +2274,7 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 129,
+   "order": 130,
    "first_game": false
   },
   {
@@ -2273,7 +2293,7 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 130,
+   "order": 131,
    "first_game": false
   },
   {
@@ -2292,7 +2312,7 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "",
-   "order": 131,
+   "order": 132,
    "first_game": false
   },
   {
@@ -2308,7 +2328,7 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 132,
+   "order": 133,
    "first_game": false
   },
   {
@@ -2331,7 +2351,7 @@
     "Multiplayer test mode in the editor (several windows) with fake lag and packet loss"
    ],
    "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction.",
-   "order": 133,
+   "order": 134,
    "first_game": false
   },
   {
@@ -2347,7 +2367,7 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 134,
+   "order": 135,
    "first_game": false
   },
   {
@@ -2365,7 +2385,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 135,
+   "order": 136,
    "first_game": false
   },
   {
@@ -2380,7 +2400,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 136,
+   "order": 137,
    "first_game": false
   }
  ],

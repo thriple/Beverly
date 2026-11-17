@@ -6,14 +6,16 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 ## Rules from the user
 
 - **Work on `main` only:** every session commits and pushes to `main`, never to a session branch (user, 2026-11-15).
-- **The editor's look (user, 2026-11-16):** the user's design, `docs/ui.svg`, drawn from its own shapes: its parts
-  are cut by id into `editor/assets/ui/editor.svg` (coordinates, colours and curves kept) and drawn by
-  `editor/src/editor/frame.rs`. Don't redraw what the design has; add new parts to the design file by id.
+- **The editor's look (user, 2026-11-17):** the user's redesign in `docs/ui/` is the source of truth: `HANDOFF.md`
+  (frame, tab colours, type, panels, controls, icons, checklists for new tabs and controls), the boards in
+  `docs/ui/design/boards` (live canvas linked in HANDOFF.md), `tokens/` and `icons/`. Every new window, panel, control
+  or tab is built from its pieces; add new ones to it. (Replaces the earlier `docs/ui.svg` design.)
 - **No rasters in the GUI (user, 2026-11-16):** everything the editor's interface draws is vector, rendered at the
   screen's resolution; no images, no scaled bitmaps.
-- **UI kit:** blended with the user's design: use the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/theme.rs`) wherever a component
-  fits, and build any new UI in its style: its springs (SPRING / SNAPPY / SOFT), fade-and-scale entrances, colours,
-  asymmetric corner radii (14/14/14/4) and keycaps for every shortcut.
+- **Motion kit (user, 2026-11-17):** the redesign's look with the Motion kit's movement and components
+  (`kit/motion-kit.zip`, ported in `editor/src/editor/theme.rs`): its springs (SPRING / SNAPPY / SOFT) and entrances,
+  its tooltips (spring up, with keycaps), the dock panel's motion (sliding pill, content sliding the way you went,
+  springing width), the dynamic island that pops open for each action, and its animated inputs.
 - Caps Lock is the movement-mode switch only. Tab opens the parts pop-up. Mouse 5 / ] faster, Mouse 4 / [ slower.
 - Basic shapes double as colliders (Visible off = invisible collider).
 - Projects are folders of plain text (RON) so they work with git.
