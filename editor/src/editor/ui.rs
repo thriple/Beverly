@@ -35,6 +35,7 @@ pub fn ui(
     mut exit: MessageWriter<AppExit>,
     mut init: Local<bool>,
     mut window: Single<&mut Window, With<bevy::window::PrimaryWindow>>,
+    cam: Single<(&Camera, &GlobalTransform), With<super::view::MainCamera>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
     if !*init {
@@ -68,6 +69,7 @@ pub fn ui(
     window_edges(&ctx, &lay, &mut window, max);
 
     overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
+    if ed.looking.is_none() { selection_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
     if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
@@ -508,50 +510,64 @@ pub(super) fn open_folder(dir: &std::path::Path) -> std::io::Result<()> {
     std::process::Command::new(cmd).arg(dir).spawn().map(|_| ())
 }
 
-/// The project's assets by folder: models to place, materials to change or drag, textures to drag onto faces.
+/// The project's assets by folder (a row each, with how many it holds; click to open): models to place, materials
+/// to change or drag, textures to drag onto faces.
 fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
     let mut assets = ed.assets.clone();
     // materials as the editor holds them (new and changed ones are saved with the project)
     if let Some(m) = assets.iter_mut().find(|(f, _)| *f == "materials") {
         m.1 = ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/").to_string()).collect();
     }
+    let row = |ui: &mut Ui, indent: f32, sense: Sense| -> (ERect, egui::Response) {
+        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), sense);
+        if resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(7), theme::FIELD); }
+        (r.with_min_x(r.left() + indent), resp)
+    };
     for (folder, files) in &assets {
-        let title = format!("{}{}  ({})", folder[..1].to_uppercase(), &folder[1..], files.len());
-        egui::CollapsingHeader::new(title).id_salt(folder).default_open(*folder == "textures").show(ui, |ui| {
-            if files.is_empty() {
-                ui.label(egui::RichText::new("empty").color(MUTED).size(11.0));
-            }
-            if *folder == "materials" && ui.small_button("+ New material").tip("A plain material: give it a texture, tint, shine or glow").clicked() {
+        let id = Id::new(("asset-folder", *folder));
+        let open: bool = ui.data(|d| d.get_temp(id)).unwrap_or(*folder == "textures");
+        let (r, resp) = row(ui, 10.0, Sense::click());
+        frame::paint_icon(ui.painter(), if open { "down" } else { "right" }, pos2(r.left() + 5.0, r.center().y), 12.0, if open { TEXT } else { MUTED });
+        ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, format!("{}{}", folder[..1].to_uppercase(), &folder[1..]), body(12.5), if open { Color32::WHITE } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
+        ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, files.len().to_string(), body(12.5), MUTED);
+        if resp.clicked() { ui.data_mut(|d| d.insert_temp(id, !open)); }
+        if !open { continue; }
+        if *folder == "materials" {
+            let (r, resp) = row(ui, 30.0, Sense::click());
+            frame::paint_icon(ui.painter(), "plus", pos2(r.left() + 7.0, r.center().y), 14.0, theme::ACCENT);
+            ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, "New material", body(12.5), theme::ACCENT);
+            if resp.tip("A plain material: give it a texture, tint, shine or glow").clicked() {
                 ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
             }
-            for f in files {
-                let path = format!("assets/{folder}/{f}");
-                if crate::models::is_model(f) {
-                    // models: click to place
-                    let r = ui.add(egui::Button::new(egui::RichText::new(format!("◆  {f}")).size(12.0)).frame(false)).tip("Click, then click a surface to place it");
-                    if r.clicked() {
-                        ed.placing = Some(Shape::Model);
-                        ed.placing_model = Some(path);
-                        ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
-                    }
-                } else if *folder == "materials" {
-                    // materials: click to change, drag onto a face
-                    let open = ed.material_open.as_deref() == Some(path.as_str());
-                    let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).selectable(false).sense(Sense::click_and_drag()))
-                        .on_hover_cursor(egui::CursorIcon::Grab)
-                        .tip("Click to change it (every surface using it changes) · drag onto a face");
-                    if r.clicked() { ed.material_open = Some(path); } else if r.drag_started() { ed.texturing = Some(path); }
-                } else if super::texture::is_texture(f) {
-                    // textures: drag onto a face (or click, then click a face)
-                    let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).selectable(false).sense(Sense::click_and_drag()))
-                        .on_hover_cursor(egui::CursorIcon::Grab)
-                        .tip("Drag onto a face of a part (Shift: the whole part)");
-                    if r.drag_started() || r.clicked() { ed.texturing = Some(path); }
-                } else {
-                    ui.label(egui::RichText::new(f).size(12.0));
+        }
+        for f in files {
+            let path = format!("assets/{folder}/{f}");
+            let model = crate::models::is_model(f);
+            let texture = super::texture::is_texture(f);
+            let material = *folder == "materials";
+            let sense = if model { Sense::click() } else if material || texture { Sense::click_and_drag() } else { Sense::hover() };
+            let (r, resp) = row(ui, 30.0, sense);
+            let (icon, colour) = if model { ("cube", theme::CAT_SHAPES) } else if material { ("palette", theme::VIOLET) } else if texture { ("grid", theme::VIOLET) } else { ("folder", MUTED) };
+            let open = material && ed.material_open.as_deref() == Some(path.as_str());
+            frame::paint_icon(ui.painter(), icon, pos2(r.left() + 7.0, r.center().y), 14.0, colour);
+            ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, f.trim_end_matches(".bev"), body(12.5), if open { theme::VIOLET } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
+            if model {
+                // models: click to place
+                if resp.tip("Click, then click a surface to place it").clicked() {
+                    ed.placing = Some(Shape::Model);
+                    ed.placing_model = Some(path);
+                    ed.island.show("◆", format!("Placing {f}"), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
                 }
+            } else if material {
+                // materials: click to change, drag onto a face
+                let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("Click to change it (every surface using it changes) · drag onto a face");
+                if resp.clicked() { ed.material_open = Some(path); } else if resp.drag_started() { ed.texturing = Some(path); }
+            } else if texture {
+                // textures: drag onto a face (or click, then click a face)
+                let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("Drag onto a face of a part (Shift: the whole part)");
+                if resp.drag_started() || resp.clicked() { ed.texturing = Some(path); }
             }
-        });
+        }
     }
 }
 
@@ -578,35 +594,16 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
     let mut ranges_changed = false;
     { ui.vertical(|ui| {
         ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
-        column(ui, 190.0, "PART", |ui| {
-            ui.horizontal(|ui| {
-                let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
-                ui.painter().rect_filled(r, CornerRadius::same(2), theme::CAT_SHAPES);
-                ui.add(egui::TextEdit::singleline(&mut p.name).desired_width(150.0).font(semi(13.0)));
-            });
-            let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
-            ui.label(egui::RichText::new(format!("{} {}{file}", p.shape.glyph(), p.shape.label())).color(MUTED));
-            // instances: the parts with the same contents (shape, colour, textures, Visible, Collision)
-            let n = ed.level.instances(id).len();
-            ui.horizontal(|ui| {
-                theme::toggle(ui, &mut p.unique).tip("On: changing its look never changes the parts just like it");
-                let (text, help) = if p.unique {
-                    ("Unique", "Its contents are its own")
-                } else if !ed.level.instanced(&p) {
-                    ("Its own", "Lights, cameras, moving and wired parts are always individual")
-                } else if n > 0 {
-                    ("", "Parts with the same shape, colour and textures; changing one asks first")
-                } else {
-                    ("No instances", "Parts with the same shape, colour and textures would be its instances")
-                };
-                let text = if text.is_empty() { format!("Instance · {} alike", n + 1) } else { text.to_string() };
-                ui.label(egui::RichText::new(text).color(MUTED)).tip(help);
-            });
-            ui.horizontal(|ui| {
-                if ui.button("Duplicate").tip_keys("Duplicate", &["Ctrl", "D"]).clicked() { ed.duplicate_selected(); }
-                if ui.button("Delete").tip_keys("Delete", &["Del"]).clicked() { delete = true; }
-            });
-        });
+        let (_, icon, colour) = kind(p.shape);
+        let file = p.model.as_deref().and_then(|m| m.rsplit('/').next()).map(|f| format!(" · {f}")).unwrap_or_default();
+        // instances: the parts with the same contents (shape, colour, textures, Visible, Collision)
+        let n = ed.level.instances(id).len();
+        let inst = if p.unique { " · Unique".to_string() } else if ed.level.instanced(&p) && n > 0 { format!(" · {} alike", n + 1) } else { String::new() };
+        let sub = format!("{} · {}{file}{inst}", kind(p.shape).0.trim_end_matches('s'), p.shape.label());
+        let (mut dup, mut del) = (false, false);
+        identity(ui, colour, icon, Ok(&mut p.name), &sub, Some((&mut dup, &mut del)));
+        if dup { ed.duplicate_selected(); }
+        if del { delete = true; }
         // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
         let model = p.shape == Shape::Model;
         let scale = [("size", Setting::number("Scale", "×", 0.01, 0.001, 100000.0).section(level::LOOK).bare())];
@@ -614,7 +611,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
         for sec in settings::sections(&p) {
             if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
             // the player start, lights and cameras have no surface to tag
-            if sec == level::TAGS && (p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera()) { continue; }
+            if sec == level::TAGS { continue; }
             // a light or a camera: its settings in place of size and look (the cone for spots only)
             if sec == level::LOOK && (p.shape.is_light() || p.shape.is_camera()) { continue; }
             if sec == level::CAMERA {
@@ -639,7 +636,6 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
             let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
             column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
         }
-        ranges_changed = ctx.ranges_changed;
         if !p.surfaces.is_empty() {
             column(ui, 250.0, "TEXTURES", |ui| {
                 let names = ed.geo.shapes[&p.shape].face_names();
@@ -696,6 +692,25 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                 }
             });
         }
+        // rarely used: Unique, and its surface's tags (the player start, lights and cameras have no surface to tag)
+        let tags = !(p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera());
+        group(ui, "ADVANCED", Some(1 + tags as usize), |ui| {
+            ui.horizontal(|ui| {
+                let help = if p.unique {
+                    "Its contents are its own"
+                } else if !ed.level.instanced(&p) {
+                    "Lights, cameras, moving and wired parts are always individual"
+                } else {
+                    "Parts with the same shape, colour and textures are instances; changing one asks first"
+                };
+                ui.label(egui::RichText::new("Unique").color(TEXT_2)).tip(help);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    theme::toggle(ui, &mut p.unique).tip("On: changing its look never changes the parts just like it");
+                });
+            });
+            if tags { settings::section(ui, &mut p, level::TAGS, &mut ctx); }
+        });
+        ranges_changed = ctx.ranges_changed;
     });
     }
     if let Some(i) = unwire { ed.level.wires.remove(i); }
@@ -721,11 +736,21 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut build = false;
     let mut ranges = ed.level.ranges.clone();
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
+    // the level (or its topic) at the top, as a part is when one is selected
+    let parts = ed.level.parts.len();
+    let (name, icon, colour) = match ed.level_mode {
+        LevelMode::Build => (ed.level.name.clone(), "mountain", HIGHLIGHT),
+        LevelMode::Lighting => ("Lighting".into(), "bulb", theme::CAT_LIGHTS),
+        LevelMode::Physics => ("Physics".into(), "feel", theme::CAT_FLOW),
+        LevelMode::Cameras => ("Cameras".into(), "camera", theme::CAT_CAMERAS),
+    };
+    let sub = if ed.level_mode == LevelMode::Build { format!("Level · {parts} part{}", if parts == 1 { "" } else { "s" }) } else { format!("Level · {}", ed.level.name) };
+    identity(ui, colour, icon, Err(&name), &sub, None);
     match ed.level_mode {
         LevelMode::Build => {
-            column(ui, 0.0, "LEVEL", |ui| {
-                ui.label(egui::RichText::new(&ed.level.name).font(semi(13.0)).color(TEXT));
-                ui.label(egui::RichText::new("Nothing selected: click a part to see its settings").color(MUTED));
+            ui.label(egui::RichText::new("Click a part in the view to inspect it, or press Tab to place one.").color(TEXT_2));
+            ui.add_space(8.0);
+            column(ui, 0.0, "SHORTCUTS", |ui| {
                 theme::hint(ui, "Parts", &["Tab"]);
                 theme::hint(ui, "Fly / edit", &["Caps Lock"]);
                 theme::hint(ui, "Test", &["`"]);
@@ -785,26 +810,52 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     if build { ed.build_navigation(); }
 }
 
-/// The bottom-right panel: the level's parts (those of the Level tab's topic).
+/// The dock's list: the level's parts (those of the Level topic), found by name, in sections by kind, each with its
+/// icon in its category colour; hidden parts and too many lights say so.
 fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
-    let (title, shown): (&str, fn(&level::Part) -> bool) = match ed.level_mode {
-        LevelMode::Build => ("SCENE", |_| true),
-        LevelMode::Lighting => ("SCENE · LIGHTS", |p| p.shape.is_light()),
-        LevelMode::Cameras => ("SCENE · CAMERAS", |p| p.shape.is_camera()),
-        LevelMode::Physics => ("SCENE · SOLID PARTS", |p| crate::physics::kind(p).is_some()),
+    let shown: fn(&level::Part) -> bool = match ed.level_mode {
+        LevelMode::Build => |_| true,
+        LevelMode::Lighting => |p| p.shape.is_light(),
+        LevelMode::Cameras => |p| p.shape.is_camera(),
+        LevelMode::Physics => |p| crate::physics::kind(p).is_some(),
     };
-    small_caps(ui, title);
-    if ed.level.parts.is_empty() { ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.0)); }
+    // the search field
+    let qid = Id::new("scene-find");
+    let mut q: String = ui.data(|d| d.get_temp(qid)).unwrap_or_default();
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+    ui.painter().rect_filled(r, CornerRadius::same(8), theme::FIELD);
+    frame::paint_icon(ui.painter(), "search", pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, MUTED);
+    let field = ERect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
+    ui.put(field, egui::TextEdit::singleline(&mut q).frame(egui::Frame::NONE).hint_text(egui::RichText::new("Find in scene").color(MUTED)).font(body(12.5)).vertical_align(egui::Align::Center));
+    ui.data_mut(|d| d.insert_temp(qid, q.clone()));
+    let q = q.to_lowercase();
+    if ed.level.parts.is_empty() { ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.5)); }
+    let over: Vec<u64> = { let w = super::light::budget(&ed.level); if w.len() > super::light::BUDGET { w } else { vec![] } };
     let mut pick = None;
     let mut flip = None;
-    for p in ed.level.parts.iter().filter(|p| shown(p)) {
-        ui.horizontal(|ui| {
+    for sec in ["Shapes", "Models", "Triggers", "Game", "Lights", "Cameras"] {
+        let rows: Vec<&level::Part> = ed.level.parts.iter().filter(|p| shown(p) && kind(p.shape).0 == sec && (q.is_empty() || p.name.to_lowercase().contains(&q))).collect();
+        if rows.is_empty() { continue; }
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(sec).size(11.5).color(MUTED));
+        for p in rows {
+            let (_, icon, colour) = kind(p.shape);
             let on = ed.selected == Some(p.id);
-            let eye = if p.visible { "◉" } else { "○" };
-            if ui.add(egui::Button::new(egui::RichText::new(eye).size(11.0)).frame(false)).tip(if p.visible { "Hide (keep as collider)" } else { "Show" }).clicked() { flip = Some(p.id); }
-            let txt = egui::RichText::new(format!("{}  {}", p.shape.glyph(), p.name)).size(12.5).color(if on { HIGHLIGHT } else { TEXT });
-            if ui.add(egui::Button::selectable(on, txt).frame(false)).clicked() { pick = Some(p.id); }
-        });
+            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+            let painter = ui.painter();
+            if on { painter.rect_filled(r, CornerRadius::same(7), theme::SELECTED_ROW); } else if resp.hovered() { painter.rect_filled(r, CornerRadius::same(7), theme::FIELD); }
+            frame::paint_icon(painter, icon, pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, if p.visible { colour } else { colour.gamma_multiply(0.45) });
+            painter.text(pos2(r.left() + 34.0, r.center().y), Align2::LEFT_CENTER, &p.name, body(12.5), if on { Color32::WHITE } else if p.visible { Color32::from_rgb(0xDC, 0xDC, 0xE0) } else { MUTED });
+            // on the right: a warning, or Hidden; the eye shows or hides it (hidden: a collider only)
+            let eye = ERect::from_center_size(pos2(r.right() - 16.0, r.center().y), vec2(24.0, 24.0));
+            let er = ui.interact(eye, Id::new(("eye", p.id)), Sense::click()).tip(if p.visible { "Hide it (it stays a collider)" } else { "Show it" });
+            if resp.hovered() || er.hovered() || !p.visible {
+                frame::paint_icon(ui.painter(), "eye", eye.center(), 14.0, if er.hovered() { TEXT } else { MUTED });
+            }
+            let note = if over.contains(&p.id) { Some(("Too many lights", theme::DANGER_TEXT)) } else if !p.visible { Some(("Hidden", MUTED)) } else { None };
+            if let Some((n, c)) = note { ui.painter().text(pos2(eye.left() - 6.0, r.center().y), Align2::RIGHT_CENTER, n, body(11.5), c); }
+            if er.clicked() { flip = Some(p.id); } else if resp.clicked() { pick = Some(p.id); }
+        }
     }
     if let Some(id) = pick { ed.selected = Some(id); ed.material_open = None; }
     if let Some(id) = flip {
@@ -854,38 +905,29 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
     let mut m = ed.level.materials[path].clone();
     let before = m.clone();
     let mut ranges = ed.level.ranges.clone();
-    let mut ranges_changed = false;
+    let ranges_changed;
     let (surfaces, parts) = ed.level.material_users(path);
     let name = path.trim_start_matches("assets/materials/").trim_end_matches(".bev").to_string();
     let textures: Vec<String> = ed.assets.iter().find(|(f, _)| *f == "textures").map(|(_, t)| t.iter().filter(|t| super::texture::is_texture(t)).cloned().collect()).unwrap_or_default();
     let (mut copy, mut close) = (false, false);
-    egui::ScrollArea::horizontal().show(ui, |ui| { ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
-        column(ui, 220.0, "MATERIAL", |ui| {
-            ui.horizontal(|ui| {
-                let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
-                ui.painter().rect_filled(r, CornerRadius::same(2), theme::VIOLET);
-                ui.label(egui::RichText::new(&name).font(semi(13.0)));
-            });
-            let s = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
-            ui.label(egui::RichText::new(format!("Used by {} on {}", s(surfaces, "surface"), s(parts, "part"))).color(MUTED));
-            ui.horizontal(|ui| {
-                if ui.button("Copy").tip("A new material like this one, to change on its own").clicked() { copy = true; }
-                if ui.button("Close").tip_keys("Back to the selected part", &["Esc"]).clicked() { close = true; }
-            });
+    let n = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
+    identity(ui, theme::VIOLET, "palette", Err(&name), &format!("Material · on {} of {}", n(surfaces, "surface"), n(parts, "part")), None);
+    ui.horizontal(|ui| {
+        if ui.button("Copy").tip("A new material like this one, to change on its own").clicked() { copy = true; }
+        if ui.button("Close").tip_keys("Back to the selected part", &["Esc"]).clicked() { close = true; }
+    });
+    ui.add_space(8.0);
+    column(ui, 0.0, "TEXTURE", |ui| {
+        let shown = m.texture.as_deref().and_then(|t| t.rsplit('/').next()).unwrap_or("None (plain)").to_string();
+        egui::ComboBox::from_id_salt("material texture").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(&mut m.texture, None, "None (plain)");
+            for t in &textures { ui.selectable_value(&mut m.texture, Some(format!("assets/textures/{t}")), t); }
         });
-        column(ui, 230.0, "TEXTURE", |ui| {
-            let shown = m.texture.as_deref().and_then(|t| t.rsplit('/').next()).unwrap_or("None (plain)").to_string();
-            egui::ComboBox::from_id_salt("material texture").selected_text(shown).width(200.0).show_ui(ui, |ui| {
-                ui.selectable_value(&mut m.texture, None, "None (plain)");
-                for t in &textures { ui.selectable_value(&mut m.texture, Some(format!("assets/textures/{t}")), t); }
-            });
-            ui.label(egui::RichText::new("Drag the material from Assets onto faces").color(MUTED).size(11.0));
-        });
-        let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
-        column(ui, 300.0, "LOOK", |ui| { settings::section(ui, &mut m, level::MATERIAL, &mut ctx); });
-        ranges_changed = ctx.ranges_changed;
-    }); });
+        ui.label(egui::RichText::new("Drag the material from Assets onto faces").color(MUTED).size(11.0));
+    });
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
+    column(ui, 0.0, "LOOK", |ui| { settings::section(ui, &mut m, level::MATERIAL, &mut ctx); });
+    ranges_changed = ctx.ranges_changed;
     if m != before { ed.level.materials.insert(path.to_string(), m.clone()); }
     if ranges_changed { ed.level.ranges = ranges; }
     if copy {
@@ -902,26 +944,134 @@ fn port(ui: &mut Ui, text: &str, color: Color32) {
     });
 }
 
-/// A titled group of settings: side by side in a row, or stacked (full width, a line under each) down a panel.
-fn column(ui: &mut Ui, w: f32, title: &str, add: impl FnOnce(&mut Ui)) {
-    if !ui.layout().is_horizontal() {
-        small_caps(ui, title);
-        add(ui);
-        ui.add_space(4.0);
-        let (x0, x1, y) = (ui.max_rect().left(), ui.max_rect().right(), ui.cursor().top());
-        ui.painter().line_segment([pos2(x0, y), pos2(x1, y)], Stroke::new(1.0, LINE));
-        ui.add_space(8.0);
+/// A group of settings in the dock: a line across, its heading (an icon in its colour, its name, a chevron to
+/// fold it) and its contents. `title` is a settings section (or one of the panels' own); its look comes from
+/// [`group_look`].
+fn column(ui: &mut Ui, _w: f32, title: &str, add: impl FnOnce(&mut Ui)) { group(ui, title, None, add); }
+
+/// How a group looks: its name, icon and colour.
+fn group_look(title: &str) -> (String, &'static str, Color32) {
+    let (name, icon, colour) = match title {
+        level::PLACE => ("Placement", "move", theme::CAT_SHAPES),
+        level::LOOK | "LOOK" => ("Look", "drop", theme::CAT_LIGHTS),
+        "SCALE  ·  LOOK" => ("Scale and look", "drop", theme::CAT_LIGHTS),
+        level::MOVES => ("Moves", "route", theme::CAT_FLOW),
+        level::LIGHT => ("Light", "bulb", theme::CAT_LIGHTS),
+        level::CONE => ("Cone", "cone", theme::CAT_LIGHTS),
+        level::CAMERA => ("Camera", "camera", theme::CAT_CAMERAS),
+        level::ORBIT => ("Orbit", "loop", theme::CAT_CAMERAS),
+        level::TAGS => ("Tags", "pin", TEXT_2),
+        "TEXTURES" => ("Textures", "palette", theme::VIOLET),
+        "TEXTURE" => ("Texture", "palette", theme::VIOLET),
+        "WIRES" => ("Wires", "wire", theme::CAT_ACTIONS),
+        "LEVEL · LIGHTING" => ("Lighting", "bulb", theme::CAT_LIGHTS),
+        level::SUN => ("Sun", "spark", theme::CAT_LIGHTS),
+        "LEVEL · PHYSICS · NAVIGATION" => ("Navigation", "route", theme::CAT_FLOW),
+        "LEVEL · CAMERAS" => ("Cameras", "camera", theme::CAT_CAMERAS),
+        "ADVANCED" => ("Advanced", "sliders", MUTED),
+        "SHORTCUTS" => ("Getting about", "keyboard", TEXT_2),
+        other => return (other[..1].to_string() + &other[1..].to_lowercase(), "sliders", TEXT_2),
+    };
+    (name.to_string(), icon, colour)
+}
+
+/// A group (see [`column`]); `count` makes it a folded-away group showing how many settings it holds (Advanced).
+fn group(ui: &mut Ui, title: &str, count: Option<usize>, add: impl FnOnce(&mut Ui)) {
+    let (name, icon, colour) = group_look(title);
+    let id = Id::new(("group", title));
+    let shut: bool = ui.data(|d| d.get_temp(id)).unwrap_or(count.is_some());
+    let full = ui.max_rect();
+    let y = ui.cursor().top();
+    ui.painter().hline(full.left() - 17.0..=full.right() + 17.0, y, Stroke::new(1.0, white(18)));
+    ui.add_space(16.0);
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::click());
+    let p = ui.painter();
+    frame::paint_icon(p, icon, pos2(r.left() + 8.0, r.center().y), 16.0, colour);
+    let g = p.layout_no_wrap(name.clone(), semi(12.5), Color32::from_rgb(0xD2, 0xD2, 0xD6));
+    let tx = r.left() + 24.0;
+    p.galley(pos2(tx, r.center().y - g.size().y / 2.0), g.clone(), TEXT);
+    if let Some(n) = count {
+        p.text(pos2(tx + g.size().x + 6.0, r.center().y), Align2::LEFT_CENTER, format!("{n} setting{}", if n == 1 { "" } else { "s" }), body(12.0), MUTED);
+    }
+    let hot = resp.hovered();
+    frame::paint_icon(p, if shut { "right" } else { "down" }, pos2(r.right() - 7.0, r.center().y), 14.0, if hot { TEXT_2 } else { Color32::from_rgb(0x6E, 0x6E, 0x75) });
+    if resp.tip(if shut { "Show" } else { "Fold away" }).clicked() { ui.data_mut(|d| d.insert_temp(id, !shut)); }
+    if shut {
+        ui.add_space(16.0);
         return;
     }
-    ui.allocate_ui_with_layout(vec2(w, ui.available_height()), egui::Layout::top_down(egui::Align::Min), |ui| {
-        ui.set_width(w);
-        small_caps(ui, title);
-        add(ui);
-    });
-    let x = ui.cursor().left();
-    let r = ui.max_rect();
-    ui.painter().line_segment([pos2(x, r.top() + 4.0), pos2(x, r.bottom() - 4.0)], Stroke::new(1.0, LINE));
     ui.add_space(14.0);
+    add(ui);
+    ui.add_space(18.0);
+}
+
+/// The identity at the top of the inspector: a tile with its icon in its colour, its name (`name` makes it
+/// editable), what it is, and Duplicate / Delete when given.
+fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, &str>, sub: &str, actions: Option<(&mut bool, &mut bool)>) {
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 12.0;
+        let (tile, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
+        let p = ui.painter();
+        p.rect_filled(tile, CornerRadius::same(11), colour.gamma_multiply(0.16));
+        p.rect_stroke(tile, CornerRadius::same(11), Stroke::new(1.0, colour.gamma_multiply(0.35)), StrokeKind::Inside);
+        frame::paint_icon(p, icon, tile.center(), 20.0, colour);
+        let room = ui.available_width() - if actions.is_some() { 2.0 * 28.0 + 8.0 } else { 0.0 };
+        ui.allocate_ui_with_layout(vec2(room, 40.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.spacing_mut().item_spacing.y = 2.0;
+            match name {
+                Ok(n) => { ui.add(egui::TextEdit::singleline(n).frame(egui::Frame::NONE).margin(vec2(0.0, 0.0)).desired_width(room).font(theme::bold(16.0))).tip("Click to rename"); }
+                Err(n) => { ui.label(egui::RichText::new(n).font(theme::bold(16.0))); }
+            }
+            ui.label(egui::RichText::new(sub).size(12.0).color(Color32::from_rgb(0xA0, 0xA0, 0xA7)));
+        });
+        if let Some((dup, del)) = actions {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            for (icon, label, keys, flag) in [("copy", "Duplicate", &["Ctrl", "D"][..], dup), ("trash", "Delete", &["Del"][..], del)] {
+                let (b, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+                let hot = theme::spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+                if hot > 0.0 { ui.painter().rect_filled(b, CornerRadius::same(7), theme::FIELD_HOVER.gamma_multiply(hot)); }
+                frame::paint_icon(ui.painter(), icon, b.center(), 16.0, Color32::from_rgb(0xD2, 0xD2, 0xD6));
+                if resp.tip_keys(label, keys).clicked() { *flag = true; }
+            }
+        }
+    });
+    ui.add_space(16.0);
+}
+
+/// A part's kind: its list section, icon and category colour.
+fn kind(shape: Shape) -> (&'static str, &'static str, Color32) {
+    match shape {
+        s if s.is_light() => ("Lights", "bulb", theme::CAT_LIGHTS),
+        s if s.is_camera() => ("Cameras", "camera", theme::CAT_CAMERAS),
+        Shape::PlayerStart => ("Game", "person", theme::CAT_GAME),
+        Shape::Interact => ("Triggers", "bolt", theme::CAT_TRIGGERS),
+        Shape::Model => ("Models", "cube", theme::CAT_SHAPES),
+        _ => ("Shapes", "cube", theme::CAT_SHAPES),
+    }
+}
+
+/// The selection tag: a small pill in the highlight with the part's icon and name, at its top left in the view.
+fn selection_tag(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Camera, &GlobalTransform)) {
+    let Some(p) = ed.selected.and_then(|id| ed.level.get(id)) else { return };
+    let (lo, hi) = ed.geo.local_box(p);
+    let m = crate::world::part_affine(p);
+    let pts: Vec<Vec2> = (0..8).filter_map(|i| {
+        let c = vec3(if i & 1 == 0 { lo.x } else { hi.x }, if i & 2 == 0 { lo.y } else { hi.y }, if i & 4 == 0 { lo.z } else { hi.z });
+        view.to_screen(cam.0, cam.1, m.transform_point3(c))
+    }).collect();
+    if pts.len() < 8 { return; }
+    let (x, y) = pts.iter().fold((f32::MAX, f32::MAX), |(x, y), q| (x.min(q.x), y.min(q.y)));
+    let (_, icon, _) = kind(p.shape);
+    let w = 7.0 + 13.0 + 6.0 + text_w(ctx, &p.name, theme::bold(12.0)) + 9.0;
+    let v = view.rect;
+    let at = pos2(x.clamp(v.min.x + 8.0, (v.max.x - w - 8.0).max(v.min.x)), (y - 30.0).clamp(v.min.y + 48.0, v.max.y - 60.0));
+    let r = ERect::from_min_size(at, vec2(w, 24.0));
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, Id::new("selection-tag")));
+    let t = theme::spring_from(ctx, Id::new(("tag-in", p.id)), 0.0, 1.0, theme::SNAPPY).clamp(0.0, 1.0);
+    painter.rect_filled(r, CornerRadius::same(7), HIGHLIGHT.gamma_multiply(t));
+    frame::paint_icon(&painter, icon, pos2(r.left() + 7.0 + 6.5, r.center().y), 13.0, LOOK.highlight_text.gamma_multiply(t));
+    painter.text(pos2(r.left() + 7.0 + 13.0 + 6.0, r.center().y), Align2::LEFT_CENTER, &p.name, theme::bold(12.0), LOOK.highlight_text.gamma_multiply(t));
 }
 
 fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
@@ -1025,24 +1175,24 @@ fn light_budget(ctx: &egui::Context, ed: &mut Editor, at: egui::Pos2) {
     let label_w = text_w(ctx, "Lights", body(12.0));
     let count = format!("{n} / {max}");
     let cells = n.max(max);
-    let w = 12.0 + 14.0 + 8.0 + label_w + 8.0 + cells as f32 * 9.0 - 2.0 + 8.0 + text_w(ctx, &count, semi(12.0)) + 12.0;
+    let w = 12.0 + 14.0 + 8.0 + label_w + 8.0 + cells as f32 * 10.0 - 2.0 + 8.0 + text_w(ctx, &count, mono(12.0)) + 12.0;
     let rect = ERect::from_min_size(at, vec2(w, 28.0));
     let res = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {
         ui.multiply_opacity(t.clamp(0.0, 1.0));
         let p = ui.painter();
         p.rect_filled(rect, CornerRadius::same(14), Color32::from_rgba_unmultiplied_const(14, 14, 16, 184));
-        p.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, if n > max { theme::DANGER } else { theme::EDGE }), StrokeKind::Inside);
+        p.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, if n > max { theme::DANGER.gamma_multiply(0.7) } else { theme::EDGE }), StrokeKind::Inside);
         let cy = rect.center().y;
-        frame::paint_icon(p, "bulb", pos2(rect.left() + 12.0 + 7.0, cy), 14.0, if n > max { theme::DANGER_TEXT } else { theme::ACCENT });
+        frame::paint_icon(p, "bulb", pos2(rect.left() + 12.0 + 7.0, cy), 14.0, if n > max { theme::DANGER } else { theme::ACCENT });
         let mut x = rect.left() + 12.0 + 14.0 + 8.0;
         p.text(pos2(x, cy), Align2::LEFT_CENTER, "Lights", body(12.0), if n > max { theme::DANGER_TEXT } else { TEXT });
         x += label_w + 8.0;
         for i in 0..cells {
-            let c = if i >= max { theme::DANGER } else if i < n { col } else { white(30) };
-            p.rect_filled(ERect::from_min_size(pos2(x, cy - 5.0), vec2(7.0, 10.0)), CornerRadius::same(2), c);
-            x += 9.0;
+            let c = if i >= max { theme::DANGER.gamma_multiply(0.45) } else if i < n { col } else { white(30) };
+            p.rect_filled(ERect::from_min_size(pos2(x, cy - 5.0), vec2(8.0, 10.0)), CornerRadius::same(2), c);
+            x += 10.0;
         }
-        p.text(pos2(x - 2.0 + 8.0, cy), Align2::LEFT_CENTER, count, semi(12.0), if n > max { theme::DANGER_TEXT } else { TEXT });
+        p.text(pos2(x - 2.0 + 8.0, cy), Align2::LEFT_CENTER, count, mono(12.0), if n > max { theme::DANGER_TEXT } else { TEXT });
         ui.interact(rect, id.with("click"), Sense::click()).tip(help)
     }).inner;
     if res.clicked() {

@@ -36,6 +36,12 @@ struct Face { font: FontRef<'static>, tweak: FontTweak, upem: f32 }
 struct Faces { faces: Vec<Face>, families: HashMap<FontFamily, Vec<usize>> }
 
 impl Faces {
+    /// A glyph's advance, in ems.
+    fn advance(&self, f: usize, id: u32) -> f32 {
+        let face = &self.faces[f];
+        face.font.glyph_metrics(Size::unscaled(), LocationRef::default()).advance_width(skrifa::GlyphId::new(id)).unwrap_or(0.0) / face.upem
+    }
+
     fn new(defs: &FontDefinitions) -> Self {
         let mut faces = vec![];
         let mut index = HashMap::new();
@@ -183,6 +189,9 @@ fn letters_of(t: &TextShape, ppp: f32, screen: Rect, faces: &Faces, letters: &mu
     let mut chars = job.text.char_indices().peekable();
     for row in &t.galley.rows {
         let row_pos = base + rot * row.pos.to_vec2();
+        // the last letter drawn (where, its face and glyph, its size): a letter joined into a ligature with it
+        // (egui shapes text, so "fi" is one glyph and the "i" a zero-width follower) is drawn after it on its own
+        let mut last: Option<(egui::Pos2, usize, u32, f32)> = None;
         for g in &row.glyphs {
             let mut byte = None;
             while let Some((i, c)) = chars.next() {
@@ -190,10 +199,17 @@ fn letters_of(t: &TextShape, ppp: f32, screen: Rect, faces: &Faces, letters: &mu
             }
             let section = byte.and_then(|b| job.sections.iter().find(|s| s.byte_range.contains(&ByteIndex(b)))).or(job.sections.last());
             let Some(section) = section else { continue };
-            // a letter egui would draw (it has a place in the atlas)
-            if g.uv_rect.is_nothing() { continue; }
             let font = &section.format.font_id;
+            // a letter egui would draw (it has a place in the atlas), or one joined into the last letter's ligature
+            let joined = g.uv_rect.is_nothing() && g.advance_width == 0.0 && !g.chr.is_whitespace();
+            if g.uv_rect.is_nothing() && !joined { continue; }
             let Some((f, id)) = faces.find(&font.family, g.chr) else { continue };
+            let gpos = match (joined, last) {
+                (false, _) => g.pos,
+                (true, Some((at, lf, lid, size))) => at + vec2(faces.advance(lf, lid) * size, 0.0),
+                (true, None) => continue,
+            };
+            last = Some((gpos, f, id, font.size * faces.faces[f].tweak.scale));
             let Some(range) = letters.get(faces, f, id) else { continue };
             let tweak = &faces.faces[f].tweak;
             let y_off = (font.size * tweak.scale * tweak.y_offset_factor + tweak.y_offset).round_ui();
@@ -201,7 +217,7 @@ fn letters_of(t: &TextShape, ppp: f32, screen: Rect, faces: &Faces, letters: &mu
             let mut colour = row.visuals.mesh.vertices.get(g.first_vertex as usize).map_or(section.format.color, |v| v.color);
             if let Some(c) = t.override_text_color { colour = c; } else if colour == Color32::PLACEHOLDER { colour = t.fallback_color; }
             if t.opacity_factor < 1.0 { colour = colour.gamma_multiply(t.opacity_factor); }
-            let at = row_pos + rot * (g.pos.to_vec2() + vec2(0.0, y_off));
+            let at = row_pos + rot * (gpos.to_vec2() + vec2(0.0, y_off));
             let px = (at - screen.min) * ppp;
             out.push((range, Instance {
                 place: [px.x, px.y, font.size * tweak.scale * ppp, t.angle],
