@@ -714,7 +714,7 @@
     "The pen: click and drag points with Bezier handles, Alt breaks a handle, close on the first point, then move points and handles, insert and remove points; curves drawn on terrain, water and parts",
     "What a pen shape does, with the brush’s layers: a strip along it (width, soft edges: a cobbled path), a fill inside it (feathered edge), scatter along or inside, and height along or inside (ridges, beds, flat pads on terrain); the MCP"
    ],
-   "note": "Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather).",
+   "note": "Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams.",
    "status": "planned",
    "first_game": true,
    "order": 41
@@ -949,7 +949,7 @@
     "Draw-distance classes tied to the haze end, Always visible flag",
     "The LOD drawer: pops out beside the Assets panel with the project’s LOD settings; with a model selected it shows each level side by side (a small live view of it you can turn, triangle count, swap size) and its impostor"
    ],
-   "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views rendered at the screen's resolution, like the main view, not stored thumbnails (the no-raster rule). Painted and scattered props are always LOD'd.",
+   "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd.",
    "order": 54,
    "first_game": true
   },
@@ -1290,7 +1290,7 @@
     "Baking and drawing: views around the model rendered on the GPU into a colour and a normal-and-depth atlas (views per side, atlas size, upper half or whole sphere, supersampling, edge fill), and the impostor material: the three nearest views blended, depth parallax, depth offset so it meets the ground and its neighbours correctly, the level’s sun and sky",
     "Impostors as the last LOD: made on import for each model (toggle per model and project-wide), quality changeable any time and rebaked in the background, a compare slider (mesh / impostor) in the LOD drawer; the MCP"
    ],
-   "note": "Planned 2026-11-17. Ported from the user's own baker (docs/reference/octahedral-impostor-baker.html: the octahedral mapping, three-view blend, parallax and depth offset, the alpha bleed and tile dilation) to WGSL. The atlases are made from the user's own models and are never stored in the project: bake settings live with the model, the atlases are cached outside git (rebuilt when missing) and baked into exported games. MCP: get_lod / change_lod cover impostor quality.",
+   "note": "Planned 2026-11-17. Ported from the user's own baker (docs/reference/octahedral-impostor-baker.html: the octahedral mapping, three-view blend, parallax and depth offset, the alpha bleed and tile dilation) to WGSL. The atlases are never stored in the project (user, 2026-11-17): bake settings live with the model; the atlases are saved locally on the user's machine (a cache outside the project folder), rebuilt when missing, and baked into exported games. MCP: get_lod / change_lod cover impostor quality.",
    "status": "planned",
    "first_game": true,
    "order": 73
@@ -1601,7 +1601,7 @@
     "Scatter sets (variants, density, spacing, random turn, scale and tint, follow the slope), painted with the brush or filled and lined with the pen, erase",
     "Drawing lots of them: instances grouped in cells, LOD and impostors per cell, culling; wind sway and performance pass"
    ],
-   "note": "Stored as brush strokes and a seed, not every plant: the same plants come back each time and the level file stays small. Erasing is a stroke too. Widened from foliage to any scatter (user, 2026-11-17). Later, maybe: tiles, bricks, cobblestones, kerbs and concrete slabs laid as 3D pieces along pen strips or across fills.",
+   "note": "Stored as brush strokes and a seed, not every plant: the same plants come back each time and the level file stays small. Erasing is a stroke too. Widened from foliage to any scatter (user, 2026-11-17). Later, maybe: tiles, bricks, cobblestones, kerbs and concrete slabs laid as 3D pieces along pen strips or across fills. Next session (user, 2026-11-17): the user uploads a grass system ported from a game of theirs, to be integrated into the foliage and scatter systems; plan the integration from it before building.",
    "order": 89,
    "first_game": true
   },

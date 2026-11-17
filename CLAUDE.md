@@ -11,7 +11,8 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   `docs/ui/design/boards` (live canvas linked in HANDOFF.md), `tokens/` and `icons/`. Every new window, panel, control
   or tab is built from its pieces; add new ones to it. (Replaces the earlier `docs/ui.svg` design.)
 - **No rasters in the GUI (user, 2026-11-16):** everything the editor's interface draws is vector, rendered at the
-  screen's resolution; no images, no scaled bitmaps.
+  screen's resolution; no images, no scaled bitmaps. Previews of the user's content (asset thumbnails) don't count
+  as UI (user, 2026-11-17), but live 3D views are preferred.
 - **Motion kit (user, 2026-11-17):** the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/editor/theme.rs`)
   gives the movement only: its springs (SPRING / SNAPPY / SOFT) and entrances, and how its tooltips spring up, its
   dock panel moves (sliding pill, content sliding the way you went, springing width), its dynamic island pops open
