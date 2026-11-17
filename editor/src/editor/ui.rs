@@ -454,7 +454,7 @@ fn dock(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::Layo
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 match ed.dock_view {
                     0 => {
-                        if ed.selected.is_some() || ed.material_open.is_some() { inspector(ui, ed, view, exit); } else { mode_panel(ui, ed); }
+                        if ed.selected.is_some() || ed.material_open.is_some() || ed.sound_open.is_some() { inspector(ui, ed, view, exit); } else { mode_panel(ui, ed); }
                     }
                     1 => scene_panel(ui, ed),
                     _ => {
@@ -520,6 +520,11 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
     if let Some(m) = assets.iter_mut().find(|(f, _)| *f == "materials") {
         m.1 = ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/").to_string()).collect();
     }
+    // sounds likewise, then the recordings on disk
+    if let Some(m) = assets.iter_mut().find(|(f, _)| *f == "sounds") {
+        let recordings: Vec<String> = m.1.iter().filter(|f| level::is_recording(f)).cloned().collect();
+        m.1 = ed.level.sounds.keys().map(|k| k.trim_start_matches("assets/sounds/").to_string()).chain(recordings).collect();
+    }
     let row = |ui: &mut Ui, indent: f32, sense: Sense| -> (ERect, egui::Response) {
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), sense);
         if resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(7), theme::FIELD); }
@@ -542,8 +547,38 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
                 ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
             }
         }
+        if *folder == "sounds" {
+            let (r, resp) = row(ui, 30.0, Sense::click());
+            frame::paint_icon(ui.painter(), "plus", pos2(r.left() + 7.0, r.center().y), 14.0, theme::ACCENT);
+            ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, "New sound", body(12.5), theme::ACCENT);
+            if resp.tip("A sound file: add recordings, then set its volume, pitch and range").clicked() {
+                ed.sound_open = Some(ed.level.new_sound("Sound", level::Sound::default()));
+                ed.material_open = None;
+            }
+        }
         for f in files {
             let path = format!("assets/{folder}/{f}");
+            if *folder == "sounds" {
+                // sound files: click to change, drag (or Place) to put one in the level; recordings: click or drag to place
+                let file = f.ends_with(".bev");
+                let (r, resp) = row(ui, 30.0, Sense::click_and_drag());
+                let open = ed.sound_open.as_deref() == Some(path.as_str());
+                frame::paint_icon(ui.painter(), if file { "wave" } else { "play" }, pos2(r.left() + 7.0, r.center().y), 14.0, if file { theme::CAT_ACTIONS } else { MUTED });
+                ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, f.trim_end_matches(".bev"), body(12.5), if open { theme::CAT_ACTIONS } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
+                let place = |ed: &mut Editor, sound: String| {
+                    ed.island.show("♪", format!("Placing {}", sound_name(&sound)), "Click a surface · Esc cancels", Tone::Accent);
+                    ed.placing = Some(Shape::Sound);
+                    ed.placing_model = Some(sound);
+                };
+                if file {
+                    let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("Click to change it · drag into the view to place a Sound part");
+                    if resp.clicked() { ed.sound_open = Some(path); ed.material_open = None; } else if resp.drag_started() { place(ed, path); }
+                } else {
+                    let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("A recording: click, then click a surface, to place a Sound part playing it");
+                    if resp.clicked() || resp.drag_started() { let s = ed.level.sound_for_clip(&path); place(ed, s); }
+                }
+                continue;
+            }
             let model = crate::models::is_model(f);
             let texture = super::texture::is_texture(f);
             let material = *folder == "materials";
@@ -581,6 +616,10 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
         material_panel(ui, ed, &path);
         return;
     }
+    if let Some(path) = ed.sound_open.clone().filter(|p| ed.level.sounds.contains_key(p)) {
+        sound_panel(ui, ed, &path);
+        return;
+    }
     let Some(id) = ed.selected.filter(|id| ed.level.get(*id).is_some()) else {
         small_caps(ui, "INSPECTOR");
         ui.label(egui::RichText::new("Nothing selected: click a part to see its settings").color(MUTED));
@@ -615,7 +654,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
             // the player start, lights and cameras have no surface to tag
             if sec == level::TAGS { continue; }
             // a light or a camera: its settings in place of size and look (the cone for spots only)
-            if sec == level::LOOK && (p.shape.is_light() || p.shape.is_camera()) { continue; }
+            if sec == level::LOOK && p.shape.is_marker() { continue; }
             if sec == level::CAMERA {
                 let orbit = p.shape == Shape::OrbitCamera;
                 if let Some(c) = p.camera.as_mut() {
@@ -624,6 +663,22 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                         if ui.button("Look through").tip_keys("Fly it to aim it", &["L"]).clicked() { look = true; }
                     });
                     if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, &mut ctx); }); }
+                }
+                continue;
+            }
+            if sec == level::SPEAKER {
+                let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
+                if let Some(s) = p.sound.as_mut() {
+                    column(ui, 260.0, "SOUND", |ui| {
+                        let shown = if s.sound.is_empty() { "None yet".to_string() } else { sound_name(&s.sound) };
+                        egui::ComboBox::from_id_salt("part sound").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                            for f in &files { ui.selectable_value(&mut s.sound, f.clone(), sound_name(f)); }
+                        }).response.tip("The sound file it plays (Assets > Sounds)");
+                        settings::section(ui, s, level::SPEAKER, &mut ctx);
+                        if !s.sound.is_empty() && ui.button("Change the sound").tip("Its recordings, volume, pitch and range (every part playing it changes)").clicked() {
+                            ed.sound_open = Some(s.sound.clone());
+                        }
+                    });
                 }
                 continue;
             }
@@ -695,7 +750,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
             });
         }
         // rarely used: Unique, and its surface's tags (the player start, lights and cameras have no surface to tag)
-        let tags = !(p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera());
+        let tags = !(p.shape == Shape::PlayerStart || p.shape.is_marker());
         group(ui, "ADVANCED", Some(1 + tags as usize), |ui| {
             ui.horizontal(|ui| {
                 let help = if p.unique {
@@ -800,7 +855,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 if cams.is_empty() { ui.label(egui::RichText::new("No cameras yet: the Cameras section of the parts pop-up (Tab)").color(MUTED)); }
                 for (id, name) in cams {
                     let on = ed.selected == Some(id);
-                    if ui.add(egui::Button::selectable(on, egui::RichText::new(name).color(if on { HIGHLIGHT } else { TEXT })).frame(false)).clicked() { ed.selected = Some(id); ed.material_open = None; }
+                    if ui.add(egui::Button::selectable(on, egui::RichText::new(name).color(if on { HIGHLIGHT } else { TEXT })).frame(false)).clicked() { ed.selected = Some(id); ed.material_open = None; ed.sound_open = None; }
                 }
                 theme::hint(ui, "Look through the selected one", &["L"]);
             });
@@ -855,7 +910,7 @@ fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
             if er.clicked() { flip = Some(p.id); } else if resp.clicked() { pick = Some(p.id); }
         }
     }
-    if let Some(id) = pick { ed.selected = Some(id); ed.material_open = None; }
+    if let Some(id) = pick { ed.selected = Some(id); ed.material_open = None; ed.sound_open = None; }
     if let Some(id) = flip {
         if let Some(p) = ed.level.get_mut(id) { p.visible = !p.visible; }
     }
@@ -934,6 +989,63 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
         ed.material_open = Some(new);
     }
     if close || ui.input(|i| i.key_pressed(egui::Key::Escape)) { ed.material_open = None; }
+}
+
+/// A sound file's name: "assets/sounds/birds.bev" is "birds".
+fn sound_name(path: &str) -> String { std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default() }
+
+/// A sound file's settings: every Sound part playing it changes with it.
+fn sound_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
+    let mut m = ed.level.sounds[path].clone();
+    let before = m.clone();
+    let mut ranges = ed.level.ranges.clone();
+    let users = ed.level.sound_users(path);
+    let name = sound_name(path);
+    let recordings: Vec<String> = ed.assets.iter().find(|(f, _)| *f == "sounds").map(|(_, t)| t.iter().filter(|t| level::is_recording(t)).map(|t| format!("assets/sounds/{t}")).collect()).unwrap_or_default();
+    let (mut copy, mut close, mut place) = (false, false, false);
+    let n = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
+    identity(ui, theme::CAT_ACTIONS, "wave", Err(&name), &format!("Sound · {} · on {}", n(m.clips.len(), "recording"), n(users, "part")), None);
+    ui.horizontal(|ui| {
+        if !m.clips.is_empty() && ui.button("Play").tip("Hear it once (each press picks a recording as the game would)").clicked() { ed.preview_sound = Some(path.to_string()); }
+        if ui.button("Place").tip("Then click a surface: a Sound part playing it").clicked() { place = true; }
+        if ui.button("Copy").tip("A new sound like this one, to change on its own").clicked() { copy = true; }
+        if ui.button("Close").tip_keys("Back to the selected part", &["Esc"]).clicked() { close = true; }
+    });
+    ui.add_space(8.0);
+    column(ui, 0.0, "RECORDINGS", |ui| {
+        let mut remove = None;
+        for (i, c) in m.clips.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(c.rsplit('/').next().unwrap_or(c)).color(TEXT));
+                if ui.small_button("✕").tip("Take this recording out").clicked() { remove = Some(i); }
+            });
+        }
+        if let Some(i) = remove { m.clips.remove(i); }
+        let mut add: Option<String> = None;
+        egui::ComboBox::from_id_salt("add recording").selected_text("+ Add a recording").width(ui.available_width()).show_ui(ui, |ui| {
+            for r in recordings.iter().filter(|r| !m.clips.contains(r)) {
+                if ui.selectable_label(false, r.rsplit('/').next().unwrap_or(r)).clicked() { add = Some(r.clone()); }
+            }
+        });
+        if let Some(r) = add { m.clips.push(r); }
+        if recordings.is_empty() { ui.label(egui::RichText::new("Drop .wav, .ogg, .mp3 or .flac files on the window").color(MUTED).size(11.0)); }
+    });
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
+    column(ui, 0.0, "SOUND", |ui| { settings::section(ui, &mut m, level::SOUND, &mut ctx); });
+    let ranges_changed = ctx.ranges_changed;
+    if m != before { ed.level.sounds.insert(path.to_string(), m.clone()); }
+    if ranges_changed { ed.level.ranges = ranges; }
+    if copy {
+        let new = ed.level.new_sound(&format!("{name} copy"), m);
+        ed.island.show("♪", "Copied the sound", sound_name(&new), theme::Tone::Accent);
+        ed.sound_open = Some(new);
+    }
+    if place {
+        ed.placing = Some(Shape::Sound);
+        ed.placing_model = Some(path.to_string());
+        ed.island.show("♪", format!("Placing {name}"), "Click a surface · Esc cancels", Tone::Accent);
+    }
+    if close || ui.input(|i| i.key_pressed(egui::Key::Escape)) { ed.sound_open = None; }
 }
 
 fn port(ui: &mut Ui, text: &str, color: Color32) {
@@ -1040,7 +1152,7 @@ fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, 
 /// The colours the level's parts use (the colour picker offers them first), most used first.
 fn project_palette(l: &level::Level) -> Vec<[f32; 3]> {
     let mut seen: Vec<([u8; 3], [f32; 3], usize)> = vec![];
-    for p in l.parts.iter().filter(|p| !p.shape.is_light() && !p.shape.is_camera() && p.shape != Shape::PlayerStart) {
+    for p in l.parts.iter().filter(|p| !p.shape.is_marker() && p.shape != Shape::PlayerStart) {
         let k = p.color.map(|x| (x * 255.0).round() as u8);
         match seen.iter_mut().find(|s| s.0 == k) { Some(s) => s.2 += 1, None => seen.push((k, p.color, 1)) }
     }
@@ -1055,6 +1167,7 @@ fn kind(shape: Shape) -> (&'static str, &'static str, Color32) {
         s if s.is_camera() => ("Cameras", "camera", theme::CAT_CAMERAS),
         Shape::PlayerStart => ("Game", "person", theme::CAT_GAME),
         Shape::Interact => ("Triggers", "bolt", theme::CAT_TRIGGERS),
+        Shape::Sound => ("Actions", "play", theme::CAT_ACTIONS),
         Shape::Model => ("Models", "cube", theme::CAT_SHAPES),
         _ => ("Shapes", "cube", theme::CAT_SHAPES),
     }
@@ -1165,7 +1278,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
     }
 
     if let Some(shape) = ed.placing {
-        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0 - 34.0), &format!("Placing {} · click a surface", if shape == Shape::Model { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("model").to_string() } else { shape.label().to_string() }), HIGHLIGHT, &["Shift", "Esc"]);
+        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0 - 34.0), &format!("Placing {} · click a surface", if matches!(shape, Shape::Model | Shape::Sound) { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).map(|m| m.trim_end_matches(".bev").to_string()).unwrap_or_else(|| shape.label().to_string()) } else { shape.label().to_string() }), HIGHLIGHT, &["Shift", "Esc"]);
     }
 
     if let Some((from, out)) = ed.wiring {
@@ -1237,6 +1350,7 @@ fn light_budget(ctx: &egui::Context, ed: &mut Editor, at: egui::Pos2) {
         let next = ed.selected.and_then(|s| worst.iter().position(|i| *i == s)).map_or(0, |k| (k + 1) % n);
         ed.selected = Some(worst[next]);
         ed.material_open = None;
+        ed.sound_open = None;
     }
 }
 
@@ -1310,6 +1424,7 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
         let shape_of = |l: &str| match l {
             "Player start" => Some(Shape::PlayerStart),
             "Interact" => Some(Shape::Interact),
+            "Sound" => Some(Shape::Sound),
             _ => None,
         };
         sections.push((sec.name, sec.color, sec.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| Item { glyph: g, label: l, shape: shape_of(l) }).collect(), sec.ready));
@@ -1925,7 +2040,7 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
                 .collect();
             p.add(egui::Shape::line(pts, st));
         }
-        Shape::Model | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight | Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => {}
+        Shape::Model | Shape::Sound | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight | Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => {}
     }
 }
 

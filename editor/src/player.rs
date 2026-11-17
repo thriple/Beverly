@@ -59,9 +59,10 @@ pub fn run(extra: fn(&mut App)) {
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()
+    .init_resource::<crate::sound::Sounds>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, stage, start, cursor).chain());
+    .add_systems(Update, (models::build_geometry, stage, start, cursor, hear).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
@@ -103,6 +104,14 @@ fn start(mut commands: Commands, mut game: ResMut<Game>, lib: Res<ModelLib>, mut
         None => (Vec3::ZERO, 0.0),
     };
     play.start(&mut commands, &mut meshes, &mut mats, &game.level, &game.geo, feet, yaw);
+}
+
+/// The sounds, heard from the camera.
+fn hear(mut sounds: ResMut<crate::sound::Sounds>, game: Res<Game>, mut play: ResMut<Play>, root: Res<ProjectRoot>, ear: Single<&GlobalTransform, With<PlayCamera>>) {
+    let run = play.on.then_some(play.run);
+    let inputs = std::mem::take(&mut play.script.inputs);
+    let script = &play.script;
+    sounds.step(&game.level, &root.get(), run, inputs, &ear, |id| game.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
 }
 
 /// The mouse is captured while playing; Esc lets it go, a click takes it back.

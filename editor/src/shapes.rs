@@ -167,6 +167,8 @@ pub fn build(shape: Shape) -> Tris {
         Shape::Sphere => sphere(32, 18),
         Shape::PointLight => sphere(16, 10),
         Shape::SpotLight => lampshade(20),
+        // a speaker seen from the side, facing +x
+        Shape::Sound => prism(&[vec2(-0.5, -0.2), vec2(-0.1, -0.2), vec2(0.5, -0.5), vec2(0.5, 0.5), vec2(-0.1, 0.2), vec2(-0.5, 0.2)], None),
     }
 }
 

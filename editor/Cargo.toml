@@ -39,6 +39,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 # the window icon (editor.rs)
 image = { version = "0.25", default-features = false, features = ["png"] }
 winit = { version = "0.30", default-features = false }
+# sound: kira's mixer, spatial tracks and decoders (sound.rs); mint is how it takes positions
+kira = { version = "=0.12.6", default-features = false, features = ["cpal", "mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
+mint = "0.5"
 # Help > Check for updates (update.rs)
 serde_json = "1"
 sha2 = "0.10"

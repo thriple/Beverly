@@ -36,6 +36,8 @@ pub struct Script {
     wires: Vec<Wire>,
     /// The wires that fired this frame (indices into the level's wires), for the editor to show.
     pub fired: Vec<usize>,
+    /// What the wires sent (part, input) since the sounds last took it (see `sound.rs`).
+    pub inputs: Vec<(u64, String)>,
 }
 
 impl Script {
@@ -49,7 +51,7 @@ impl Script {
             })
             .collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
-        Self { movers, buttons, wires: level.wires.clone(), fired: vec![] }
+        Self { movers, buttons, wires: level.wires.clone(), fired: vec![], inputs: vec![] }
     }
 
     /// The button the player at `feet` could press now.
@@ -69,6 +71,7 @@ impl Script {
             m.goal = 0.0;
         }
         self.fired.clear();
+        self.inputs.clear();
     }
 
     /// How far moving part `id` is from where it was placed.
@@ -92,6 +95,7 @@ impl Script {
         for (i, w) in self.wires.iter().enumerate() {
             if w.from != from || w.out != out { continue; }
             self.fired.push(i);
+            self.inputs.push((w.to, w.input.clone()));
             if let Some(m) = self.movers.iter_mut().find(|m| m.id == w.to) {
                 match w.input.as_str() {
                     "Go" => m.goal = 1.0,
@@ -126,7 +130,7 @@ mod tests {
     use crate::level::{Collision, Part};
 
     fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
-        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None }
+        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None }
     }
 
     #[test]

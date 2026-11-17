@@ -196,12 +196,15 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             ed.refresh_assets();
             let mut v: serde_json::Map<String, Value> = ed.assets.iter().map(|(f, files)| (f.to_string(), json!(files))).collect();
             v.insert("materials".into(), json!(ed.level.materials.keys().map(|k| k.trim_start_matches("assets/materials/")).collect::<Vec<_>>()));
+            // sound files as the editor holds them, then the recordings
+            let recordings: Vec<String> = ed.assets.iter().find(|(f, _)| *f == "sounds").map(|(_, t)| t.iter().filter(|t| crate::level::is_recording(t)).cloned().collect()).unwrap_or_default();
+            v.insert("sounds".into(), json!(ed.level.sounds.keys().map(|k| k.trim_start_matches("assets/sounds/").to_string()).chain(recordings).collect::<Vec<_>>()));
             Ok(Value::Object(v))
         }
         "get_log" => Ok(json!(ed.island.history().iter().collect::<Vec<_>>())),
         "list_part_kinds" => {
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
-            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight]);
+            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight, Shape::Sound]);
             kinds.extend(Shape::CAMERAS);
             let template = Part::placed(Shape::Box, None, "Box 1".into(), [0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], Shape::Box.default_size());
             Ok(json!({
@@ -213,7 +216,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             editable(ed)?;
             let want = args.get("kind").and_then(Value::as_str).ok_or("Give the kind (list_part_kinds)")?.to_lowercase();
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
-            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight]);
+            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight, Shape::Sound]);
             kinds.extend(Shape::CAMERAS);
             let shape = *kinds.iter().find(|k| k.label().to_lowercase() == want).ok_or_else(|| {
                 format!("No kind called \"{want}\" (there are: {})", kinds.iter().map(|k| k.label()).collect::<Vec<_>>().join(", "))
@@ -237,8 +240,10 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                     if model.is_some() { at } else { at + n * (n.abs().dot(Vec3::from(size)) * 0.5) }
                 }
             };
-            let base = match &model {
-                Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "Model".into()),
+            // named after its file: a model's, or the sound a Sound part plays
+            let file = model.as_deref().or(args.get("sound").and_then(Value::as_str).filter(|_| shape == Shape::Sound));
+            let base = match file {
+                Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| shape.label().into()),
                 None => shape.label().to_string(),
             };
             // a light shines away from the surface it stands on (a part placed in the view's line)
@@ -254,6 +259,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             }
             if let Some(set) = args.get("settings") { settings::apply(&mut p, set)?; }
             aim(&mut p, args)?;
+            plays(ed, &mut p, args)?;
             let id = ed.level.add(p);
             ed.selected = Some(id);
             ed.placing = None;
@@ -264,9 +270,10 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             editable(ed)?;
             let mut p = part_of(ed, args)?.clone();
             let set = args.get("settings");
-            if set.is_none() && args.get("aim").is_none() { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
+            if set.is_none() && args.get("aim").is_none() && args.get("sound").is_none() { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
             let mut changed = match set { Some(set) => settings::apply(&mut p, set)?, None => vec![] };
             if aim(&mut p, args)? { changed.push("rot"); }
+            if plays(ed, &mut p, args)? { changed.push("sound"); }
             let id = p.id;
             *ed.level.get_mut(id).expect("found above") = p;
             settle_instances(ed, args)?;
@@ -297,7 +304,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 let o = f.outputs().into_iter().find(|o| o.eq_ignore_ascii_case(out))
                     .ok_or_else(|| format!("{} has no output {out} (it has: {})", f.name, list_or_none(&f.outputs())))?;
                 let i = t.inputs().iter().find(|i| i.eq_ignore_ascii_case(input))
-                    .ok_or_else(|| format!("{} has no input {input} (it has: {}; a part gets Go, Back and Toggle once it moves)", t.name, list_or_none(t.inputs())))?;
+                    .ok_or_else(|| format!("{} has no input {input} (it has: {}; a part gets Go, Back and Toggle once it moves; a Sound part takes Play and Stop)", t.name, list_or_none(t.inputs())))?;
                 (o.to_string(), i.to_string())
             };
             let w = Wire { from, out, to, input };
@@ -348,6 +355,49 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
+        }
+        "get_sound" => {
+            let path = sound_ref(ed, args.get("sound").and_then(Value::as_str).ok_or("Give the sound")?)?;
+            Ok(describe_sound(ed, &path))
+        }
+        "change_sound" => {
+            editable(ed)?;
+            let path = sound_ref(ed, args.get("sound").and_then(Value::as_str).ok_or("Give the sound")?)?;
+            let mut m = ed.level.sounds[&path].clone();
+            let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut m, set)?, None => vec![] };
+            if let Some(c) = args.get("recordings") {
+                m.clips = recordings(ed, c)?;
+                changed.push("recordings");
+            }
+            ed.level.sounds.insert(path.clone(), m);
+            ed.commit();
+            Ok(json!({"changed": changed, "sound": describe_sound(ed, &path)}))
+        }
+        "new_sound" => {
+            editable(ed)?;
+            let mut m = match args.get("copy_of").and_then(Value::as_str) {
+                Some(c) => ed.level.sounds[&sound_ref(ed, c)?].clone(),
+                None => crate::level::Sound::default(),
+            };
+            if let Some(c) = args.get("recordings") { m.clips = recordings(ed, c)?; }
+            if let Some(set) = args.get("settings") { settings::apply(&mut m, set)?; }
+            let name = args.get("name").and_then(Value::as_str).unwrap_or("Sound").replace(['/', '\\'], " ");
+            let path = ed.level.new_sound(&name, m);
+            ed.commit();
+            Ok(describe_sound(ed, &path))
+        }
+        "play_sound" => {
+            let path = match (args.get("sound").and_then(Value::as_str), args.get("part")) {
+                (Some(s), _) => sound_ref(ed, s)?,
+                (None, Some(r)) => {
+                    let p = ed.level.get(part_ref(ed, Some(r))?).expect("found");
+                    p.sound.as_ref().map(|s| s.sound.clone()).filter(|s| !s.is_empty()).ok_or_else(|| format!("{} plays no sound", p.name))?
+                }
+                _ => return Err("Give the sound (or a Sound part)".into()),
+            };
+            if ed.level.sounds[&path].clips.is_empty() { return Err(format!("{path} has no recordings yet (change_sound)")); }
+            ed.preview_sound = Some(path.clone());
+            Ok(json!({"playing": path}))
         }
         "get_material" => {
             let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
@@ -690,6 +740,47 @@ fn material_ref(ed: &Editor, m: &str) -> Result<String, String> {
     Err(format!("No material {name} (there are: {})", list_or_none(&have)))
 }
 
+/// A sound file by name, file name or path.
+fn sound_ref(ed: &Editor, m: &str) -> Result<String, String> {
+    let m = m.replace('\\', "/");
+    let name = m.trim_start_matches("assets/sounds/").trim_end_matches(".bev");
+    let path = format!("assets/sounds/{name}.bev");
+    if ed.level.sounds.contains_key(&path) { return Ok(path); }
+    let have: Vec<&str> = ed.level.sounds.keys().map(|k| k.trim_start_matches("assets/sounds/").trim_end_matches(".bev")).collect();
+    Err(format!("No sound {name} (there are: {})", list_or_none(&have)))
+}
+
+/// Recordings by path or file name (a list).
+fn recordings(ed: &Editor, v: &Value) -> Result<Vec<String>, String> {
+    let list = v.as_array().ok_or("recordings is a list of files, such as [\"step 1.ogg\", \"step 2.ogg\"]")?;
+    list.iter().map(|r| {
+        let r = r.as_str().ok_or("recordings are file names")?.replace('\\', "/");
+        let r = if r.contains('/') { r } else { format!("assets/sounds/{r}") };
+        if !crate::level::is_recording(&r) { return Err(format!("{r}: recordings are .wav, .ogg, .mp3 or .flac files")); }
+        if !ed.dir.join(&r).is_file() { return Err(format!("No file {r} in the project (list_assets)")); }
+        Ok(r)
+    }).collect()
+}
+
+fn describe_sound(ed: &Editor, path: &str) -> Value {
+    let m = &ed.level.sounds[path];
+    json!({"sound": path, "recordings": m.clips, "used_by_parts": ed.level.sound_users(path), "settings": settings::describe(m)})
+}
+
+/// A Sound part's sound file, from `sound`: a sound file or a recording (which gets a sound file of its own).
+/// Returns whether there was one.
+fn plays(ed: &mut Editor, p: &mut Part, args: &Value) -> Result<bool, String> {
+    let Some(s) = args.get("sound").and_then(Value::as_str) else { return Ok(false) };
+    let Some(sp) = p.sound.as_mut() else { return Err(format!("{} isn't a Sound part (sound is for those)", p.name)) };
+    sp.sound = if crate::level::is_recording(s) {
+        let r = recordings(ed, &json!([s]))?.remove(0);
+        ed.level.sound_for_clip(&r)
+    } else {
+        sound_ref(ed, s)?
+    };
+    Ok(true)
+}
+
 /// A texture file by path or file name.
 fn texture_ref(ed: &Editor, t: &str) -> Result<String, String> {
     let t = t.replace('\\', "/");
@@ -769,6 +860,7 @@ fn describe(ed: &Editor, p: &Part) -> Value {
         let (_, rot) = crate::level::camera_view(p, 0.0, Vec3::ZERO, Vec3::ZERO);
         v["looks"] = settings::nums(&(rot * Vec3::NEG_Z).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0));
     }
+    if let Some(s) = p.sound.as_ref() { v["sound"] = json!(s.sound); }
     if p.shape == Shape::SpotLight { v["shines"] = settings::nums(&crate::editor::light::aim(p).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0)); }
     v["wires_out"] = Value::Array(ed.level.wires.iter().filter(|w| w.from == p.id).map(|w| json!({"output": w.out, "to": name(w.to), "to_id": w.to, "input": w.input})).collect());
     v["wires_in"] = Value::Array(ed.level.wires.iter().filter(|w| w.to == p.id).map(|w| json!({"input": w.input, "from": name(w.from), "from_id": w.from, "output": w.out})).collect());

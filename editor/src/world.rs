@@ -197,7 +197,7 @@ pub struct Looks<'a> {
 }
 
 /// Spawn how a part looks. `editor`: hidden colliders and the player start show as see-through stand-ins, lights as
-/// bulbs and cameras as small bodies, all on the editor's own layer (only its view shows them, not pictures through
+/// bulbs, cameras as small bodies and sounds as speakers, all on the editor's own layer (only its view shows them, not pictures through
 /// a camera); in the game they are not drawn. A textured shape is an entity with a child per material it shows.
 pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bool) -> Option<Entity> {
     let Looks { lib, models, server, mats, assets, meshes, materials, shadows } = k;
@@ -226,6 +226,8 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
         // a camera part: a small body in the editor (clicked to select it); nothing in the game
         s if s.is_camera() => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(assets.add(StandardMaterial { base_color: Color::srgb(0.37, 0.78, 0.85), unlit: true, ..default() })), EDITOR_ONLY)).id()),
         Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()), EDITOR_ONLY)).id()),
+        // a Sound part: a speaker in the Actions colour in the editor (clicked to select it); heard, not seen, in the game
+        Shape::Sound => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::Sound)), MeshMaterial3d(assets.add(StandardMaterial { base_color: Color::srgb_u8(0x3D, 0x7B, 0xFF), unlit: true, ..default() })), EDITOR_ONLY)).id()),
         Shape::Model => {
             let path = p.model.as_ref()?;
             let scene = models.request(server, path);

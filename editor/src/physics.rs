@@ -34,7 +34,7 @@ impl Plugin for PhysicsPlugin {
 
 /// How a part is a body: None for parts that don't collide.
 pub fn kind(p: &Part) -> Option<RigidBody> {
-    if p.collision != Collision::Solid || p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera() { return None; }
+    if p.collision != Collision::Solid || p.shape == Shape::PlayerStart || p.shape.is_marker() { return None; }
     Some(match (p.mover.is_some(), p.loose.is_some()) {
         (true, _) => RigidBody::Kinematic,
         (false, true) => RigidBody::Dynamic,

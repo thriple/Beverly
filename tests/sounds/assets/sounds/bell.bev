@@ -1,0 +1,1 @@
+(format: 1, clips: ["assets/sounds/bell.wav"], volume: -6.0, vary: 0.3, near: 2.0, far: 40.0, at_once: 4.0)

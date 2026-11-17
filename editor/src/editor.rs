@@ -92,6 +92,10 @@ pub struct Editor {
     pub tex_hot: Option<texture::Grip>,
     /// The material shown in the bottom panel instead of the selected part (clicked in Assets).
     pub material_open: Option<String>,
+    /// The sound file shown in the bottom panel instead of the selected part (clicked in Assets or the part's panel).
+    pub sound_open: Option<String>,
+    /// A sound file to hear once (its panel's Play), taken by `edit::hear`.
+    pub preview_sound: Option<String>,
     pub hover_handle: Option<edit::Grip>,
     /// The selected light's handle being dragged, and the one under the pointer.
     pub light_drag: Option<light::Grip>,
@@ -195,6 +199,8 @@ impl Editor {
             tex_drag: None,
             tex_hot: None,
             material_open: None,
+            sound_open: None,
+            preview_sound: None,
             hover_handle: None,
             light_drag: None,
             light_hot: None,
@@ -286,6 +292,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
         .init_resource::<caps::CapsLock>()
+        .init_resource::<crate::sound::Sounds>()
         .insert_resource(ed)
         .init_gizmo_group::<edit::WidgetGizmos>()
         .init_gizmo_group::<edit::OutlineGizmos>()
@@ -306,6 +313,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::shortcuts,
                 edit::files,
                 edit::sync,
+                edit::hear,
                 edit::stage,
                 edit::nav_overlay,
                 edit::draw,

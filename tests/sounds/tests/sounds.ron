@@ -1,0 +1,9 @@
+// The hum plays from the start; the button rings the bell and stops the hum.
+(
+    steps: [
+        (at: 0.3, expect: [Playing("Hum", true), Playing("Bell", false)]),
+        (at: 0.5, press: ["E"]),
+        (at: 0.6, release: ["E"]),
+        (at: 0.8, expect: [Playing("Bell", true), Playing("Hum", false)]),
+    ],
+)

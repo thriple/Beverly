@@ -44,6 +44,9 @@ pub enum Shape {
     OrbitCamera,
     /// A camera that keeps its offset from the player start as the player moves, looking the way it was aimed.
     FollowCamera,
+    /// A speaker playing a sound file (`Part::sound`), heard in 3D. Shown in the editor only; never collides.
+    /// Inputs: Play, Stop.
+    Sound,
 }
 
 impl Shape {
@@ -52,8 +55,10 @@ impl Shape {
     pub fn is_light(self) -> bool { Shape::LIGHTS.contains(&self) }
     pub const CAMERAS: [Shape; 3] = [Shape::FixedCamera, Shape::OrbitCamera, Shape::FollowCamera];
     pub fn is_camera(self) -> bool { Shape::CAMERAS.contains(&self) }
+    /// Kinds that are shown in the editor only and never collide: lights, cameras and sounds.
+    pub fn is_marker(self) -> bool { self.is_light() || self.is_camera() || self == Shape::Sound }
     /// Every kind with triangles of its own (all but models).
-    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS).chain(Shape::CAMERAS) }
+    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS).chain(Shape::CAMERAS).chain([Shape::Sound]) }
     pub fn label(self) -> &'static str {
         match self {
             Shape::Box => "Box",
@@ -71,6 +76,7 @@ impl Shape {
             Shape::FixedCamera => "Fixed camera",
             Shape::OrbitCamera => "Orbit camera",
             Shape::FollowCamera => "Follow camera",
+            Shape::Sound => "Sound",
         }
     }
     pub fn glyph(self) -> &'static str {
@@ -90,6 +96,7 @@ impl Shape {
             Shape::FixedCamera => "▣",
             Shape::OrbitCamera => "↻",
             Shape::FollowCamera => "⇢",
+            Shape::Sound => "♪",
         }
     }
     /// One line for the parts pop-up.
@@ -111,6 +118,7 @@ impl Shape {
             Shape::FixedCamera => return "a view that stays put; Look through to aim it".into(),
             Shape::OrbitCamera => return "a view circling a target you drag, once a lap".into(),
             Shape::FollowCamera => return "a view that keeps its offset from the player as they move".into(),
+            Shape::Sound => return "a speaker playing a sound, on start or when wired; heard in 3D".into(),
         };
         format!("{what} · {x} × {y} × {z} m")
     }
@@ -130,6 +138,7 @@ impl Shape {
             Shape::Interact => [0.5, 1.0, 0.5],
             Shape::PointLight | Shape::SpotLight => [0.3, 0.3, 0.3],
             Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => [0.4, 0.3, 0.5],
+            Shape::Sound => [0.4, 0.4, 0.4],
         }
     }
 
@@ -308,6 +317,139 @@ impl Lighting {
 impl Mover {
     pub const INPUTS: [&str; 3] = ["Go", "Back", "Toggle"];
     pub const OUTPUTS: [&str; 2] = ["Arrived", "Returned"];
+}
+
+/// The sound panel's section.
+pub const SOUND: &str = "SOUND";
+/// A Sound part's section.
+pub const SPEAKER: &str = "PLAYS";
+
+/// How a sound file picks the clip that plays.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Pick {
+    /// Any clip but the one before.
+    #[default]
+    #[reflect(@Label("At random"))]
+    Random,
+    #[reflect(@Label("In turn"))]
+    InTurn,
+}
+
+/// A sound file (assets/sounds/NAME.bev): which recordings it plays and how, wherever it is used.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Sound {
+    pub format: u32,
+    /// The recordings (the user's own), e.g. "assets/sounds/step 1.ogg"; one plays each time.
+    pub clips: Vec<String>,
+    #[reflect(@Setting::choice("Pick").section(SOUND).help("Which recording plays each time (at random never plays the same one twice running)"))]
+    pub pick: Pick,
+    /// Decibels.
+    #[reflect(@Setting::feel("Volume", &["Whisper", "Quiet", "Normal", "Loud"], -30.0, 9.0, "dB").section(SOUND))]
+    pub volume: f32,
+    /// Semitones.
+    #[reflect(@Setting::feel("Pitch", &["Low", "Normal", "High"], -12.0, 12.0, "semitones").section(SOUND))]
+    pub pitch: f32,
+    /// 0..1: how much volume (up to ±6 dB) and pitch (up to ±2 semitones) change each time it plays.
+    #[reflect(@Setting::feel("Vary", &["Same", "A little", "A lot"], 0.0, 1.0, "").section(SOUND).help("How much volume and pitch change each time it plays, so repeats don't sound the same"))]
+    pub vary: f32,
+    /// Metres: full volume this close.
+    #[reflect(@Setting::feel("Near", &["Close", "Arm's length", "Room"], 0.5, 20.0, "m").log().section(SOUND).help("Full volume this close"))]
+    pub near: f32,
+    /// Metres: silent past this.
+    #[reflect(@Setting::feel("Range", &["Room", "Yard", "Field", "Valley"], 5.0, 500.0, "m").log().section(SOUND).help("Heard out to here, fading with distance"))]
+    pub far: f32,
+    #[reflect(@Setting::toggle("Loop").section(SOUND).help("Plays over and over until stopped"))]
+    pub looped: bool,
+    /// How many may play at once (the oldest stops); a count.
+    #[reflect(@Setting::feel("At once", &["One", "A few", "Many"], 1.0, 16.0, "").log().section(SOUND).help("How many can play at the same time; the oldest stops for a new one"))]
+    pub at_once: f32,
+}
+
+impl Default for Sound {
+    fn default() -> Self { Sound { format: 0, clips: vec![], pick: Pick::Random, volume: 0.0, pitch: 0.0, vary: 0.0, near: 2.0, far: 40.0, looped: false, at_once: 4.0 } }
+}
+
+/// When a Sound part plays.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Plays {
+    /// When play starts (a looping sound also plays while editing).
+    #[default]
+    #[reflect(@Label("On start"))]
+    OnStart,
+    /// Only when a wire tells it to (Play, Stop).
+    #[reflect(@Label("When wired"))]
+    WhenWired,
+}
+
+/// A Sound part's sound: the file it plays and when.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Speaker {
+    /// The sound file, e.g. "assets/sounds/birds.bev" (empty: none yet).
+    pub sound: String,
+    #[reflect(@Setting::choice("Plays").section(SPEAKER).help("On start: as play begins (a loop also plays while editing) · When wired: Play and Stop come along wires"))]
+    pub plays: Plays,
+}
+
+impl Speaker {
+    pub const INPUTS: [&str; 2] = ["Play", "Stop"];
+}
+
+pub fn load_sound(dir: &Path, path: &str) -> Result<Sound, String> {
+    let text = std::fs::read_to_string(dir.join(path)).map_err(|e| format!("{path}: {e}"))?;
+    let m: Sound = ron::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+    if m.format > FORMAT { return Err(format!("{path} was saved by a newer Beverly")); }
+    Ok(m)
+}
+
+pub fn save_sound(dir: &Path, path: &str, m: &Sound) -> Result<(), String> {
+    let text = ron::ser::to_string_pretty(&Sound { format: FORMAT, ..m.clone() }, ron::ser::PrettyConfig::default()).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(dir.join("assets/sounds")).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(path), text).map_err(|e| e.to_string())
+}
+
+/// Every sound file in the project, by path.
+pub fn load_sounds(dir: &Path) -> std::collections::BTreeMap<String, Sound> {
+    list_assets(dir, "sounds").into_iter().filter(|f| f.ends_with(".bev")).filter_map(|f| {
+        let path = format!("assets/sounds/{f}");
+        load_sound(dir, &path).ok().map(|m| (path, m))
+    }).collect()
+}
+
+/// Whether a file is a recording Beverly plays.
+pub fn is_recording(f: &str) -> bool {
+    let ext = Path::new(f).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    matches!(ext.as_str(), "wav" | "ogg" | "mp3" | "flac")
+}
+
+impl Level {
+    /// The sound for a recording: the one already made for just it, or a new "assets/sounds/<recording name>.bev".
+    pub fn sound_for_clip(&mut self, clip: &str) -> String {
+        let stem = Path::new(clip).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "sound".into());
+        for n in 1.. {
+            let path = if n == 1 { format!("assets/sounds/{stem}.bev") } else { format!("assets/sounds/{stem} {n}.bev") };
+            match self.sounds.get(&path) {
+                Some(m) if m.clips == [clip] => return path,
+                Some(_) => continue,
+                None => {
+                    self.sounds.insert(path.clone(), Sound { clips: vec![clip.into()], ..Default::default() });
+                    return path;
+                }
+            }
+        }
+        unreachable!()
+    }
+    /// A new sound, "assets/sounds/<base> N.bev".
+    pub fn new_sound(&mut self, base: &str, m: Sound) -> String {
+        let path = (1..).map(|n| format!("assets/sounds/{base} {n}.bev")).find(|p| !self.sounds.contains_key(p)).unwrap();
+        self.sounds.insert(path.clone(), m);
+        path
+    }
+    /// How many Sound parts play a sound file.
+    pub fn sound_users(&self, path: &str) -> usize { self.parts.iter().filter(|p| p.sound.as_ref().is_some_and(|s| s.sound == path)).count() }
 }
 
 /// A material laid on a part, all over or on one face, through its file in assets/materials. Where it sits is the
@@ -527,6 +669,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Camera", "Off", "On").section(CAMERA))]
     pub camera: Option<Camera>,
+    /// A Sound part's sound (`Shape::Sound`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[reflect(@Setting::optional("Sound", "Off", "On").section(SPEAKER))]
+    pub sound: Option<Speaker>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
@@ -539,10 +685,11 @@ impl Part {
             id: 0, name, shape, pos, rot, size,
             color: if shape == Shape::Interact { [0.94, 0.55, 0.26] } else { [0.62, 0.64, 0.70] },
             visible: true,
-            collision: if shape == Shape::PlayerStart || shape.is_light() || shape.is_camera() { Collision::WalkThrough } else { Collision::Solid },
+            collision: if shape == Shape::PlayerStart || shape.is_marker() { Collision::WalkThrough } else { Collision::Solid },
             model, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None,
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
+            sound: (shape == Shape::Sound).then(Speaker::default),
         }
     }
 
@@ -551,7 +698,9 @@ impl Part {
         if self.mover.is_some() { v.extend(Mover::OUTPUTS); }
         v
     }
-    pub fn inputs(&self) -> &'static [&'static str] { if self.mover.is_some() { &Mover::INPUTS } else { &[] } }
+    pub fn inputs(&self) -> &'static [&'static str] {
+        if self.mover.is_some() { &Mover::INPUTS } else if self.shape == Shape::Sound { &Speaker::INPUTS } else { &[] }
+    }
 
     /// Whether two parts hold the same contents: what is inside the box (the shape or model, its colour, its
     /// textures and how they lie, Visible, Collision, tags, Physics). The box itself (name, position, turn, size) is each part's
@@ -594,6 +743,9 @@ pub struct Level {
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]
     pub materials: std::collections::BTreeMap<String, Material>,
+    /// The project's sound files, by path ("assets/sounds/birds.bev"), kept and saved as the materials are.
+    #[serde(skip)]
+    pub sounds: std::collections::BTreeMap<String, Sound>,
 }
 
 impl Level {
@@ -714,6 +866,9 @@ pub fn save(dir: &Path, name: &str, level: &Level) -> Result<(), String> {
     for (path, m) in &level.materials {
         if load_material(dir, path).ok().as_ref() != Some(&Material { format: FORMAT, ..m.clone() }) { save_material(dir, path, m)?; }
     }
+    for (path, m) in &level.sounds {
+        if load_sound(dir, path).ok().as_ref() != Some(&Sound { format: FORMAT, ..m.clone() }) { save_sound(dir, path, m)?; }
+    }
     // the .ron files these replace, in a project from before .bev files
     for old in [dir.join("project.ron"), dir.join("levels").join("main.ron")] {
         if old.is_file() { std::fs::remove_file(old).map_err(|e| e.to_string())?; }
@@ -735,6 +890,7 @@ pub fn load(dir: &Path) -> Result<(String, Level), String> {
     // format 0 (.ron) to 1 (.bev) changed nothing inside the files
     level.format = FORMAT;
     level.materials = load_materials(dir).into_iter().map(|(k, m)| (k, Material { format: 0, ..m })).collect();
+    level.sounds = load_sounds(dir).into_iter().map(|(k, m)| (k, Sound { format: 0, ..m })).collect();
     Ok((pf.name, level))
 }
 
@@ -855,6 +1011,31 @@ mod tests {
         let (_, back) = load(&dir).unwrap();
         assert_eq!(back.materials[&brick].glow, 2.0);
         assert_eq!(back.materials, lvl.materials);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sound_parts_play_sound_files_saved_beside_the_level() {
+        let dir = std::env::temp_dir().join(format!("beverly-snd-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut lvl = Level { name: "main".into(), ..Default::default() };
+        let birds = lvl.sound_for_clip("assets/sounds/birds.ogg");
+        assert_eq!(birds, "assets/sounds/birds.bev");
+        assert_eq!(lvl.sound_for_clip("assets/sounds/birds.ogg"), birds, "the same recording reuses its sound");
+        lvl.sounds.get_mut(&birds).unwrap().clips.push("assets/sounds/birds 2.ogg".into());
+        assert_eq!(lvl.sound_for_clip("assets/sounds/birds.ogg"), "assets/sounds/birds 2.bev", "a sound with more recordings isn't just that one");
+        lvl.sounds.get_mut(&birds).unwrap().looped = true;
+        let mut p = Part::placed(Shape::Sound, None, "Birds".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], Shape::Sound.default_size());
+        assert_eq!((p.collision, p.inputs()), (Collision::WalkThrough, &Speaker::INPUTS[..]));
+        p.sound.as_mut().unwrap().sound = birds.clone();
+        lvl.add(p);
+        assert_eq!(lvl.sound_users(&birds), 1);
+        save(&dir, "Sounds", &lvl).unwrap();
+        assert!(dir.join("assets/sounds/birds 2.bev").is_file());
+        let (_, back) = load(&dir).unwrap();
+        assert_eq!(back.sounds, lvl.sounds);
+        assert_eq!(back.parts[0].sound.as_ref().unwrap().sound, birds);
+        assert!(!is_recording("birds.bev") && is_recording("Birds.OGG"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

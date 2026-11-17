@@ -207,7 +207,7 @@ pub struct Drag {
 
 /// The scale handles of a part: corner cubes and face cubes, in the world.
 fn scale_handles(p: &Part, (lo, hi): (Vec3, Vec3)) -> Vec<(Grip, Vec3)> {
-    if p.shape == Shape::PlayerStart || p.shape.is_light() || p.shape.is_camera() { return vec![]; }
+    if p.shape == Shape::PlayerStart || p.shape.is_marker() { return vec![]; }
     let a = part_affine(p);
     let mut v: Vec<(Grip, Vec3)> = (0..8).map(|k| (Grip::Corner(k), a.transform_point3(corner_local(k, lo, hi)))).collect();
     for i in 0..3 {
@@ -422,7 +422,9 @@ pub fn interact(
     if let Some(shape) = ed.placing {
         let (ref mut gt, ref mut vis, ref mut mesh) = *ghost;
         // a model's box comes from its file once loaded; until then a 1 m stand-in
-        let model = ed.placing_model.clone();
+        // (for a Sound part, the file is its sound's)
+        let sound = ed.placing_model.clone().filter(|_| shape == Shape::Sound);
+        let model = ed.placing_model.clone().filter(|_| shape == Shape::Model);
         let (lo, hi) = match &model {
             Some(m) => ed.geo.models.get(m).map(|t| t.bounds()).unwrap_or((vec3(-0.5, 0.0, -0.5), vec3(0.5, 1.0, 0.5))),
             None => (Vec3::splat(-0.5), Vec3::splat(0.5)),
@@ -448,13 +450,14 @@ pub fn interact(
                 };
                 **vis = Visibility::Visible;
                 if mouse.just_pressed(MouseButton::Left) {
-                    let base = match &model {
-                        Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "Model".into()),
+                    let base = match model.as_ref().or(sound.as_ref()) {
+                        Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| shape.label().into()),
                         None => shape.label().to_string(),
                     };
                     let name = ed.level.fresh_name(&base);
                     let mut part = Part::placed(shape, model.clone(), name.clone(), pos.to_array(), rot.to_array(), size.to_array());
                     if shape.is_camera() { camera::place(&mut part, p, view.yaw); }
+                    if let (Some(sp), Some(path)) = (part.sound.as_mut(), sound.clone()) { sp.sound = path; }
                     ed.selected = Some(ed.level.add(part));
                     ed.placing = None;
                     ed.island.show(shape.glyph(), format!("Placed {name}"), "Drag the arrows to move it · Tab for more", Tone::Plain);
@@ -732,6 +735,7 @@ pub fn interact(
                 let hit = ray.and_then(|r| ed.hit(r));
                 ed.selected = hit.as_ref().and_then(|h| h.part);
                 ed.material_open = None;
+                ed.sound_open = None;
                 ed.tex_face = hit.and_then(|h| h.face);
             }
         }
@@ -772,9 +776,10 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::KeyU) { act("edit.make_unique"); }
 }
 
-/// Files dragged in from Explorer are copied into the project's assets.
+/// Files dragged in from Explorer are copied into the project's assets; a single recording is then placed as a Sound part.
 pub fn files(mut ed: ResMut<Editor>, mut drops: MessageReader<FileDragAndDrop>) {
     let mut imported: Vec<&'static str> = vec![];
+    let mut recordings: Vec<String> = vec![];
     for e in drops.read() {
         match e {
             FileDragAndDrop::HoveredFile { .. } => ed.hovering_files = true,
@@ -783,7 +788,11 @@ pub fn files(mut ed: ResMut<Editor>, mut drops: MessageReader<FileDragAndDrop>) 
                 ed.hovering_files = false;
                 let dir = ed.dir.clone();
                 match level::import(&dir, path_buf) {
-                    Ok(f) => imported.push(f),
+                    Ok(f) => {
+                        imported.push(f);
+                        let name = path_buf.file_name().unwrap_or_default().to_string_lossy();
+                        if level::is_recording(&name) { recordings.push(format!("assets/sounds/{name}")); }
+                    }
                     Err(err) => ed.island.show("!", "Couldn't import a file", err.to_string(), Tone::Danger),
                 }
             }
@@ -795,6 +804,22 @@ pub fn files(mut ed: ResMut<Editor>, mut drops: MessageReader<FileDragAndDrop>) 
         let folder = imported[0];
         ed.island.show("⇣", format!("Imported {n} file{}", if n == 1 { "" } else { "s" }), format!("into {folder}"), Tone::Accent);
     }
+    // one recording dropped: place a Sound part playing it (click a surface)
+    if let [r] = recordings.as_slice() {
+        let sound = ed.level.sound_for_clip(r);
+        ed.island.show("♪", format!("Placing {}", std::path::Path::new(&sound).file_stem().unwrap_or_default().to_string_lossy()), "Click a surface · Esc cancels", Tone::Accent);
+        ed.placing = Some(Shape::Sound);
+        ed.placing_model = Some(sound);
+    }
+}
+
+/// The sounds: heard from the camera, while editing and in test mode.
+pub fn hear(mut sounds: ResMut<crate::sound::Sounds>, mut ed: ResMut<Editor>, mut play: ResMut<Play>, ear: Single<&GlobalTransform, With<crate::play::PlayCamera>>) {
+    if let Some(p) = ed.bypass_change_detection().preview_sound.take() { sounds.preview = Some(p); }
+    let run = play.on.then_some(play.run);
+    let inputs = std::mem::take(&mut play.script.inputs);
+    let script = &play.script;
+    sounds.step(&ed.level, &ed.dir, run, inputs, &ear, |id| ed.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
 }
 
 #[derive(Component)]
@@ -873,6 +898,15 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     texture::draw(&ed, &view, &mut w);
     light::draw(&ed, &view, &mut w);
     camera::draw(&ed, &view, &mut g, &mut w);
+    // a selected Sound part: where it is heard at full volume, and how far it carries (as seen, and level)
+    if let Some((p, f)) = ed.selected.and_then(|id| ed.level.get(id)).filter(|_| ed.placing.is_none()).and_then(|p| Some((p, ed.level.sounds.get(&p.sound.as_ref()?.sound)?))) {
+        let c = Vec3::from(p.pos);
+        let col = Color::srgba_u8(0x3D, 0x7B, 0xFF, 160);
+        for r in [f.near, f.far] {
+            w.circle(Isometry3d::new(c, Quat::from_rotation_arc(Vec3::Z, -view.forward())), r, col).resolution(64);
+            w.circle(Isometry3d::new(c, Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)), r, col).resolution(64);
+        }
+    }
     // a tried path: its ends, and the way (yellow), or a red line where there is none
     if let Some(t) = &ed.path_try {
         let up = Vec3::Y * 0.12;
@@ -1001,7 +1035,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -1015,7 +1049,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

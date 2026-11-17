@@ -13,6 +13,7 @@
 //!         (at: 1.0, release: ["W"], shot: "walked", expect: [Feet((0, 0, -4.6), 0.3)]),
 //!         (at: 2.0, expect: [Part("Lift", (0, 3, 0), 0.1)]),
 //!         (at: 2.0, expect: [Path((0, 0, 8), (0, 2, -2), Some(12.5), 0.5)]),  // a walk this long; None: no way
+//!         (at: 2.5, expect: [Playing("Bell", true)]),  // a Sound part is playing (skipped with no sound device)
 //!     ],
 //! )
 //! ```
@@ -72,6 +73,8 @@ pub enum Expect {
     Part(String, (f32, f32, f32), f32),
     /// The path along the navigation area from one point to another is this long (within a distance), or there is none.
     Path((f32, f32, f32), (f32, f32, f32), Option<f32>, f32),
+    /// The named Sound part is playing (true) or not (false). Skipped on a computer with no sound device.
+    Playing(String, bool),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -138,7 +141,7 @@ fn load(dir: &Path, file: &Path, level: &Level, record: bool) -> Result<Run, Str
             input(k).ok_or(format!("at {}s: unknown key \"{k}\"", st.at))?;
         }
         for e in &st.expect {
-            if let Expect::Part(n, ..) = e {
+            if let Expect::Part(n, ..) | Expect::Playing(n, _) = e {
                 let p = level.parts.iter().find(|p| &p.name == n).ok_or(format!("at {}s: no part named \"{n}\"", st.at))?;
                 parts.push((n.clone(), p.id));
             }
@@ -202,6 +205,7 @@ fn drive(
     mut mouse: ResMut<ButtonInput<MouseButton>>,
     mut motion: ResMut<AccumulatedMouseMotion>,
     parts: Query<(&PartId, &Transform)>,
+    sounds: Res<crate::sound::Sounds>,
 ) {
     if !play.on || run.next >= run.steps.len() { return; }
     let run = &mut *run;
@@ -244,6 +248,18 @@ fn drive(
                 run.lines.push(format!("{t:6.2}s  {} path {} → {}: {} ± {d}: {got}", if ok { "✓" } else { "✗ FAIL" }, v(Vec3::from(*a)), v(Vec3::from(*b)), said(*want)));
                 continue;
             }
+            if let Expect::Playing(n, want) = e {
+                let id = run.parts.iter().find(|(m, _)| m == n).map(|x| x.1);
+                if !sounds.on() {
+                    run.lines.push(format!("{t:6.2}s  - \"{n}\" playing: skipped (no sound device)"));
+                    continue;
+                }
+                let got = id.is_some_and(|id| sounds.playing().contains(&id));
+                run.checks += 1;
+                if got != *want { run.failed += 1; }
+                run.lines.push(format!("{t:6.2}s  {} \"{n}\" {}playing: {}", if got == *want { "✓" } else { "✗ FAIL" }, if *want { "" } else { "not " }, if got { "playing" } else { "silent" }));
+                continue;
+            }
             let (what, at, want, d) = match e {
                 Expect::Feet(p, d) => ("feet".to_string(), Some(play.feet), Vec3::from(*p), *d),
                 Expect::Part(n, p, d) => {
@@ -251,7 +267,7 @@ fn drive(
                     let at = parts.iter().find(|(pid, _)| Some(pid.0) == id).map(|(_, tr)| tr.translation);
                     (format!("part \"{n}\""), at, Vec3::from(*p), *d)
                 }
-                Expect::Path(..) => unreachable!("checked above"),
+                Expect::Path(..) | Expect::Playing(..) => unreachable!("checked above"),
             };
             run.checks += 1;
             let ok = at.is_some_and(|a| a.distance(want) <= d);

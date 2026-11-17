@@ -1,0 +1,1 @@
+(format: 1, clips: ["assets/sounds/hum.wav"], volume: -12.0, near: 1.0, far: 20.0, looped: true, at_once: 1.0)
