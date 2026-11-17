@@ -16,12 +16,12 @@
 //! lists the same settings with their values, for the MCP server (and later the timeline's keyable values), and
 //! `apply` sets them from the same JSON.
 //! Fields without a `Setting` are not shown. Range ends changed under More are kept per file in a `Ranges` map.
-use crate::editor::theme::{self, Tip, HIGHLIGHT, LINE, MUTED, TEXT};
+use crate::editor::theme::{self, Tip, ACCENT, MUTED, TEXT, TEXT_2};
 use bevy::reflect::{
     enums::{DynamicEnum, DynamicVariant}, std_traits::ReflectDefault, structs::Struct, tuple::DynamicTuple, PartialReflect,
     Reflect, ReflectMut, ReflectRef, TypeInfo, TypeRegistry,
 };
-use bevy_egui::egui::{self, vec2, Color32, CornerRadius, Sense, Stroke, Ui};
+use bevy_egui::egui::{self, pos2, vec2, Color32, CornerRadius, Sense, Stroke, Ui};
 use std::collections::BTreeMap;
 
 /// How one field shows in its panel.
@@ -109,6 +109,9 @@ fn registry() -> &'static TypeRegistry {
     R.get_or_init(|| {
         let mut r = TypeRegistry::default();
         r.register::<crate::level::Part>();
+        r.register::<crate::level::Lighting>();
+        r.register::<crate::level::Navigation>();
+        r.register::<crate::level::Material>();
         r
     })
 }
@@ -123,6 +126,8 @@ pub struct Ctx<'a> {
     pub ranges: &'a mut Ranges,
     /// Set when a range end changed (it lives outside the value).
     pub ranges_changed: bool,
+    /// The project's colours, offered first by the colour picker.
+    pub palette: Vec<[f32; 3]>,
 }
 
 /// The sections of `value`'s settings, in field order.
@@ -147,125 +152,178 @@ pub fn section(ui: &mut Ui, value: &mut dyn PartialReflect, section: &str, ctx: 
     for (name, s) in &mut list {
         if let Some((_, r)) = ctx.replace.iter().find(|(n, _)| n == name) { *s = r.clone(); }
     }
+    // the type's defaults, where it has them: a setting changed from its default is marked (and can be put back)
+    let defaults = value.get_represented_type_info().and_then(|i| default_of(i.type_id()));
     let ReflectMut::Struct(st) = value.reflect_mut() else { return false };
     let mut changed = false;
-    let mut i = 0;
     let mut feels_done: Vec<&'static str> = vec![];
-    while i < list.len() {
-        let (name, s) = list[i].clone();
+    for (name, s) in list.iter().cloned() {
+        let dflt = defaults.as_ref().and_then(|d| match d.reflect_ref() { ReflectRef::Struct(d) => d.field(name), _ => None });
         match &s.kind {
-            // small ones share a row
-            Kind::Toggle | Kind::Colour => {
-                ui.horizontal(|ui| {
-                    while i < list.len() && matches!(list[i].1.kind, Kind::Toggle | Kind::Colour) {
-                        let (n, s) = &list[i];
-                        if let Some(f) = st.field_mut(n) { changed |= small(ui, f, s); }
-                        ui.add_space(10.0);
-                        i += 1;
-                    }
-                });
-                continue;
-            }
             Kind::Feel { group, ends, .. } => {
                 if !feels_done.contains(group) {
                     feels_done.push(group);
                     let members: Vec<(&'static str, Setting)> = list.iter().filter(|(_, m)| matches!(&m.kind, Kind::Feel { group: g, .. } if g == group)).cloned().collect();
-                    changed |= feel(ui, st, &ty, group, *ends, &members, ctx);
+                    let first = defaults.as_ref().and_then(|d| match d.reflect_ref() { ReflectRef::Struct(d) => d.field(members[0].0).and_then(|f| f.try_downcast_ref::<f32>()).copied(), _ => None });
+                    changed |= feel(ui, st, &ty, group, *ends, &members, first, ctx);
                 }
             }
             _ => {
-                if let Some(f) = st.field_mut(name) { changed |= one(ui, f, &s, &format!("{ty}.{name}"), ctx); }
+                if let Some(f) = st.field_mut(name) {
+                    let differs = dflt.is_some_and(|d| !matches!(&s.kind, Kind::Number { .. } | Kind::Turn | Kind::Text) && !d.reflect_partial_eq(f).unwrap_or(true));
+                    let mut reset = false;
+                    changed |= one(ui, f, &s, &format!("{ty}.{name}"), differs, &mut reset, ctx);
+                    if reset { if let Some(d) = dflt { f.apply(d); changed = true; } }
+                }
             }
         }
-        i += 1;
     }
     changed
 }
 
 fn tip(r: egui::Response, s: &Setting) -> egui::Response { if s.help.is_empty() { r } else { r.tip(s.help) } }
 
-fn small(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting) -> bool {
-    ui.label(egui::RichText::new(s.label).color(MUTED));
-    match s.kind {
-        Kind::Toggle => f.try_downcast_mut::<bool>().is_some_and(|b| tip(theme::toggle(ui, b), s).changed()),
-        // on a copy: the button nudges the numbers through its colour conversions even when nothing is picked
-        _ => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| {
-            let mut copy = *c;
-            let picked = tip(ui.color_edit_button_rgb(&mut copy), s).changed();
-            if picked { *c = copy; }
-            picked
-        }),
-    }
+/// The label column's width.
+const LABEL_W: f32 = 76.0;
+
+/// A settings row: the label in its column, then the control. A setting changed from its default has a bold, white
+/// label and the accent bar at its left: click the bar to put it back.
+fn row<R>(ui: &mut Ui, label: &str, help: &str, differs: bool, reset: &mut bool, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.horizontal_top(|ui| {
+        let g = ui.painter().layout(label.to_owned(), if differs { theme::semi(12.5) } else { theme::body(12.5) }, if differs { Color32::WHITE } else { TEXT_2 }, LABEL_W);
+        let (r, resp) = ui.allocate_exact_size(vec2(LABEL_W, g.size().y.max(28.0)), Sense::hover());
+        ui.painter().galley(pos2(r.left(), r.top() + (28.0 - g.size().y).max(0.0) / 2.0), g, TEXT);
+        if !help.is_empty() { resp.tip(help); }
+        if differs { *reset |= changed_bar(ui, r); }
+        add(ui)
+    }).inner
 }
 
-/// One setting that isn't a slider or a small one.
-fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, ctx: &mut Ctx) -> bool {
+/// The accent bar left of a changed setting's row; true when clicked (put it back).
+fn changed_bar(ui: &mut Ui, r: egui::Rect) -> bool {
+    let bar = egui::Rect::from_min_max(pos2(r.left() - 18.0, r.top() + 5.0), pos2(r.left() - 15.0, r.top() + 23.0));
+    ui.painter().rect_filled(bar, CornerRadius { nw: 0, sw: 0, ne: 2, se: 2 }, ACCENT);
+    ui.interact(bar.expand2(vec2(3.0, 2.0)), ui.id().with(("changed", r.min.x as i32, r.min.y as i32)), Sense::click()).tip("Changed from default. Click the bar to put it back.").clicked()
+}
+
+/// A toggle's row: its label across, the toggle at the right.
+fn toggle_row(ui: &mut Ui, label: &str, on: &mut bool, help: &str, differs: bool, reset: &mut bool) -> bool {
+    ui.horizontal(|ui| {
+        ui.set_min_height(28.0);
+        let r = ui.max_rect();
+        if differs { *reset |= changed_bar(ui, egui::Rect::from_min_size(pos2(r.left(), ui.cursor().top()), vec2(1.0, 28.0))); }
+        ui.label(egui::RichText::new(label).font(if differs { theme::semi(12.5) } else { theme::body(12.5) }).color(if differs { Color32::WHITE } else { Color32::from_rgb(0xE6, 0xE6, 0xE8) }));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let r = theme::toggle(ui, on);
+            (if help.is_empty() { r } else { r.tip(help) }).changed()
+        }).inner
+    }).inner
+}
+
+/// One setting that isn't a slider.
+fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs: bool, reset: &mut bool, ctx: &mut Ctx) -> bool {
     match &s.kind {
         Kind::Number { speed, min, max } => {
             if let Some(v) = f.try_downcast_mut::<f32>() {
-                return ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(s.label).color(MUTED));
-                    tip(ui.add(egui::DragValue::new(v).speed(*speed).range(*min..=*max).max_decimals(2).suffix(unit(s))), s).changed()
-                }).inner;
+                return row(ui, s.label, s.help, false, reset, |ui| number(ui, v, *speed, *min, *max, &unit(s), None, ui.available_width()).changed());
             }
             if let Some(v) = f.try_downcast_mut::<[f32; 3]>() {
-                return ui.horizontal(|ui| {
-                    if !s.bare { ui.label(egui::RichText::new(s.label).color(MUTED)); }
+                return row(ui, s.label, s.help, false, reset, |ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    let w = (ui.available_width() - 12.0) / 3.0;
                     let mut c = false;
-                    for (i, col) in [theme::AXIS_X, theme::AXIS_Y, theme::AXIS_Z].iter().enumerate() {
-                        ui.label(egui::RichText::new(["X", "Y", "Z"][i]).font(theme::mono(11.0)).color(*col));
-                        c |= ui.add(egui::DragValue::new(&mut v[i]).speed(*speed).range(*min..=*max).max_decimals(2).suffix(unit(s))).changed();
-                    }
+                    for (i, x) in v.iter_mut().enumerate() { c |= number(ui, x, *speed, *min, *max, "", Some(i), w).tip(format!("{} {}, in {}", s.label, ["across (X)", "up (Y)", "along (Z)"][i], if s.unit.is_empty() { "times" } else { s.unit })).changed(); }
                     c
-                }).inner;
+                });
             }
             false
         }
-        Kind::Text => f.try_downcast_mut::<String>().is_some_and(|t| {
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(s.label).color(MUTED));
-                tip(ui.add(egui::TextEdit::singleline(t).desired_width(150.0)), s).changed()
-            }).inner
-        }),
+        Kind::Text => f.try_downcast_mut::<String>().is_some_and(|t| row(ui, s.label, s.help, false, reset, |ui| theme::text_input(ui, t, "", None, ui.available_width()).changed())),
         Kind::Turn => f.try_downcast_mut::<[f32; 4]>().is_some_and(|r| turn(ui, r, s)),
-        Kind::Choice => choice(ui, f, s, key),
-        Kind::Optional { off, on } => optional(ui, f, s, off, on, key, ctx),
+        Kind::Choice => choice(ui, f, s, key, differs, reset),
+        Kind::Optional { off, on } => optional(ui, f, s, off, on, differs, reset, ctx),
         Kind::List => list(ui, f, s, key, ctx),
         Kind::Tags => tags(ui, f, s),
-        Kind::Toggle | Kind::Colour => small(ui, f, s),
+        Kind::Toggle => f.try_downcast_mut::<bool>().is_some_and(|b| toggle_row(ui, s.label, b, s.help, differs, reset)),
+        // on a copy: the picker nudges the numbers through its colour conversions even when nothing is picked
+        Kind::Colour => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| {
+            let mut copy = *c;
+            let picked = row(ui, s.label, s.help, differs, reset, |ui| colour(ui, &mut copy, key, &ctx.palette));
+            if picked { *c = copy; }
+            picked
+        }),
         Kind::Feel { .. } => false,
     }
 }
 
 fn unit(s: &Setting) -> String { if s.unit.is_empty() { String::new() } else if s.unit == "×" || s.unit == "°" { s.unit.into() } else { format!(" {}", s.unit) } }
 
+/// A number field: on placement's, the axis letter in its colour first. Drag sideways to scrub, click to type.
+fn number(ui: &mut Ui, v: &mut f32, speed: f32, min: f32, max: f32, suffix: &str, axis: Option<usize>, w: f32) -> egui::Response {
+    let h = if axis.is_some() { 26.0 } else { 28.0 };
+    let (r, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
+    let round = if axis.is_some() { 6 } else { 7 };
+    let inner = egui::Rect::from_min_max(pos2(r.left() + if axis.is_some() { 18.0 + 7.0 } else { 10.0 }, r.top()), pos2(r.right() - 4.0, r.bottom()));
+    // the field goes under the value: keep its place before the value is drawn
+    let at = ui.painter().add(egui::Shape::Noop);
+    // the value in a child of the row (it takes no room of its own)
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    let vis = &mut child.style_mut().visuals.widgets;
+    for w in [&mut vis.inactive, &mut vis.hovered, &mut vis.active] { w.bg_fill = Color32::TRANSPARENT; w.weak_bg_fill = Color32::TRANSPARENT; w.bg_stroke = Stroke::NONE; }
+    child.style_mut().override_font_id = Some(theme::mono(12.0));
+    let resp = child.add(egui::DragValue::new(v).speed(speed as f64).range(min..=max).max_decimals(2).suffix(suffix));
+    let hot = resp.hovered() || resp.dragged();
+    let p = ui.painter();
+    p.set(at, egui::Shape::rect_filled(r, CornerRadius::same(round), if hot { theme::FIELD_HOVER } else { theme::FIELD }));
+    if let Some(i) = axis {
+        let chip = egui::Rect::from_min_size(r.min, vec2(18.0, h));
+        p.rect_filled(chip, CornerRadius { nw: round, sw: round, ne: 0, se: 0 }, [theme::AXIS_X, theme::AXIS_Y, theme::AXIS_Z][i]);
+        p.text(chip.center(), egui::Align2::CENTER_CENTER, ["X", "Y", "Z"][i], theme::bold(10.0), theme::INK);
+    }
+    if resp.has_focus() {
+        p.rect_stroke(r, CornerRadius::same(round), Stroke::new(1.5, ACCENT), egui::StrokeKind::Inside);
+    } else if hot {
+        crate::editor::frame_icon(p, "scrub", pos2(r.right() - 11.0, r.center().y), 12.0, ACCENT);
+    }
+    resp
+}
+
 fn turn(ui: &mut Ui, r: &mut [f32; 4], s: &Setting) -> bool {
     use bevy::math::{EulerRot, Quat};
     let (yaw, pitch, roll) = Quat::from_array(*r).to_euler(EulerRot::YXZ);
     let mut deg = yaw.to_degrees();
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(s.label).color(MUTED));
+    let mut reset = false;
+    row(ui, s.label, s.help, false, &mut reset, |ui| {
         let mut c = false;
-        if tip(ui.add(egui::DragValue::new(&mut deg).speed(1.0).suffix("°")), s).changed() {
+        let w = (ui.available_width() - 12.0) / 3.0;
+        if number(ui, &mut deg, 1.0, -100000.0, 100000.0, "°", Some(1), w).changed() {
             *r = Quat::from_euler(EulerRot::YXZ, deg.to_radians(), pitch, roll).to_array();
             c = true;
         }
-        if (pitch.abs() > 1e-3 || roll.abs() > 1e-3) && ui.small_button("Stand upright").clicked() {
+        if (pitch.abs() > 1e-3 || roll.abs() > 1e-3) && theme::quiet_button(ui, "Stand upright").clicked() {
             *r = Quat::from_rotation_y(yaw).to_array();
             c = true;
         }
         c
-    }).inner
+    })
 }
 
-fn choice(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str) -> bool {
+/// A choice: two to four as a segmented row, more as a dropdown.
+fn choice(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs: bool, reset: &mut bool) -> bool {
     let Some(TypeInfo::Enum(info)) = f.get_represented_type_info() else { return false };
     let ReflectRef::Enum(e) = f.reflect_ref() else { return false };
     let names: Vec<&'static str> = info.variant_names().to_vec();
     let labels: Vec<&str> = info.iter().map(|v| v.get_attribute::<Label>().map_or(v.name(), |l| l.0)).collect();
     let mut i = names.iter().position(|n| *n == e.variant_name()).unwrap_or(0);
-    if !s.bare { ui.label(egui::RichText::new(s.label).color(MUTED)); }
-    if theme::segmented(ui, key, &labels, &mut i, false) {
+    let picked = row(ui, s.label, s.help, differs, reset, |ui| {
+        if labels.len() <= 4 { return theme::choices(ui, key, &labels, &mut i); }
+        let before = i;
+        egui::ComboBox::from_id_salt(key).selected_text(labels[i]).width(ui.available_width()).show_ui(ui, |ui| {
+            for (k, l) in labels.iter().enumerate() { ui.selectable_value(&mut i, k, *l); }
+        });
+        i != before
+    });
+    if picked {
         f.apply(&DynamicEnum::new(names[i], DynamicVariant::Unit));
         return true;
     }
@@ -291,7 +349,7 @@ fn set_tags(f: &mut dyn PartialReflect, all: &[(&'static str, &'static str)], na
 
 fn tags(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting) -> bool {
     let Some((all, on)) = tag_set(f) else { return false };
-    if !s.bare { ui.label(egui::RichText::new(s.label).color(MUTED)); }
+    if !s.bare { ui.label(egui::RichText::new(s.label).color(TEXT_2)); }
     let mut flip = None;
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
@@ -307,16 +365,13 @@ fn tags(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting) -> bool {
     true
 }
 
-fn optional(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, off: &str, on_word: &str, key: &str, ctx: &mut Ctx) -> bool {
+/// Something that may or may not be there (a part that moves): a toggle row saying which, then its settings.
+#[allow(clippy::too_many_arguments)]
+fn optional(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, off: &str, on_word: &str, differs: bool, reset: &mut bool, ctx: &mut Ctx) -> bool {
     let Some(TypeInfo::Enum(info)) = f.get_represented_type_info() else { return false };
     let ReflectMut::Enum(e) = f.reflect_mut() else { return false };
     let mut on = e.variant_name() == "Some";
-    let mut changed = false;
-    ui.horizontal(|ui| {
-        if tip(theme::toggle(ui, &mut on), s).changed() { changed = true; }
-        ui.label(egui::RichText::new(if on { on_word } else { off }).color(MUTED));
-    });
-    if changed {
+    if toggle_row(ui, if on { on_word } else { off }, &mut on, s.help, differs, reset) {
         let mut next = DynamicEnum::new("None", DynamicVariant::Unit);
         if on {
             let inner = info.variant("Some").and_then(|v| v.as_tuple_variant().ok()).and_then(|t| t.field_at(0)).and_then(|f| default_of(f.type_id()));
@@ -328,10 +383,10 @@ fn optional(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, off: &str, on_
         e.apply(&next);
         return true;
     }
+    let mut changed = false;
     if let Some(inner) = e.field_at_mut(0) {
         for sec in sections(inner) { changed |= section(ui, inner, sec, ctx); }
     }
-    let _ = key;
     changed
 }
 
@@ -340,25 +395,26 @@ fn list(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, ctx: &m
     let ReflectMut::List(l) = f.reflect_mut() else { return false };
     let mut changed = false;
     let mut remove = None;
-    ui.label(egui::RichText::new(s.label).color(MUTED));
+    ui.label(egui::RichText::new(s.label).color(TEXT_2));
     for i in 0..l.len() {
         let Some(item) = l.get_mut(i) else { continue };
         ui.push_id((key, i), |ui| {
-            egui::Frame::new().stroke(Stroke::new(1.0, LINE)).corner_radius(CornerRadius { nw: 10, ne: 10, se: 10, sw: 3 }).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+            egui::Frame::new().fill(theme::FIELD).corner_radius(CornerRadius::same(10)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
                 for sec in sections(item) { changed |= section(ui, item, sec, ctx); }
-                if ui.small_button("Remove").clicked() { remove = Some(i); }
+                if theme::quiet_button(ui, "Remove").clicked() { remove = Some(i); }
             });
         });
     }
     if let Some(i) = remove { l.remove(i); changed = true; }
-    if ui.small_button("+ Add").clicked() {
+    if theme::quiet_button(ui, "+ Add").clicked() {
         if let Some(d) = default_of(item_ty) { l.push(d.into_partial_reflect()); changed = true; }
     }
     changed
 }
 
-/// One word slider for every Feel field in `group`, with their numbers and range ends under More.
-fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &str), members: &[(&'static str, Setting)], ctx: &mut Ctx) -> bool {
+/// One word slider for every Feel field in `group`, with their numbers and range ends under More numbers.
+#[allow(clippy::too_many_arguments)]
+fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &str), members: &[(&'static str, Setting)], default: Option<f32>, ctx: &mut Ctx) -> bool {
     let range = |ctx: &Ctx, name: &str, s: &Setting| -> (f32, f32, bool) {
         let Kind::Feel { lo, hi, log, .. } = s.kind else { return (0.0, 1.0, false) };
         let (lo, hi) = ctx.ranges.get(&format!("{ty}.{name}")).copied().unwrap_or((lo, hi));
@@ -369,51 +425,57 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &s
     let Some(v0) = st.field(n0).and_then(|f| f.try_downcast_ref::<f32>()).copied() else { return false };
     let (lo, hi, log) = range(ctx, n0, s0);
     let mut t = feel_t(v0, lo, hi, log);
-    ui.label(egui::RichText::new(group).font(theme::semi(12.0)).color(TEXT));
-    if tip(word_slider(ui, &mut t, ends), s0).changed() {
+    let differs = default.is_some_and(|d| (d - v0).abs() > 1e-4 * d.abs().max(1.0));
+    let mut reset = false;
+    if row(ui, group, s0.help, differs, &mut reset, |ui| word_slider(ui, &mut t, ends).changed()) {
         for (n, s) in members {
             let (lo, hi, log) = range(ctx, n, s);
             if let Some(v) = st.field_mut(n).and_then(|f| f.try_downcast_mut::<f32>()) { *v = feel_value(t, lo, hi, log); }
         }
         changed = true;
     }
+    if reset {
+        if let Some(d) = default { if let Some(v) = st.field_mut(n0).and_then(|f| f.try_downcast_mut::<f32>()) { *v = d; changed = true; } }
+    }
     let id = ui.id().with(("more", ty, group));
     let mut open = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-    if ui.add(egui::Label::new(egui::RichText::new(if open { "▾ More" } else { "▸ More" }).size(11.0).color(MUTED)).sense(Sense::click())).clicked() {
-        open = !open;
-        ui.data_mut(|d| d.insert_temp(id, open));
-    }
+    ui.horizontal(|ui| {
+        ui.add_space(LABEL_W + 8.0);
+        if theme::quiet_button(ui, if open { "Fewer numbers ‹" } else { "More numbers ›" }).clicked() {
+            open = !open;
+            ui.data_mut(|d| d.insert_temp(id, open));
+        }
+    });
     if open {
+        let mut none = false;
         for (n, s) in members {
             let (lo, hi, log) = range(ctx, n, s);
             let u = unit(s);
             if let Some(v) = st.field_mut(n).and_then(|f| f.try_downcast_mut::<f32>()) {
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(s.label).color(MUTED));
-                    changed |= ui.add(egui::DragValue::new(v).speed(0.01).max_decimals(3).suffix(u.clone())).changed();
-                });
+                changed |= row(ui, s.label, "", false, &mut none, |ui| number(ui, v, 0.01, f32::MIN, f32::MAX, &u, None, ui.available_width()).changed());
             }
-            ui.horizontal(|ui| {
-                let (mut a, mut b) = (lo, hi);
-                ui.label(egui::RichText::new(format!("{} end", ends.0)).size(11.0).color(MUTED));
-                let ca = ui.add(egui::DragValue::new(&mut a).speed(0.01).max_decimals(3).suffix(u.clone())).changed();
-                ui.label(egui::RichText::new(format!("{} end", ends.1)).size(11.0).color(MUTED));
-                let cb = ui.add(egui::DragValue::new(&mut b).speed(0.01).max_decimals(3).suffix(u.clone())).changed();
-                if (ca || cb) && a != b && (!log || (a > 0.0 && b > 0.0)) {
-                    ctx.ranges.insert(format!("{ty}.{n}"), (a, b));
-                    ctx.ranges_changed = true;
-                }
+            let (mut a, mut b) = (lo, hi);
+            let (ca, cb) = row(ui, "Range", "What the slider's two ends mean", false, &mut none, |ui| {
+                let w = (ui.available_width() - 6.0) / 2.0;
+                let ca = number(ui, &mut a, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", ends.0)).changed();
+                let cb = number(ui, &mut b, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", ends.1)).changed();
+                (ca, cb)
             });
+            if (ca || cb) && a != b && (!log || (a > 0.0 && b > 0.0)) {
+                ctx.ranges.insert(format!("{ty}.{n}"), (a, b));
+                ctx.ranges_changed = true;
+            }
         }
     }
     changed
 }
 
-/// The kit's word slider: a track that fills from the left, a round handle, the two words under its ends.
+/// The word slider: a 4 px track filling with the accent, a tick at each word, a white thumb with an accent halo,
+/// the words under the track (the nearer one white). Dragging thickens it and the word rides above the thumb.
 pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Response {
-    let w = ui.available_width().min(240.0);
-    let (rect, mut resp) = ui.allocate_exact_size(vec2(w, 32.0), Sense::click_and_drag());
-    let track = egui::Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + 8.0), vec2(rect.width() - 14.0, 6.0));
+    let w = ui.available_width();
+    let (rect, mut resp) = ui.allocate_exact_size(vec2(w, 40.0), Sense::click_and_drag());
+    let track = egui::Rect::from_center_size(pos2(rect.center().x, rect.top() + 11.0), vec2(rect.width() - 12.0, 4.0));
     if let Some(p) = resp.interact_pointer_pos() {
         let nt = ((p.x - track.left()) / track.width()).clamp(0.0, 1.0);
         if nt != *t { *t = nt; resp.mark_changed(); }
@@ -422,18 +484,144 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Respon
         let d = ui.input(|i| (i.key_pressed(egui::Key::ArrowRight) as i32 - i.key_pressed(egui::Key::ArrowLeft) as i32) as f32 * 0.05);
         if d != 0.0 { *t = (*t + d).clamp(0.0, 1.0); resp.mark_changed(); }
     }
-    let shown = theme::spring(ui.ctx(), resp.id.with("t"), *t, if resp.dragged() { theme::SNAPPY } else { theme::SPRING });
+    let shown = theme::spring(ui.ctx(), resp.id.with("t"), *t, if resp.dragged() { theme::SNAPPY } else { theme::SPRING }).clamp(0.0, 1.0);
+    let held = theme::spring(ui.ctx(), resp.id.with("held"), if resp.dragged() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.2);
     let p = ui.painter();
-    p.rect_filled(track, CornerRadius::same(3), Color32::from_white_alpha(28));
-    let x = track.left() + track.width() * shown.clamp(0.0, 1.0);
-    p.rect_filled(egui::Rect::from_min_max(track.min, egui::pos2(x, track.max.y)), CornerRadius::same(3), HIGHLIGHT);
-    let hot = resp.hovered() || resp.dragged();
-    p.circle_filled(egui::pos2(x, track.center().y), if hot { 7.5 } else { 6.5 }, TEXT);
-    let font = theme::body(11.0);
-    let y = rect.bottom() - 7.0;
-    p.text(egui::pos2(rect.left(), y), egui::Align2::LEFT_CENTER, ends.0, font.clone(), if *t <= 0.5 { TEXT } else { MUTED });
-    p.text(egui::pos2(rect.right(), y), egui::Align2::RIGHT_CENTER, ends.1, font, if *t > 0.5 { TEXT } else { MUTED });
+    let th = 4.0 + 2.0 * held.min(1.0);
+    let tr = egui::Rect::from_center_size(track.center(), vec2(track.width(), th));
+    p.rect_filled(tr, CornerRadius::same(3), theme::TRACK);
+    let x = tr.left() + tr.width() * shown;
+    p.rect_filled(egui::Rect::from_min_max(tr.min, pos2(x, tr.max.y)), CornerRadius::same(3), ACCENT);
+    for k in [0.0, 0.5, 1.0] {
+        let tx = tr.left() + tr.width() * k;
+        if (tx - x).abs() > 9.0 { p.rect_filled(egui::Rect::from_center_size(pos2(tx, tr.center().y), vec2(2.0, 8.0)), CornerRadius::same(1), Color32::from_rgb(0x4A, 0x4A, 0x52)); }
+    }
+    let r = 8.0 + 2.0 * held;
+    let c = pos2(x, tr.center().y);
+    p.circle_filled(c, r + 3.0, ACCENT.gamma_multiply(0.3));
+    p.circle_filled(c, r, Color32::WHITE);
+    if resp.has_focus() { p.circle_stroke(c, r + 4.0, Stroke::new(2.0, ACCENT)); }
+    let near = if *t < 0.5 { ends.0 } else { ends.1 };
+    let y = rect.bottom() - 8.0;
+    for (word, at, align) in [(ends.0, rect.left() + 6.0, egui::Align2::LEFT_CENTER), (ends.1, rect.right() - 6.0, egui::Align2::RIGHT_CENTER)] {
+        let on = word == near;
+        p.text(pos2(at, y), align, word, if on { theme::semi(11.0) } else { theme::body(11.0) }, if on { TEXT } else { MUTED });
+    }
+    if held > 0.01 {
+        let g = p.layout_no_wrap(near.to_owned(), theme::semi(11.5), Color32::WHITE);
+        let pill = egui::Rect::from_center_size(pos2(x, c.y - r - 16.0), vec2(g.size().x + 18.0, 20.0));
+        let a = held.min(1.0);
+        p.rect_filled(pill, CornerRadius::same(10), ACCENT.gamma_multiply(a));
+        p.galley(pill.center() - g.size() / 2.0, g, Color32::WHITE.gamma_multiply(a));
+    }
     resp
+}
+
+/// A colour: its swatch and a friendly name; click for the picker (saturation and brightness, hue, hex), with the
+/// project's colours first so a game keeps one palette.
+fn colour(ui: &mut Ui, c: &mut [f32; 3], key: &str, palette: &[[f32; 3]]) -> bool {
+    let col = |c: [f32; 3]| Color32::from_rgb((c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8);
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
+    let p = ui.painter();
+    p.rect_filled(r, CornerRadius::same(7), if resp.hovered() { theme::FIELD_HOVER } else { theme::FIELD });
+    let sw = egui::Rect::from_center_size(pos2(r.left() + 6.0 + 9.0, r.center().y), vec2(18.0, 18.0));
+    p.rect_filled(sw, CornerRadius::same(5), col(*c));
+    p.rect_stroke(sw, CornerRadius::same(5), Stroke::new(1.0, Color32::from_white_alpha(51)), egui::StrokeKind::Inside);
+    p.text(pos2(sw.right() + 8.0, r.center().y), egui::Align2::LEFT_CENTER, theme::colour_name(*c), theme::body(12.5), TEXT);
+    crate::editor::frame_icon(p, "down", pos2(r.right() - 14.0, r.center().y), 12.0, MUTED);
+    let mut changed = false;
+    egui::Popup::menu(&resp).id(ui.id().with(("colour", key))).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+        ui.set_width(280.0);
+        ui.horizontal(|ui| {
+            let (sw, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
+            ui.painter().rect_filled(sw, CornerRadius::same(8), col(*c));
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(egui::RichText::new(theme::colour_name(*c)).font(theme::semi(12.5)));
+                ui.label(egui::RichText::new("Named automatically").size(11.0).color(MUTED));
+            });
+        });
+        changed |= picker(ui, c);
+        let c32 = col(*c);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Hex").color(MUTED));
+            let mut hex = format!("{:02X}{:02X}{:02X}", c32.r(), c32.g(), c32.b());
+            if ui.add(egui::TextEdit::singleline(&mut hex).font(theme::mono(12.0)).desired_width(90.0)).changed() {
+                if let Ok(v) = u32::from_str_radix(hex.trim_start_matches('#'), 16) {
+                    if hex.trim_start_matches('#').len() == 6 { *c = [(v >> 16) as f32 / 255.0, ((v >> 8) & 255) as f32 / 255.0, (v & 255) as f32 / 255.0]; changed = true; }
+                }
+            }
+        });
+        if !palette.is_empty() {
+            ui.label(egui::RichText::new("In this project").size(11.5).color(MUTED));
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+                for q in palette {
+                    let (sw, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                    ui.painter().rect_filled(sw, CornerRadius::same(6), col(*q));
+                    if col(*q) == col(*c) { ui.painter().rect_stroke(sw.expand(2.0), CornerRadius::same(7), Stroke::new(1.5, ACCENT), egui::StrokeKind::Inside); }
+                    if resp.tip(theme::colour_name(*q)).clicked() { *c = *q; changed = true; }
+                }
+            });
+        }
+    });
+    changed
+}
+
+/// The picker: a square of saturation (across) and brightness (up), and a strip of hues under it.
+fn picker(ui: &mut Ui, c: &mut [f32; 3]) -> bool {
+    use bevy::color::{Color, Hsva};
+    let id = ui.id().with("hsv");
+    let rgb = |h: [f32; 3]| { let s = Color::from(Hsva::new(h[0], h[1], h[2], 1.0)).to_srgba(); [s.red, s.green, s.blue] };
+    let col = |c: [f32; 3]| Color32::from_rgb((c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8);
+    // the hue is kept while the colour is grey (where any hue gives it)
+    let mut hsv: [f32; 3] = ui.data(|d| d.get_temp(id)).filter(|h| col(rgb(*h)) == col(*c)).unwrap_or_else(|| {
+        let h = Hsva::from(Color::srgb(c[0], c[1], c[2]));
+        [h.hue, h.saturation, h.value]
+    });
+    let before = hsv;
+    let w = ui.available_width();
+    let (sq, resp) = ui.allocate_exact_size(vec2(w, 150.0), Sense::click_and_drag());
+    let n = 16;
+    let mut mesh = egui::Mesh::default();
+    for j in 0..=n {
+        for i in 0..=n {
+            let (u, v) = (i as f32 / n as f32, j as f32 / n as f32);
+            mesh.colored_vertex(pos2(sq.left() + sq.width() * u, sq.top() + sq.height() * v), col(rgb([hsv[0], u, 1.0 - v])));
+            if i < n && j < n {
+                let k = (j * (n + 1) + i) as u32;
+                mesh.add_triangle(k, k + 1, k + n as u32 + 1);
+                mesh.add_triangle(k + 1, k + n as u32 + 2, k + n as u32 + 1);
+            }
+        }
+    }
+    ui.painter().add(mesh);
+    if let Some(p) = resp.interact_pointer_pos() {
+        hsv[1] = ((p.x - sq.left()) / sq.width()).clamp(0.0, 1.0);
+        hsv[2] = 1.0 - ((p.y - sq.top()) / sq.height()).clamp(0.0, 1.0);
+    }
+    let at = pos2(sq.left() + sq.width() * hsv[1], sq.top() + sq.height() * (1.0 - hsv[2]));
+    ui.painter().circle_stroke(at, 8.0, Stroke::new(2.0, Color32::WHITE));
+    ui.painter().circle_stroke(at, 9.5, Stroke::new(1.0, Color32::from_black_alpha(90)));
+    // the hues
+    let (strip, resp) = ui.allocate_exact_size(vec2(w, 12.0), Sense::click_and_drag());
+    let mut mesh = egui::Mesh::default();
+    for k in 0..=12 {
+        let u = k as f32 / 12.0;
+        let x = strip.left() + strip.width() * u;
+        let c = col(rgb([360.0 * u, 1.0, 1.0]));
+        mesh.colored_vertex(pos2(x, strip.top()), c);
+        mesh.colored_vertex(pos2(x, strip.bottom()), c);
+        if k < 12 { let q = 2 * k as u32; mesh.add_triangle(q, q + 1, q + 2); mesh.add_triangle(q + 1, q + 3, q + 2); }
+    }
+    ui.painter().add(mesh);
+    if let Some(p) = resp.interact_pointer_pos() { hsv[0] = 360.0 * ((p.x - strip.left()) / strip.width()).clamp(0.0, 0.9999); }
+    let hx = pos2(strip.left() + strip.width() * hsv[0] / 360.0, strip.center().y);
+    ui.painter().circle_filled(hx, 8.0, col(rgb([hsv[0], 1.0, 1.0])));
+    ui.painter().circle_stroke(hx, 8.0, Stroke::new(2.0, Color32::WHITE));
+    ui.data_mut(|d| d.insert_temp(id, hsv));
+    if hsv != before { *c = rgb(hsv); return true; }
+    false
 }
 
 /// An f32 as JSON without float noise (0.05, not 0.05000000074505806).

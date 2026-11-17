@@ -432,6 +432,27 @@
    "build": 47
   },
   {
+   "id": "ui-redesign",
+   "name": "The editor's look, redesigned",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "XL",
+   "needs": [
+    "ui-frame"
+   ],
+   "what": "The editor drawn as the user's redesign (docs/ui/HANDOFF.md, boards in docs/ui/design/boards): a 44 px top bar with the BEVERLY menu (File, Edit, View, Play, Help), the eight tabs with icons and Parts / Undo / Redo / Snap and the window's own minimise, maximise and close; each tab with its own frame colour and accent; the view as one outline with a top notch of the tab's topics and a bottom notch of Saved, shortcut hints and the timeline button; status pills; the right dock (Inspect · list · Assets) that folds to a rail; and the controls (word sliders, number fields, colour picker, toggles, segmented, dropdowns, buttons, keycaps, focus rings), with the 82 icons. Moving as the Motion kit does (user, 2026-11-17): its springs and entrances, and the way its tooltips, dock panel, dynamic island and inputs animate; everything you see follows the redesign. Still all vector (no rasters in the GUI).",
+   "chunks": [
+    "The frame: the handoff in the repository, its tokens, fonts (Roboto, Roboto Mono, Roboto Condensed) and icons drawn as vectors; the borderless window with its own title bar (drag, resize, minimise, maximise, close), the BEVERLY menu, tabs in each tab's colours, topic chips in the top notch, the bottom notch, status pills, and the dock's shell holding today's panels",
+    "The dock: Inspect (identity header, groups with coloured icon headings, an Advanced group), the list (search, sections, category icons, warnings with fixes), Assets (drop hint and folder tree), the folded rail, and the selection tag in the view",
+    "The controls: word sliders, number fields with scrubbing, the colour picker with project colours, toggles, segmented choices, dropdowns, buttons, keycaps, tooltips with shortcuts, focus rings and changed-from-default marks, used by every settings panel"
+   ],
+   "note": "Asked for by the user (2026-11-17), so built ahead of World settings. Replaces the look of The editor's frame (docs/ui.svg); the renderer of Beverly's own (vector.rs, text.rs) stays. Part 1 built (2026-11-17): the handoff is in docs/ui (the token file and icon set copied in as they are: editor/src/editor/tokens.rs, editor/assets/ui/icons.json); Roboto Medium, Bold, Condensed and Mono; frame.rs draws the window minus the view's outline (notches as wide as their topics and hints) in the tab's colour with its sheen and edge, and the icons as round 2 px strokes, through the exact-coverage renderer; the window has no system border (its own drag, double-click, resize edges, minimise, maximise, close); the top bar, topic chips, bottom notch (Saved, hints), status pills (the island and the light budget) and the dock (Inspect · Scene · Assets with the kit's sliding pill and contents, folding to a rail) hold today's panels; tooltips are the redesign's light pill, springing up as the kit's do; keycaps, toggles, segmented and chips restyled. The dock's ] / [ keys aren't bound: they are the fly speed keys. MCP: nothing new (the panels still run the same named actions and settings). Part 2 built (2026-11-17): the dock's insides. Inspect opens with an identity header (a tile with the part's icon in its category colour, its name to rename, what it is and how many are alike, Duplicate and Delete); its settings sit in groups with coloured icon headings that fold (Placement, Look, Moves, Light, Camera, Textures, Wires), and Unique and Tags go in a folded Advanced group showing its count. With nothing selected it shows the level, or the topic's settings in groups. The list finds parts by name and sorts them into Shapes, Models, Triggers, Game, Lights and Cameras, each with its icon; hidden parts and lights over the budget say so, and the eye hides or shows one. Assets: the drop hint and a folder tree with counts. The selection tag (the part's icon and name in the highlight) sits at the selected part's top left in the view. Vector letters joined by egui's shaping into a ligature (fi) are drawn letter by letter. MCP: nothing new. Part 3 built (2026-11-17): the controls, drawn from each setting's description. Each setting is a row with a 76 px label column; one changed from its default gets a bold white label and the accent bar (click it to put it back). Word sliders: the 4 px track filling with the accent, ticks, the white thumb with its halo, the nearer word in white; dragging thickens it and the word rides above in an accent pill; More numbers (quiet, in the accent) shows the exact values and the range ends. Number fields: the axis letter in its colour, mono values, scrub arrows on hover, an accent ring while typing. Toggles sit at the right of their row; two to four choices are a segmented row with the highlight's pill sliding, more a dropdown. Colours: a swatch with a friendly name (Warm grey, Light orange); the picker is Beverly's own (a saturation-brightness square and a hue strip as vector meshes), hex, and the project's colours first. Text inputs: the field with an accent ring, letters springing up as typed (the kit's animated input). One main button per panel in the highlight (Build navigation); quiet buttons in the accent. Feel settings still name only their two end words (the boards show three to five): naming the middle words is a pass over the settings' data. Not done from the boards: the eyedropper and opacity strip (Beverly's colours have no opacity), and a focus ring on egui's own buttons.",
+   "first_game": false,
+   "order": 25,
+   "built": "2026-11-17",
+   "build": 52
+  },
+  {
    "id": "world-settings",
    "name": "World settings",
    "area": "World and maps",
@@ -443,7 +464,7 @@
    "what": "Per level: ground (none, flat floor, terrain, ocean), sky or Interior. Space games get no ground at all.",
    "chunks": [],
    "note": "",
-   "order": 25,
+   "order": 26,
    "first_game": true
   },
   {
@@ -459,7 +480,7 @@
    "what": "One stretchable Zone part with settings for weather, post-processing, audio, wind, water, boundaries and hazards, blending at its edges.",
    "chunks": [],
    "note": "",
-   "order": 26,
+   "order": 27,
    "first_game": true
   },
   {
@@ -474,7 +495,7 @@
    "what": "One particle system for every effect: bursts and streams of soft blobs with drag, gravity, spin and wander, size and colour over life drawn as curves.",
    "chunks": [],
    "note": "Generalises Last Ascent's particles (fx.rs and the plume particles), which already match the game's look and run without compute shaders. bevy_hanabi (GPU, Bevy 0.20) stays a fallback if counts outgrow it. Rain and snow are a shader around the camera, not particles.",
-   "order": 27,
+   "order": 28,
    "first_game": true
   },
   {
@@ -495,7 +516,7 @@
     "Sound hooks: any event (a footstep, a move, a hit, a wire firing) plays a sound; footsteps by surface; a Sounds list on characters and on zones that later features (weather, effects, idles) add to"
    ],
    "note": "Gets its own planning pass before building (user, 2026-11-15: adding sounds to characters, sets and weather needs attention). bevy_kira_audio supports Bevy 0.20. Its tab colours come from the redesign (docs/ui/HANDOFF.md): cyan frame, coral accent.",
-   "order": 28,
+   "order": 29,
    "first_game": true
   },
   {
@@ -511,7 +532,7 @@
    "what": "Step on it and get launched in its direction; works on enemies and objects.",
    "chunks": [],
    "note": "",
-   "order": 29,
+   "order": 30,
    "first_game": true
   },
   {
@@ -532,7 +553,7 @@
     "Create steps: template, model, fit (auto collision); Body card"
    ],
    "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo). Its look is the Characters board of the redesign (docs/ui/design/boards/Characters.dc.html): pink frame, mint accent, topics Body, Moves, Camera, Controls.",
-   "order": 30,
+   "order": 31,
    "first_game": true
   },
   {
@@ -547,7 +568,7 @@
    "what": "Waves from a formula (layered Gerstner), shore fade, foam; settings by wind and storm.",
    "chunks": [],
    "note": "bevy_water supports Bevy 0.20.",
-   "order": 31,
+   "order": 32,
    "first_game": true
   },
   {
@@ -563,7 +584,7 @@
    "what": "Per level or camera: bloom, depth of field, motion blur, chromatic aberration, vignette, lens distortion, auto exposure, colour grading; zones and the timeline can change them.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 32,
+   "order": 33,
    "first_game": true
   },
   {
@@ -578,7 +599,7 @@
    "what": "Screen-space ambient occlusion and reflections, volumetric fog and light shafts, quality settings.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 33,
+   "order": 34,
    "first_game": true
   },
   {
@@ -596,7 +617,7 @@
     "Cloud layers and volumetric clouds that follow the wind"
    ],
    "note": "Bevy 0.20 has a physical atmosphere built in.",
-   "order": 34,
+   "order": 35,
    "first_game": true
   },
   {
@@ -612,7 +633,7 @@
    "what": "One wind for the level (direction, strength, gusts, zones) read by foliage, cloth, flags, particles, smoke, sails and flying lift.",
    "chunks": [],
    "note": "",
-   "order": 35,
+   "order": 36,
    "first_game": true
   },
   {
@@ -628,7 +649,7 @@
    "what": "Scorch marks, cracks, skid grooves, bullet holes and signs projected onto surfaces, fading with age.",
    "chunks": [],
    "note": "Bevy 0.20 has decals built in. Blast, crack and scrape marks are drawn by a shader from a few numbers (Last Ascent's are small images today; the no-raster rule asks for math where it can do the job); signs and graffiti use the user's own images.",
-   "order": 36,
+   "order": 37,
    "first_game": true
   },
   {
@@ -643,7 +664,7 @@
    "what": "Leaving test mode puts back everything that moved, broke or was used up; values tuned while testing are offered to keep.",
    "chunks": [],
    "note": "Needed as soon as loose physics parts exist, so it comes right after physics instead of at the end.",
-   "order": 37,
+   "order": 38,
    "first_game": true
   },
   {
@@ -659,7 +680,7 @@
    "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
    "chunks": [],
    "note": "",
-   "order": 38,
+   "order": 39,
    "first_game": true
   },
   {
@@ -674,7 +695,7 @@
    "what": "Temporary sounds made from a few settings: blips, hits, footsteps, whooshes, explosions, engine hums and rain, saved as their settings (tiny) and swapped for real recordings whenever you have them.",
    "chunks": [],
    "note": "User, 2026-11-15: generated temporary sounds are fine. Works like the classic sfxr sound makers: a wave, a pitch slide, an envelope and noise.",
-   "order": 39,
+   "order": 40,
    "first_game": true
   },
   {
@@ -695,7 +716,7 @@
     "Atmosphere settings on Zone parts (Interior preset); Set weather action over time"
    ],
    "note": "Haze is Bevy's distance fog; local fog banks are fog volumes (ambient occlusion and fog volumes feature). Rain and wind sounds go through the sound hooks.",
-   "order": 40,
+   "order": 41,
    "first_game": true
   },
   {
@@ -711,7 +732,7 @@
    "what": "More than one level per project; Level exit parts wired to the next level.",
    "chunks": [],
    "note": "",
-   "order": 41,
+   "order": 42,
    "first_game": true
   },
   {
@@ -726,7 +747,7 @@
    "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
    "chunks": [],
    "note": "",
-   "order": 42,
+   "order": 43,
    "first_game": true
   },
   {
@@ -747,7 +768,7 @@
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
    "note": "Laid out as the user's design shows (docs/ui.svg, 'timeline lower window'): the view's bottom edge gets a resize grip, the breadcrumb of the selected item and a toolbar (Auto Keyframe toggle, menus, options) sit in a notch at its bottom left, the timeline area below spans the window. Its look is the Timeline board of the redesign (docs/ui/design/boards/Timeline.dc.html): resize grip, breadcrumb, transport, mono timecode, Seconds/Frames zoom, tracks with category icons, keys as diamonds and clips as bars, playhead in the accent, Auto key in the footer; opened from the bottom notch's Timeline button (T).",
-   "order": 43,
+   "order": 44,
    "first_game": true
   },
   {
@@ -766,7 +787,7 @@
     "Rules editor and the library picker (+ Add) with needs; editable ranges"
    ],
    "note": "bevy_tnua (Bevy 0.20) does walking, jumping with coyote time, crouching and dashing on Avian; the + Add library picker is shared with parts, abilities, effects and items.",
-   "order": 44,
+   "order": 45,
    "first_game": true
   },
   {
@@ -781,7 +802,7 @@
    "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
    "chunks": [],
    "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need.",
-   "order": 45,
+   "order": 46,
    "first_game": true
   },
   {
@@ -801,7 +822,7 @@
     "Joint tree by name: drag joints between chains, rename"
    ],
    "note": "The Walk job generalises Last Ascent's mech legs.",
-   "order": 46,
+   "order": 47,
    "first_game": true
   },
   {
@@ -820,7 +841,7 @@
     "Abilities with costs and cooldowns; the Abilities card with its tags"
    ],
    "note": "",
-   "order": 47,
+   "order": 48,
    "first_game": true
   },
   {
@@ -839,7 +860,7 @@
     "Outlines: shell per object and edge detection over the screen; per-project style presets"
    ],
    "note": "bevy_mod_outline supports Bevy 0.20.",
-   "order": 48,
+   "order": 49,
    "first_game": true
   },
   {
@@ -857,7 +878,7 @@
     "Check: before-and-after screenshots of every window at full size and in a small window, kept with the test projects"
    ],
    "note": "Placed after step 6 of the Last Ascent path on purpose (not by its needs): by then the editor has most of its panels. MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 49,
+   "order": 50,
    "first_game": true
   },
   {
@@ -876,7 +897,7 @@
     "Draw-distance classes tied to the haze end, Always visible flag"
    ],
    "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades.",
-   "order": 50,
+   "order": 51,
    "first_game": true
   },
   {
@@ -895,7 +916,7 @@
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
    "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries. Rail cameras (a camera part that travels along a path) moved here from Camera parts (user, 2026-11-15). Patrol paths (points an enemy walks between, looped or back and forth) come here, drawn with the Paths tool (user, 2026-11-16).",
-   "order": 51,
+   "order": 52,
    "first_game": true
   },
   {
@@ -911,7 +932,7 @@
    "what": "Save point parts store the player, variables and which parts fired; load from the menu.",
    "chunks": [],
    "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs.",
-   "order": 52,
+   "order": 53,
    "first_game": true
   },
   {
@@ -931,7 +952,7 @@
     "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
    ],
    "note": "Skinned characters bring their clips in the GLB (the user will skin in another tool, Prism once it can). Characters made of separate pieces, like the mech, are posed and keyed here, since Prism exports pieces with pivots.",
-   "order": 53,
+   "order": 54,
    "first_game": true
   },
   {
@@ -946,7 +967,7 @@
    "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
    "chunks": [],
    "note": "",
-   "order": 54,
+   "order": 55,
    "first_game": true
   },
   {
@@ -961,7 +982,7 @@
    "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
    "chunks": [],
    "note": "Mostly bevy_tnua's.",
-   "order": 55,
+   "order": 56,
    "first_game": true
   },
   {
@@ -976,7 +997,7 @@
    "what": "Crouch, prone crawl, slide at speed, lean around corners.",
    "chunks": [],
    "note": "Mostly bevy_tnua's.",
-   "order": 56,
+   "order": 57,
    "first_game": true
   },
   {
@@ -995,7 +1016,7 @@
     "Wall-run and wall-cling with their exits into jumps"
    ],
    "note": "",
-   "order": 57,
+   "order": 58,
    "first_game": true
   },
   {
@@ -1013,7 +1034,7 @@
     "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
    ],
    "note": "",
-   "order": 58,
+   "order": 59,
    "first_game": true
   },
   {
@@ -1029,7 +1050,7 @@
    "what": "Swim at the surface, dive under with breath, water volumes.",
    "chunks": [],
    "note": "",
-   "order": 59,
+   "order": 60,
    "first_game": true
   },
   {
@@ -1050,7 +1071,7 @@
     "Glow, trails, camera shake; attaching effects to joints and events in the editor"
    ],
    "note": "Reuses Last Ascent's plume reader and renderer, which already match the Plume Editor. Making effects happens in the Effects tab.",
-   "order": 60,
+   "order": 61,
    "first_game": true
   },
   {
@@ -1065,7 +1086,7 @@
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
    "note": "",
-   "order": 61,
+   "order": 62,
    "first_game": true
   },
   {
@@ -1084,7 +1105,7 @@
     "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
    ],
    "note": "",
-   "order": 62,
+   "order": 63,
    "first_game": true
   },
   {
@@ -1103,7 +1124,7 @@
     "Gear traits stacking, consumables; inventory screen (with Screens)"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 63,
+   "order": 64,
    "first_game": true
   },
   {
@@ -1125,7 +1146,7 @@
     "Flock preset (the bird code: land on perch spots, scatter, flock)"
    ],
    "note": "The Flock preset reuses the user's bird code. Walkers use the navigation areas; flyers and swimmers steer around obstacles with rays instead.",
-   "order": 64,
+   "order": 65,
    "first_game": true
   },
   {
@@ -1146,7 +1167,7 @@
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
    "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink.",
-   "order": 65,
+   "order": 66,
    "first_game": true
   },
   {
@@ -1166,7 +1187,7 @@
     "Character recordings into editable keys; letterbox and skippable"
    ],
    "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent.",
-   "order": 66,
+   "order": 67,
    "first_game": true
   },
   {
@@ -1182,7 +1203,7 @@
    "what": "Characters go limp on death or big hits and blend back when they get up.",
    "chunks": [],
    "note": "",
-   "order": 67,
+   "order": 68,
    "first_game": true
   },
   {
@@ -1198,7 +1219,7 @@
    "what": "A running clock with day and night, schedules for lights and NPCs; slow motion and pause.",
    "chunks": [],
    "note": "",
-   "order": 68,
+   "order": 69,
    "first_game": true
   },
   {
@@ -1222,7 +1243,7 @@
     "Combined effects: several kinds layered and timed into one effect (a landing: dust, cracks, shake, a thud)"
    ],
    "note": "User, 2026-11-15: integrate the Plume Editor; other kinds of effects get their own sections. Its fields already come with sections, labels, ranges and notes (references/plume/FIELDS.md in Last Ascent), which is what Settings panels from data needs, and Last Ascent's plume code already draws them the same as the editor. Its look is the Effects board of the redesign (docs/ui/design/boards/Effects.dc.html): orange frame, azure accent.",
-   "order": 69,
+   "order": 70,
    "first_game": true
   },
   {
@@ -1241,7 +1262,7 @@
     "Wind sway and performance pass"
    ],
    "note": "Stored as brush strokes and a seed, not every plant: the same plants come back each time and the level file stays small. Erasing is a stroke too.",
-   "order": 70,
+   "order": 71,
    "first_game": true
   },
   {
@@ -1260,7 +1281,7 @@
     "Loading around the player in play, with far regions shown as their simplest LOD"
    ],
    "note": "Each region carries its own colliders and navigation tiles, so physics and enemies load and unload with it.",
-   "order": 71,
+   "order": 72,
    "first_game": true
   },
   {
@@ -1281,7 +1302,7 @@
     "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
    ],
    "note": "",
-   "order": 72,
+   "order": 73,
    "first_game": true
   },
   {
@@ -1297,7 +1318,7 @@
    "what": "Spawner parts and spawn waves on the timeline.",
    "chunks": [],
    "note": "",
-   "order": 73,
+   "order": 74,
    "first_game": true
   },
   {
@@ -1317,7 +1338,7 @@
     "Interaction targets: look-at, hand reach (two-bone IK with blend in and out), sit / lean spots"
    ],
    "note": "",
-   "order": 74,
+   "order": 75,
    "first_game": true
   },
   {
@@ -1338,7 +1359,7 @@
     "Vehicle and Enemy (with vehicles and the swarm)"
    ],
    "note": "",
-   "order": 75,
+   "order": 76,
    "first_game": true
   },
   {
@@ -1353,7 +1374,7 @@
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
    "note": "",
-   "order": 76,
+   "order": 77,
    "first_game": true
   },
   {
@@ -1369,7 +1390,7 @@
    "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
    "chunks": [],
    "note": "Reuses Last Ascent's jets and grapple.",
-   "order": 77,
+   "order": 78,
    "first_game": true
   },
   {
@@ -1388,7 +1409,7 @@
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
    "note": "",
-   "order": 78,
+   "order": 79,
    "first_game": true
   },
   {
@@ -1410,7 +1431,7 @@
     "Combat: bites, goo splash, damage and death"
    ],
    "note": "Goo is drawn per cluster: each cluster's box runs a shader over only its own bugs, so cost grows with clusters, not with every bug against every other.",
-   "order": 79,
+   "order": 80,
    "first_game": true
   },
   {
@@ -1426,7 +1447,7 @@
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
    "note": "",
-   "order": 80,
+   "order": 81,
    "first_game": true
   },
   {
@@ -1447,7 +1468,7 @@
     "Live 3D backgrounds; transitions on the timeline"
    ],
    "note": "Gets its own planning pass before building. Its look is the Screens board of the redesign (docs/ui/design/boards/Screens.dc.html): a flow graph of screen cards, with a Flow check card.",
-   "order": 81,
+   "order": 82,
    "first_game": true
   },
   {
@@ -1468,7 +1489,7 @@
     "Terrain LOD and seams between chunks"
    ],
    "note": "Height images from other tools could be converted into strokes later, if wanted. Collision (user, 2026-11-15: no meshes where a height function does it cheaper): the ground is the height function itself as a custom shape in Avian that answers rays exactly (standing on it: the walker's tnua sensor as a ray instead of a disc; feet and foot placement, grapple, camera, bullets, placing things), plus a small contact rule of Beverly's own, since Parry works out contact between solid shapes only for its built-in ones: each step, loose bodies' lowest points are checked against the height and pushed up and out along the slope, and ground steeper than a set limit (banks taller than the walker's 0.45 m step) pushes characters back like a wall. Check: sampled points agree with the height function, the walker climbs stairs and is stopped by a steep bank, a loose crate settles on a slope.",
-   "order": 82,
+   "order": 83,
    "first_game": true
   },
   {
@@ -1486,7 +1507,7 @@
    "what": "Every water body is a swim volume; floating objects bob with drag; splashes; underwater fog and tint; water puts out fire.",
    "chunks": [],
    "note": "",
-   "order": 83,
+   "order": 84,
    "first_game": true
   },
   {
@@ -1504,7 +1525,7 @@
    "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
    "chunks": [],
    "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D.",
-   "order": 84,
+   "order": 85,
    "first_game": true
   },
   {
@@ -1529,7 +1550,7 @@
     "Plumes, effects and the fuel gauge hooked up; Last Ascent editor and player removed"
    ],
    "note": "Scripted tests record today's mech before anything changes, so the port can be compared step by step. What to look for when converting it (Physics part 2, 2026-11-15): Beverly no longer hands a game's character the level's triangles (Play::world, with pieces() and offsets(), is gone), so Last Ascent's own editor and player stop building once they update past this; the user chose to rebuild the mech after Beverly is built, not to port it twice. Collision is now Avian's world while playing (physics.rs): each Solid part is a body tagged PartBody(id), still ones static, Moves ones kinematic (their LinearVelocity carries what stands on them), Loose ones dynamic, plus the ground at y = 0. The mech's own physics maps onto it: its sphere-against-triangles step becomes a body of its own (a bevy_tnua character like the walker in play.rs, or Avian's MoveAndSlide), its raycast (grapple, camera, ground) Avian's SpatialQuery::cast_ray, its ground_y (the legs' foot placement) a ray down, and riding moving parts comes free. Physics runs on the fixed 60 Hz step (single precision, Avian's Gravity 9.81 with GravityScale for heavier falls): the mech's movement moves from Update with a variable step to FixedUpdate, catching one-off keys every frame as play.rs does (Play::press), and still sets Play::feet for buttons. Its recorded runs (walk, jets, grapple) will drift with the new collision: compare them, and re-record only when the user agrees.",
-   "order": 85,
+   "order": 86,
    "first_game": true
   },
   {
@@ -1544,7 +1565,7 @@
    "what": "A floating origin so worlds bigger than about 10 km don't jitter.",
    "chunks": [],
    "note": "big_space has no release for Bevy 0.20 yet, so the plan is a simple floating origin of Beverly's own (move the world back when the player is far from the middle) with Avian in f64; use big_space if it catches up.",
-   "order": 86,
+   "order": 87,
    "first_game": true
   },
   {
@@ -1563,7 +1584,7 @@
     "Cloth: flags, banners, sails and capes on characters"
    ],
    "note": "",
-   "order": 87,
+   "order": 88,
    "first_game": true
   },
   {
@@ -1579,7 +1600,7 @@
    "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
    "chunks": [],
    "note": "",
-   "order": 88,
+   "order": 89,
    "first_game": true
   },
   {
@@ -1595,7 +1616,7 @@
    "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
    "chunks": [],
    "note": "",
-   "order": 89,
+   "order": 90,
    "first_game": true
   },
   {
@@ -1612,7 +1633,7 @@
    "what": "Close attacks with combos, takedowns from behind.",
    "chunks": [],
    "note": "",
-   "order": 90,
+   "order": 91,
    "first_game": true
   },
   {
@@ -1632,7 +1653,7 @@
     "Beams, muzzle effects and sounds, aim with lock-on"
    ],
    "note": "",
-   "order": 91,
+   "order": 92,
    "first_game": true
   },
   {
@@ -1651,7 +1672,7 @@
     "Automatic rules: rock on steep slopes, snow above a height"
    ],
    "note": "Surfaces are outlines and strokes like the terrain itself; blend weights are worked out per vertex, so no paint images are stored.",
-   "order": 92,
+   "order": 93,
    "first_game": true
   },
   {
@@ -1670,7 +1691,7 @@
     "Rivers on paths: flow along the curve, foam, carving the bed, joining lakes"
    ],
    "note": "",
-   "order": 93,
+   "order": 94,
    "first_game": true
   },
   {
@@ -1687,7 +1708,7 @@
    "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
    "chunks": [],
    "note": "",
-   "order": 94,
+   "order": 95,
    "first_game": true
   },
   {
@@ -1703,7 +1724,7 @@
    "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
    "chunks": [],
    "note": "",
-   "order": 95,
+   "order": 96,
    "first_game": true
   },
   {
@@ -1719,28 +1740,8 @@
    "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
    "chunks": [],
    "note": "",
-   "order": 96,
+   "order": 97,
    "first_game": true
-  },
-  {
-   "id": "ui-redesign",
-   "name": "The editor's look, redesigned",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "ui-frame"
-   ],
-   "what": "The editor drawn as the user's redesign (docs/ui/HANDOFF.md, boards in docs/ui/design/boards): a 44 px top bar with the BEVERLY menu (File, Edit, View, Play, Help), the eight tabs with icons and Parts / Undo / Redo / Snap and the window's own minimise, maximise and close; each tab with its own frame colour and accent; the view as one outline with a top notch of the tab's topics and a bottom notch of Saved, shortcut hints and the timeline button; status pills; the right dock (Inspect · list · Assets) that folds to a rail; and the controls (word sliders, number fields, colour picker, toggles, segmented, dropdowns, buttons, keycaps, focus rings), with the 82 icons. Moving as the Motion kit does (user, 2026-11-17): its springs and entrances, and the way its tooltips, dock panel, dynamic island and inputs animate; everything you see follows the redesign. Still all vector (no rasters in the GUI).",
-   "chunks": [
-    "The frame: the handoff in the repository, its tokens, fonts (Roboto, Roboto Mono, Roboto Condensed) and icons drawn as vectors; the borderless window with its own title bar (drag, resize, minimise, maximise, close), the BEVERLY menu, tabs in each tab's colours, topic chips in the top notch, the bottom notch, status pills, and the dock's shell holding today's panels",
-    "The dock: Inspect (identity header, groups with coloured icon headings, an Advanced group), the list (search, sections, category icons, warnings with fixes), Assets (drop hint and folder tree), the folded rail, and the selection tag in the view",
-    "The controls: word sliders, number fields with scrubbing, the colour picker with project colours, toggles, segmented choices, dropdowns, buttons, keycaps, tooltips with shortcuts, focus rings and changed-from-default marks, used by every settings panel"
-   ],
-   "note": "Asked for by the user (2026-11-17), so built ahead of World settings. Replaces the look of The editor's frame (docs/ui.svg); the renderer of Beverly's own (vector.rs, text.rs) stays. Part 1 built (2026-11-17): the handoff is in docs/ui (the token file and icon set copied in as they are: editor/src/editor/tokens.rs, editor/assets/ui/icons.json); Roboto Medium, Bold, Condensed and Mono; frame.rs draws the window minus the view's outline (notches as wide as their topics and hints) in the tab's colour with its sheen and edge, and the icons as round 2 px strokes, through the exact-coverage renderer; the window has no system border (its own drag, double-click, resize edges, minimise, maximise, close); the top bar, topic chips, bottom notch (Saved, hints), status pills (the island and the light budget) and the dock (Inspect · Scene · Assets with the kit's sliding pill and contents, folding to a rail) hold today's panels; tooltips are the redesign's light pill, springing up as the kit's do; keycaps, toggles, segmented and chips restyled. The dock's ] / [ keys aren't bound: they are the fly speed keys. MCP: nothing new (the panels still run the same named actions and settings). Part 2 built (2026-11-17): the dock's insides. Inspect opens with an identity header (a tile with the part's icon in its category colour, its name to rename, what it is and how many are alike, Duplicate and Delete); its settings sit in groups with coloured icon headings that fold (Placement, Look, Moves, Light, Camera, Textures, Wires), and Unique and Tags go in a folded Advanced group showing its count. With nothing selected it shows the level, or the topic's settings in groups. The list finds parts by name and sorts them into Shapes, Models, Triggers, Game, Lights and Cameras, each with its icon; hidden parts and lights over the budget say so, and the eye hides or shows one. Assets: the drop hint and a folder tree with counts. The selection tag (the part's icon and name in the highlight) sits at the selected part's top left in the view. Vector letters joined by egui's shaping into a ligature (fi) are drawn letter by letter. MCP: nothing new.",
-   "first_game": false,
-   "next": true,
-   "order": 97
   },
   {
    "id": "perf-meter",

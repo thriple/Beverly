@@ -607,7 +607,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
         // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
         let model = p.shape == Shape::Model;
         let scale = [("size", Setting::number("Scale", "×", 0.01, 0.001, 100000.0).section(level::LOOK).bare())];
-        let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false };
+        let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false, palette: project_palette(&ed.level) };
         for sec in settings::sections(&p) {
             if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
             // the player start, lights and cameras have no surface to tag
@@ -735,7 +735,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut n = ed.level.navigation.clone();
     let mut build = false;
     let mut ranges = ed.level.ranges.clone();
-    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: project_palette(&ed.level) };
     // the level (or its topic) at the top, as a part is when one is selected
     let parts = ed.level.parts.len();
     let (name, icon, colour) = match ed.level_mode {
@@ -777,7 +777,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 };
                 ui.label(egui::RichText::new(status).color(colour));
                 ui.horizontal(|ui| {
-                    if ui.button(if ed.nav.is_some() { "Build again" } else { "Build navigation" }).tip("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
+                    if theme::main_button(ui, if ed.nav.is_some() { "Build again" } else { "Build navigation" }).tip("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
                     if ed.nav.is_some() {
                         theme::toggle(ui, &mut ed.nav_shown).tip("Draw the walkable area over the level");
                         ui.label(egui::RichText::new("Show").color(MUTED));
@@ -822,11 +822,7 @@ fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
     // the search field
     let qid = Id::new("scene-find");
     let mut q: String = ui.data(|d| d.get_temp(qid)).unwrap_or_default();
-    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-    ui.painter().rect_filled(r, CornerRadius::same(8), theme::FIELD);
-    frame::paint_icon(ui.painter(), "search", pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, MUTED);
-    let field = ERect::from_min_max(pos2(r.left() + 32.0, r.top()), pos2(r.right() - 8.0, r.bottom()));
-    ui.put(field, egui::TextEdit::singleline(&mut q).frame(egui::Frame::NONE).hint_text(egui::RichText::new("Find in scene").color(MUTED)).font(body(12.5)).vertical_align(egui::Align::Center));
+    theme::text_input(ui, &mut q, "Find in scene", Some("search"), ui.available_width());
     ui.data_mut(|d| d.insert_temp(qid, q.clone()));
     let q = q.to_lowercase();
     if ed.level.parts.is_empty() { ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.5)); }
@@ -925,7 +921,7 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
         });
         ui.label(egui::RichText::new("Drag the material from Assets onto faces").color(MUTED).size(11.0));
     });
-    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false };
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: project_palette(&ed.level) };
     column(ui, 0.0, "LOOK", |ui| { settings::section(ui, &mut m, level::MATERIAL, &mut ctx); });
     ranges_changed = ctx.ranges_changed;
     if m != before { ed.level.materials.insert(path.to_string(), m.clone()); }
@@ -1037,6 +1033,17 @@ fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, 
         }
     });
     ui.add_space(16.0);
+}
+
+/// The colours the level's parts use (the colour picker offers them first), most used first.
+fn project_palette(l: &level::Level) -> Vec<[f32; 3]> {
+    let mut seen: Vec<([u8; 3], [f32; 3], usize)> = vec![];
+    for p in l.parts.iter().filter(|p| !p.shape.is_light() && !p.shape.is_camera() && p.shape != Shape::PlayerStart) {
+        let k = p.color.map(|x| (x * 255.0).round() as u8);
+        match seen.iter_mut().find(|s| s.0 == k) { Some(s) => s.2 += 1, None => seen.push((k, p.color, 1)) }
+    }
+    seen.sort_by_key(|s| std::cmp::Reverse(s.2));
+    seen.into_iter().take(12).map(|s| s.1).collect()
 }
 
 /// A part's kind: its list section, icon and category colour.

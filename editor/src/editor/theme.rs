@@ -10,7 +10,7 @@ use std::sync::Arc;
 // ---- colours (docs/ui/tokens/theme.rs, copied as tokens.rs) ----
 pub use super::tokens::{
     AXIS_X, AXIS_Y, AXIS_Z, CAT_ACTIONS, CAT_CAMERAS, CAT_FLOW, CAT_GAME, CAT_LIGHTS, CAT_LOGIC, CAT_SHAPES, CAT_TRIGGERS,
-    DANGER, DANGER_TEXT, FIELD, FIELD_HOVER, INK, LINE, POPOVER, TABS, TEXT, TEXT_2, TOGGLE_OFF, TabTheme,
+    DANGER, DANGER_TEXT, FIELD, FIELD_HOVER, INK, LINE, POPOVER, TABS, TEXT, TEXT_2, TOGGLE_OFF, TRACK, TabTheme,
 };
 pub use super::tokens::PANEL_GLASS as PANEL;
 pub use super::tokens::TEXT_3 as MUTED;
@@ -101,6 +101,10 @@ pub fn setup(ctx: &Context) {
             w.fg_stroke = Stroke::new(1.0, TEXT);
             w.expansion = 0.0;
         }
+        // buttons (a second action) are a step lighter than fields
+        v.widgets.inactive.weak_bg_fill = SELECTED_ROW;
+        v.widgets.hovered.weak_bg_fill = TRACK;
+        v.widgets.active.weak_bg_fill = TOGGLE_OFF;
         v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, white(18));
         v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, TEXT_2);
     });
@@ -273,6 +277,111 @@ pub fn chip(ui: &mut Ui, label: &str, on: &mut bool) -> Response {
     p.rect_filled(rect, CornerRadius::same(12), lerp_color(if r.hovered() { FIELD_HOVER } else { FIELD }, HIGHLIGHT, t));
     p.text(rect.center(), Align2::CENTER_CENTER, label, if *on { semi(12.0) } else { body(12.0) }, lerp_color(TEXT_2, INK, t));
     r
+}
+
+/// A choice of two to four in a row: equal parts across the width, the highlight's pill sliding to the chosen one.
+pub fn choices(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize) -> bool {
+    let id = ui.id().with(id);
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::hover());
+    let p = ui.painter();
+    p.rect_filled(rect, CornerRadius::same(8), FIELD);
+    let w = (rect.width() - 4.0) / options.len() as f32;
+    let at = spring(ui.ctx(), id.with("x"), *selected as f32, SNAPPY);
+    p.rect_filled(Rect::from_min_size(pos2(rect.left() + 2.0 + at * w, rect.top() + 2.0), vec2(w, 24.0)), CornerRadius::same(6), HIGHLIGHT);
+    let mut changed = false;
+    for (i, o) in options.iter().enumerate() {
+        let r = Rect::from_min_size(pos2(rect.left() + 2.0 + i as f32 * w, rect.top() + 2.0), vec2(w, 24.0));
+        let resp = ui.interact(r, id.with(i), Sense::click());
+        let on = (at - i as f32).abs() < 0.5;
+        if !on && resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(6), white(13)); }
+        ui.painter().text(r.center(), Align2::CENTER_CENTER, *o, if on { semi(12.0) } else { body(12.0) }, if on { TABS[0].highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 });
+        if resp.clicked() && *selected != i { *selected = i; changed = true; }
+    }
+    changed
+}
+
+/// A quiet button: the accent's text alone (More numbers, Stand upright).
+pub fn quiet_button(ui: &mut Ui, label: &str) -> Response {
+    let g = ui.painter().layout_no_wrap(label.to_owned(), semi(12.0), ACCENT);
+    let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 4.0, 24.0), Sense::click());
+    let c = if resp.hovered() { lerp_color(ACCENT, Color32::WHITE, 0.3) } else { ACCENT };
+    ui.painter().galley(pos2(r.left() + 2.0, r.center().y - g.size().y / 2.0), g, c);
+    resp
+}
+
+/// A panel's one main button: the highlight, with ink text.
+pub fn main_button(ui: &mut Ui, label: &str) -> Response {
+    let g = ui.painter().layout_no_wrap(label.to_owned(), semi(12.5), INK);
+    let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 24.0, 30.0), Sense::click());
+    let hot = spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, SNAPPY).clamp(0.0, 1.0);
+    ui.painter().rect_filled(r, CornerRadius::same(8), lerp_color(HIGHLIGHT, Color32::WHITE, 0.18 * hot));
+    ui.painter().galley(r.center() - g.size() / 2.0, g, INK);
+    resp
+}
+
+/// A text input (30 px, the field's colour; a 1.5 px accent ring while typing; `lead`: an icon first) whose letters
+/// spring up as they're typed, as the kit's animated input does.
+pub fn text_input(ui: &mut Ui, text: &mut String, hint: &str, lead: Option<&str>, width: f32) -> Response {
+    let font = body(12.5);
+    let left = if lead.is_some() { 32.0 } else { 10.0 };
+    let out = egui::TextEdit::singleline(text)
+        .hint_text(egui::RichText::new(hint).color(MUTED))
+        .font(font.clone())
+        .text_color(Color32::TRANSPARENT)
+        .desired_width(width)
+        .margin(egui::Margin { left: left as i8, right: 10, top: 7, bottom: 7 })
+        .show(ui);
+    let resp = out.response.response;
+    let r = resp.rect;
+    if let Some(icon) = lead { super::frame::paint_icon(ui.painter(), icon, pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, MUTED); }
+    if resp.has_focus() { ui.painter().rect_stroke(r, CornerRadius::same(7), Stroke::new(1.5, ACCENT), StrokeKind::Inside); }
+    // each letter keeps an id while it stays, so only the ones typed spring in
+    let key = resp.id.with("letters");
+    let (before, mut ids, mut next): (String, Vec<u64>, u64) = ui.data(|d| d.get_temp(key)).unwrap_or_default();
+    if before != *text {
+        let (a, b): (Vec<char>, Vec<char>) = (before.chars().collect(), text.chars().collect());
+        let start = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+        let end = a[start..].iter().rev().zip(b[start..].iter().rev()).take_while(|(x, y)| x == y).count();
+        let added: Vec<u64> = (0..b.len() - start - end).map(|k| next + k as u64).collect();
+        next += added.len() as u64;
+        let mut fresh = ids[..start.min(ids.len())].to_vec();
+        fresh.extend(added);
+        fresh.extend(ids[ids.len().saturating_sub(end)..].iter().copied());
+        ids = fresh;
+        ui.data_mut(|d| d.insert_temp(key, (text.clone(), ids.clone(), next)));
+    }
+    let land = Spring { k: 600.0, c: 18.0 };
+    let p = ui.painter().with_clip_rect(r.shrink(1.0));
+    if let Some(row) = out.galley.rows.first() {
+        for (g, id) in row.glyphs.iter().zip(&ids) {
+            let t = spring_from(ui.ctx(), key.with(*id), 0.0, 1.0, land);
+            let at = out.galley_pos + vec2(g.pos.x, row.pos.y + g.pos.y - g.font_ascent + (1.0 - t) * 0.7 * font.size);
+            p.text(at, Align2::LEFT_TOP, g.chr, font.clone(), TEXT.gamma_multiply(t.clamp(0.0, 1.0)));
+        }
+    }
+    resp
+}
+
+/// A colour's friendly name ("Warm grey", "Deep blue"), worked out from its hue, saturation and lightness.
+pub fn colour_name(c: [f32; 3]) -> String {
+    let (r, g, b) = (c[0], c[1], c[2]);
+    let (mx, mn) = (r.max(g).max(b), r.min(g).min(b));
+    let l = (mx + mn) / 2.0;
+    let d = mx - mn;
+    let s = if d < 1e-6 { 0.0 } else { d / (1.0 - (2.0 * l - 1.0).abs()).max(1e-6) };
+    let mut h = if d < 1e-6 { 0.0 } else if mx == r { 60.0 * (((g - b) / d) % 6.0) } else if mx == g { 60.0 * ((b - r) / d + 2.0) } else { 60.0 * ((r - g) / d + 4.0) };
+    if h < 0.0 { h += 360.0; }
+    if s < 0.12 || d < 0.04 {
+        let grey = if l > 0.93 { "White" } else if l > 0.7 { "Light grey" } else if l > 0.38 { "Grey" } else if l > 0.12 { "Dark grey" } else { "Black" };
+        if d >= 0.02 && (0.12..0.93).contains(&l) { return format!("{} {}", if !(70.0..=300.0).contains(&h) { "Warm" } else { "Cool" }, grey.to_lowercase()); }
+        return grey.into();
+    }
+    let hue = match h as u32 { 0..=14 | 345..=360 => "red", 15..=40 => "orange", 41..=65 => "yellow", 66..=100 => "lime", 101..=150 => "green", 151..=180 => "teal", 181..=200 => "cyan", 201..=240 => "blue", 241..=265 => "indigo", 266..=290 => "violet", 291..=320 => "purple", _ => "pink" };
+    let hue = if hue == "orange" && l < 0.4 { "brown" } else { hue };
+    let shade = if l > 0.78 { "Pale " } else if l > 0.62 { "Light " } else if l < 0.28 { "Deep " } else if l < 0.4 { "Dark " } else { "" };
+    let word = format!("{shade}{hue}");
+    let mut ch = word.chars();
+    ch.next().map(|f| f.to_uppercase().collect::<String>() + ch.as_str()).unwrap_or_default()
 }
 
 pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
