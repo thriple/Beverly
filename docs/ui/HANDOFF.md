@@ -134,13 +134,15 @@ One family: **24 × 24 grid, 2 px stroke, round caps and joins, ≥ 2 px clear e
 
 ## Motion (the Motion kit, user 2026-11-17)
 
-The look above moves the way the Motion kit (`kit/motion-kit.zip`) does; Beverly's port is `editor/src/editor/theme.rs`.
+Everything you see follows this handoff; the Motion kit (`kit/motion-kit.zip`, Beverly's port in
+`editor/src/editor/theme.rs`) gives only the movement.
 
 - **Springs**: SPRING for containers resizing, SNAPPY for menus, tooltips and pills, SOFT for toasts.
-- **Tooltips**: the kit's: spring up 4 px from 96% scale, ink with a hairline edge, label then keycaps.
-- **Dock**: the kit's DockPanel motion on the dock: the active segment's pill slides between choices, content slides
-  48 px in the direction of travel and fades in, and folding to the rail springs the width.
-- **Status**: the kit's dynamic island is the status pill at the view's top left: it rests showing the movement mode
-  and springs open to announce each action ("Saved", "Test started"), then settles back.
-- **Inputs**: the kit's animated input: typed characters spring up as they land and drop away when deleted.
+- **Tooltips**: the handoff's tooltip (light pill, ink text, ink keycap) springs up 4 px from 96% scale.
+- **Dock**: the active segment's pill slides between choices, content slides 48 px in the direction of travel and
+  fades in, and folding to the rail springs the width.
+- **Status**: the status pill at the view's top left behaves as the kit's dynamic island: it rests showing the
+  movement mode and springs open to announce each action ("Saved", "Test started"), then settles back. It keeps the
+  status pill's look (glass, accent icon).
+- **Inputs**: text inputs keep the handoff's field; typed characters spring up as they land and drop away when deleted.
 - egui can't blur, so the kit's blur-in is a fade with a slight scale.

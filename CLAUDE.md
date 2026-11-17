@@ -12,10 +12,11 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   or tab is built from its pieces; add new ones to it. (Replaces the earlier `docs/ui.svg` design.)
 - **No rasters in the GUI (user, 2026-11-16):** everything the editor's interface draws is vector, rendered at the
   screen's resolution; no images, no scaled bitmaps.
-- **Motion kit (user, 2026-11-17):** the redesign's look with the Motion kit's movement and components
-  (`kit/motion-kit.zip`, ported in `editor/src/editor/theme.rs`): its springs (SPRING / SNAPPY / SOFT) and entrances,
-  its tooltips (spring up, with keycaps), the dock panel's motion (sliding pill, content sliding the way you went,
-  springing width), the dynamic island that pops open for each action, and its animated inputs.
+- **Motion kit (user, 2026-11-17):** the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/editor/theme.rs`)
+  gives the movement only: its springs (SPRING / SNAPPY / SOFT) and entrances, and how its tooltips spring up, its
+  dock panel moves (sliding pill, content sliding the way you went, springing width), its dynamic island pops open
+  for each action and its inputs animate typed characters. Everything you see (shapes, colours, sizes, type) follows
+  the redesign.
 - Caps Lock is the movement-mode switch only. Tab opens the parts pop-up. Mouse 5 / ] faster, Mouse 4 / [ slower.
 - Basic shapes double as colliders (Visible off = invisible collider).
 - Projects are folders of plain text (RON) so they work with git.
