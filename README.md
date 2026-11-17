@@ -37,4 +37,4 @@ Download `Beverly-windows.zip` from the [latest release](../../releases/latest),
 
 ## Credits
 
-Fonts: Inter and JetBrains Mono (SIL Open Font License), DejaVu Sans for symbols (Bitstream Vera / DejaVu license).
+Fonts: Roboto, Roboto Condensed (Apache License 2.0) and Roboto Mono (SIL Open Font License), DejaVu Sans for symbols (Bitstream Vera / DejaVu license).

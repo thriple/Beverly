@@ -16,7 +16,7 @@
 //! lists the same settings with their values, for the MCP server (and later the timeline's keyable values), and
 //! `apply` sets them from the same JSON.
 //! Fields without a `Setting` are not shown. Range ends changed under More are kept per file in a `Ranges` map.
-use crate::editor::theme::{self, ACCENT, LINE, MUTED, TEXT};
+use crate::editor::theme::{self, Tip, HIGHLIGHT, LINE, MUTED, TEXT};
 use bevy::reflect::{
     enums::{DynamicEnum, DynamicVariant}, std_traits::ReflectDefault, structs::Struct, tuple::DynamicTuple, PartialReflect,
     Reflect, ReflectMut, ReflectRef, TypeInfo, TypeRegistry,
@@ -182,7 +182,7 @@ pub fn section(ui: &mut Ui, value: &mut dyn PartialReflect, section: &str, ctx: 
     changed
 }
 
-fn tip(r: egui::Response, s: &Setting) -> egui::Response { if s.help.is_empty() { r } else { r.on_hover_text(s.help) } }
+fn tip(r: egui::Response, s: &Setting) -> egui::Response { if s.help.is_empty() { r } else { r.tip(s.help) } }
 
 fn small(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting) -> bool {
     ui.label(egui::RichText::new(s.label).color(MUTED));
@@ -426,7 +426,7 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Respon
     let p = ui.painter();
     p.rect_filled(track, CornerRadius::same(3), Color32::from_white_alpha(28));
     let x = track.left() + track.width() * shown.clamp(0.0, 1.0);
-    p.rect_filled(egui::Rect::from_min_max(track.min, egui::pos2(x, track.max.y)), CornerRadius::same(3), ACCENT);
+    p.rect_filled(egui::Rect::from_min_max(track.min, egui::pos2(x, track.max.y)), CornerRadius::same(3), HIGHLIGHT);
     let hot = resp.hovered() || resp.dragged();
     p.circle_filled(egui::pos2(x, track.center().y), if hot { 7.5 } else { 6.5 }, TEXT);
     let font = theme::body(11.0);

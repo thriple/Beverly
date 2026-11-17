@@ -4,7 +4,6 @@
 //! - Builder movement: no-clip flight; the mouse looks, W/A/S/D move where you look, no speed ramp. Mouse 5 / ]
 //!   faster, Mouse 4 / [ slower through 12 speeds. Hold Alt for a cursor.
 use super::{Editor, theme};
-use bevy::camera::Viewport;
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -29,7 +28,7 @@ pub struct View {
     pub speed: usize,
     /// When the speed last changed (seconds), to show the speed strip for a moment.
     pub speed_changed: f64,
-    /// The 3D viewport in logical window pixels (the area the panels leave free).
+    /// The view in logical window pixels (inside the frame; the world renders under the whole window).
     pub rect: Rect,
     /// The view's shape within `rect` (its rounded outline, notches and all; empty: all of `rect`).
     pub outline: Vec<bevy_egui::egui::Pos2>,
@@ -87,7 +86,7 @@ pub fn setup(mut commands: Commands, mut egui_settings: ResMut<EguiGlobalSetting
     let msaa = if std::env::var_os("BEVERLY_LITE").is_some() { Msaa::Off } else { Msaa::Sample4 };
     commands.spawn((Camera3d::default(), MainCamera, crate::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa, RenderLayers::from_layers(&[0, 1]))); // the level and the editor's own layer (world::EDITOR_ONLY)
     commands.insert_resource(v);
-    // The panels get their own full-window camera, drawn over the 3D view (whose viewport shrinks to the free area).
+    // The panels get their own full-window camera, drawn over the 3D view.
     egui_settings.auto_create_primary_context = false;
     commands.spawn((
         PrimaryEguiContext,
@@ -234,18 +233,9 @@ pub fn input(
     tf.rotation = view.rot();
 }
 
-/// Point the camera's viewport at the area the panels leave free.
-pub fn apply_viewport(view: Res<View>, window: Single<&Window, With<PrimaryWindow>>, mut cam: Single<&mut Camera, With<MainCamera>>) {
-    let s = window.scale_factor();
-    let r = view.rect;
-    let pos = (r.min * s).as_uvec2();
-    let size = (r.size() * s).as_uvec2().max(UVec2::ONE);
-    let phys = UVec2::new(window.physical_width(), window.physical_height());
-    if pos.x + size.x > phys.x || pos.y + size.y > phys.y || phys.x == 0 { return; }
-    let vp = Viewport { physical_position: pos, physical_size: size, ..default() };
-    if cam.viewport.as_ref().map(|v| (v.physical_position, v.physical_size)) != Some((pos, size)) {
-        cam.viewport = Some(vp);
-    }
+/// The 3D world renders under the whole window (the frame is translucent over it).
+pub fn apply_viewport(mut cam: Single<&mut Camera, With<MainCamera>>) {
+    if cam.viewport.is_some() { cam.viewport = None; }
 }
 
 /// Ground grid around the camera: 1 m lines, brighter every 10 m, fading out.

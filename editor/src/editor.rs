@@ -5,6 +5,7 @@ mod bev_type;
 mod caps;
 mod edit;
 mod frame;
+mod tokens;
 mod text;
 mod vector;
 mod camera;
@@ -67,7 +68,6 @@ pub struct Editor {
     pub parts_fresh: bool,
     /// The keyboard highlight in the pop-up (an index into the matching shapes).
     pub parts_cursor: usize,
-    pub assets_open: bool,
     pub assets: Vec<(&'static str, Vec<String>)>,
     pub hovering_files: bool,
     pub pending: Option<Pending>,
@@ -108,12 +108,13 @@ pub struct Editor {
     pub finder: Option<crate::nav::Finder>,
     /// Trying a path on the area (Try a path).
     pub path_try: Option<PathTry>,
-    /// What the Level tab is showing (its menu): the bottom-left panel's settings and the scene list follow it.
+    /// The Level tab's topic (the chips in the top notch): the dock's settings and list follow it.
     pub level_mode: LevelMode,
-    /// The bottom panels' drawers (the mode's settings, the inspector, the scene list): open, and how much taller
-    /// than drawn when open (design units).
-    pub drawers: [bool; 3],
-    pub drawer_h: [f32; 3],
+    /// The dock on the view's right: open (or folded to its rail), and what it shows (Inspect, the list, Assets).
+    pub dock_open: bool,
+    pub dock_view: usize,
+    /// The window is maximised (its own title bar's button, or a double-click on the bar).
+    pub maximized: bool,
     /// A label to float near the cursor this frame (move widget): window position, text, colour.
     pub label: Option<(Vec2, String, bevy_egui::egui::Color32)>,
     /// The game player's file name (without .exe), next to the editor; exports copy it.
@@ -177,7 +178,6 @@ impl Editor {
             parts_query: String::new(),
             parts_fresh: false,
             parts_cursor: 0,
-            assets_open: true,
             assets: vec![],
             hovering_files: false,
             pending: None,
@@ -206,8 +206,9 @@ impl Editor {
             finder: None,
             path_try: None,
             level_mode: LevelMode::Build,
-            drawers: [false; 3],
-            drawer_h: [0.0; 3],
+            dock_open: true,
+            dock_view: 0,
+            maximized: false,
             label: None,
             player: "beverly-player",
             wiring: None,
@@ -274,7 +275,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
     let mut app = App::new();
     models::register_source(&mut app, &root);
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window { title: title.into(), resolution: (1600, 960).into(), ..default() }),
+            primary_window: Some(Window { title: title.into(), resolution: (1600, 960).into(), decorations: false, ..default() }),
             close_when_requested: false,
             ..default()
         }));

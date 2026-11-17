@@ -1,22 +1,24 @@
-//! The editor's frame and panels, drawn from the user's design: `assets/ui/editor.svg` (their docs/ui.svg cut into
-//! parts by id, every shape, colour and coordinate kept). Each part is tessellated once (lyon) and drawn as a mesh.
-//! The design is scaled to fit the window; a wider or taller window stretches only a few straight runs between the
-//! corners and notches, so every curve, angle and the logo stay as drawn.
+//! The editor's frame and vector shapes, as the user's redesign draws them (docs/ui/HANDOFF.md, "The frame"): the
+//! window with the 3D view set into it as one outline (rounded corners, a notch dipping in at the top for the tab's
+//! topics and one rising at the bottom for the hints), and the icon set (docs/ui/icons, 24 x 24, 2 px round strokes).
+//! Each shape is tessellated (lyon) and drawn by the vector renderer (vector.rs), which covers each pixel exactly.
 use bevy_egui::egui::{self, Color32, Pos2, Rect, pos2};
 pub(super) use lyon_tessellation::path::Path as LPath;
-use lyon_tessellation::path::{PathEvent, iterator::PathIterator};
-use lyon_tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex, VertexBuffers, math::point};
+use lyon_tessellation::path::iterator::PathIterator;
+use lyon_tessellation::{BuffersBuilder, FillOptions, FillRule, FillTessellator, FillVertex, LineCap, LineJoin, StrokeOptions, StrokeTessellator, StrokeVertex, VertexBuffers, math::point};
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 use usvg::tiny_skia_path::{PathSegment, Point, Transform};
 
-/// The design's main artboard (the window), in its own units.
-const ART: Rect = Rect { min: pos2(31.8, 36.6), max: pos2(1238.2, 764.4) };
-/// The straight runs that stretch when the window is wider (two, shared equally) or taller than the design.
-const STRETCH_X: [(f32, f32); 2] = [(200.0, 280.0), (990.0, 1070.0)];
-const STRETCH_Y: (f32, f32) = (250.0, 550.0);
+/// The top bar's height, the rims along the sides and bottom, the view's corner radius, the notches' depth.
+pub const TOP: f32 = 44.0;
+pub const RIM: f32 = 8.0;
+const VIEW_R: f32 = 14.0;
+pub const NOTCH: f32 = 34.0;
+/// Each notch's curved shoulder is this wide.
+pub const SHOULDER: f32 = 44.0;
 
-/// One part of the design: triangles in its own units, coloured, and its shapes' edges (each pixel's coverage is
+/// A shape: triangles in its own units, coloured, and its shapes' edges (each pixel's coverage is
 /// worked out from them).
 pub struct Part {
     pub verts: Vec<(Pos2, Color32)>,
@@ -31,74 +33,8 @@ pub struct Part {
     shape_of: Vec<[u32; 2]>,
 }
 
-pub struct Art {
-    parts: HashMap<String, Part>,
-    /// The view's outline (the frame's hole), in the design's units.
-    pub view: Vec<Pos2>,
-}
-
-/// The design, read once.
-pub fn art() -> &'static Art {
-    static ART_ONCE: OnceLock<Art> = OnceLock::new();
-    ART_ONCE.get_or_init(|| Art::read(include_str!("../../assets/ui/editor.svg")))
-}
-
-impl Art {
-    fn read(svg: &str) -> Art {
-        let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).expect("the editor's design is valid SVG");
-        let mut parts = HashMap::new();
-        let mut view = vec![];
-        for node in tree.root().children() {
-            let usvg::Node::Group(g) = node else { continue };
-            let mut part = Part { verts: vec![], indices: vec![], bounds: Rect::NOTHING, normals: vec![], rims: vec![], shape_of: vec![] };
-            add_group(&mut part, g, 1.0, if g.id() == "frame" { Some(&mut view) } else { None });
-            parts.insert(g.id().to_string(), part);
-        }
-        Art { parts, view }
-    }
-
-    pub fn part(&self, id: &str) -> &Part { &self.parts[id] }
-}
-
-fn add_group(part: &mut Part, g: &usvg::Group, opacity: f32, mut outline: Option<&mut Vec<Pos2>>) {
-    let opacity = opacity * g.opacity().get();
-    for node in g.children() {
-        match node {
-            usvg::Node::Group(c) => add_group(part, c, opacity, outline.as_deref_mut()),
-            usvg::Node::Path(p) if p.is_visible() => {
-                let (path, t) = (lyon_path(p.data()), p.abs_transform());
-                if let Some(f) = p.fill() {
-                    let rule = if f.rule() == usvg::FillRule::EvenOdd { lyon_tessellation::FillRule::EvenOdd } else { lyon_tessellation::FillRule::NonZero };
-                    let mut b: VertexBuffers<Pos2, u32> = VertexBuffers::new();
-                    FillTessellator::new()
-                        .tessellate_path(&path, &FillOptions::tolerance(0.02).with_fill_rule(rule), &mut BuffersBuilder::new(&mut b, |v: FillVertex| pos2(v.position().x, v.position().y)))
-                        .expect("the design's shapes tessellate");
-                    push(part, b, t, colouring(f.paint(), f.opacity().get() * opacity));
-                }
-                if let Some(s) = p.stroke() {
-                    let mut b: VertexBuffers<Pos2, u32> = VertexBuffers::new();
-                    StrokeTessellator::new()
-                        .tessellate_path(&path, &StrokeOptions::tolerance(0.02).with_line_width(s.width().get()), &mut BuffersBuilder::new(&mut b, |v: StrokeVertex| pos2(v.position().x, v.position().y)))
-                        .expect("the design's strokes tessellate");
-                    push(part, b, t, colouring(s.paint(), s.opacity().get() * opacity));
-                }
-                // the frame's hole is the view
-                if let Some(o) = outline.as_deref_mut() {
-                    let mut subs: Vec<Vec<Pos2>> = vec![];
-                    for e in path.iter().flattened(0.05) {
-                        match e {
-                            PathEvent::Begin { at } => subs.push(vec![map(t, pos2(at.x, at.y))]),
-                            PathEvent::Line { to, .. } => subs.last_mut().expect("begun").push(map(t, pos2(to.x, to.y))),
-                            _ => {}
-                        }
-                    }
-                    let area = |s: &Vec<Pos2>| Rect::from_points(s).area();
-                    if let Some(inner) = subs.into_iter().min_by(|a, b| area(a).total_cmp(&area(b))) { *o = inner; }
-                }
-            }
-            _ => {}
-        }
-    }
+impl Part {
+    fn new() -> Part { Part { verts: vec![], indices: vec![], bounds: Rect::NOTHING, normals: vec![], rims: vec![], shape_of: vec![] } }
 }
 
 fn map(t: Transform, p: Pos2) -> Pos2 {
@@ -136,32 +72,6 @@ fn lyon_path(d: &usvg::tiny_skia_path::Path) -> LPath {
     }
     if open { b.end(false); }
     b.build()
-}
-
-/// Add tessellated triangles (in the path's own space) to a part, coloured by its paint.
-/// A paint's colour at a point of its path (gradients worked out per point).
-fn colouring(paint: &usvg::Paint, opacity: f32) -> impl Fn(Pos2) -> Color32 + '_ {
-    move |local: Pos2| -> Color32 {
-        let (c, a) = match paint {
-            usvg::Paint::Color(c) => (*c, 1.0),
-            usvg::Paint::LinearGradient(g) => {
-                let mut q = Point::from_xy(local.x, local.y);
-                if let Some(inv) = g.transform().invert() { inv.map_point(&mut q); }
-                let (dx, dy) = (g.x2() - g.x1(), g.y2() - g.y1());
-                let k = (((q.x - g.x1()) * dx + (q.y - g.y1()) * dy) / (dx * dx + dy * dy).max(1e-6)).clamp(0.0, 1.0);
-                let stops = g.stops();
-                let i = stops.iter().position(|s| s.offset().get() >= k).unwrap_or(stops.len() - 1);
-                let (s0, s1) = (&stops[i.saturating_sub(1)], &stops[i]);
-                let span = (s1.offset().get() - s0.offset().get()).max(1e-6);
-                let u = ((k - s0.offset().get()) / span).clamp(0.0, 1.0);
-                let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * u).round() as u8;
-                let (a0, a1) = (s0.color(), s1.color());
-                (usvg::Color::new_rgb(l(a0.red, a1.red), l(a0.green, a1.green), l(a0.blue, a1.blue)), s0.opacity().get() + (s1.opacity().get() - s0.opacity().get()) * u)
-            }
-            _ => (usvg::Color::black(), 1.0),
-        };
-        Color32::from_rgba_unmultiplied(c.red, c.green, c.blue, (a * opacity * 255.0).round() as u8)
-    }
 }
 
 /// Add tessellated triangles (in the path's own space, placed by `t`) to a part, coloured by `colour`.
@@ -211,7 +121,7 @@ fn push(part: &mut Part, b: VertexBuffers<Pos2, u32>, t: Transform, colour: impl
 
 /// A filled outline (a letter's) as a white part, in the outline's own units.
 pub(super) fn filled(path: &LPath) -> Part {
-    let mut part = Part { verts: vec![], indices: vec![], bounds: Rect::NOTHING, normals: vec![], rims: vec![], shape_of: vec![] };
+    let mut part = Part::new();
     let mut b: VertexBuffers<Pos2, u32> = VertexBuffers::new();
     if FillTessellator::new().tessellate_path(path, &FillOptions::tolerance(0.0005), &mut BuffersBuilder::new(&mut b, |v: FillVertex| pos2(v.position().x, v.position().y))).is_ok() {
         push(&mut part, b, Transform::identity(), |_| Color32::WHITE);
@@ -262,64 +172,176 @@ fn vertices(part: &Part, place: impl Fn(Pos2) -> Pos2, colour: impl Fn(Color32) 
     (out, edges)
 }
 
-/// How the design's units land in the window: scaled to fit, with the extra width and height going to the
-/// stretching runs.
-#[derive(Clone, Copy)]
-pub struct Map { pub window: Rect, pub s: f32, ex: f32, ey: f32 }
-
-/// How a part follows the window across (or down): stretched with the design, or kept whole and moved with the
-/// design at one of its own points (a pill pinned by its outer end, say).
-#[derive(Clone, Copy)]
-pub enum Fit { Stretch, Pin(f32) }
-
-impl Map {
-    pub fn new(window: Rect) -> Self {
-        let s = (window.width() / ART.width()).min(window.height() / ART.height());
-        Map { window, s, ex: (window.width() - ART.width() * s).max(0.0) / 2.0, ey: (window.height() - ART.height() * s).max(0.0) }
-    }
-    fn gx(&self, x: f32) -> f32 { STRETCH_X.iter().map(|(a, b)| self.ex * ((x - a) / (b - a)).clamp(0.0, 1.0)).sum() }
-    fn gy(&self, y: f32) -> f32 { self.ey * ((y - STRETCH_Y.0) / (STRETCH_Y.1 - STRETCH_Y.0)).clamp(0.0, 1.0) }
-    pub fn x(&self, x: f32, fit: Fit) -> f32 { self.window.left() + (x - ART.left()) * self.s + self.gx(match fit { Fit::Stretch => x, Fit::Pin(at) => at }) }
-    pub fn y(&self, y: f32, fit: Fit) -> f32 { self.window.top() + (y - ART.top()) * self.s + self.gy(match fit { Fit::Stretch => y, Fit::Pin(at) => at }) }
-    pub fn pos(&self, p: Pos2, fx: Fit, fy: Fit) -> Pos2 { pos2(self.x(p.x, fx), self.y(p.y, fy)) }
-    pub fn rect(&self, r: Rect, fx: Fit, fy: Fit) -> Rect { Rect::from_min_max(self.pos(r.min, fx, fy), self.pos(r.max, fx, fy)) }
-    /// A length in the design's units.
-    pub fn len(&self, l: f32) -> f32 { l * self.s }
-}
-
-/// How the pills and the Assets card follow a wider window: kept whole, pinned at their outer ends.
-pub const LEFT: Fit = Fit::Pin(56.0);
-pub const RIGHT: Fit = Fit::Pin(1214.0);
-/// The bottom panels and drawers follow the window's bottom.
-pub const BOTTOM: Fit = Fit::Pin(764.4);
-
-/// Where the design's parts land in a window.
+/// Where the frame puts things in a window.
 pub struct Layout {
-    pub m: Map,
-    /// The 3D view: its bounds (the camera's viewport) and its shape.
+    pub window: Rect,
+    /// The 3D view's bounds and its shape (the notches cut in).
     pub view: Rect,
     pub outline: Vec<Pos2>,
-    pub left_pill: Rect,
-    pub right_pill: Rect,
-    pub assets: Rect,
-    pub drop: Rect,
-    /// The bottom panels, closed: the Level topic's settings, the inspector, the scene list.
-    pub panels: [Rect; 3],
+    path: LPath,
+    /// The flat floors of the two notches (where the topics and the hints sit).
+    pub top_notch: Rect,
+    pub bottom_notch: Rect,
 }
 
-pub fn layout(window: Rect) -> Layout {
-    let m = Map::new(window);
-    let a = art();
-    let outline: Vec<Pos2> = a.view.iter().map(|p| m.pos(*p, Fit::Stretch, Fit::Stretch)).collect();
+/// The frame in a window, with a top notch `nt` wide (0: none) and a bottom notch `nb` wide, shoulders included.
+pub fn layout(window: Rect, nt: f32, nb: f32) -> Layout {
+    let view = Rect::from_min_max(window.min + egui::vec2(RIM, TOP), window.max - egui::vec2(RIM, RIM));
+    let (x0, y0, x1, y1, r, d) = (view.left(), view.top(), view.right(), view.bottom(), VIEW_R, NOTCH);
+    let cx = view.center().x;
+    let (a1, a2, b1, b2) = (cx - nt / 2.0, cx + nt / 2.0, cx - nb / 2.0, cx + nb / 2.0);
+    let mut b = LPath::builder();
+    let p = |x: f32, y: f32| point(x, y);
+    // a quarter circle from the current point to `to` around the corner `c`
+    let k = 0.552_284_8;
+    let quarter = |b: &mut lyon_tessellation::path::path::Builder, from: (f32, f32), c: (f32, f32), to: (f32, f32)| {
+        b.cubic_bezier_to(p(from.0 + (c.0 - from.0) * k, from.1 + (c.1 - from.1) * k), p(to.0 + (c.0 - to.0) * k, to.1 + (c.1 - to.1) * k), p(to.0, to.1));
+    };
+    b.begin(p(x0 + r, y0));
+    if nt > 0.0 {
+        b.line_to(p(a1, y0));
+        b.cubic_bezier_to(p(a1 + 20.0, y0), p(a1 + 22.0, y0 + d), p(a1 + SHOULDER, y0 + d));
+        b.line_to(p(a2 - SHOULDER, y0 + d));
+        b.cubic_bezier_to(p(a2 - 22.0, y0 + d), p(a2 - 20.0, y0), p(a2, y0));
+    }
+    b.line_to(p(x1 - r, y0));
+    quarter(&mut b, (x1 - r, y0), (x1, y0), (x1, y0 + r));
+    b.line_to(p(x1, y1 - r));
+    quarter(&mut b, (x1, y1 - r), (x1, y1), (x1 - r, y1));
+    if nb > 0.0 {
+        b.line_to(p(b2, y1));
+        b.cubic_bezier_to(p(b2 - 20.0, y1), p(b2 - 22.0, y1 - d), p(b2 - SHOULDER, y1 - d));
+        b.line_to(p(b1 + SHOULDER, y1 - d));
+        b.cubic_bezier_to(p(b1 + 22.0, y1 - d), p(b1 + 20.0, y1), p(b1, y1));
+    }
+    b.line_to(p(x0 + r, y1));
+    quarter(&mut b, (x0 + r, y1), (x0, y1), (x0, y1 - r));
+    b.line_to(p(x0, y0 + r));
+    quarter(&mut b, (x0, y0 + r), (x0, y0), (x0 + r, y0));
+    b.end(true);
+    let path = b.build();
+    let outline = path.iter().flattened(0.05).filter_map(|e| match e {
+        lyon_tessellation::path::PathEvent::Begin { at } => Some(pos2(at.x, at.y)),
+        lyon_tessellation::path::PathEvent::Line { to, .. } => Some(pos2(to.x, to.y)),
+        _ => None,
+    }).collect();
     Layout {
-        view: Rect::from_points(&outline),
+        window,
+        view,
         outline,
-        left_pill: bounds("pill-left", &m, LEFT, Fit::Stretch),
-        right_pill: bounds("pill-right", &m, RIGHT, Fit::Stretch),
-        assets: bounds("assets-card", &m, RIGHT, Fit::Stretch),
-        drop: bounds("drop-files", &m, RIGHT, Fit::Stretch),
-        panels: ["panel-mode", "panel-inspector", "panel-scene"].map(|id| bounds(id, &m, Fit::Stretch, BOTTOM)),
-        m,
+        path,
+        top_notch: Rect::from_min_max(pos2(a1 + SHOULDER, y0), pos2(a2 - SHOULDER, y0 + d)),
+        bottom_notch: Rect::from_min_max(pos2(b1 + SHOULDER, y1 - d), pos2(b2 - SHOULDER, y1)),
+    }
+}
+
+/// The frame's colours: its fill (the tab's frame colour at its alpha) and the edge along the view.
+#[derive(Clone, Copy, PartialEq)]
+pub struct Look { pub fill: Color32, pub alpha: f32, pub edge: Color32 }
+
+type Drawn = (u64, Arc<(Part, Part)>);
+
+/// Draw the frame: the window minus the view, in the tab's colour with a white sheen over its top 64 px, and a
+/// 1 px edge along the view. (Kept from frame to frame until the window, the notches or the colours change.)
+pub fn paint_frame(p: &egui::Painter, lay: &Layout, look: Look) {
+    static LAST: Mutex<Option<Drawn>> = Mutex::new(None);
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for v in [lay.window.min.x, lay.window.min.y, lay.window.max.x, lay.window.max.y, lay.top_notch.width(), lay.bottom_notch.width(), look.alpha] { v.to_bits().hash(&mut h); }
+        (look.fill.to_array(), look.edge.to_array()).hash(&mut h);
+        h.finish()
+    };
+    let parts = {
+        let mut last = LAST.lock().expect("not poisoned");
+        match last.as_ref() {
+            Some((k, parts)) if *k == key => parts.clone(),
+            _ => {
+                let parts = Arc::new(frame_parts(lay, look));
+                *last = Some((key, parts.clone()));
+                parts
+            }
+        }
+    };
+    paint(p, &parts.0, |q| q, |c| c);
+    paint(p, &parts.1, |q| q, |c| c);
+}
+
+fn frame_parts(lay: &Layout, look: Look) -> (Part, Part) {
+    let w = lay.window;
+    // the window (with corners where the sheen ends, so its fade is exact down the sides) and the view as a hole
+    let sheen_end = w.top() + 64.0;
+    let mut b = LPath::builder();
+    b.begin(point(w.left(), w.top()));
+    for (x, y) in [(w.right(), w.top()), (w.right(), sheen_end), (w.right(), w.bottom()), (w.left(), w.bottom()), (w.left(), sheen_end)] { b.line_to(point(x, y)); }
+    b.end(true);
+    b.extend_from_paths(&[lay.path.as_slice()]);
+    let path = b.build();
+    let mut fill = Part::new();
+    let mut buf: VertexBuffers<Pos2, u32> = VertexBuffers::new();
+    FillTessellator::new()
+        .tessellate_path(&path, &FillOptions::tolerance(0.02).with_fill_rule(FillRule::EvenOdd), &mut BuffersBuilder::new(&mut buf, |v: FillVertex| pos2(v.position().x, v.position().y)))
+        .expect("the frame tessellates");
+    let [r, g, bl, _] = look.fill.to_array();
+    push(&mut fill, buf, Transform::identity(), |q| {
+        // white at 16% fading to nothing over the top 64 px, over the frame colour
+        let s = 0.16 * (1.0 - ((q.y - w.top()) / 64.0).clamp(0.0, 1.0));
+        let a = s + look.alpha * (1.0 - s);
+        let mix = |c: u8| ((255.0 * s + c as f32 * look.alpha * (1.0 - s)) / a.max(1e-6)).round() as u8;
+        Color32::from_rgba_unmultiplied(mix(r), mix(g), mix(bl), (a * 255.0).round() as u8)
+    });
+    let mut edge = Part::new();
+    let mut buf: VertexBuffers<Pos2, u32> = VertexBuffers::new();
+    StrokeTessellator::new()
+        .tessellate_path(&lay.path, &StrokeOptions::tolerance(0.02).with_line_width(1.0), &mut BuffersBuilder::new(&mut buf, |v: StrokeVertex| pos2(v.position().x, v.position().y)))
+        .expect("the view's edge tessellates");
+    push(&mut edge, buf, Transform::identity(), |_| look.edge);
+    (fill, edge)
+}
+
+/// The icon set (docs/ui/icons): each icon's 2 px round stroke on its 24 x 24 grid, white.
+fn icons() -> &'static HashMap<String, Part> {
+    static ICONS: OnceLock<HashMap<String, Part>> = OnceLock::new();
+    ICONS.get_or_init(|| {
+        #[derive(serde::Deserialize)]
+        struct Set { icons: std::collections::BTreeMap<String, String> }
+        let set: Set = serde_json::from_str(include_str!("../../assets/ui/icons.json")).expect("the icon set is valid");
+        set.icons.into_iter().map(|(name, d)| {
+            let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="{d}"/></svg>"#);
+            let tree = usvg::Tree::from_str(&svg, &usvg::Options::default()).expect("an icon is valid SVG");
+            let mut part = Part::new();
+            for node in tree.root().children() {
+                let usvg::Node::Path(p) = node else { continue };
+                let mut buf: VertexBuffers<Pos2, u32> = VertexBuffers::new();
+                let opts = StrokeOptions::tolerance(0.01).with_line_width(2.0).with_line_cap(LineCap::Round).with_line_join(LineJoin::Round);
+                StrokeTessellator::new()
+                    .tessellate_path(&lyon_path(p.data()), &opts, &mut BuffersBuilder::new(&mut buf, |v: StrokeVertex| pos2(v.position().x, v.position().y)))
+                    .expect("an icon tessellates");
+                push(&mut part, buf, p.abs_transform(), |_| Color32::WHITE);
+            }
+            (name, part)
+        }).collect()
+    })
+}
+
+/// Draw an icon `size` points across, centred at `c`, in `colour`.
+pub fn paint_icon(p: &egui::Painter, name: &str, c: Pos2, size: f32, colour: Color32) {
+    let Some(part) = icons().get(name) else { return };
+    let k = size / 24.0;
+    paint(p, part, |q| c + (q - pos2(12.0, 12.0)) * k, |_| colour);
+}
+
+/// Fill a closed polygon (any shape, in window points) in `colour`.
+pub fn paint_polygon(p: &egui::Painter, pts: &[Pos2], colour: Color32) {
+    let mut b = LPath::builder();
+    b.begin(point(pts[0].x, pts[0].y));
+    for q in &pts[1..] { b.line_to(point(q.x, q.y)); }
+    b.end(true);
+    let mut part = Part::new();
+    let mut buf: VertexBuffers<Pos2, u32> = VertexBuffers::new();
+    if FillTessellator::new().tessellate_path(&b.build(), &FillOptions::tolerance(0.01), &mut BuffersBuilder::new(&mut buf, |v: FillVertex| pos2(v.position().x, v.position().y))).is_ok() {
+        push(&mut part, buf, Transform::identity(), |_| colour);
+        paint(p, &part, |q| q, |c| c);
     }
 }
 
@@ -334,39 +356,30 @@ pub fn inside(outline: &[Pos2], p: Pos2) -> bool {
     on
 }
 
-/// The part's bounds in the window.
-pub fn bounds(id: &str, m: &Map, fx: Fit, fy: Fit) -> Rect { m.rect(art().part(id).bounds, fx, fy) }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use bevy_egui::egui::vec2;
 
     #[test]
-    fn the_design_reads_into_its_parts_and_fits_any_window() {
-        let a = art();
-        for id in ["frame", "logo", "pill-left", "pill-right", "tab-band", "assets-card", "drop-files", "panel-mode", "panel-inspector", "panel-scene", "drawer-mode", "drawer-inspector", "drawer-scene", "grip", "toggle", "undo-icon", "menu-level", "menu-effects"] {
-            assert!(!a.part(id).indices.is_empty(), "{id}");
-        }
-        // the view: the frame's hole, from its rounded top left to the inspector's step
-        let v = Rect::from_points(&a.view);
-        assert!((v.left() - 46.2).abs() < 0.2 && (v.top() - 51.9).abs() < 0.2 && (v.bottom() - 668.1).abs() < 0.3, "{v:?}");
-        assert!(inside(&a.view, v.center()) && !inside(&a.view, pos2(635.0, 60.0)), "the tabs' notch is frame");
-        for (w, h) in [(1600.0, 960.0), (2560.0, 1080.0), (1300.0, 1300.0)] {
-            let m = Map::new(Rect::from_min_size(Pos2::ZERO, vec2(w, h)));
-            // the design's corners reach the window's
-            assert!(m.pos(ART.min, Fit::Stretch, Fit::Stretch).distance(Pos2::ZERO) < 0.01);
-            assert!(m.pos(ART.max, Fit::Stretch, Fit::Stretch).distance(pos2(w, h)) < 0.01, "{w}×{h}");
-            // every part's vertices land in or just around the window
+    fn the_frame_and_icons_draw_in_any_window() {
+        for (w, h) in [(1600.0, 960.0), (2560.0, 1080.0), (900.0, 700.0)] {
             let win = Rect::from_min_size(Pos2::ZERO, vec2(w, h));
-            for id in ["frame", "logo", "pill-left", "assets-card", "drop-files", "undo-icon", "panel-mode"] {
-                let (v, e) = vertices(a.part(id), |p| m.pos(p, Fit::Stretch, Fit::Stretch), |c| c, win, 1.0);
-                assert!(v.iter().all(|v| v.pos.iter().all(|x| x.is_finite() && x.abs() < 1.1)), "{id}: {:?}", v.iter().map(|v| v.pos).find(|p| !(p[0].abs() < 1.1 && p[1].abs() < 1.1)));
-                assert!(e.iter().flatten().all(|x| x.is_finite()) && v.iter().all(|v| v.range[0] + v.range[1] <= e.len() as u32), "{id}: edges");
+            let lay = layout(win, 500.0, 400.0);
+            let c = lay.view.center();
+            assert!(inside(&lay.outline, c) && inside(&lay.outline, pos2(lay.view.left() + 30.0, lay.view.top() + 5.0)));
+            assert!(!inside(&lay.outline, pos2(c.x, lay.view.top() + 10.0)), "the topics' notch is frame");
+            assert!(!inside(&lay.outline, pos2(c.x, lay.view.bottom() - 10.0)), "the hints' notch is frame");
+            assert!((lay.top_notch.width() - (500.0 - 2.0 * SHOULDER)).abs() < 0.01 && (lay.top_notch.height() - NOTCH).abs() < 0.01);
+            let (fill, edge) = frame_parts(&lay, Look { fill: Color32::BLACK, alpha: 0.78, edge: Color32::WHITE });
+            for part in [&fill, &edge] {
+                let (v, e) = vertices(part, |p| p, |c| c, win, 1.0);
+                assert!(!v.is_empty() && v.iter().all(|v| v.pos.iter().all(|x| x.is_finite() && x.abs() < 1.1)));
+                assert!(v.iter().all(|v| v.range[0] + v.range[1] <= e.len() as u32));
             }
-            // a pinned part keeps its size
-            let r = bounds("assets-card", &m, Fit::Pin(1214.0), Fit::Pin(100.0));
-            assert!((r.width() - 234.0 * m.s).abs() < 0.5);
+        }
+        for name in ["cube", "mountain", "undo", "redo", "grid", "minus", "square", "x", "check", "sliders", "layers", "folder"] {
+            assert!(icons().get(name).is_some_and(|p| !p.indices.is_empty()), "{name}");
         }
     }
 }

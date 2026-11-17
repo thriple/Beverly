@@ -572,7 +572,7 @@ pub fn interact(
         // what the drag (or the typed number) asks for
         let mut next: Option<Part> = None;
         let mut text = String::new();
-        let mut color = theme::ACCENT;
+        let mut color = theme::HIGHLIGHT;
         match drag_h {
             Grip::Axis(i) => {
                 let delta = match (enter, typed_val) {
@@ -690,8 +690,8 @@ pub fn interact(
             let at = ptr + vec2(18.0, 14.0);
             ed.label = Some(match h {
                 Grip::Axis(i) => (at, format!("Move along {}", axis_name(i)), axis_color(i)),
-                Grip::Ring => (at, "Rotate".into(), theme::ACCENT),
-                Grip::Corner(_) => (at, "Scale (Shift: from the middle)".into(), theme::ACCENT),
+                Grip::Ring => (at, "Rotate".into(), theme::HIGHLIGHT),
+                Grip::Corner(_) => (at, "Scale (Shift: from the middle)".into(), theme::HIGHLIGHT),
                 Grip::Face(i, _) => (at, format!("Stretch along {} (Shift: both sides)", axis_name(i)), axis_color(i)),
             });
             if mouse.just_pressed(MouseButton::Left) {

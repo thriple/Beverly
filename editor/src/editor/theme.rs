@@ -1,113 +1,108 @@
-//! The Motion kit's look, ported to egui: colours, corner radii, springs and the small kit components the
-//! editor uses (keycap, status island, segmented control, toggle, hold button). Values come from the kit's
-//! `kit.css` and `motion.ts` (kit/motion-kit.zip); keep them in step with it.
+//! The editor's look (the user's redesign, docs/ui/HANDOFF.md and docs/ui/tokens) with the Motion kit's movement
+//! (kit/motion-kit.zip: its springs from `motion.ts`), ported to egui: colours, type, the tab colours, springs and
+//! the small components the editor uses (keycap, status island, segmented control, toggle, hold button).
 use bevy_egui::egui::{
     self, Align2, Color32, Context, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Id, Rect, Response,
     Sense, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 use std::sync::Arc;
 
-// ---- colours (kit.css --kit-*) ----
-pub const ACCENT: Color32 = Color32::from_rgb(0xf5, 0xdc, 0x4a);
-pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x5e, 0x3a);
-#[allow(dead_code)]
-pub const OK: Color32 = Color32::from_rgb(0x7b, 0xe0, 0x8a);
-/// The design's toggles when on (docs/ui.svg).
-pub const GREEN: Color32 = Color32::from_rgb(0xc0, 0xef, 0x8f);
-pub const INK: Color32 = Color32::from_rgb(0x0a, 0x08, 0x09);
-pub const TEXT: Color32 = Color32::from_rgb(0xf2, 0xf0, 0xf3);
+// ---- colours (docs/ui/tokens/theme.rs, copied as tokens.rs) ----
+pub use super::tokens::{
+    AXIS_X, AXIS_Y, AXIS_Z, CAT_ACTIONS, CAT_CAMERAS, CAT_FLOW, CAT_GAME, CAT_LIGHTS, CAT_LOGIC, CAT_SHAPES, CAT_TRIGGERS,
+    DANGER, DANGER_TEXT, FIELD, FIELD_HOVER, INK, LINE, POPOVER, TABS, TEXT, TEXT_2, TOGGLE_OFF, TabTheme,
+};
+pub use super::tokens::PANEL_GLASS as PANEL;
+pub use super::tokens::TEXT_3 as MUTED;
+
+const fn rgb(c: u32) -> Color32 { Color32::from_rgb((c >> 16) as u8, (c >> 8) as u8, c as u8) }
+
+/// Level's colours, the only tab built so far: its highlight (selected, where you are) and accent (values).
+pub const HIGHLIGHT: Color32 = TABS[0].highlight;
+pub const ACCENT: Color32 = TABS[0].accent;
+/// Saved (the green check).
+pub const OK: Color32 = CAT_FLOW;
 pub const fn white(a: u8) -> Color32 { Color32::from_rgba_unmultiplied_const(255, 255, 255, a) }
-pub const PANEL: Color32 = Color32::from_rgba_unmultiplied_const(12, 9, 10, 240); // rgb(12 9 10 / .94)
-pub const LINE: Color32 = white(36); // white 14%
-pub const MUTED: Color32 = white(140);
+pub const SELECTED_ROW: Color32 = rgb(0x2A2A2F);
+/// A glass panel's 1 px edge.
+pub const EDGE: Color32 = white(26);
 
-// Part categories (the parts pop-up's section bars, wires, part markers in the world).
-pub const CAT_SHAPES: Color32 = Color32::from_rgb(0x8a, 0x93, 0xa6);
-pub const CAT_TRIGGERS: Color32 = Color32::from_rgb(0xf0, 0x8c, 0x42);
-pub const CAT_ACTIONS: Color32 = Color32::from_rgb(0x5b, 0x9b, 0xf0);
-pub const CAT_FLOW: Color32 = Color32::from_rgb(0x48, 0xc0, 0x8c);
-pub const CAT_LOGIC: Color32 = Color32::from_rgb(0xa7, 0x7c, 0xe6);
-pub const CAT_GAME: Color32 = Color32::from_rgb(0xe0, 0x68, 0x8f);
-pub const CAT_LIGHTS: Color32 = Color32::from_rgb(0xf2, 0xc1, 0x4e);
-pub const CAT_CAMERAS: Color32 = Color32::from_rgb(0x5e, 0xc8, 0xd8);
-
-// Widget axes.
 /// Texture handles and the face a texture would land on (never the move widget's colours).
 pub const VIOLET: Color32 = Color32::from_rgb(0xb4, 0x8c, 0xff);
-pub const AXIS_X: Color32 = Color32::from_rgb(0xf0, 0x6a, 0x60);
-pub const AXIS_Y: Color32 = Color32::from_rgb(0x5c, 0xc2, 0x5c);
-pub const AXIS_Z: Color32 = Color32::from_rgb(0x6a, 0x93, 0xf5);
 
-/// The kit's asymmetric corners: rounded-[14px_14px_14px_4px] (bottom-left small).
-pub const R_CARD: CornerRadius = CornerRadius { nw: 14, ne: 14, se: 14, sw: 4 };
-pub const R_CTRL: CornerRadius = CornerRadius::same(10);
+/// Panels (16) and controls (7).
+pub const R_CARD: CornerRadius = CornerRadius::same(16);
+pub const R_CTRL: CornerRadius = CornerRadius::same(7);
 
 pub fn mono(size: f32) -> FontId { FontId::new(size, FontFamily::Monospace) }
-pub fn semi(size: f32) -> FontId { FontId::new(size, FontFamily::Name("semi".into())) }
+/// Roboto Medium (500).
+pub fn semi(size: f32) -> FontId { FontId::new(size, FontFamily::Name("medium".into())) }
+/// Roboto Bold (700).
+pub fn bold(size: f32) -> FontId { FontId::new(size, FontFamily::Name("bold".into())) }
 pub fn body(size: f32) -> FontId { FontId::new(size, FontFamily::Proportional) }
-/// The design's lettering (docs/ui.svg): the frame's tabs, menus, buttons and hints.
-pub fn roboto(size: f32) -> FontId { FontId::new(size, FontFamily::Name("roboto".into())) }
+/// Roboto Condensed Bold: the BEVERLY wordmark.
+pub fn wordmark(size: f32) -> FontId { FontId::new(size, FontFamily::Name("wordmark".into())) }
 
 pub fn setup(ctx: &Context) {
     let mut f = FontDefinitions::default();
-    f.font_data.insert("inter".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/Inter-Regular.otf"))));
-    f.font_data.insert("inter-semi".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/Inter-SemiBold.otf"))));
-    f.font_data.insert("dejavu".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/DejaVuSans.ttf"))));
-    f.font_data.insert("jbmono".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/JetBrainsMono-Medium.ttf"))));
-    // Inter for text, DejaVu Sans for the symbols Inter lacks
-    f.families.get_mut(&FontFamily::Proportional).unwrap().splice(0..0, ["inter".to_string(), "dejavu".to_string()]);
-    f.families.get_mut(&FontFamily::Monospace).unwrap().splice(0..0, ["jbmono".to_string(), "dejavu".to_string()]);
-    f.font_data.insert("roboto".into(), Arc::new(FontData::from_static(include_bytes!("../../assets/fonts/Roboto-Regular.ttf"))));
-    let mut roboto_fam = vec!["roboto".to_string()];
-    roboto_fam.extend(f.families[&FontFamily::Proportional].iter().cloned());
-    f.families.insert(FontFamily::Name("roboto".into()), roboto_fam);
-    let mut semi_fam = vec!["inter-semi".to_string()];
-    semi_fam.extend(f.families[&FontFamily::Proportional].iter().cloned());
-    f.families.insert(FontFamily::Name("semi".into()), semi_fam);
+    let mut add = |name: &str, bytes: &'static [u8]| { f.font_data.insert(name.into(), Arc::new(FontData::from_static(bytes))); };
+    add("roboto", include_bytes!("../../assets/fonts/Roboto-Regular.ttf"));
+    add("roboto-medium", include_bytes!("../../assets/fonts/Roboto-Medium.ttf"));
+    add("roboto-bold", include_bytes!("../../assets/fonts/Roboto-Bold.ttf"));
+    add("roboto-condensed", include_bytes!("../../assets/fonts/RobotoCondensed-Bold.ttf"));
+    add("roboto-mono", include_bytes!("../../assets/fonts/RobotoMono-Regular.ttf"));
+    add("dejavu", include_bytes!("../../assets/fonts/DejaVuSans.ttf"));
+    // Roboto for text, DejaVu Sans for the symbols Roboto lacks
+    f.families.get_mut(&FontFamily::Proportional).unwrap().splice(0..0, ["roboto".to_string(), "dejavu".to_string()]);
+    f.families.get_mut(&FontFamily::Monospace).unwrap().splice(0..0, ["roboto-mono".to_string(), "dejavu".to_string()]);
+    for (family, font) in [("medium", "roboto-medium"), ("bold", "roboto-bold"), ("wordmark", "roboto-condensed")] {
+        let mut fam = vec![font.to_string()];
+        fam.extend(f.families[&FontFamily::Proportional].iter().cloned());
+        f.families.insert(FontFamily::Name(family.into()), fam);
+    }
     super::text::set_fonts(&f);
     ctx.set_fonts(f);
 
     ctx.all_styles_mut(|s| {
-        s.text_styles.insert(egui::TextStyle::Body, body(13.0));
-        s.text_styles.insert(egui::TextStyle::Button, body(13.0));
+        s.text_styles.insert(egui::TextStyle::Body, body(12.5));
+        s.text_styles.insert(egui::TextStyle::Button, body(12.5));
         s.text_styles.insert(egui::TextStyle::Small, body(11.0));
         s.text_styles.insert(egui::TextStyle::Monospace, mono(12.0));
-        s.text_styles.insert(egui::TextStyle::Heading, semi(15.0));
-        s.spacing.item_spacing = vec2(8.0, 6.0);
+        s.text_styles.insert(egui::TextStyle::Heading, bold(16.0));
+        s.spacing.item_spacing = vec2(8.0, 8.0);
         s.spacing.button_padding = vec2(10.0, 5.0);
-        s.spacing.interact_size.y = 26.0;
+        s.spacing.interact_size.y = 28.0;
         let v = &mut s.visuals;
         *v = egui::Visuals::dark();
         v.override_text_color = Some(TEXT);
         v.panel_fill = PANEL;
-        v.window_fill = PANEL;
-        v.extreme_bg_color = INK;
+        v.window_fill = POPOVER;
+        v.extreme_bg_color = FIELD;
         v.faint_bg_color = white(8);
-        v.window_stroke = Stroke::new(1.0, LINE);
-        v.window_corner_radius = R_CARD;
-        v.menu_corner_radius = R_CARD;
+        v.window_stroke = Stroke::new(1.0, EDGE);
+        v.window_corner_radius = CornerRadius::same(12);
+        v.menu_corner_radius = CornerRadius::same(10);
         v.window_shadow = egui::Shadow { offset: [0, 10], blur: 34, spread: 0, color: Color32::from_black_alpha(140) };
         v.popup_shadow = egui::Shadow { offset: [0, 8], blur: 24, spread: 0, color: Color32::from_black_alpha(120) };
-        v.selection.bg_fill = Color32::from_rgba_unmultiplied(0xf5, 0xdc, 0x4a, 70);
-        v.selection.stroke = Stroke::new(1.0, ACCENT);
+        v.selection.bg_fill = ACCENT.gamma_multiply(0.45);
+        v.selection.stroke = Stroke::new(1.5, ACCENT);
         v.hyperlink_color = ACCENT;
         for (w, fill) in [
             (&mut v.widgets.noninteractive, Color32::TRANSPARENT),
-            (&mut v.widgets.inactive, white(15)),
-            (&mut v.widgets.hovered, white(26)),
-            (&mut v.widgets.active, white(36)),
-            (&mut v.widgets.open, white(26)),
+            (&mut v.widgets.inactive, FIELD),
+            (&mut v.widgets.hovered, FIELD_HOVER),
+            (&mut v.widgets.active, SELECTED_ROW),
+            (&mut v.widgets.open, FIELD_HOVER),
         ] {
             w.corner_radius = R_CTRL;
             w.bg_fill = fill;
             w.weak_bg_fill = fill;
-            w.bg_stroke = Stroke::new(1.0, LINE);
+            w.bg_stroke = Stroke::NONE;
             w.fg_stroke = Stroke::new(1.0, TEXT);
             w.expansion = 0.0;
         }
-        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, LINE);
-        v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, MUTED);
-        v.widgets.hovered.bg_stroke = Stroke::new(1.0, white(70));
+        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, white(18));
+        v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, TEXT_2);
     });
 }
 
@@ -151,17 +146,28 @@ pub fn spring_from(ctx: &Context, id: Id, start: f32, target: f32, s: Spring) ->
 /// Forget a spring, so the next [`spring_from`] starts over (call when the thing it animates closes).
 pub fn spring_reset(ctx: &Context, id: Id) { ctx.data_mut(|d| d.remove::<SpringState>(id)); }
 
-// ---- Kbd (kit .kc) ----
+// ---- Keycaps (HANDOFF.md, "Keycaps") ----
 pub fn kbd_size(ui: &Ui, key: &str) -> egui::Vec2 {
-    let g = ui.painter().layout_no_wrap(key.to_owned(), semi(10.0), TEXT);
-    vec2((g.size().x + 10.0).max(20.0), 20.0)
+    let g = ui.painter().layout_no_wrap(key.to_owned(), semi(10.5), TEXT);
+    vec2((g.size().x + 10.0).max(17.0), 17.0)
 }
 
-/// A keycap as the design draws them (docs/ui.svg): dark, finely outlined.
+/// A keycap on a panel: dark, with a 2 px bottom edge.
 pub fn paint_kbd(p: &egui::Painter, rect: Rect, key: &str, color: Color32) {
-    p.rect_filled(rect, CornerRadius::same(5), Color32::from_rgb(0x17, 0x17, 0x17));
-    p.rect_stroke(rect, CornerRadius::same(5), Stroke::new(1.0, Color32::from_rgb(0x2e, 0x2e, 0x2e)), StrokeKind::Inside);
-    p.text(rect.center() - vec2(0.0, 0.5), Align2::CENTER_CENTER, key, semi(10.0), color);
+    let r = CornerRadius::same(4);
+    p.rect_filled(rect, r, rgb(0x3A3A40));
+    p.rect_filled(Rect::from_min_max(rect.min + vec2(1.0, 1.0), rect.max - vec2(1.0, 2.0)), CornerRadius::same(3), rgb(0x26262A));
+    p.text(rect.center() - vec2(0.0, 0.5), Align2::CENTER_CENTER, key, semi(10.5), if color == TEXT { rgb(0xE6E6E8) } else { color });
+}
+
+/// A keycap on the frame: solid in the frame's text colour, with the frame's colour as its text.
+pub fn paint_frame_kbd(p: &egui::Painter, rect: Rect, key: &str, fill: Color32, text: Color32) {
+    p.rect_filled(rect, CornerRadius::same(5), fill);
+    p.text(rect.center(), Align2::CENTER_CENTER, key, semi(10.5), text);
+}
+
+pub fn frame_kbd_size(ctx: &Context, key: &str) -> egui::Vec2 {
+    vec2(ctx.fonts_mut(|f| f.layout_no_wrap(key.to_owned(), semi(10.5), TEXT).size().x) + 12.0, 18.0)
 }
 
 /// A keycap, laid out inline: `kbd(ui, "Ctrl")`.
@@ -181,27 +187,26 @@ pub fn hint(ui: &mut Ui, label: &str, keys: &[&str]) {
 }
 
 // ---- Segmented control ----
-/// Options with a sliding white indicator (SNAPPY). Returns true when the choice changed.
+/// 2-4 options; the highlight's pill slides to the chosen one (SNAPPY). Returns true when the choice changed.
 pub fn segmented(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize, numbered: bool) -> bool {
     let id = ui.id().with(id);
-    let font = semi(12.0);
+    let font = body(12.0);
     let pad = 10.0;
     let widths: Vec<f32> = options
         .iter()
         .enumerate()
         .map(|(i, o)| {
-            let w = ui.painter().layout_no_wrap(o.to_string(), font.clone(), TEXT).size().x;
-            let n = if numbered { ui.painter().layout_no_wrap(format!("{}", i + 1), mono(9.0), TEXT).size().x + 4.0 } else { 0.0 };
+            let w = ui.painter().layout_no_wrap(o.to_string(), semi(12.0), TEXT).size().x;
+            let n = if numbered { ui.painter().layout_no_wrap(format!("{}", i + 1), mono(11.0), TEXT).size().x + 4.0 } else { 0.0 };
             w + n + pad * 2.0
         })
         .collect();
     let h = 28.0;
-    let total: f32 = widths.iter().sum::<f32>() + 6.0;
+    let total: f32 = widths.iter().sum::<f32>() + 4.0;
     let (rect, _) = ui.allocate_exact_size(vec2(total, h), Sense::hover());
     let p = ui.painter();
-    p.rect_filled(rect, R_CTRL, white(12));
-    p.rect_stroke(rect, R_CTRL, Stroke::new(1.0, LINE), StrokeKind::Inside);
-    let mut x = rect.left() + 3.0;
+    p.rect_filled(rect, CornerRadius::same(8), FIELD);
+    let mut x = rect.left() + 2.0;
     let mut starts = Vec::new();
     for w in &widths {
         starts.push(x);
@@ -209,8 +214,8 @@ pub fn segmented(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize, 
     }
     let tx = spring(ui.ctx(), id.with("x"), starts[*selected], SNAPPY);
     let tw = spring(ui.ctx(), id.with("w"), widths[*selected], SNAPPY);
-    let ind = Rect::from_min_size(pos2(tx, rect.top() + 3.0), vec2(tw, h - 6.0));
-    p.rect_filled(ind, CornerRadius::same(8), TEXT);
+    let ind = Rect::from_min_size(pos2(tx, rect.top() + 2.0), vec2(tw, h - 4.0));
+    p.rect_filled(ind, CornerRadius::same(6), HIGHLIGHT);
     let mut changed = false;
     for (i, o) in options.iter().enumerate() {
         let r = Rect::from_min_size(pos2(starts[i], rect.top()), vec2(widths[i], h));
@@ -220,39 +225,44 @@ pub fn segmented(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize, 
             changed = true;
         }
         let on = ind.intersects(r.shrink2(vec2(widths[i] * 0.45, 0.0)));
-        let col = if on { INK } else if resp.hovered() { TEXT } else { white(190) };
+        if !on && resp.hovered() { p.rect_filled(r.shrink(2.0), CornerRadius::same(6), white(13)); }
+        let col = if on { TABS[0].highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 };
+        let f = if on { semi(12.0) } else { font.clone() };
         let mut cx = r.left() + pad;
         if numbered {
-            let g = ui.painter().layout_no_wrap(format!("{}", i + 1), mono(9.0), if on { INK } else { MUTED });
+            let g = ui.painter().layout_no_wrap(format!("{}", i + 1), mono(11.0), col);
             ui.painter().galley(pos2(cx, r.center().y - g.size().y / 2.0), g.clone(), col);
             cx += g.size().x + 4.0;
         }
-        ui.painter().text(pos2(cx, r.center().y), Align2::LEFT_CENTER, o, font.clone(), col);
+        ui.painter().text(pos2(cx, r.center().y), Align2::LEFT_CENTER, o, f, col);
     }
     changed
 }
 
-// ---- Toggle (the design's colours, the kit's spring) ----
+// ---- Toggle (30 x 16: on is the accent with an ink knob) ----
 pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
-    let (rect, mut r) = ui.allocate_exact_size(vec2(32.0, 18.0), Sense::click());
+    let (rect, mut r) = ui.allocate_exact_size(vec2(30.0, 16.0), Sense::click());
     if r.clicked() {
         *on = !*on;
         r.mark_changed();
     }
-    let t = spring(ui.ctx(), r.id.with("t"), if *on { 1.0 } else { 0.0 }, SNAPPY);
-    let p = ui.painter();
-    // the design's toggle: green with a black knob when on
-    let bg = lerp_color(white(40), GREEN, t.clamp(0.0, 1.0));
-    p.rect_filled(rect, CornerRadius::same(9), bg);
-    let x = egui::lerp(rect.left() + 9.0..=rect.right() - 9.0, t);
-    p.circle_filled(pos2(x, rect.center().y), 7.0, if *on { Color32::BLACK } else { TEXT });
+    paint_toggle(ui, rect, *on, r.id);
     r
 }
 
-/// A chip that is on or off (a tag): a pill that fills with the accent when on (SNAPPY).
+/// A toggle's track and knob in `rect` (30 x 16); the knob springs across.
+pub fn paint_toggle(ui: &Ui, rect: Rect, on: bool, id: Id) {
+    let t = spring(ui.ctx(), id.with("t"), if on { 1.0 } else { 0.0 }, SNAPPY);
+    let p = ui.painter();
+    let c = t.clamp(0.0, 1.0);
+    p.rect_filled(rect, CornerRadius::same(8), lerp_color(TOGGLE_OFF, ACCENT, c));
+    let x = egui::lerp(rect.left() + 8.0..=rect.right() - 8.0, t);
+    p.circle_filled(pos2(x, rect.center().y), 6.0, lerp_color(rgb(0x9A9AA0), INK, c));
+}
+
+/// A chip that is on or off (a tag): a pill that fills with the highlight when on (SNAPPY).
 pub fn chip(ui: &mut Ui, label: &str, on: &mut bool) -> Response {
-    let font = semi(12.0);
-    let w = ui.painter().layout_no_wrap(label.to_owned(), font.clone(), TEXT).size().x;
+    let w = ui.painter().layout_no_wrap(label.to_owned(), semi(12.0), TEXT).size().x;
     let (rect, mut r) = ui.allocate_exact_size(vec2(w + 22.0, 24.0), Sense::click());
     if r.clicked() {
         *on = !*on;
@@ -260,9 +270,8 @@ pub fn chip(ui: &mut Ui, label: &str, on: &mut bool) -> Response {
     }
     let t = spring(ui.ctx(), r.id.with("t"), if *on { 1.0 } else { 0.0 }, SNAPPY).clamp(0.0, 1.0);
     let p = ui.painter();
-    p.rect_filled(rect, CornerRadius::same(12), lerp_color(white(12), ACCENT, t));
-    p.rect_stroke(rect, CornerRadius::same(12), Stroke::new(1.0, if r.hovered() { white(90) } else { LINE }), StrokeKind::Inside);
-    p.text(rect.center(), Align2::CENTER_CENTER, label, font, lerp_color(TEXT, INK, t));
+    p.rect_filled(rect, CornerRadius::same(12), lerp_color(if r.hovered() { FIELD_HOVER } else { FIELD }, HIGHLIGHT, t));
+    p.text(rect.center(), Align2::CENTER_CENTER, label, if *on { semi(12.0) } else { body(12.0) }, lerp_color(TEXT_2, INK, t));
     r
 }
 
@@ -293,13 +302,12 @@ pub fn hold_button(ui: &mut Ui, label: &str, secs: f32) -> bool {
     }
     ui.data_mut(|d| d.insert_temp(id, t));
     let p = ui.painter();
-    p.rect_filled(rect, R_CTRL, white(15));
+    p.rect_filled(rect, R_CTRL, if r.hovered() { FIELD_HOVER } else { SELECTED_ROW });
     if t > 0.0 {
         let mut f = rect;
         f.set_width(rect.width() * t);
-        p.rect_filled(f, R_CTRL, Color32::from_rgba_unmultiplied(0xff, 0x5e, 0x3a, 150));
+        p.rect_filled(f, R_CTRL, DANGER.gamma_multiply(0.4));
     }
-    p.rect_stroke(rect, R_CTRL, Stroke::new(1.0, if r.hovered() { white(80) } else { LINE }), StrokeKind::Inside);
     let c = pos2(rect.left() + 17.0, rect.center().y);
     p.circle_stroke(c, 7.0, Stroke::new(1.5, white(80)));
     if t > 0.0 {
@@ -337,8 +345,9 @@ impl Island {
     /// The messages shown so far (the last 40), oldest first.
     pub fn history(&self) -> &std::collections::VecDeque<String> { &self.history }
 
-    /// Draw the island centred at `top` (the top-centre of the viewport). `rest` is the resting content.
-    pub fn draw(&mut self, ctx: &Context, top: egui::Pos2, rest: &str, rest_keys: &[&str]) {
+    /// Draw the island with its top-left at `at` (the view's top left): resting, a status pill (an icon in the
+    /// accent and `rest`); for each message it springs open to show it, then settles back. Returns where it is.
+    pub fn draw(&mut self, ctx: &Context, at: egui::Pos2, icon: &str, rest: &str) -> Rect {
         let now = ctx.input(|i| i.time);
         if let Some((_, until)) = &mut self.toast {
             if until.is_nan() { *until = now + 1.8; }
@@ -346,55 +355,51 @@ impl Island {
         }
         let id = Id::new("island");
         let open = self.toast.is_some();
-        let rest_w = ctx.fonts_mut(|f| f.layout_no_wrap(rest.to_owned(), semi(12.0), TEXT).size().x)
-            + rest_keys.iter().map(|k| ctx.fonts_mut(|f| f.layout_no_wrap(k.to_string(), semi(10.0), TEXT).size().x + 14.0)).sum::<f32>()
-            + 38.0;
+        let text_w = |t: &str, f: FontId| ctx.fonts_mut(|fo| fo.layout_no_wrap(t.to_owned(), f, TEXT).size().x);
+        let rest_w = text_w(rest, body(12.0)) + 12.0 + 14.0 + 8.0 + 12.0;
         let (tw, th) = if let Some((t, _)) = &self.toast {
-            let lw = ctx.fonts_mut(|f| f.layout_no_wrap(t.label.clone(), semi(13.0), TEXT).size().x);
-            let sw = ctx.fonts_mut(|f| f.layout_no_wrap(t.sub.clone(), mono(11.0), TEXT).size().x);
-            ((lw.max(sw) + 74.0).max(rest_w + 40.0), 52.0)
+            ((text_w(&t.label, semi(12.5)).max(text_w(&t.sub, body(11.0))) + 8.0 + 28.0 + 8.0 + 16.0).max(rest_w), 44.0)
         } else {
-            (rest_w, 32.0)
+            (rest_w, 28.0)
         };
         let w = spring(ctx, id.with("w"), tw, SPRING);
         let h = spring(ctx, id.with("h"), th, SPRING);
-        let rect = Rect::from_center_size(pos2(top.x, top.y + h / 2.0), vec2(w, h));
+        let rect = Rect::from_min_size(at, vec2(w, h));
         egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(rect.min).interactable(false).show(ctx, |ui| {
             let p = ui.painter();
-            p.rect_filled(rect, CornerRadius::same((h / 2.0).min(26.0) as u8), INK);
-            p.rect_stroke(rect, CornerRadius::same((h / 2.0).min(26.0) as u8), Stroke::new(1.0, white(20)), StrokeKind::Inside);
+            let round = CornerRadius::same((h / 2.0) as u8);
+            p.rect_filled(rect, round, Color32::from_rgba_unmultiplied_const(14, 14, 16, 184));
+            p.rect_stroke(rect, round, Stroke::new(1.0, EDGE), StrokeKind::Inside);
             // content fades in from a slight scale-down (the kit blurs in; egui can't blur, so fade + scale)
             let key = if open { self.serial } else { 0 };
             let a = spring_from(ctx, id.with(("a", key)), 0.0, 1.0, SNAPPY).clamp(0.0, 1.0);
             let fade = |c: Color32| c.gamma_multiply(a);
+            let clip = p.with_clip_rect(rect.shrink(1.0));
             if let Some((t, _)) = &self.toast {
                 let gc = match t.tone { Tone::Accent => ACCENT, Tone::Danger => DANGER, Tone::Plain => TEXT };
-                let gr = Rect::from_center_size(pos2(rect.left() + 28.0, rect.center().y), vec2(30.0, 30.0));
-                p.rect_filled(gr, CornerRadius::same(15), fade(white(18)));
-                p.text(gr.center(), Align2::CENTER_CENTER, &t.glyph, semi(13.0), fade(gc));
-                p.text(pos2(rect.left() + 52.0, rect.center().y - 8.0), Align2::LEFT_CENTER, &t.label, semi(13.0), fade(TEXT));
-                p.text(pos2(rect.left() + 52.0, rect.center().y + 9.0), Align2::LEFT_CENTER, &t.sub, mono(11.0), fade(MUTED));
-            } else {
-                p.circle_filled(pos2(rect.left() + 16.0, rect.center().y), 3.5, fade(ACCENT));
-                let g = p.layout_no_wrap(rest.to_owned(), semi(12.0), fade(TEXT));
-                let mut x = rect.left() + 26.0;
-                p.galley(pos2(x, rect.center().y - g.size().y / 2.0), g.clone(), fade(TEXT));
-                x += g.size().x + 8.0;
-                for k in rest_keys {
-                    let s = vec2(p.layout_no_wrap(k.to_string(), semi(10.0), TEXT).size().x + 10.0, 20.0).max(vec2(20.0, 20.0));
-                    let kr = Rect::from_min_size(pos2(x, rect.center().y - 10.0), s);
-                    paint_kbd(p, kr, k, fade(TEXT));
-                    x += s.x + 4.0;
+                let gr = Rect::from_center_size(pos2(rect.left() + 8.0 + 14.0, rect.center().y), vec2(28.0, 28.0));
+                clip.circle_filled(gr.center(), 14.0, fade(gc));
+                clip.text(gr.center(), Align2::CENTER_CENTER, &t.glyph, semi(13.0), fade(INK));
+                let x = gr.right() + 8.0;
+                if t.sub.is_empty() {
+                    clip.text(pos2(x, rect.center().y), Align2::LEFT_CENTER, &t.label, semi(12.5), fade(TEXT));
+                } else {
+                    clip.text(pos2(x, rect.center().y - 7.5), Align2::LEFT_CENTER, &t.label, semi(12.5), fade(TEXT));
+                    clip.text(pos2(x, rect.center().y + 8.5), Align2::LEFT_CENTER, &t.sub, body(11.0), fade(TEXT_2));
                 }
+            } else {
+                super::frame::paint_icon(&clip, icon, pos2(rect.left() + 12.0 + 7.0, rect.center().y), 14.0, fade(ACCENT));
+                clip.text(pos2(rect.left() + 12.0 + 14.0 + 8.0, rect.center().y), Align2::LEFT_CENTER, rest, body(12.0), fade(TEXT));
             }
         });
+        rect
     }
 }
 
-/// A small floating label in the kit's tooltip style, drawn at a screen point (used by the move widget).
+/// A small floating label in the tooltip's look, at a screen point (the move widget's readouts, what's being placed).
 pub fn float_label(ctx: &Context, id: &str, at: egui::Pos2, text: &str, color: Color32, keys: &[&str]) {
     egui::Area::new(Id::new(id)).order(egui::Order::Tooltip).fixed_pos(at).interactable(false).show(ctx, |ui| {
-        egui::Frame::new().fill(INK).stroke(Stroke::new(1.0, color)).corner_radius(R_CARD).inner_margin(egui::Margin::symmetric(10, 6)).show(ui, |ui| {
+        egui::Frame::new().fill(POPOVER).stroke(Stroke::new(1.0, color)).corner_radius(CornerRadius::same(8)).inner_margin(egui::Margin::symmetric(10, 6)).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 ui.label(egui::RichText::new(text).font(semi(12.0)).color(TEXT));
@@ -402,4 +407,64 @@ pub fn float_label(ctx: &Context, id: &str, at: egui::Pos2, text: &str, color: C
             });
         });
     });
+}
+
+// ---- Tooltips (the redesign's light pill; the kit's spring up from 96%) ----
+pub trait Tip {
+    /// A tooltip while the pointer rests on it.
+    fn tip(self, text: impl Into<String>) -> Self;
+    /// A tooltip with the shortcut's keycaps after its name ("Duplicate  Ctrl D").
+    fn tip_keys(self, text: impl Into<String>, keys: &[&str]) -> Self;
+}
+
+impl Tip for Response {
+    fn tip(self, text: impl Into<String>) -> Self { self.tip_keys(text, &[]) }
+    fn tip_keys(self, text: impl Into<String>, keys: &[&str]) -> Self {
+        tooltip(&self.ctx, self.id.with("tip"), self.rect, self.contains_pointer() && !self.is_pointer_button_down_on(), &text.into(), keys);
+        self
+    }
+}
+
+fn tooltip(ctx: &Context, id: Id, over: Rect, hovered: bool, text: &str, keys: &[&str]) {
+    let now = ctx.input(|i| i.time);
+    if !hovered {
+        ctx.data_mut(|d| d.remove::<f64>(id));
+        spring_reset(ctx, id);
+        return;
+    }
+    let since = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(id, || now));
+    if now - since < 0.35 {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(0.36 - (now - since)));
+        return;
+    }
+    let t = spring_from(ctx, id, 0.0, 1.0, SNAPPY);
+    let g = ctx.fonts_mut(|f| f.layout(text.to_owned(), semi(12.0), INK, 280.0));
+    let kw: Vec<f32> = keys.iter().map(|k| ctx.fonts_mut(|f| f.layout_no_wrap(k.to_string(), semi(10.5), TEXT).size().x) + 10.0).collect();
+    let keys_w = kw.iter().map(|w| w + 4.0).sum::<f32>();
+    let size = vec2(10.0 + g.size().x + if keys.is_empty() { 0.0 } else { 8.0 + keys_w - 4.0 } + 10.0, (g.size().y + 12.0).max(28.0));
+    let screen = ctx.content_rect();
+    // above the thing, or under it when there's no room above
+    let above = over.top() - 10.0 - size.y > screen.top() + 4.0;
+    let dy = if above { 4.0 } else { -4.0 } * (1.0 - t);
+    let x = (over.center().x - size.x / 2.0).clamp(screen.left() + 4.0, (screen.right() - 4.0 - size.x).max(screen.left()));
+    let y = if above { over.top() - 10.0 - size.y } else { over.bottom() + 10.0 };
+    let rect = Rect::from_min_size(pos2(x, y + dy), size);
+    let resp = egui::Area::new(id).order(egui::Order::Tooltip).fixed_pos(rect.min).interactable(false).show(ctx, |ui| {
+        ui.multiply_opacity(t.clamp(0.0, 1.0));
+        let p = ui.painter();
+        p.add(egui::Shadow { offset: [0, 6], blur: 18, spread: 0, color: Color32::from_black_alpha(100) }.as_shape(rect, CornerRadius::same(8)));
+        p.rect_filled(rect, CornerRadius::same(8), TEXT);
+        p.galley(pos2(rect.left() + 10.0, rect.center().y - g.size().y / 2.0), g.clone(), INK);
+        let mut kx = rect.left() + 10.0 + g.size().x + 8.0;
+        for (k, w) in keys.iter().zip(kw) {
+            let kr = Rect::from_min_size(pos2(kx, rect.center().y - 8.5), vec2(w, 17.0));
+            p.rect_filled(kr, CornerRadius::same(4), INK);
+            p.text(kr.center(), Align2::CENTER_CENTER, *k, semi(10.5), TEXT);
+            kx += w + 4.0;
+        }
+        ui.allocate_rect(rect, Sense::hover());
+    });
+    let s = 0.96 + 0.04 * t.clamp(0.0, 1.0);
+    let c = if above { rect.center_bottom() } else { rect.center_top() };
+    ctx.set_transform_layer(resp.response.layer_id, egui::emath::TSTransform::new(c.to_vec2() * (1.0 - s), s));
 }

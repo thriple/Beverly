@@ -4,7 +4,7 @@
 use crate::level::{self, Shape, Wire};
 use crate::settings::{self, Setting};
 use crate::update::{self, Status};
-use super::theme::{self, ACCENT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, Tone, mono, semi, white};
+use super::theme::{self, HIGHLIGHT, INK, LINE, MUTED, PANEL, R_CARD, TEXT, TEXT_2, Tip, Tone, mono, semi, white};
 use super::view::{Mode, SPEED_LABELS, View};
 use super::{actions, frame, mcp, Editor, LevelMode, Pending};
 use bevy::prelude::*;
@@ -34,6 +34,7 @@ pub fn ui(
     time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
     mut init: Local<bool>,
+    mut window: Single<&mut Window, With<bevy::window::PrimaryWindow>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
     if !*init {
@@ -47,21 +48,26 @@ pub fn ui(
         let r = ctx.viewport_rect();
         view.rect = Rect::new(r.left(), r.top(), r.right(), r.bottom());
         view.outline.clear();
-        ed.island.draw(&ctx, pos2(r.center().x, r.min.y + 14.0), "Testing", &["`"]);
+        ed.island.draw(&ctx, r.min + vec2(14.0, 14.0), "play", "Testing · ` to stop");
         return Ok(());
     }
-    // the frame: the view set into it, the menus and tabs along the top, the panels along the bottom
-    let lay = frame::layout(ctx.viewport_rect());
-    // (a pixel bigger than the frame's hole, so no seam shows between them)
-    let v = lay.view.expand(1.5);
-    view.rect = Rect::new(v.left(), v.top(), v.right(), v.bottom());
+    // the frame: the view set into it as one outline, its notches as wide as what they hold
+    let lay = frame::layout(ctx.viewport_rect(), topics_width(&ctx, &ed), bottom_width(&ctx, &ed, &view));
+    view.rect = Rect::new(lay.view.left(), lay.view.top(), lay.view.right(), lay.view.bottom());
     view.outline = lay.outline.clone();
-    paint_frame(&ctx, &lay);
-    top(&ctx, &mut ed, &lay, &mut exit);
-    assets_card(&ctx, &mut ed, &lay);
-    bottom(&ctx, &mut ed, &mut view, &lay, &mut exit);
+    let edge = if LOOK.frame_text == INK { Color32::from_rgba_unmultiplied(14, 14, 16, 56) } else { white(51) };
+    frame::paint_frame(&ctx.layer_painter(egui::LayerId::background()), &lay, frame::Look { fill: LOOK.frame, alpha: LOOK.frame_alpha, edge });
+    // the window's own edge
+    let we = if LOOK.frame_text == INK { Color32::from_rgba_unmultiplied(14, 14, 16, 89) } else { white(36) };
+    ctx.layer_painter(egui::LayerId::background()).rect_stroke(lay.window, CornerRadius::ZERO, Stroke::new(1.0, we), StrokeKind::Inside);
+    top_bar(&ctx, &mut ed, &lay, &mut window, &mut exit);
+    topic_chips(&ctx, &mut ed, &lay);
+    bottom_notch(&ctx, &mut ed, &view, &lay, &mut exit);
+    dock(&ctx, &mut ed, &mut view, &lay, &mut exit);
+    let max = ed.maximized;
+    window_edges(&ctx, &lay, &mut window, max);
 
-    overlays(&ctx, &mut ed, &view, &lay, time.elapsed_secs_f64());
+    overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
     if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
@@ -73,253 +79,411 @@ pub fn ui(
 }
 
 fn small_caps(ui: &mut Ui, text: &str) {
-    ui.label(egui::RichText::new(text).font(mono(10.0)).color(MUTED).extra_letter_spacing(1.2));
+    ui.label(egui::RichText::new(text).font(semi(11.5)).color(MUTED));
 }
 
-/// Translucent black: the cards and pop-ups over the view (the design's panels).
-const GLASS: Color32 = Color32::from_black_alpha(166);
-/// The design's buttons and keycaps.
-pub(super) const CHIP: Color32 = Color32::from_rgb(0x17, 0x17, 0x17);
-pub(super) const CHIP_LINE: Color32 = Color32::from_rgb(0x2e, 0x2e, 0x2e);
+/// Level's colours (the only tab built so far).
+const LOOK: theme::TabTheme = theme::TABS[0];
 
-use frame::{Fit, LEFT, RIGHT};
-const S: Fit = Fit::Stretch;
+fn text_w(ctx: &egui::Context, text: &str, font: egui::FontId) -> f32 { ctx.fonts_mut(|f| f.layout_no_wrap(text.to_owned(), font, TEXT).size().x) }
 
-/// Text at a point of the design (its left end on the baseline, as SVG places text).
-fn svg_text(p: &egui::Painter, m: &frame::Map, at: egui::Pos2, fx: Fit, text: &str, size: f32, col: Color32) -> ERect {
-    let g = p.layout_no_wrap(text.to_owned(), theme::roboto(m.len(size)), col);
-    let pos = m.pos(at, fx, S) - vec2(0.0, g.size().y * 0.78);
-    let r = ERect::from_min_size(pos, g.size());
-    p.galley(pos, g, col);
-    r
+/// The frame's text colour at 80% (the tabs and topics that aren't chosen).
+fn frame_muted() -> Color32 { LOOK.frame_text.gamma_multiply(0.8) }
+
+/// Hovering a button on the frame: a soft wash that springs in.
+fn hover_wash(ui: &Ui, r: ERect, resp: &egui::Response, round: u8) {
+    let t = theme::spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+    if t > 0.0 { ui.painter().rect_filled(r, CornerRadius::same(round), white((36.0 * t) as u8)); }
 }
 
-/// A part of the design drawn in an area over the view (so the view ignores the pointer there).
-fn art_area<R>(ctx: &egui::Context, id: &str, bounds: ERect, add: impl FnOnce(&mut Ui) -> R) -> R {
-    egui::Area::new(Id::new(id)).order(egui::Order::Middle).fixed_pos(bounds.min).constrain(false).show(ctx, |ui| {
-        ui.set_min_size(bounds.size());
-        ui.set_max_size(bounds.size());
-        add(ui)
-    }).inner
-}
-
-fn draw(ui: &Ui, id: &str, m: &frame::Map, fx: Fit, fy: Fit) { frame::paint(ui.painter(), frame::art().part(id), |p| m.pos(p, fx, fy), |c| c); }
-
-/// The frame around the view and the band behind the tabs (behind everything).
-fn paint_frame(ctx: &egui::Context, lay: &frame::Layout) {
-    let p = ctx.layer_painter(egui::LayerId::background());
-    let f = frame::art().part("frame");
-    // the design is drawn on white: its frame's shading is over opaque white (nothing of the view shows through)
-    let m = lay.m;
-    frame::paint(&p, f, |q| m.pos(q, S, S), |_| Color32::WHITE);
-    frame::paint(&p, f, |q| m.pos(q, S, S), |c| c);
-    frame::paint(&p, frame::art().part("tab-band"), |q| m.pos(q, S, S), |c| c);
-}
-
-/// A button of the design's kind (dark, outlined, rounded) on a box of the design, its text's left end at `tx`
-/// (None: centred).
-#[allow(clippy::too_many_arguments)]
-fn svg_box_button(ui: &mut Ui, m: &frame::Map, fx: Fit, b: ERect, tx: Option<f32>, label: &str, size: f32, enabled: bool) -> egui::Response {
-    let r = m.rect(b, fx, S);
-    let resp = ui.interact(r, ui.id().with(("svg-button", label)), if enabled { Sense::click() } else { Sense::hover() });
-    let hot = theme::spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() && enabled { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
-    let p = ui.painter();
-    let round = CornerRadius::same(m.len(5.0) as u8);
-    p.rect_filled(r, round, theme::lerp_color(CHIP, Color32::from_rgb(0x3a, 0x3a, 0x3a), hot));
-    p.rect_stroke(r, round, Stroke::new(m.len(0.5).max(1.0), CHIP_LINE), StrokeKind::Inside);
-    let col = if enabled { TEXT } else { white(90) };
-    match tx {
-        Some(x) => { svg_text(p, m, pos2(x, b.bottom() - 4.2), fx, label, size, col); }
-        None => { p.text(r.center(), Align2::CENTER_CENTER, label, theme::roboto(m.len(size)), col); }
-    }
-    resp
-}
-
-/// A design button sized to its label, its left end at `x`; returns it and where the next one starts.
-fn svg_button(ui: &mut Ui, m: &frame::Map, fx: Fit, x: f32, (y0, y1): (f32, f32), label: &str, size: f32) -> (egui::Response, f32) {
-    let w = ui.painter().layout_no_wrap(label.to_owned(), theme::roboto(m.len(size)), TEXT).size().x / m.s + 9.2;
-    (svg_box_button(ui, m, fx, ERect::from_min_max(pos2(x, y0), pos2(x + w, y1)), None, label, size, true), x + w + 4.8)
-}
-
-/// The top: the left pill (logo and menus), the tabs, the right pill (Parts, Undo, Redo, Snap).
-fn top(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
-    let m = lay.m;
-    art_area(ctx, "left-pill", lay.left_pill, |ui| {
-        draw(ui, "pill-left", &m, LEFT, S);
-        draw(ui, "logo", &m, LEFT, S);
-        let menus: [(&str, &[&str]); 5] = [
-            ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"]),
-            ("Edit", &["edit.undo", "edit.redo", "", "edit.duplicate", "edit.delete", "edit.make_unique", "edit.deselect", "", "edit.snap"]),
-            ("View", &["view.parts", "view.frame", "view.look_through"]),
-            ("Play", &["play.test", "", "file.export"]),
-            ("Help", &["help.about", "help.updates", "help.features", "help.mcp"]),
-        ];
-        let mut x = 120.8;
-        for (name, ids) in menus {
-            let (resp, next) = svg_button(ui, &m, LEFT, x, (68.9, 84.5), name, 10.0);
-            x = next;
-            egui::Popup::menu(&resp).show(|ui| {
-                ui.set_min_width(230.0);
-                for id in ids {
-                    if id.is_empty() { ui.separator(); } else { menu_action(ui, ed, id, exit); }
-                }
-                if name == "Play" { ui.label(egui::RichText::new("` tests from where the view looks").color(MUTED).size(11.0)); }
-            });
-        }
-        // the project, and a dot while it has unsaved changes
-        let room = lay.left_pill.right() - m.x(x + 4.0, LEFT) - m.len(26.0);
-        if room > 20.0 {
-            let g = ui.painter().layout(ed.name.clone(), theme::roboto(m.len(10.0)), MUTED, f32::INFINITY);
-            let at = m.pos(pos2(x + 4.0, 80.3), LEFT, S) - vec2(0.0, g.size().y * 0.78);
-            let clip = ERect::from_min_size(at, vec2(room, g.size().y));
-            ui.painter().with_clip_rect(clip).galley(at, g.clone(), MUTED);
-            if ed.dirty() { ui.painter().circle_filled(pos2(at.x + g.size().x.min(room) + m.len(5.0), at.y + g.size().y * 0.55), m.len(2.6), ACCENT); }
-        }
-    });
-    art_area(ctx, "right-pill", lay.right_pill, |ui| {
-        draw(ui, "pill-right", &m, RIGHT, S);
-        let parts = svg_box_button(ui, &m, RIGHT, ERect::from_min_max(pos2(987.8, 69.3), pos2(1020.2, 84.9)), Some(991.9), "Parts", 10.0, true);
-        if parts.on_hover_ui(|ui| theme::hint(ui, "Open the parts pop-up", &["Tab"])).clicked() { let _ = actions::run(ed, None, "view.parts", exit); }
-        // Undo and Redo: the design's boxes, and its arrow (mirrored for Redo) before the word
-        for (k, (x0, x1, tx, label, id, keys)) in [(1025.8, 1067.1, 1039.1, "Undo", "edit.undo", ["Ctrl", "Z"]), (1072.4, 1113.8, 1086.4, "Redo", "edit.redo", ["Ctrl", "Y"])].into_iter().enumerate() {
-            let on = if k == 0 { !ed.undo.is_empty() } else { !ed.redo.is_empty() };
-            let b = svg_box_button(ui, &m, RIGHT, ERect::from_min_max(pos2(x0, 69.3), pos2(x1, 84.9)), Some(tx), label, 10.0, on);
-            let icon = frame::art().part("undo-icon");
-            let c = icon.bounds.center();
-            let mirror = |p: egui::Pos2| if k == 0 { p } else { pos2(2.0 * c.x - p.x + (1079.0 - 1032.4), p.y) };
-            frame::paint(ui.painter(), icon, |p| m.pos(mirror(p), RIGHT, S), |c| if on { c } else { white(90) });
-            if b.on_hover_ui(|ui| theme::hint(ui, if k == 0 { "Undo" } else { "Redo" }, &keys)).clicked() { let _ = actions::run(ed, None, id, exit); }
-        }
-        svg_text(ui.painter(), &m, pos2(1121.0, 79.4), RIGHT, if ed.snap { "Snap 0.25 m · 15°" } else { "Snap off" }, 7.8, TEXT);
-        // the design's toggle: green with a black knob when on
-        let tr = m.rect(ERect::from_min_max(pos2(1185.1, 71.0), pos2(1205.6, 82.6)), RIGHT, S);
-        let resp = ui.interact(tr.expand(3.0), Id::new("snap-toggle"), Sense::click()).on_hover_text("Snap: moves in 0.25 m steps, turns in 15° steps (hold Ctrl to drag freely)");
-        if resp.clicked() { ed.snap = !ed.snap; }
-        paint_toggle(ui, tr, ed.snap, resp.id);
-    });
-    tabs(ctx, ed, lay);
-}
-
-/// The design's toggle (Snap, Auto Keyframe): a green track and a black knob when on; the knob springs across.
-pub(super) fn paint_toggle(ui: &Ui, r: ERect, on: bool, id: Id) {
-    let t = theme::spring(ui.ctx(), id.with("t"), if on { 1.0 } else { 0.0 }, theme::SNAPPY);
-    let p = ui.painter();
-    p.rect_filled(r, CornerRadius::same((r.height() / 2.0) as u8), theme::lerp_color(white(40), theme::GREEN, t.clamp(0.0, 1.0)));
-    let k = r.height() * 0.41;
-    let x = egui::lerp(r.left() + r.height() / 2.0..=r.right() - r.height() / 2.0, t);
-    p.circle_filled(pos2(x, r.center().y), k, if on { Color32::BLACK } else { TEXT });
-}
-
-/// A top tab: its name and where the design puts it (its text's left end), its menu (the design's box, where its
-/// first row starts, the row pitch, the text's left end; then each entry with its Level topic, or None and when it
-/// comes), or when the tab comes.
-struct Tab { name: &'static str, x: f32, menu: Option<(&'static str, f32, f32, f32)>, items: &'static [(&'static str, Option<LevelMode>, &'static str)], later: &'static str }
-
-const TABS: [Tab; 8] = [
-    Tab {
-        name: "Level",
-        x: 379.6,
-        menu: Some(("menu-level", 100.5, 20.04, 376.9)),
-        items: &[
-            ("Physics", Some(LevelMode::Physics), ""),
-            ("Water", None, "Water comes with the Ocean"),
-            ("Foliage", None, "Foliage comes with foliage painting"),
-            ("Cameras", Some(LevelMode::Cameras), ""),
-            ("Lighting", Some(LevelMode::Lighting), ""),
-        ],
-        later: "",
-    },
-    Tab { name: "Characters", x: 433.4, menu: None, items: &[], later: "Characters come with character files" },
-    Tab { name: "Vehicles", x: 508.9, menu: None, items: &[], later: "Vehicles come after characters" },
-    Tab { name: "UI/HUD", x: 580.3, menu: None, items: &[], later: "The HUD comes with the HUD editor" },
-    Tab { name: "Audio", x: 653.9, menu: None, items: &[], later: "Sounds come with sound parts" },
-    Tab {
-        name: "Effects",
-        x: 719.5,
-        menu: Some(("menu-effects", 96.9, 20.78, 717.9)),
-        items: &[("Plumes", None, "Plumes come with the Effects tab"), ("Particles", None, "Particles come with particle effects"), ("Fire", None, "Fire comes with visual effects"), ("Post Processing", None, "Post-processing comes later")],
-        later: "Effects come with the Effects tab",
-    },
-    Tab { name: "Screens", x: 785.9, menu: None, items: &[], later: "Screens come with screens and menus" },
-    Tab { name: "Animatics", x: 849.4, menu: None, items: &[], later: "Animatics come with the timeline" },
+/// A Level topic: its chip in the top notch (name, icon) and what it shows, or None and what it comes with.
+const TOPICS: [(&str, &str, Option<LevelMode>, &str); 7] = [
+    ("All", "grid", Some(LevelMode::Build), ""),
+    ("Physics", "feel", Some(LevelMode::Physics), ""),
+    ("Lighting", "bulb", Some(LevelMode::Lighting), ""),
+    ("Cameras", "camera", Some(LevelMode::Cameras), ""),
+    ("Water", "drop", None, "Coming soon: water comes with the Ocean"),
+    ("Foliage", "leaf", None, "Coming soon: foliage comes with foliage painting"),
+    ("World", "globe", None, "Coming soon: World settings come next"),
 ];
 
-/// The tabs, at the design's places: Level (selected: the design's white box) works, with its menu of topics; the
-/// rest say when they come. A tab's menu opens under it while the pointer is on the tab or the menu.
-fn tabs(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
-    let m = lay.m;
-    let id = Id::new("tabs");
-    let band = frame::bounds("tab-band", &m, S, S);
-    let mut open: Option<usize> = ctx.data(|d| d.get_temp(id.with("open")));
-    let menu_rect: Option<ERect> = ctx.data(|d| d.get_temp(id.with("menu")));
-    let rects = art_area(ctx, "tabs", band, |ui| {
-        let p = ui.painter().clone();
-        let mut rects = vec![];
-        for (i, t) in TABS.iter().enumerate() {
-            let w = p.layout_no_wrap(t.name.into(), theme::roboto(m.len(12.0)), TEXT).size().x / m.s;
-            // the design's selected box: 20.6 either side of its text, the band's height
-            let tr = m.rect(ERect::from_min_max(pos2(t.x - 20.6, 44.7), pos2(t.x + w + 20.6, 74.2)), S, S);
-            let resp = ui.interact(tr, id.with(i), Sense::click());
+fn chip_w(ctx: &egui::Context, name: &str, on: bool) -> f32 { 11.0 + 14.0 + 6.0 + text_w(ctx, name, if on { semi(12.0) } else { body(12.0) }) + 11.0 }
+
+/// The top notch's width: its topic chips, and room for its shoulders.
+fn topics_width(ctx: &egui::Context, ed: &Editor) -> f32 {
+    TOPICS.iter().map(|(n, _, m, _)| chip_w(ctx, n, *m == Some(ed.level_mode)) + 2.0).sum::<f32>() - 2.0 + 96.0
+}
+
+/// The tab's topics as chips in the top notch: the chosen one is a pill in the frame's text colour; those not built
+/// yet are faint and say when they come.
+fn topic_chips(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
+    let n = lay.top_notch;
+    let w = TOPICS.iter().map(|(name, _, m, _)| chip_w(ctx, name, *m == Some(ed.level_mode)) + 2.0).sum::<f32>() - 2.0;
+    let row = ERect::from_min_size(pos2(n.center().x - w / 2.0, lay.view.top() + 5.0), vec2(w, 24.0));
+    egui::Area::new(Id::new("topics")).order(egui::Order::Middle).fixed_pos(row.min).constrain(false).show(ctx, |ui| {
+        ui.set_min_size(row.size());
+        let mut x = row.left();
+        for (i, (name, icon, mode, later)) in TOPICS.iter().enumerate() {
+            let on = *mode == Some(ed.level_mode);
+            let r = ERect::from_min_size(pos2(x, row.top()), vec2(chip_w(ctx, name, on), 24.0));
+            x = r.right() + 2.0;
+            let resp = ui.interact(r, Id::new(("topic", i)), if mode.is_some() { Sense::click() } else { Sense::hover() });
+            let p = ui.painter();
+            let fade = if mode.is_some() { 1.0 } else { 0.55 };
+            if on {
+                let t = theme::spring_from(ctx, Id::new(("topic-on", i)), 0.0, 1.0, theme::SNAPPY).clamp(0.0, 1.0);
+                p.rect_filled(r.shrink(2.0 * (1.0 - t)), CornerRadius::same(12), LOOK.frame_text);
+            } else {
+                theme::spring_reset(ctx, Id::new(("topic-on", i)));
+                if mode.is_some() { hover_wash(ui, r, &resp, 12); }
+            }
+            let col = if on { LOOK.frame } else if resp.hovered() && mode.is_some() { LOOK.frame_text } else { frame_muted().gamma_multiply(fade) };
+            frame::paint_icon(p, icon, pos2(r.left() + 11.0 + 7.0, r.center().y), 14.0, col);
+            p.text(pos2(r.left() + 11.0 + 14.0 + 6.0, r.center().y), Align2::LEFT_CENTER, *name, if on { semi(12.0) } else { body(12.0) }, col);
+            if let Some(m) = mode {
+                if resp.clicked() { ed.level_mode = *m; }
+            } else {
+                resp.tip(*later);
+            }
+        }
+    });
+}
+
+/// The top bar: the BEVERLY menu, the tabs, and Parts, Undo, Redo, Snap and the window's own buttons. Dragging the
+/// bar moves the window; double-clicking it maximises.
+fn top_bar(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, window: &mut Window, exit: &mut MessageWriter<AppExit>) {
+    let bar = ERect::from_min_size(lay.window.min, vec2(lay.window.width(), frame::TOP));
+    egui::Area::new(Id::new("top-bar")).order(egui::Order::Middle).fixed_pos(bar.min).constrain(false).show(ctx, |ui| {
+        ui.set_min_size(bar.size());
+        let move_it = ui.interact(bar, Id::new("bar-move"), Sense::click_and_drag());
+        if move_it.double_clicked() { window.set_maximized(!ed.maximized); ed.maximized = !ed.maximized; } else if move_it.drag_started() { window.start_drag_move(); }
+        let fg = LOOK.frame_text;
+        let cy = bar.center().y;
+
+        // the BEVERLY menu: the wordmark and its star, a chevron; it holds File, Edit, View, Play and Help
+        let mark = ui.painter().layout_no_wrap("BEVERLY".into(), theme::wordmark(20.0), fg);
+        let br = ERect::from_min_size(pos2(bar.left() + 10.0, cy - 16.0), vec2(10.0 + mark.size().x + 2.0 + 9.0 + 8.0 + 14.0 + 10.0, 32.0));
+        let resp = ui.interact(br, Id::new("main-menu"), Sense::click()).tip("File, Edit, View, Play, Help");
+        hover_wash(ui, br, &resp, 7);
+        let p = ui.painter();
+        let mt = pos2(br.left() + 10.0, cy - mark.size().y / 2.0);
+        p.galley(mt, mark.clone(), fg);
+        // the star: the wordmark's, in the highlight, at the top of its letters
+        let sc = pos2(mt.x + mark.size().x + 2.0 + 4.5, mt.y + 0.22 * mark.size().y + 2.5);
+        let star: Vec<_> = [(5.0, 0.0), (6.2, 3.6), (10.0, 3.6), (6.9, 5.8), (8.1, 9.5), (5.0, 7.2), (1.9, 9.5), (3.1, 5.8), (0.0, 3.6), (3.8, 3.6)].iter().map(|(x, y)| sc + vec2(x - 5.0, y - 5.0) * 0.9).collect();
+        frame::paint_polygon(p, &star, LOOK.highlight);
+        frame::paint_icon(p, "down", pos2(br.right() - 10.0 - 7.0, cy), 14.0, fg);
+        egui::Popup::menu(&resp).show(|ui| {
+            ui.set_min_width(200.0);
+            ui.spacing_mut().item_spacing.y = 2.0;
+            ui.label(egui::RichText::new(if ed.dirty() { format!("{} · not saved", ed.name) } else { ed.name.clone() }).font(semi(12.5)).color(TEXT_2));
+            ui.separator();
+            let menus: [(&str, &[&str]); 5] = [
+                ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"]),
+                ("Edit", &["edit.undo", "edit.redo", "", "edit.duplicate", "edit.delete", "edit.make_unique", "edit.deselect", "", "edit.snap"]),
+                ("View", &["view.parts", "view.frame", "view.look_through"]),
+                ("Play", &["play.test", "", "file.export"]),
+                ("Help", &["help.about", "help.updates", "help.features", "help.mcp"]),
+            ];
+            for (name, ids) in menus {
+                ui.menu_button(name, |ui| {
+                    ui.set_min_width(230.0);
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    for id in ids {
+                        if id.is_empty() { ui.separator(); } else { menu_action(ui, ed, id, exit); }
+                    }
+                    if name == "Play" { ui.label(egui::RichText::new("` tests from where the view looks").color(MUTED).size(11.0)); }
+                });
+            }
+        });
+
+        // the tabs, centred: Level is built; the rest say when they come
+        let tab_w = |name: &str, on: bool| 11.0 + 15.0 + 6.0 + text_w(ctx, name, if on { semi(13.0) } else { body(13.0) }) + 11.0;
+        let total = theme::TABS.iter().enumerate().map(|(i, t)| tab_w(t.name, i == 0) + 2.0).sum::<f32>() - 2.0;
+        let mut x = bar.center().x - total / 2.0;
+        for (i, t) in theme::TABS.iter().enumerate() {
             let on = i == 0;
-            let hot = theme::spring(ctx, id.with(("hot", i)), if resp.hovered() && !on { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
-            if on { p.rect_filled(tr, CornerRadius::ZERO, Color32::WHITE); } else if hot > 0.0 { p.rect_filled(tr.shrink2(vec2(m.len(8.0), 0.0)), CornerRadius::ZERO, white((hot * 30.0) as u8)); }
-            let col = if on { Color32::BLACK } else if t.later.is_empty() { TEXT } else { white(170 + (hot * 85.0) as u8) };
-            svg_text(&p, &m, pos2(t.x, 63.6), S, t.name, 12.0, col);
-            if resp.hovered() && t.menu.is_some() { open = Some(i); }
+            let r = ERect::from_min_size(pos2(x, cy - 15.0), vec2(tab_w(t.name, on), 30.0));
+            x = r.right() + 2.0;
+            let resp = ui.interact(r, Id::new(("tab", i)), Sense::click());
+            if on { ui.painter().rect_filled(r, CornerRadius::same(8), fg); } else { hover_wash(ui, r, &resp, 8); }
+            let col = if on { LOOK.frame } else if resp.hovered() { fg } else { frame_muted() };
+            frame::paint_icon(ui.painter(), t.icon, pos2(r.left() + 11.0 + 7.5, cy), 15.0, col);
+            ui.painter().text(pos2(r.left() + 11.0 + 15.0 + 6.0, cy), Align2::LEFT_CENTER, t.name, if on { semi(13.0) } else { body(13.0) }, col);
+            if !on {
+                let later = TAB_LATER[i];
+                if resp.clicked() { ed.island.show("…", later, "Levels are what this version builds", Tone::Plain); }
+                resp.tip(format!("Not built yet: {}", later.to_lowercase()));
+            }
+        }
+
+        // the right: the window's buttons at the edge, then a divider, Snap, Redo, Undo and Parts
+        let mut right = bar.right();
+        for (k, (icon, label)) in [("x", "Close"), ("square", "Maximise"), ("minus", "Minimise")].into_iter().enumerate() {
+            let r = ERect::from_min_max(pos2(right - 44.0, bar.top()), pos2(right, bar.bottom()));
+            right = r.left();
+            let resp = ui.interact(r, Id::new(("window", k)), Sense::click()).tip(label);
+            let hot = theme::spring(ctx, resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+            let wash = if k == 0 { Color32::from_rgb(0xE8, 0x11, 0x23).gamma_multiply(hot) } else { white((36.0 * hot) as u8) };
+            if hot > 0.0 { ui.painter().rect_filled(r, CornerRadius::ZERO, wash); }
+            frame::paint_icon(ui.painter(), icon, r.center(), 14.0, if k == 0 { theme::lerp_color(fg, Color32::WHITE, hot) } else { fg });
             if resp.clicked() {
-                if t.later.is_empty() {
-                    ed.level_mode = LevelMode::Build;
-                    open = None;
-                } else {
-                    ed.island.show("…", t.later.to_string(), "Levels are what this version builds", Tone::Plain);
+                match k {
+                    0 => { let _ = actions::run(ed, None, "file.quit", exit); }
+                    1 => { ed.maximized = !ed.maximized; window.set_maximized(ed.maximized); }
+                    _ => window.set_minimized(true),
                 }
             }
-            if !t.later.is_empty() { resp.on_hover_text(t.later); }
-            rects.push(tr);
         }
-        rects
+        right -= 4.0;
+        ui.painter().rect_filled(ERect::from_center_size(pos2(right - 1.0, cy), vec2(1.0, 20.0)), CornerRadius::ZERO, fg.gamma_multiply(0.2));
+        right -= 2.0 + 4.0 + 4.0;
+        // Snap: the grid icon and a toggle (frame colours); the steps in its tooltip
+        let sr = ERect::from_min_max(pos2(right - (9.0 + 16.0 + 7.0 + 30.0 + 9.0), cy - 14.0), pos2(right, cy + 14.0));
+        right = sr.left() - 4.0;
+        let resp = ui.interact(sr, Id::new("snap"), Sense::click()).tip_keys(if ed.snap { "Snap: 0.25 m steps, 15° turns (hold Ctrl to drag freely)" } else { "Snap is off" }, &["S"]);
+        hover_wash(ui, sr, &resp, 7);
+        if resp.clicked() { ed.snap = !ed.snap; }
+        frame::paint_icon(ui.painter(), "grid", pos2(sr.left() + 9.0 + 8.0, cy), 16.0, fg);
+        let tr = ERect::from_min_size(pos2(sr.left() + 9.0 + 16.0 + 7.0, cy - 8.0), vec2(30.0, 16.0));
+        let t = theme::spring(ctx, Id::new("snap-knob"), if ed.snap { 1.0 } else { 0.0 }, theme::SNAPPY);
+        let c = t.clamp(0.0, 1.0);
+        ui.painter().rect_filled(tr, CornerRadius::same(8), theme::lerp_color(theme::TOGGLE_OFF, fg, c));
+        ui.painter().circle_filled(pos2(egui::lerp(tr.left() + 8.0..=tr.right() - 8.0, t), cy), 6.0, theme::lerp_color(Color32::from_rgb(0x9A, 0x9A, 0xA0), LOOK.frame, c));
+        // Redo and Undo
+        for (icon, label, id, keys, can) in [("redo", "Redo", "edit.redo", ["Ctrl", "Y"], !ed.redo.is_empty()), ("undo", "Undo", "edit.undo", ["Ctrl", "Z"], !ed.undo.is_empty())] {
+            let r = ERect::from_min_max(pos2(right - 31.0, cy - 14.0), pos2(right, cy + 14.0));
+            right = r.left() - 4.0;
+            let resp = ui.interact(r, Id::new(id), if can { Sense::click() } else { Sense::hover() }).tip_keys(if can { label.to_string() } else { format!("Nothing to {}", label.to_lowercase()) }, &keys);
+            if can { hover_wash(ui, r, &resp, 7); }
+            frame::paint_icon(ui.painter(), icon, r.center(), 17.0, if can { fg } else { fg.gamma_multiply(0.4) });
+            if resp.clicked() { let _ = actions::run(ed, None, id, exit); }
+        }
+        // Parts: the bar's one main button
+        let kw = theme::frame_kbd_size(ctx, "Tab");
+        let pw = 10.0 + 15.0 + 7.0 + text_w(ctx, "Parts", semi(13.0)) + 7.0 + kw.x + 6.0;
+        let r = ERect::from_min_max(pos2(right - pw, cy - 15.0), pos2(right, cy + 15.0));
+        let resp = ui.interact(r, Id::new("parts-button"), Sense::click()).tip_keys("Open the parts pop-up", &["Tab"]);
+        let hot = theme::spring(ctx, resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+        let p = ui.painter();
+        p.rect_filled(r, CornerRadius::same(8), theme::lerp_color(LOOK.highlight, Color32::WHITE, hot * 0.18));
+        frame::paint_icon(p, "cube", pos2(r.left() + 10.0 + 7.5, cy), 15.0, LOOK.highlight_text);
+        p.text(pos2(r.left() + 10.0 + 15.0 + 7.0, cy), Align2::LEFT_CENTER, "Parts", semi(13.0), LOOK.highlight_text);
+        theme::paint_frame_kbd(p, ERect::from_min_size(pos2(r.right() - 6.0 - kw.x, cy - kw.y / 2.0), kw), "Tab", LOOK.highlight_text, LOOK.highlight);
+        if resp.clicked() { let _ = actions::run(ed, None, "view.parts", exit); }
     });
-    // keep the menu while the pointer is on its tab or on it
-    if let (Some(i), Some(at)) = (open, ctx.pointer_hover_pos()) {
-        if !(rects[i].contains(at) || menu_rect.is_some_and(|r| r.union(rects[i]).expand(6.0).contains(at))) { open = None; }
+}
+
+/// When each tab that isn't built yet comes.
+const TAB_LATER: [&str; 8] = [
+    "",
+    "Characters come with character files",
+    "Vehicles come after characters",
+    "The HUD comes with the HUD editor",
+    "Sounds come with sound parts",
+    "Effects come with the Effects tab",
+    "Screens come with screens and menus",
+    "Animatics come with the timeline",
+];
+
+/// The window's edges: drag them to resize it (it has no system border).
+fn window_edges(ctx: &egui::Context, lay: &frame::Layout, window: &mut Window, maximized: bool) {
+    if maximized { return; }
+    use bevy::math::CompassOctant as C;
+    let w = lay.window;
+    let e = 5.0;
+    let zones = [
+        (ERect::from_min_max(w.min, pos2(w.left() + e * 2.0, w.top() + e * 2.0)), C::NorthWest, egui::CursorIcon::ResizeNorthWest),
+        (ERect::from_min_max(pos2(w.right() - e * 2.0, w.top()), pos2(w.right(), w.top() + e * 2.0)), C::NorthEast, egui::CursorIcon::ResizeNorthEast),
+        (ERect::from_min_max(pos2(w.left(), w.bottom() - e * 2.0), pos2(w.left() + e * 2.0, w.bottom())), C::SouthWest, egui::CursorIcon::ResizeSouthWest),
+        (ERect::from_min_max(w.max - vec2(e * 2.0, e * 2.0), w.max), C::SouthEast, egui::CursorIcon::ResizeSouthEast),
+        (ERect::from_min_max(w.min, pos2(w.right(), w.top() + e)), C::North, egui::CursorIcon::ResizeNorth),
+        (ERect::from_min_max(pos2(w.left(), w.bottom() - e), w.max), C::South, egui::CursorIcon::ResizeSouth),
+        (ERect::from_min_max(w.min, pos2(w.left() + e, w.bottom())), C::West, egui::CursorIcon::ResizeWest),
+        (ERect::from_min_max(pos2(w.right() - e, w.top()), w.max), C::East, egui::CursorIcon::ResizeEast),
+    ];
+    egui::Area::new(Id::new("window-edges")).order(egui::Order::Foreground).fixed_pos(w.min).constrain(false).show(ctx, |ui| {
+        for (k, (r, dir, cursor)) in zones.into_iter().enumerate() {
+            let resp = ui.interact(r, Id::new(("edge", k)), Sense::drag()).on_hover_cursor(cursor);
+            if resp.drag_started() { window.start_drag_resize(dir); }
+        }
+    });
+}
+
+/// What the mouse does in the view (the bottom notch's hints).
+fn hints(mode: Mode) -> &'static [(&'static str, &'static [&'static str])] {
+    match mode {
+        Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Fly", &["Caps Lock"])],
+        Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Edit", &["Caps Lock"])],
     }
-    if ctx.pointer_hover_pos().is_none() { open = None; }
-    ctx.data_mut(|d| match open { Some(i) => { d.insert_temp(id.with("open"), i); } None => { d.remove::<usize>(id.with("open")); } });
-    let Some((i, (part, first, pitch, tx))) = open.and_then(|i| TABS[i].menu.map(|mm| (i, mm))) else {
-        theme::spring_reset(ctx, id.with("menu-in"));
-        ctx.data_mut(|d| d.remove::<ERect>(id.with("menu")));
-        return;
-    };
-    // the design's menu box, fading and growing in
-    let t = theme::spring_from(ctx, id.with("menu-in"), 0.0, 1.0, theme::SNAPPY).clamp(0.0, 1.0);
-    let r = frame::bounds(part, &m, S, S);
-    egui::Area::new(id.with("menu-area")).order(egui::Order::Foreground).fixed_pos(r.min).constrain(false).show(ctx, |ui| {
+}
+
+/// The bottom notch's contents, laid out from `x` along the line through `cy` (or only measured): saved or not, a
+/// divider, then the hints. Returns its width.
+fn notch_contents(ctx: &egui::Context, p: Option<(&egui::Painter, f32, f32)>, saved: bool, hints: &[(&str, &[&str])]) -> f32 {
+    let fg = LOOK.frame_text;
+    let mut x = 0.0;
+    let state = if saved { "Saved" } else { "Not saved" };
+    if let Some((p, x0, cy)) = p {
+        if saved { frame::paint_icon(p, "check", pos2(x0 + 7.0, cy), 14.0, fg); } else { p.circle_filled(pos2(x0 + 7.0, cy), 4.0, LOOK.highlight); }
+        p.text(pos2(x0 + 20.0, cy), Align2::LEFT_CENTER, state, semi(12.0), fg);
+    }
+    x += 20.0 + text_w(ctx, state, semi(12.0)) + 14.0;
+    if let Some((p, x0, cy)) = p { p.rect_filled(ERect::from_center_size(pos2(x0 + x, cy), vec2(1.0, 16.0)), CornerRadius::ZERO, frame_muted().gamma_multiply(0.35)); }
+    x += 1.0 + 14.0;
+    for (i, (label, keys)) in hints.iter().enumerate() {
+        if i > 0 { x += 16.0; }
+        if let Some((p, x0, cy)) = p { p.text(pos2(x0 + x, cy), Align2::LEFT_CENTER, *label, body(12.0), frame_muted()); }
+        x += text_w(ctx, label, body(12.0)) + 6.0;
+        for (k, key) in keys.iter().enumerate() {
+            if k > 0 { x += 4.0; }
+            let s = theme::frame_kbd_size(ctx, key);
+            if let Some((p, x0, cy)) = p { theme::paint_frame_kbd(p, ERect::from_min_size(pos2(x0 + x, cy - s.y / 2.0), s), key, fg, LOOK.frame); }
+            x += s.x;
+        }
+    }
+    x
+}
+
+/// The bottom notch: Saved (click to save) and the hints.
+fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
+    let saved = !ed.dirty();
+    let w = notch_contents(ctx, None, saved, hints(view.mode));
+    let n = lay.bottom_notch;
+    let cy = n.top() + 4.0 + 13.0;
+    let x0 = n.center().x - w / 2.0;
+    egui::Area::new(Id::new("bottom-notch")).order(egui::Order::Middle).fixed_pos(n.min).constrain(false).show(ctx, |ui| {
+        ui.set_min_size(n.size());
+        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode));
+        let sr = ERect::from_min_size(pos2(x0 - 4.0, cy - 12.0), vec2(20.0 + text_w(ctx, if saved { "Saved" } else { "Not saved" }, semi(12.0)) + 8.0, 24.0));
+        let resp = ui.interact(sr, Id::new("save-state"), if saved { Sense::hover() } else { Sense::click() }).tip_keys(if saved { "Everything is saved" } else { "Save" }, &["Ctrl", "S"]);
+        if resp.clicked() { let _ = actions::run(ed, None, "file.save", exit); }
+    });
+}
+
+/// The notch's width for these contents (shoulders and a little air).
+fn bottom_width(ctx: &egui::Context, ed: &Editor, view: &View) -> f32 {
+    notch_contents(ctx, None, !ed.dirty(), hints(view.mode)) + 2.0 * frame::SHOULDER + 16.0
+}
+
+/// The dock's three views: (name, icon).
+const DOCK: [(&str, &str); 3] = [("Inspect", "sliders"), ("Scene", "layers"), ("Assets", "folder")];
+const DOCK_W: f32 = 352.0;
+
+/// The dock on the view's right (glass): a switch of Inspect · Scene · Assets, and the chosen one's contents; it
+/// folds to a rail of icons. It moves as the Motion kit's dock does: the chosen pill slides, the contents slide in
+/// from the side you went, and folding springs its width.
+fn dock(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
+    let id = Id::new("dock");
+    let v = lay.view;
+    let w = theme::spring(ctx, id.with("w"), if ed.dock_open { DOCK_W } else { 44.0 }, theme::SPRING);
+    let open = w > 120.0;
+    let rail_h = 6.0 + 4.0 * 32.0 + 3.0 * 4.0 + 6.0;
+    let h = egui::lerp(rail_h..=v.height() - 24.0, ((w - 44.0) / (DOCK_W - 44.0)).clamp(0.0, 1.0));
+    let r = ERect::from_min_size(pos2(v.right() - 12.0 - w, v.top() + 12.0), vec2(w, h));
+    egui::Area::new(id).order(egui::Order::Middle).fixed_pos(r.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(r.size());
-        ui.multiply_opacity(t);
-        // fading and growing in from its top
-        let grow = egui::lerp(0.96..=1.0, t);
-        frame::paint(ui.painter(), frame::art().part(part), |p| r.center_top() + (m.pos(p, S, S) - r.center_top()) * grow, |c| c.gamma_multiply(t));
-        let x0 = frame::art().part(part).bounds;
-        for (k, (label, mode, later)) in TABS[i].items.iter().enumerate() {
-            let y = first + pitch * k as f32;
-            let row = m.rect(ERect::from_min_max(pos2(x0.left(), y), pos2(x0.right(), y + 16.7)), S, S);
-            let resp = ui.interact(row, id.with(("item", i, k)), if mode.is_some() { Sense::click() } else { Sense::hover() });
-            let hov = resp.hovered() && mode.is_some();
-            // the design's highlight: a white row
-            if hov { ui.painter().rect_filled(row, CornerRadius::ZERO, Color32::WHITE); }
-            let col = if hov { Color32::BLACK } else if mode.is_some() { TEXT } else { white(110) };
-            svg_text(ui.painter(), &m, pos2(tx, y + 11.9), S, label, 12.0, col);
-            if i == 0 && Some(ed.level_mode) == *mode { ui.painter().circle_filled(row.right_center() - vec2(m.len(7.0), 0.0), m.len(2.2), if hov { Color32::BLACK } else { ACCENT }); }
-            if resp.clicked() {
-                if let Some(mm) = mode {
-                    ed.level_mode = *mm;
-                    ed.drawers[0] = true;
+        ui.set_max_size(r.size());
+        let p = ui.painter();
+        let round = CornerRadius::same(if open { 16 } else { 14 });
+        p.rect_filled(r, round, theme::PANEL);
+        p.rect_stroke(r, round, Stroke::new(1.0, theme::EDGE), StrokeKind::Inside);
+        // keep the pointer off the view behind it
+        ui.interact(r, id.with("bg"), Sense::click());
+        if !open {
+            // the rail: open, then each view
+            let mut y = r.top() + 6.0;
+            for (k, (icon, label)) in [("left", "Open the dock"), ("sliders", "Inspect"), ("layers", "Scene"), ("folder", "Assets")].into_iter().enumerate() {
+                let b = ERect::from_center_size(pos2(r.center().x, y + 16.0), vec2(32.0, 32.0));
+                y += 36.0;
+                let resp = ui.interact(b, id.with(("rail", k)), Sense::click()).tip(label);
+                let hot = theme::spring(ctx, resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+                if hot > 0.0 { ui.painter().rect_filled(b, CornerRadius::same(8), theme::FIELD_HOVER.gamma_multiply(hot)); }
+                frame::paint_icon(ui.painter(), icon, b.center(), 16.0, Color32::from_rgb(0xD2, 0xD2, 0xD6));
+                if resp.clicked() {
+                    ed.dock_open = true;
+                    if k > 0 { ed.dock_view = k - 1; }
                 }
             }
-            if !later.is_empty() { resp.on_hover_text(*later); }
+            return;
         }
+        // the switch: a pill (the highlight) that slides to the chosen view
+        let head = ERect::from_min_max(r.min + vec2(10.0, 10.0), pos2(r.right() - 10.0 - 28.0 - 6.0, r.top() + 10.0 + 34.0));
+        ui.painter().rect_filled(head, CornerRadius::same(10), white(13));
+        let seg = (head.width() - 6.0) / 3.0;
+        let at = theme::spring(ctx, id.with("pill"), ed.dock_view as f32, theme::SNAPPY);
+        let pill = ERect::from_min_size(pos2(head.left() + 3.0 + at * seg, head.top() + 3.0), vec2(seg, 28.0));
+        ui.painter().rect_filled(pill, CornerRadius::same(7), LOOK.highlight);
+        let last: usize = ctx.data(|d| d.get_temp(id.with("last")).unwrap_or(ed.dock_view));
+        for (k, (label, icon)) in DOCK.iter().enumerate() {
+            let b = ERect::from_min_size(pos2(head.left() + 3.0 + k as f32 * seg, head.top() + 3.0), vec2(seg, 28.0));
+            let resp = ui.interact(b, id.with(("seg", k)), Sense::click());
+            let on = (at - k as f32).abs() < 0.5;
+            let col = if on { LOOK.highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 };
+            let font = if on { semi(12.5) } else { body(12.5) };
+            let tw = text_w(ctx, label, font.clone());
+            let x = b.center().x - (13.0 + 6.0 + tw) / 2.0;
+            frame::paint_icon(ui.painter(), icon, pos2(x + 6.5, b.center().y), 13.0, col);
+            ui.painter().text(pos2(x + 19.0, b.center().y), Align2::LEFT_CENTER, *label, font, col);
+            if resp.clicked() { ed.dock_view = k; }
+        }
+        let fold = ERect::from_min_size(pos2(r.right() - 10.0 - 28.0, head.center().y - 14.0), vec2(28.0, 28.0));
+        let resp = ui.interact(fold, id.with("fold"), Sense::click()).tip("Fold the dock to a rail");
+        let hot = theme::spring(ctx, resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+        if hot > 0.0 { ui.painter().rect_filled(fold, CornerRadius::same(7), theme::FIELD_HOVER.gamma_multiply(hot)); }
+        frame::paint_icon(ui.painter(), "right", fold.center(), 16.0, Color32::from_rgb(0xD2, 0xD2, 0xD6));
+        if resp.clicked() { ed.dock_open = false; }
+
+        // the contents, sliding in from the side you went (48 px) and fading in
+        if last != ed.dock_view {
+            ctx.data_mut(|d| { d.insert_temp(id.with("last"), ed.dock_view); d.insert_temp(id.with("dir"), if ed.dock_view > last { 1.0f32 } else { -1.0 }); });
+        }
+        let dir: f32 = ctx.data(|d| d.get_temp(id.with("dir")).unwrap_or(1.0));
+        let t = theme::spring_from(ctx, id.with(("in", ed.dock_view)), 0.0, 1.0, theme::SNAPPY);
+        for k in 0..3 { if k != ed.dock_view { theme::spring_reset(ctx, id.with(("in", k))); } }
+        let body_r = ERect::from_min_max(pos2(r.left() + 1.0, head.bottom() + 8.0), r.max - vec2(1.0, 1.0));
+        let inner = body_r.shrink2(vec2(17.0, 0.0)).translate(vec2(dir * 48.0 * (1.0 - t), 0.0));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
+            ui.set_clip_rect(body_r);
+            ui.multiply_opacity(t.clamp(0.0, 1.0));
+            egui::ScrollArea::vertical().id_salt(("dock", ed.dock_view)).auto_shrink([false, false]).show(ui, |ui| {
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                match ed.dock_view {
+                    0 => {
+                        if ed.selected.is_some() || ed.material_open.is_some() { inspector(ui, ed, view, exit); } else { mode_panel(ui, ed); }
+                    }
+                    1 => scene_panel(ui, ed),
+                    _ => {
+                        drop_hint(ui, ed.hovering_files);
+                        asset_tree(ui, ed);
+                    }
+                }
+                ui.add_space(12.0);
+            });
+        });
     });
-    ctx.data_mut(|d| d.insert_temp(id.with("menu"), r));
+}
+
+/// The Assets view's drop hint (the whole window takes dropped files); it lights up while files are dragged over.
+fn drop_hint(ui: &mut Ui, hot: bool) {
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 64.0), Sense::hover());
+    let t = theme::spring(ui.ctx(), Id::new("drop-hot"), if hot { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
+    let p = ui.painter();
+    if t > 0.0 { p.rect_filled(r, CornerRadius::same(12), LOOK.highlight.gamma_multiply(0.12 * t)); }
+    // a dashed rounded outline
+    let rr = r.shrink(0.75);
+    let rad = 12.0;
+    let mut pts = vec![];
+    for (c, a0) in [(pos2(rr.right() - rad, rr.top() + rad), -90.0f32), (pos2(rr.right() - rad, rr.bottom() - rad), 0.0), (pos2(rr.left() + rad, rr.bottom() - rad), 90.0), (pos2(rr.left() + rad, rr.top() + rad), 180.0)] {
+        for i in 0..=8 {
+            let a = (a0 + 90.0 * i as f32 / 8.0).to_radians();
+            pts.push(c + vec2(a.cos(), a.sin()) * rad);
+        }
+    }
+    pts.push(pts[0]);
+    p.extend(egui::Shape::dashed_line(&pts, Stroke::new(1.5, LOOK.highlight.gamma_multiply(0.6 + 0.4 * t)), 6.0, 4.0));
+    p.text(r.center(), Align2::CENTER_CENTER, if hot { "Drop to import" } else { "Drop files anywhere" }, semi(13.0), Color32::from_rgb(0xE6, 0xE6, 0xE8));
+    ui.add_space(4.0);
 }
 
 /// A menu item for a named action (its name and keys from the list), greyed when it can't run; runs it when clicked.
@@ -327,7 +491,7 @@ fn menu_action(ui: &mut Ui, ed: &mut Editor, id: &str, exit: &mut MessageWriter<
     let a = actions::get(id).expect("a listed action");
     let why = actions::why_not(ed, id);
     let r = ui.add_enabled(why.is_none(), egui::Button::new(a.name).shortcut_text(a.keys).frame(false));
-    let r = match why { Some(w) => r.on_disabled_hover_text(w), None => r };
+    let r = match why { Some(w) => r.tip(w), None => r };
     if r.clicked() {
         let _ = actions::run(ed, None, id, exit);
         ui.close();
@@ -344,145 +508,6 @@ pub(super) fn open_folder(dir: &std::path::Path) -> std::io::Result<()> {
     std::process::Command::new(cmd).arg(dir).spawn().map(|_| ())
 }
 
-/// How far a drawer slides up to open (design units): from below the window until its bottom meets its panel's.
-const DRAWER_RISE: f32 = 1106.3 - 756.7;
-/// A drawer stretches between these heights of the design when dragged taller (its sides are straight there).
-const DRAWER_STRETCH: (f32, f32) = (850.0, 1050.0);
-
-/// The three panels along the bottom (the design's): the Level topic's settings, the inspector, the scene list.
-/// Each has a drawer (the design's, below the window) that slides up over the view: click the grip above the panel
-/// to open or close it, drag the grip for its height.
-fn bottom(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
-    let m = lay.m;
-    let fy = frame::BOTTOM;
-    for i in 0..3 {
-        let panel = lay.panels[i];
-        let drawer_id = ["drawer-mode", "drawer-inspector", "drawer-scene"][i];
-        let d = frame::art().part(drawer_id);
-        // how much taller than drawn (design units), and how far open
-        // at most up to just under the pills
-        let most = d.bounds.top() - DRAWER_RISE - 100.0;
-        let extra = ed.drawer_h[i].clamp(0.0, most.max(0.0));
-        let t = theme::spring(ctx, Id::new(("drawer", i)), if ed.drawers[i] { 1.0 } else { 0.0 }, theme::SPRING);
-        let lift = |p: egui::Pos2| {
-            let k = 1.0 - ((p.y - DRAWER_STRETCH.0) / (DRAWER_STRETCH.1 - DRAWER_STRETCH.0)).clamp(0.0, 1.0);
-            pos2(p.x, p.y - DRAWER_RISE * t - extra * k * t)
-        };
-        let top = m.y(lift(pos2(0.0, d.bounds.top())).y, fy);
-        let drawer = ERect::from_min_max(pos2(m.x(d.bounds.left(), S), top), pos2(m.x(d.bounds.right(), S), m.y(lift(pos2(0.0, d.bounds.bottom())).y, fy)));
-        let open = t > 0.02 && drawer.top() < panel.top();
-        let area = if open { drawer.union(panel) } else { panel };
-        // the grip: the design's handle, centred in the gap above the panel; inside the drawer's top once it rises
-        let grip_at = pos2(panel.center().x, (panel.top() - m.len(4.6)).min(drawer.top() + m.len(8.0)));
-        art_area(ctx, ["panel-mode", "panel-inspector", "panel-scene"][i], area.union(ERect::from_center_size(grip_at, vec2(m.len(110.0), m.len(10.0)))), |ui| {
-            draw(ui, ["panel-mode", "panel-inspector", "panel-scene"][i], &m, S, fy);
-            if t > 0.0 { frame::paint(ui.painter(), d, |p| m.pos(lift(p), S, fy), |c| c); }
-            let g = frame::art().part("grip");
-            let gc = g.bounds.center();
-            let shift = grip_at - m.pos(gc, Fit::Pin(gc.x), Fit::Pin(gc.y));
-            let gr = ui.interact(ERect::from_center_size(grip_at, vec2(m.len(105.0), m.len(9.0))), Id::new(("grip", i)), Sense::click_and_drag())
-                .on_hover_cursor(egui::CursorIcon::ResizeVertical)
-                .on_hover_text(if ed.drawers[i] { "Click to close · drag for its height" } else { "Click to open · drag for its height" });
-            let hot = gr.hovered() || gr.dragged();
-            frame::paint(ui.painter(), g, |p| m.pos(p, Fit::Pin(gc.x), Fit::Pin(gc.y)) + shift, |c| if hot { theme::lerp_color(c, white(255), 0.35) } else { c });
-            if gr.clicked() { ed.drawers[i] = !ed.drawers[i]; }
-            if gr.drag_started() && !ed.drawers[i] { ed.drawer_h[i] = 0.0; }
-            if gr.dragged() {
-                ed.drawers[i] = true;
-                ed.drawer_h[i] = (extra - gr.drag_delta().y / m.s).clamp(0.0, most.max(0.0));
-            }
-            // its contents: in the drawer while open, else in the panel
-            let r = if open { drawer } else { panel };
-            let pad = if open { vec2(m.len(22.0), m.len(20.0)) } else { vec2(m.len(14.0), m.len(11.0)) };
-            let inner = ERect::from_min_max(r.min + pad, r.max - vec2(pad.x, m.len(12.0)));
-            ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
-                ui.set_clip_rect(inner.expand2(vec2(6.0, 2.0)));
-                egui::ScrollArea::vertical().id_salt(("panel", i)).auto_shrink([false, false]).show(ui, |ui| {
-                    ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
-                    match i {
-                        0 => mode_panel(ui, ed),
-                        1 => inspector(ui, ed, view, exit),
-                        _ => scene_panel(ui, ed),
-                    }
-                    ui.add_space(6.0);
-                });
-            });
-        });
-    }
-}
-
-/// The Assets card over the view's right side (the design's), with its DROP FILES header, and the project's assets.
-fn assets_card(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout) {
-    let m = lay.m;
-    if !ed.assets_open {
-        // folded away: a small button where the card's top was
-        let r = ERect::from_min_size(pos2(lay.assets.right() - 92.0, lay.assets.top()), vec2(92.0, 26.0));
-        art_area(ctx, "assets", r, |ui| {
-            ui.painter().rect_filled(r, CornerRadius::same(13), GLASS);
-            if ui.interact(r, Id::new("assets-show"), Sense::click()).on_hover_text("Show the Assets panel").clicked() { ed.assets_open = true; }
-            ui.painter().text(r.center(), Align2::CENTER_CENTER, "⇤  ASSETS", mono(10.0), TEXT);
-        });
-        return;
-    }
-    art_area(ctx, "assets", lay.assets, |ui| {
-        draw(ui, "assets-card", &m, RIGHT, S);
-        // the design's drop header (its chevrons and lettering); lit up while files are dragged over the window
-        let hot = ed.hovering_files;
-        frame::paint(ui.painter(), frame::art().part("drop-files"), |p| m.pos(p, RIGHT, S), |c| if hot { Color32::from_rgba_unmultiplied(ACCENT.r(), ACCENT.g(), ACCENT.b(), c.a()) } else { c });
-        let help = if hot { "Drop to import" } else { "Drag textures, models and sounds here to import them" };
-        ui.interact(lay.drop, Id::new("drop-files"), Sense::hover()).on_hover_text(help);
-        let inner = ERect::from_min_max(pos2(lay.drop.left(), lay.drop.bottom() + m.len(6.0)), lay.assets.max - vec2(m.len(8.0), m.len(10.0)));
-        ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::top_down(egui::Align::Min)), |ui| {
-            ui.horizontal(|ui| {
-                small_caps(ui, "ASSETS");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("⇥").on_hover_ui(|ui| theme::hint(ui, "Fold the Assets panel away", &[])).clicked() { ed.assets_open = false; }
-                });
-            });
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| { asset_tree(ui, ed); });
-        });
-    });
-}
-
-/// The hints along the view's bottom (the design's strip, its labels and keycaps): what the mouse does here.
-fn hint_strip(ctx: &egui::Context, lay: &frame::Layout, hints: &[(&str, &[&str])], editor_mode: bool) {
-    let m = lay.m;
-    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::new("hint-strip")));
-    // lay out in design units: label, keycaps, gaps as drawn
-    let tw = |t: &str, size: f32| p.layout_no_wrap(t.to_owned(), theme::roboto(m.len(size)), TEXT).size().x / m.s;
-    let mut items: Vec<(f32, &str, bool)> = vec![];
-    let mut x = 0.0;
-    for (label, keys) in hints {
-        items.push((x, label, false));
-        x += tw(label, 7.46) + 3.0;
-        for k in *keys {
-            items.push((x, k, true));
-            x += tw(k, 6.58) + 6.4 + 3.0;
-        }
-        x += 7.0;
-    }
-    let w = x - 7.0;
-    let c = 635.05;
-    let (x0, y0, y1) = (c - w / 2.0, 639.0, 662.0);
-    if editor_mode { frame::paint(&p, frame::art().part("view-hints"), |q| m.pos(q, S, frame::BOTTOM), |c| c); } else {
-        let r = m.rect(ERect::from_min_max(pos2(x0 - 12.0, y0), pos2(x0 + w + 12.0, y1)), S, frame::BOTTOM);
-        p.rect_filled(r, CornerRadius::same((r.height() / 2.0) as u8), GLASS);
-    }
-    for (dx, t, key) in items {
-        let at = x0 + dx;
-        if key {
-            let kr = m.rect(ERect::from_min_max(pos2(at, 644.8), pos2(at + tw(t, 6.58) + 6.4, 656.2)), S, frame::BOTTOM);
-            p.rect_filled(kr, CornerRadius::same(m.len(3.1) as u8), CHIP);
-            p.rect_stroke(kr, CornerRadius::same(m.len(3.1) as u8), Stroke::new(m.len(0.53).max(1.0), CHIP_LINE), StrokeKind::Inside);
-            p.text(kr.center(), Align2::CENTER_CENTER, t, theme::roboto(m.len(6.58)), TEXT);
-        } else {
-            let g = p.layout_no_wrap(t.to_owned(), theme::roboto(m.len(7.46)), white(200));
-            let pos = pos2(m.x(at, S), m.y(652.8, frame::BOTTOM) - g.size().y * 0.78);
-            p.galley(pos, g, white(200));
-        }
-    }
-}
-
 /// The project's assets by folder: models to place, materials to change or drag, textures to drag onto faces.
 fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
     let mut assets = ed.assets.clone();
@@ -496,14 +521,14 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
             if files.is_empty() {
                 ui.label(egui::RichText::new("empty").color(MUTED).size(11.0));
             }
-            if *folder == "materials" && ui.small_button("+ New material").on_hover_text("A plain material: give it a texture, tint, shine or glow").clicked() {
+            if *folder == "materials" && ui.small_button("+ New material").tip("A plain material: give it a texture, tint, shine or glow").clicked() {
                 ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
             }
             for f in files {
                 let path = format!("assets/{folder}/{f}");
                 if crate::models::is_model(f) {
                     // models: click to place
-                    let r = ui.add(egui::Button::new(egui::RichText::new(format!("◆  {f}")).size(12.0)).frame(false)).on_hover_text("Click, then click a surface to place it");
+                    let r = ui.add(egui::Button::new(egui::RichText::new(format!("◆  {f}")).size(12.0)).frame(false)).tip("Click, then click a surface to place it");
                     if r.clicked() {
                         ed.placing = Some(Shape::Model);
                         ed.placing_model = Some(path);
@@ -514,13 +539,13 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
                     let open = ed.material_open.as_deref() == Some(path.as_str());
                     let r = ui.add(egui::Label::new(egui::RichText::new(format!("◈  {}", f.trim_end_matches(".bev"))).size(12.0).color(if open { theme::VIOLET } else { TEXT })).selectable(false).sense(Sense::click_and_drag()))
                         .on_hover_cursor(egui::CursorIcon::Grab)
-                        .on_hover_text("Click to change it (every surface using it changes) · drag onto a face");
+                        .tip("Click to change it (every surface using it changes) · drag onto a face");
                     if r.clicked() { ed.material_open = Some(path); } else if r.drag_started() { ed.texturing = Some(path); }
                 } else if super::texture::is_texture(f) {
                     // textures: drag onto a face (or click, then click a face)
                     let r = ui.add(egui::Label::new(egui::RichText::new(format!("▦  {f}")).size(12.0)).selectable(false).sense(Sense::click_and_drag()))
                         .on_hover_cursor(egui::CursorIcon::Grab)
-                        .on_hover_text("Drag onto a face of a part (Shift: the whole part)");
+                        .tip("Drag onto a face of a part (Shift: the whole part)");
                     if r.drag_started() || r.clicked() { ed.texturing = Some(path); }
                 } else {
                     ui.label(egui::RichText::new(f).size(12.0));
@@ -564,7 +589,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
             // instances: the parts with the same contents (shape, colour, textures, Visible, Collision)
             let n = ed.level.instances(id).len();
             ui.horizontal(|ui| {
-                theme::toggle(ui, &mut p.unique).on_hover_text("On: changing its look never changes the parts just like it");
+                theme::toggle(ui, &mut p.unique).tip("On: changing its look never changes the parts just like it");
                 let (text, help) = if p.unique {
                     ("Unique", "Its contents are its own")
                 } else if !ed.level.instanced(&p) {
@@ -575,11 +600,11 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                     ("No instances", "Parts with the same shape, colour and textures would be its instances")
                 };
                 let text = if text.is_empty() { format!("Instance · {} alike", n + 1) } else { text.to_string() };
-                ui.label(egui::RichText::new(text).color(MUTED)).on_hover_text(help);
+                ui.label(egui::RichText::new(text).color(MUTED)).tip(help);
             });
             ui.horizontal(|ui| {
-                if ui.button("Duplicate").on_hover_ui(|ui| theme::hint(ui, "Duplicate", &["Ctrl", "D"])).clicked() { ed.duplicate_selected(); }
-                if ui.button("Delete").on_hover_ui(|ui| theme::hint(ui, "Delete", &["Del"])).clicked() { delete = true; }
+                if ui.button("Duplicate").tip_keys("Duplicate", &["Ctrl", "D"]).clicked() { ed.duplicate_selected(); }
+                if ui.button("Delete").tip_keys("Delete", &["Del"]).clicked() { delete = true; }
             });
         });
         // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
@@ -597,7 +622,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                 if let Some(c) = p.camera.as_mut() {
                     column(ui, 250.0, "CAMERA", |ui| {
                         settings::section(ui, c, level::CAMERA, &mut ctx);
-                        if ui.button("Look through").on_hover_ui(|ui| theme::hint(ui, "Fly it to aim it", &["L"])).clicked() { look = true; }
+                        if ui.button("Look through").tip_keys("Fly it to aim it", &["L"]).clicked() { look = true; }
                     });
                     if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, &mut ctx); }); }
                 }
@@ -624,11 +649,11 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                         let face = s.face.map_or("All over".to_string(), |f| names.get(f as usize).cloned().unwrap_or_default());
                         let mat = std::path::Path::new(&s.material).file_stem().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default();
                         ui.label(egui::RichText::new(format!("{face} · {mat}")).color(TEXT));
-                        if ui.small_button("✕").on_hover_text("Take this texture off").clicked() { remove = Some(i); }
+                        if ui.small_button("✕").tip("Take this texture off").clicked() { remove = Some(i); }
                     });
                     for (label, v, help) in [("Size", &mut s.tile, "How big one copy of the texture is (across, down)"), ("Slide", &mut s.offset, "How far the texture is slid along the surface")] {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(label).color(MUTED)).on_hover_text(help);
+                            ui.label(egui::RichText::new(label).color(MUTED)).tip(help);
                             let lo = if label == "Size" { 0.05 } else { -1000.0 };
                             for x in v.iter_mut() { ui.add(egui::DragValue::new(x).speed(0.01).range(lo..=1000.0).max_decimals(2).suffix(" m")); }
                         });
@@ -646,7 +671,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                     ui.horizontal(|ui| {
                         port(ui, &format!("{out} ▸"), theme::CAT_TRIGGERS);
                         let wiring = ed.wiring == Some((id, out));
-                        if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).on_hover_text("Then click the part it goes to").clicked() {
+                        if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).tip("Then click the part it goes to").clicked() {
                             ed.wiring = if wiring { None } else { Some((id, out)) };
                         }
                     });
@@ -661,7 +686,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                     };
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(text).color(MUTED));
-                        if ui.small_button("✕").on_hover_text("Remove this wire").clicked() { unwire = Some(i); }
+                        if ui.small_button("✕").tip("Remove this wire").clicked() { unwire = Some(i); }
                     });
                 }
                 if !p.inputs().is_empty() && !ed.level.wires.iter().any(|w| w.to == id) {
@@ -700,11 +725,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
         LevelMode::Build => {
             column(ui, 0.0, "LEVEL", |ui| {
                 ui.label(egui::RichText::new(&ed.level.name).font(semi(13.0)).color(TEXT));
-                ui.horizontal_wrapped(|ui| {
-                    for (label, m) in [("Lighting", LevelMode::Lighting), ("Physics", LevelMode::Physics), ("Cameras", LevelMode::Cameras)] {
-                        if ui.button(label).on_hover_text("Also in the Level tab's menu").clicked() { ed.level_mode = m; }
-                    }
-                });
+                ui.label(egui::RichText::new("Nothing selected: click a part to see its settings").color(MUTED));
                 theme::hint(ui, "Parts", &["Tab"]);
                 theme::hint(ui, "Fly / edit", &["Caps Lock"]);
                 theme::hint(ui, "Test", &["`"]);
@@ -731,15 +752,15 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 };
                 ui.label(egui::RichText::new(status).color(colour));
                 ui.horizontal(|ui| {
-                    if ui.button(if ed.nav.is_some() { "Build again" } else { "Build navigation" }).on_hover_text("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
+                    if ui.button(if ed.nav.is_some() { "Build again" } else { "Build navigation" }).tip("Work out where characters of this size can walk, across floors, stairs and ramps").clicked() { build = true; }
                     if ed.nav.is_some() {
-                        theme::toggle(ui, &mut ed.nav_shown).on_hover_text("Draw the walkable area over the level");
+                        theme::toggle(ui, &mut ed.nav_shown).tip("Draw the walkable area over the level");
                         ui.label(egui::RichText::new("Show").color(MUTED));
                     }
                 });
                 if ed.finder.is_some() {
                     let on = ed.path_try.is_some();
-                    if ui.add(egui::Button::selectable(on, "Try a path")).on_hover_text("Click a start, then an end, in the view: the way a character would walk").clicked() {
+                    if ui.add(egui::Button::selectable(on, "Try a path")).tip("Click a start, then an end, in the view: the way a character would walk").clicked() {
                         ed.path_try = if on { None } else { Some(Default::default()) };
                     }
                     if on { theme::hint(ui, "Stop", &["Esc"]); }
@@ -752,7 +773,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 if cams.is_empty() { ui.label(egui::RichText::new("No cameras yet: the Cameras section of the parts pop-up (Tab)").color(MUTED)); }
                 for (id, name) in cams {
                     let on = ed.selected == Some(id);
-                    if ui.add(egui::Button::selectable(on, egui::RichText::new(name).color(if on { ACCENT } else { TEXT })).frame(false)).clicked() { ed.selected = Some(id); ed.material_open = None; }
+                    if ui.add(egui::Button::selectable(on, egui::RichText::new(name).color(if on { HIGHLIGHT } else { TEXT })).frame(false)).clicked() { ed.selected = Some(id); ed.material_open = None; }
                 }
                 theme::hint(ui, "Look through the selected one", &["L"]);
             });
@@ -780,8 +801,8 @@ fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
         ui.horizontal(|ui| {
             let on = ed.selected == Some(p.id);
             let eye = if p.visible { "◉" } else { "○" };
-            if ui.add(egui::Button::new(egui::RichText::new(eye).size(11.0)).frame(false)).on_hover_text(if p.visible { "Hide (keep as collider)" } else { "Show" }).clicked() { flip = Some(p.id); }
-            let txt = egui::RichText::new(format!("{}  {}", p.shape.glyph(), p.name)).size(12.5).color(if on { ACCENT } else { TEXT });
+            if ui.add(egui::Button::new(egui::RichText::new(eye).size(11.0)).frame(false)).tip(if p.visible { "Hide (keep as collider)" } else { "Show" }).clicked() { flip = Some(p.id); }
+            let txt = egui::RichText::new(format!("{}  {}", p.shape.glyph(), p.name)).size(12.5).color(if on { HIGHLIGHT } else { TEXT });
             if ui.add(egui::Button::selectable(on, txt).frame(false)).clicked() { pick = Some(p.id); }
         });
     }
@@ -849,8 +870,8 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
             let s = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
             ui.label(egui::RichText::new(format!("Used by {} on {}", s(surfaces, "surface"), s(parts, "part"))).color(MUTED));
             ui.horizontal(|ui| {
-                if ui.button("Copy").on_hover_text("A new material like this one, to change on its own").clicked() { copy = true; }
-                if ui.button("Close").on_hover_ui(|ui| theme::hint(ui, "Back to the selected part", &["Esc"])).clicked() { close = true; }
+                if ui.button("Copy").tip("A new material like this one, to change on its own").clicked() { copy = true; }
+                if ui.button("Close").tip_keys("Back to the selected part", &["Esc"]).clicked() { close = true; }
             });
         });
         column(ui, 230.0, "TEXTURE", |ui| {
@@ -903,7 +924,7 @@ fn column(ui: &mut Ui, w: f32, title: &str, add: impl FnOnce(&mut Ui)) {
     ui.add_space(14.0);
 }
 
-fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, now: f64) {
+fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
     let r = view.rect;
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, Id::new("hud")));
     let c = pos2(r.center().x, r.center().y);
@@ -931,18 +952,18 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layo
         theme::float_label(ctx, "looking", pos2(f.min.x + 14.0, f.min.y + 14.0), &format!("Looking through {name} · fly to aim it"), theme::CAT_CAMERAS, &["Esc"]);
     }
 
-    // status island
+    // the status pills at the view's top left: the island (the movement mode; it springs open for each message),
+    // then the light budget
     let rest = match view.mode {
         Mode::Editor => "Editor movement".to_string(),
-        Mode::Builder => format!("Builder · fly {}", speed_text(view.speed)),
+        Mode::Builder => format!("Builder movement · fly {}", speed_text(view.speed)),
     };
-    // under the tabs
-    ed.island.draw(ctx, pos2(r.center().x, lay.m.y(92.0, frame::Fit::Stretch)), &rest, &["Caps Lock"]);
+    let island = ed.island.draw(ctx, pos2(r.min.x + 14.0, r.min.y + 14.0), "move", &rest);
 
     // speed strip (Builder movement, or for 2 s after a change)
     let recent = now - view.speed_changed < 2.0;
     if view.mode == Mode::Builder || recent {
-        egui::Area::new(Id::new("speeds")).order(egui::Order::Foreground).fixed_pos(pos2(r.min.x + 14.0, lay.panels[0].top() - 56.0)).interactable(false).show(ctx, |ui| {
+        egui::Area::new(Id::new("speeds")).order(egui::Order::Foreground).fixed_pos(pos2(r.min.x + 14.0, r.max.y - 14.0 - 40.0)).interactable(false).show(ctx, |ui| {
             egui::Frame::new().fill(INK).corner_radius(R_CARD).stroke(Stroke::new(1.0, white(20))).inner_margin(egui::Margin::symmetric(8, 6)).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("FLY").font(mono(10.0)).color(MUTED));
@@ -955,26 +976,19 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layo
         });
     }
 
-    // what the mouse does here
-    let hints: &[(&str, &[&str])] = match view.mode {
-        Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Parts", &["Tab"]), ("Fly", &["Caps Lock"])],
-        Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Parts", &["Tab"]), ("Edit", &["Caps Lock"])],
-    };
-    if ed.placing.is_none() && !ed.parts_open && ed.wiring.is_none() && ed.looking.is_none() && !ed.drawers[1] {
-        hint_strip(ctx, lay, hints, view.mode == Mode::Editor);
-    } else if let Some(shape) = ed.placing {
-        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Placing {} · click a surface", if shape == Shape::Model { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("model").to_string() } else { shape.label().to_string() }), ACCENT, &["Shift", "Esc"]);
+    if let Some(shape) = ed.placing {
+        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0 - 34.0), &format!("Placing {} · click a surface", if shape == Shape::Model { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).unwrap_or("model").to_string() } else { shape.label().to_string() }), HIGHLIGHT, &["Shift", "Esc"]);
     }
 
     if let Some((from, out)) = ed.wiring {
         let name = ed.level.get(from).map(|p| p.name.clone()).unwrap_or_default();
-        theme::float_label(ctx, "wiring", pos2(r.center().x - 170.0, r.max.y - 48.0), &format!("Wire {name} · {out}: click the part it starts"), theme::CAT_TRIGGERS, &["Esc"]);
+        theme::float_label(ctx, "wiring", pos2(r.center().x - 170.0, r.max.y - 48.0 - 34.0), &format!("Wire {name} · {out}: click the part it starts"), theme::CAT_TRIGGERS, &["Esc"]);
     }
     if let Some((from, out, to, at)) = ed.wire_pick {
         wire_menu(ctx, ed, from, out, to, pos2(at.x, at.y));
     }
 
-    light_budget(ctx, ed, pos2(lay.left_pill.left(), lay.left_pill.bottom() + 10.0));
+    light_budget(ctx, ed, pos2(island.right() + 8.0, island.top()));
 
     // a texture or material being dragged out: a grabbing hand and its name under the pointer, all the way
     if let Some(tex) = ed.texturing.as_deref() {
@@ -1000,27 +1014,36 @@ fn light_budget(ctx: &egui::Context, ed: &mut Editor, at: egui::Pos2) {
     let worst = super::light::budget(&ed.level);
     if worst.is_empty() { theme::spring_reset(ctx, id.with("fade")); return; }
     let (n, max) = (worst.len(), super::light::BUDGET);
-    let col = if n > max { theme::DANGER } else if n == max { ACCENT } else { theme::OK };
+    let col = if n > max { theme::DANGER } else { theme::ACCENT };
     let t = theme::spring_from(ctx, id.with("fade"), 0.0, 1.0, theme::SNAPPY);
     let names: Vec<String> = worst.iter().filter_map(|i| ed.level.get(*i)).map(|p| p.name.clone()).collect();
     let help = format!(
         "Shadowed lights reaching the same place: {} of the {max} that stay smooth.\n{}\n{}Click to select them in turn.",
         n, names.join(", "), if n > max { "Turn Shadows off on some, or make their reach smaller.\n" } else { "" }
     );
-    let res = egui::Area::new(id).order(egui::Order::Foreground).pivot(egui::Align2::LEFT_TOP).fixed_pos(at).show(ctx, |ui| {
+    // a status pill: the bulb in the accent, a cell per shadowed light; a danger ring when over
+    let label_w = text_w(ctx, "Lights", body(12.0));
+    let count = format!("{n} / {max}");
+    let cells = n.max(max);
+    let w = 12.0 + 14.0 + 8.0 + label_w + 8.0 + cells as f32 * 9.0 - 2.0 + 8.0 + text_w(ctx, &count, semi(12.0)) + 12.0;
+    let rect = ERect::from_min_size(at, vec2(w, 28.0));
+    let res = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {
         ui.multiply_opacity(t.clamp(0.0, 1.0));
-        let card = egui::Frame::new().fill(INK).corner_radius(R_CARD).stroke(Stroke::new(1.0, if n > max { col } else { white(20) })).inner_margin(egui::Margin::symmetric(10, 7)).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("LIGHT BUDGET").font(mono(10.0)).color(MUTED));
-                let (bar, _) = ui.allocate_exact_size(vec2(max as f32 * 14.0, 10.0), Sense::hover());
-                for i in 0..max {
-                    let cell = ERect::from_min_size(pos2(bar.min.x + i as f32 * 14.0, bar.min.y), vec2(11.0, 10.0));
-                    ui.painter().rect_filled(cell, CornerRadius::same(2), if i < n { col } else { white(24) });
-                }
-                ui.label(egui::RichText::new(format!("{n} / {max}")).font(semi(12.0)).color(if n > max { col } else { TEXT }));
-            });
-        });
-        ui.interact(card.response.rect, id.with("click"), Sense::click()).on_hover_text(help)
+        let p = ui.painter();
+        p.rect_filled(rect, CornerRadius::same(14), Color32::from_rgba_unmultiplied_const(14, 14, 16, 184));
+        p.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, if n > max { theme::DANGER } else { theme::EDGE }), StrokeKind::Inside);
+        let cy = rect.center().y;
+        frame::paint_icon(p, "bulb", pos2(rect.left() + 12.0 + 7.0, cy), 14.0, if n > max { theme::DANGER_TEXT } else { theme::ACCENT });
+        let mut x = rect.left() + 12.0 + 14.0 + 8.0;
+        p.text(pos2(x, cy), Align2::LEFT_CENTER, "Lights", body(12.0), if n > max { theme::DANGER_TEXT } else { TEXT });
+        x += label_w + 8.0;
+        for i in 0..cells {
+            let c = if i >= max { theme::DANGER } else if i < n { col } else { white(30) };
+            p.rect_filled(ERect::from_min_size(pos2(x, cy - 5.0), vec2(7.0, 10.0)), CornerRadius::same(2), c);
+            x += 9.0;
+        }
+        p.text(pos2(x - 2.0 + 8.0, cy), Align2::LEFT_CENTER, count, semi(12.0), if n > max { theme::DANGER_TEXT } else { TEXT });
+        ui.interact(rect, id.with("click"), Sense::click()).tip(help)
     }).inner;
     if res.clicked() {
         let next = ed.selected.and_then(|s| worst.iter().position(|i| *i == s)).map_or(0, |k| (k + 1) % n);
@@ -1293,7 +1316,7 @@ fn part_square(ui: &mut Ui, size: f32, glyph: &str, shape: Option<Shape>, label:
     let stroke = if resp.hovered() {
         Stroke::new(1.5, color)
     } else if selected {
-        Stroke::new(1.5, ACCENT)
+        Stroke::new(1.5, HIGHLIGHT)
     } else {
         Stroke::new(1.0, white(22))
     };
@@ -1327,7 +1350,7 @@ fn unsaved_modal(ctx: &egui::Context, ed: &mut Editor, what: Pending, exit: &mut
         ui.label(egui::RichText::new(format!("Save “{}” before you {verb}?", ed.name)).color(MUTED));
         ui.add_space(16.0);
         ui.horizontal(|ui| {
-            let save = egui::Button::new(egui::RichText::new("Save").font(semi(13.0)).color(INK)).fill(ACCENT).min_size(vec2(90.0, 32.0));
+            let save = egui::Button::new(egui::RichText::new("Save").font(semi(13.0)).color(INK)).fill(HIGHLIGHT).min_size(vec2(90.0, 32.0));
             if ui.add(save).clicked() { choice = Some(1); }
             if theme::hold_button(ui, "Hold to discard", 1.0) { choice = Some(2); }
             if ui.add(egui::Button::new("Cancel").min_size(vec2(80.0, 32.0))).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) { choice = Some(0); }
@@ -1405,7 +1428,7 @@ fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
                 let (dot, word) = match f.status.as_str() {
                     "done" => (theme::OK, format!("built {}", day(&f.built, true))),
                     "hold" => (white(40), "on hold".into()),
-                    _ if ready(f) => (ACCENT, "ready".into()),
+                    _ if ready(f) => (HIGHLIGHT, "ready".into()),
                     _ => (white(60), "planned".into()),
                 };
                 let resp = egui::Frame::new().fill(if is_open { white(10) } else { Color32::TRANSPARENT }).corner_radius(CornerRadius { nw: 10, ne: 10, se: 10, sw: 3 }).inner_margin(egui::Margin::symmetric(8, 5)).show(ui, |ui| {
@@ -1417,7 +1440,7 @@ fn features_modal(ctx: &egui::Context, ed: &mut Editor) {
                         ui.label(egui::RichText::new(&f.name).font(semi(13.0)).color(TEXT));
                         ui.label(egui::RichText::new(&f.area).size(11.0).color(MUTED));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(egui::RichText::new(&f.effort).font(mono(11.0)).color(ACCENT));
+                            ui.label(egui::RichText::new(&f.effort).font(mono(11.0)).color(HIGHLIGHT));
                             ui.label(egui::RichText::new(word).size(11.0).color(dot));
                         });
                     });
@@ -1467,12 +1490,12 @@ fn about_modal(ctx: &egui::Context, ed: &mut Editor) {
         ui.set_width(420.0);
         ui.label(egui::RichText::new("Beverly").font(semi(20.0)).color(TEXT));
         ui.add_space(2.0);
-        ui.label(egui::RichText::new(format!("This is {}", this_build())).color(ACCENT));
+        ui.label(egui::RichText::new(format!("This is {}", this_build())).color(HIGHLIGHT));
         ui.add_space(10.0);
         ui.add(egui::Label::new(egui::RichText::new("A no-code-first 3D game editor for Bevy: build levels by placing and wiring parts, test them on the spot, and export a Windows game.").color(TEXT)).wrap());
         ui.add_space(10.0);
         ui.label(egui::RichText::new("Bevy 0.20.1 · bevy_egui 0.43.1 · Motion UI kit").color(MUTED));
-        ui.hyperlink_to(egui::RichText::new("github.com/thriple/Beverly").color(ACCENT), env!("CARGO_PKG_REPOSITORY"));
+        ui.hyperlink_to(egui::RichText::new("github.com/thriple/Beverly").color(HIGHLIGHT), env!("CARGO_PKG_REPOSITORY"));
         ui.add_space(16.0);
         ui.horizontal(|ui| {
             if ui.add(egui::Button::new("Check for updates…").min_size(vec2(150.0, 32.0))).clicked() {
@@ -1501,7 +1524,7 @@ fn updates_modal(ctx: &egui::Context, ed: &mut Editor) {
         let say = |ui: &mut Ui, text: &str| {
             ui.add(egui::Label::new(egui::RichText::new(text).color(TEXT)).wrap());
         };
-        let accent = |label: &str| egui::Button::new(egui::RichText::new(label).font(semi(13.0)).color(INK)).fill(ACCENT).min_size(vec2(170.0, 32.0));
+        let accent = |label: &str| egui::Button::new(egui::RichText::new(label).font(semi(13.0)).color(INK)).fill(HIGHLIGHT).min_size(vec2(170.0, 32.0));
         match &status {
             Status::Idle | Status::Checking => say(ui, "Looking for a newer build…"),
             Status::Local => say(ui, "This build was made by hand, so there's nothing to compare it with. Updates are for the builds from the Releases page."),
@@ -1525,7 +1548,7 @@ fn updates_modal(ctx: &egui::Context, ed: &mut Editor) {
                 ui.painter().rect_filled(bar, CornerRadius::same(4), white(18));
                 if let Some(t) = total.filter(|t| *t > 0) {
                     let f = (*done as f32 / t as f32).clamp(0.0, 1.0);
-                    ui.painter().rect_filled(bar.with_max_x(bar.left() + w * f), CornerRadius::same(4), ACCENT);
+                    ui.painter().rect_filled(bar.with_max_x(bar.left() + w * f), CornerRadius::same(4), HIGHLIGHT);
                 }
             }
             Status::Installed(n) => {
@@ -1587,7 +1610,7 @@ fn mcp_modal(ctx: &egui::Context, ed: &mut Editor) {
         small_caps(ui, "TOKEN");
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(&ed.mcp.settings.token).font(mono(12.0)).color(TEXT));
-            if ui.small_button("New token").on_hover_text("Assistants using the old one can no longer connect").clicked() {
+            if ui.small_button("New token").tip("Assistants using the old one can no longer connect").clicked() {
                 ed.mcp.settings.token = mcp::new_token();
                 changed = true;
             }
