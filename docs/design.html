@@ -570,6 +570,40 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       </ul>
     </div>
 
+    <div class="card you">
+      <span class="tag">Brush, pen and fill</span><h3>One set of tools in every tab</h3>
+      <div class="said">Precision placement of single items, brushes from small amounts up to whole forests, spline tools with orderly or random spacing, a bucket that fills by the colour clicked; the brush and Bezier tool reused across Foliage, Assets, Characters, Vehicles and more. Something must control what is under the foliage too.</div>
+      <ul>
+        <li><b>Four tools, the same keys everywhere:</b> <b>Place</b> one item exactly (on the surface, upright or tilted to it; wheel turns, Shift+wheel scales; snapping as today). <b>Brush</b> from a 10 cm dab to a 500 m forest (S / M / L / XL presets, the slider, Alt + right-drag in the view), with strength as <b>Add / Subtract</b> (each pass a little) or <b>Set</b> (exactly this density, however often you go over it). <b>Pen</b> (Bezier). <b>Fill</b> (the bucket). Plus <b>Pick</b> (take what is under the cursor) and erasing as each tool's other side.</li>
+        <li><b>The pen's modes:</b> <b>Even</b> (one every N metres, facing along it: fences, lamp posts, avenues, hedges), <b>Scattered</b> (random in a band of a given width that thins at its edges: forest edges, stream banks), <b>Both sides</b>, and a closed curve fills inside (a lasso). A curve stays live (move a point and the hedge follows); <b>Turn into items</b> makes them placed items to nudge one by one.</li>
+        <li><b>Fill matches a rule:</b> the same material or texture (a blue square on concrete: only the blue gets grass), the same colour (with a tolerance), the same surface tag, everything inside this part, or this whole floor; Connected only stops at gaps. The fill stays a rule: recolour the square and the grass follows.</li>
+        <li><b>Rules any tool carries:</b> slope limit, height band, keep clear of paths, roads and water, spacing between items, which surfaces it may land on.</li>
+        <li><b>The work is saved, not the result:</b> strokes, curves and fills are small objects (points, settings, a seed) and everything is rebuilt from them, so no images are stored, a forest is one stroke, old strokes stay selectable and editable, and undo and the MCP cover all of it.</li>
+        <li><b>Each tab says what the tools place:</b> Foliage: grass, plants and Mixes. Level and Assets: props, rubble, fences, cables. Vehicles: roads, rails, routes, traffic. Later: terrain heights and surfaces, rivers, navigation, weather zones, lights along a curve, sound areas.</li>
+        <li><b>Characters tab</b> (to plan with it): the brush paints Beverly's own shaders onto a character; the pen draws hair, strips of cloth and jewellery that move with physics.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Foliage</span><h3>The Level tab's Foliage topic</h3>
+      <div class="said">A tab for foliage (the redesign has it as the Level tab's Foliage topic); grass on the tops of things, even walls or ceilings if painted; built right after Instancing.</div>
+      <ul>
+        <li><b>The view:</b> the level, parts dimmed and not selectable, so every click paints. The brush shows as rings on the surface (its size, and where the soft edge starts).</li>
+        <li><b>The dock's list:</b> <b>Mixes</b> first, then grass and ground-cover species, then plant sets (scattered models, which come with LOD and impostors). "+ New" copies one to change.</li>
+        <li><b>Mixes:</b> one pick for a whole look: a ground material, grass species with weights, plant sets with their spacing. Meadow: soil, grass 70%, daisies 10%, tall grass 20%. Forest floor: leaf litter, ivy, ferns, trees 6 to 10 m apart. Riverbank: wet mud, reeds and rushes. The ground layer belongs to the Mix, with a per-stroke override (the same meadow, muddier here).</li>
+        <li><b>What is under the foliage:</b> a stroke lays a <b>ground</b> layer (a material: soil, moss, leaf litter) and the <b>plants</b> together. The ground's Spread says how far it reaches past the plants, its edge is soft, and it follows density (thin grass shows the soil through). Grass takes the colour of the surface at its roots. Ground-only strokes are plain surface painting. The stroke can tag what it covers (grass, mud) for footsteps, hiding in grass and slipping.</li>
+        <li><b>The grass carpet</b> (the user's grass system, ported from their game, checked 2026-11-17: it draws, follows its centre without swimming, and the species match): one instanced lattice that exists only in a circle around the camera or player, every blade placed, shaped, coloured and swayed in the shader; 17 species as data. It reads where the ground is and what to grow from textures built while playing, from the strokes and the surfaces under them (part tops, and walls or ceilings where painted), never stored. One height per spot: grass under a bridge and on it needs a second layer; walls and ceilings may need plants laid on the surface instead of the carpet's upright blades.</li>
+        <li><b>Ground relief:</b> flat colour and texture for now. Researched 2026-11-17 for later: wgpu has no tessellation; Bevy's materials already do parallax occlusion (depth from the user's own height texture, cost per pixel, best close up, odd on bent surfaces, no silhouettes or shadows); terrain can be displaced for real in its own mesh; a bump from noise in the shader is nearly free; leaf litter is cheapest as flat cards lying on the ground (the carpet's lily-pad and ivy kinds already do this); wet mud is a darker, glossier ground with no geometry at all.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Terrain</span><h3>A Terrain topic for the ground itself</h3>
+      <ul>
+        <li>Everything about the ground in one place: the level's ground (none, flat floor, terrain, ocean), <b>Surfaces</b> (the ground materials Mixes use, and ground-only painting with the same tools, on parts and the flat floor before any terrain exists), then sculpting (raise, lower, smooth, flatten; ridges and beds with the pen), water (lakes, rivers), roads and caves as they come. Foliage stays its own topic and borrows the Surfaces.</li>
+      </ul>
+    </div>
+
     <div class="card">
       <span class="tag">Surface tags</span><h3>Say what a surface is</h3>
       <ul>
