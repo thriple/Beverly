@@ -18,7 +18,8 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   dock panel moves (sliding pill, content sliding the way you went, springing width), its dynamic island pops open
   for each action and its inputs animate typed characters. Everything you see (shapes, colours, sizes, type) follows
   the redesign.
-- Caps Lock is the movement-mode switch only. Tab opens the parts pop-up. Mouse 5 / ] faster, Mouse 4 / [ slower.
+- Caps Lock is the movement-mode switch only. Tab opens the parts pop-up. Mouse 5 / Page Up faster, Mouse 4 / Page Down slower.
+  `[` and `]` belong to brush size, as in Photoshop (user, 2026-11-17).
 - Basic shapes double as colliders (Visible off = invisible collider).
 - Projects are folders of plain text (RON) so they work with git.
 - Build with multiplayer in mind (it comes late, but nothing should block it): game state lives in data (components,

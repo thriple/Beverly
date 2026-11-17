@@ -71,7 +71,7 @@ Roboto 400/500/700; Roboto Mono for numbers and timecodes. Panel title 16/700, g
 
 ## Panels
 
-- **Dock** (right, 352 wide, 12 px inset, radius 16, glass): header is a segmented switch `Inspect · <list> · Assets` (each icon + word) and a collapse chevron (`]`). Collapses to a 44 px **rail** of icons (`[` to reopen).
+- **Dock** (right, 352 wide, 12 px inset, radius 16, glass): header is a segmented switch `Inspect · <list> · Assets` (each icon + word) and a collapse chevron. Collapses to a 44 px **rail** of icons (click one to reopen). No key: `[` `]` are the brush size (user, 2026-11-17).
   - **Inspect**: identity header (40 px tinted icon tile, name 16/700, "Type · detail" subtitle, duplicate/delete icons) then **groups**. Each group: coloured icon + heading + collapse chevron; rows 28 px min, 8 px apart; label column 76 px. Rarely-used settings go in a collapsed **Advanced** group showing its count ("4 settings").
   - **List**: search field, small grey section headings, rows with the category icon in category colour; warnings right-aligned in danger text.
   - **Assets**: dashed drop hint ("Drop files anywhere" — the whole window is the drop target), then folder tree.

@@ -1,8 +1,8 @@
 //! The two ways of moving around, switched with Caps Lock:
 //! - Editor movement: free cursor; middle-drag orbits the point under the reticle, hold Space and move the mouse
 //!   to pan, the wheel zooms toward the point under the cursor (each notch closes a share of the distance).
-//! - Builder movement: no-clip flight; the mouse looks, W/A/S/D move where you look, no speed ramp. Mouse 5 / ]
-//!   faster, Mouse 4 / [ slower through 12 speeds. Hold Alt for a cursor.
+//! - Builder movement: no-clip flight; the mouse looks, W/A/S/D move where you look, no speed ramp. Mouse 5 /
+//!   Page Up faster, Mouse 4 / Page Down slower through 12 speeds. Hold Alt for a cursor.
 use super::{Editor, theme};
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
@@ -152,9 +152,9 @@ pub fn input(
         cursor_opts.visible = free;
     }
 
-    // Fly speed: Mouse 5 / ] faster, Mouse 4 / [ slower (in both modes; it's shown in the corner).
-    let up = mouse.just_pressed(MouseButton::Forward) || (!typing && keys.just_pressed(KeyCode::BracketRight));
-    let down = mouse.just_pressed(MouseButton::Back) || (!typing && keys.just_pressed(KeyCode::BracketLeft));
+    // Fly speed: Mouse 5 / Page Up faster, Mouse 4 / Page Down slower (in both modes; it's shown in the corner).
+    let up = mouse.just_pressed(MouseButton::Forward) || (!typing && keys.just_pressed(KeyCode::PageUp));
+    let down = mouse.just_pressed(MouseButton::Back) || (!typing && keys.just_pressed(KeyCode::PageDown));
     if up || down {
         let s = if up { (view.speed + 1).min(SPEEDS.len() - 1) } else { view.speed.saturating_sub(1) };
         view.speed = s;
