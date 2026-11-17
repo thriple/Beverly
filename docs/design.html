@@ -602,6 +602,21 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
     </div>
 
     <div class="card you">
+      <span class="tag">Audio tab</span><h3>Make sounds and music in the tab, place them in the Level</h3>
+      <div class="said">Plan the Audio tab, with research. Adding sounds to characters, sets and weather needs attention (2026-11-15).</div>
+      <ul>
+        <li><b>Topics (five):</b> Sounds · Music · Ambience · Mixer · Voices. Cyan frame, coral accent, the wave icon (the redesign's tab table). Voices waits as "Coming soon" until dialog.</li>
+        <li><b>A sound is a file</b> (assets/sounds/*.bev), like a material: one or more clips (your recordings, or generated sounds later), how one is picked (at random without repeats, or in turn), volume, pitch, how much both vary each time, range (full volume near, silent far), loop, and how many may play at once. Sets per surface live in the same file: a footstep sound holds Grass, Metal and Water sets and the surface underfoot picks one. Recordings are the user's own; nothing is baked; waveforms are drawn as vector lines worked out when shown.</li>
+        <li><b>Stages:</b> Sounds: a speaker on a plinth with its range drawn as rings; walk or orbit around it to hear the falloff, or pick <i>On: Runner ▾</i> to hear it on that subject's moves (steps on the chosen surface, a jump, a landing). Music: the shared timeline, stems as tracks and sections as regions, with a mood chip to try changes. Ambience: a patch of world under the sky with time of day, wind and rain sliders (the Effects tab's World stage), scattered sounds popping up as dots around you. Mixer: one strip per bus with its meter.</li>
+        <li><b>Placing:</b> a Sound part (a speaker, from the parts pop-up or by dropping an audio file into the view) plays on start or when wired (Play, Stop), heard in 3D: from the camera while editing, from the player in play. Characters, vehicles, parts and effects get a Sounds group that names what plays on which event. Zone parts and the World topic choose a place's ambience, reverb and music.</li>
+        <li><b>Mixer:</b> buses Music, Effects, Voices, Ambience and Interface (the Settings screen's volume sliders), ducking (voices lower the music), reverb spaces (Room, Hall, Cave, Outdoors), sounds muffled behind walls and pitched by speed, and moods that change the mix for a while (Underwater, Paused, Hurt).</li>
+        <li><b>Music:</b> stems fade in and out with an intensity, sections change on the next bar or beat, stingers play on events (how FMOD and Wwise do adaptive music); a Music action and variables drive it.</li>
+        <li><b>Getting here:</b> double-click a sound file in Assets, right-click a Sound part or a thing with sounds ("Edit this sound in the Audio tab"), the Sounds group's edit button, or the tab bar; the back chip returns.</li>
+        <li><b>Engine (researched 2026-11-17):</b> kira 0.12, used directly through a small layer of Beverly's own: it has spatial tracks with a listener, sends for reverb, filters, clocks for music on the beat, and loop regions. bevy_kira_audio (Bevy 0.20) hides the clocks and sends; bevy_seedling (Firewheel, planned as Bevy's own audio) has no Bevy 0.20 release yet. Sounds are stored as settings, so the engine can change later.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
       <span class="tag">Brush, pen and fill</span><h3>One set of tools in every tab</h3>
       <div class="said">Precision placement of single items, brushes from small amounts up to whole forests, spline tools with orderly or random spacing, a bucket that fills by the colour clicked; the brush and Bezier tool reused across Foliage, Assets, Characters, Vehicles and more. Something must control what is under the foliage too.</div>
       <ul>

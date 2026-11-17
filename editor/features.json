@@ -474,6 +474,28 @@
    "next": true
   },
   {
+   "id": "audio",
+   "name": "Sounds and the Audio tab",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes",
+    "surface-tags",
+    "auto-panels"
+   ],
+   "what": "Sound files made in the Audio tab (the user's recordings, picked at random or in turn, with volume, pitch, variation and range) and placed in the Level as Sound parts; heard in 3D from the camera while editing and from the player in play; any event can play one, with footsteps by surface.",
+   "chunks": [
+    "The sound engine and Sound parts: kira in the editor and the player; sound files (assets/sounds/*.bev: clips, how one is picked, volume, pitch, random variation, range, loop, how many at once); a Sound part placed in the Level plays on start or when wired (Play / Stop), heard in 3D with its range drawn; an audio file dropped into the view places one; the MCP",
+    "The Audio tab and its Sounds topic: the tab's topics, the dock's list of sounds, the listening stage (a speaker on a plinth with its range rings, you walk or orbit around it, or the chip On: Runner plays it on that subject's moves), clips drawn as vector waveforms, Preview, sets per surface (footsteps on grass, metal, water); double-click a sound file to open it",
+    "Sound hooks: any event (a footstep, a jump, a hit, a wire firing, a part breaking) plays a sound; footsteps pick their set by the surface underfoot; a Sounds group on parts, characters, vehicles and effects, filled in later by those features"
+   ],
+   "note": "Planned 2026-11-17 (user: plan the Audio tab with research, then start). Make it in its tab, place it in the Level, as for effects. Engine (researched 2026-11-17): kira 0.12 used directly through a small layer of Beverly's own, because bevy_kira_audio (0.27, Bevy 0.20) hides kira's clocks (music on the beat), spatial tracks and sends (reverb per place); bevy_seedling (Firewheel, planned to become Bevy's own audio) has no release for Bevy 0.20 yet. Sounds are stored as settings and the user's own recordings, never baked, so the engine can be swapped later. Waveforms are worked out from the recording when shown, never saved. Multiplayer: sounds react to events, never drive the game. MCP: list_sounds, get_sound, change_sound, new_sound, play_sound (preview), Sound parts through the part tools.",
+   "order": 27,
+   "first_game": true,
+   "next": true
+  },
+  {
    "id": "pen",
    "name": "Bezier pen tool",
    "area": "Level building",
@@ -489,7 +511,7 @@
    "note": "Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay).",
    "status": "planned",
    "first_game": true,
-   "order": 27,
+   "order": 28,
    "next": true
   },
   {
@@ -507,7 +529,7 @@
    "status": "planned",
    "first_game": true,
    "next": true,
-   "order": 28
+   "order": 29
   },
   {
    "id": "grass",
@@ -529,7 +551,7 @@
    "status": "planned",
    "first_game": true,
    "next": true,
-   "order": 29
+   "order": 30
   },
   {
    "id": "world-settings",
@@ -543,7 +565,7 @@
    "what": "The Level tab's World topic: per level, the kind of ground (none, flat floor, terrain, ocean) and sky or Interior; later wind, weather and boundaries. Space games get no ground at all.",
    "chunks": [],
    "note": "",
-   "order": 30,
+   "order": 31,
    "first_game": true
   },
   {
@@ -559,7 +581,7 @@
    "what": "One stretchable Zone part with settings for weather, post-processing, audio, wind, water, boundaries and hazards, blending at its edges.",
    "chunks": [],
    "note": "",
-   "order": 31,
+   "order": 32,
    "first_game": true
   },
   {
@@ -574,7 +596,7 @@
    "what": "One particle system for every effect: bursts and streams of soft blobs with drag, gravity, spin and wander, size and colour over life drawn as curves.",
    "chunks": [],
    "note": "Generalises Last Ascent's particles (fx.rs and the plume particles), which already match the game's look and run without compute shaders. bevy_hanabi (GPU, Bevy 0.20) stays a fallback if counts outgrow it. Rain and snow are a shader around the camera, not particles.",
-   "order": 32,
+   "order": 33,
    "first_game": true
   },
   {
@@ -589,7 +611,7 @@
    "what": "Right-click on parts, assets, keys, ground and sky: duplicate, delete, rename, make unique, and Edit in its tab (Characters, Vehicles, Effects by topic, Audio); double-click opens what a thing is made of; a back chip (Alt+Left) returns with the same selection and view; Ctrl+1 to 8 switch tabs.",
    "chunks": [],
    "note": "Widened 2026-11-17 (user: right-click 'Edit this in the ___ Effects tab'; redundant ways are fine if they don't conflict). Entries for tabs that aren't built yet are left out. MCP: open_in_tab (thing, tab, topic).",
-   "order": 33,
+   "order": 34,
    "first_game": true
   },
   {
@@ -606,28 +628,7 @@
    "chunks": [],
    "status": "planned",
    "first_game": true,
-   "order": 34
-  },
-  {
-   "id": "audio",
-   "name": "Sound parts and audio zones",
-   "area": "Audio and dialog",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "shapes",
-    "zones",
-    "surface-tags"
-   ],
-   "what": "Sound parts, the Sound action, ambient loops, music regions, reverb in zones, and sounds on everything: characters, weather, parts and effects play sounds when things happen.",
-   "chunks": [
-    "Sound parts and the Sound action, 3D sound, volume and range",
-    "Audio settings on Zone parts: ambience, music regions, reverb",
-    "Sound hooks: any event (a footstep, a move, a hit, a wire firing) plays a sound; footsteps by surface; a Sounds list on characters and on zones that later features (weather, effects, idles) add to"
-   ],
-   "note": "Gets its own planning pass before building (user, 2026-11-15: adding sounds to characters, sets and weather needs attention). bevy_kira_audio supports Bevy 0.20. Its tab colours come from the redesign (docs/ui/HANDOFF.md): cyan frame, coral accent. The redesign has an Audio tab (making sounds and music); its layout gets its own planning pass with this feature.",
-   "order": 35,
-   "first_game": true
+   "order": 35
   },
   {
    "id": "jump-pads",
@@ -820,7 +821,7 @@
    ],
    "what": "Temporary sounds made from a few settings: blips, hits, footsteps, whooshes, explosions, engine hums and rain, saved as their settings (tiny) and swapped for real recordings whenever you have them.",
    "chunks": [],
-   "note": "User, 2026-11-15: generated temporary sounds are fine. Works like the classic sfxr sound makers: a wave, a pitch slide, an envelope and noise.",
+   "note": "User, 2026-11-15: generated temporary sounds are fine. Works like the classic sfxr sound makers: a wave, a pitch slide, an envelope and noise. Lives in the Sounds topic as a source beside recordings (2026-11-17).",
    "order": 47,
    "first_game": true
   },
@@ -1597,7 +1598,7 @@
    ],
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
-   "note": "",
+   "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then.",
    "order": 89,
    "first_game": true
   },
@@ -2002,6 +2003,21 @@
    "first_game": false
   },
   {
+   "id": "mixer",
+   "name": "Mixer: buses, reverb and moods",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "audio"
+   ],
+   "what": "The Audio tab's Mixer topic: buses (Music, Effects, Voices, Ambience, Interface) with volume and ducking (voices lower the music), reverb spaces (Room, Hall, Cave, Outdoors), sounds muffled behind walls and pitched by speed (Doppler), and moods that change the mix for a while (Underwater, Paused, Hurt).",
+   "chunks": [],
+   "note": "Planned 2026-11-17. Buses are kira sub-tracks; reverb spaces are send tracks with kira's reverb; muffling is a ray from the listener to the sound and a low-pass filter. The Settings screen's volume sliders are these buses. MCP: get_mix, change_mix, set_mood.",
+   "first_game": false,
+   "order": 113
+  },
+  {
    "id": "triggers",
    "name": "Triggers",
    "area": "Scripting",
@@ -2014,7 +2030,7 @@
    "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
    "chunks": [],
    "note": "",
-   "order": 113,
+   "order": 114,
    "first_game": false
   },
   {
@@ -2029,7 +2045,7 @@
    "what": "Timer, Relay, Counter, Random.",
    "chunks": [],
    "note": "",
-   "order": 114,
+   "order": 115,
    "first_game": false
   },
   {
@@ -2044,7 +2060,7 @@
    "what": "AND, OR, NOR, XOR, NOT.",
    "chunks": [],
    "note": "",
-   "order": 115,
+   "order": 116,
    "first_game": false
   },
   {
@@ -2059,7 +2075,7 @@
    "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
    "chunks": [],
    "note": "",
-   "order": 116,
+   "order": 117,
    "first_game": false
   },
   {
@@ -2075,7 +2091,7 @@
    "what": "The pointer tour for each card the first time it opens.",
    "chunks": [],
    "note": "",
-   "order": 117,
+   "order": 118,
    "first_game": false
   },
   {
@@ -2090,8 +2106,44 @@
    "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
    "chunks": [],
    "note": "",
-   "order": 118,
+   "order": 119,
    "first_game": false
+  },
+  {
+   "id": "ambience",
+   "name": "Ambience and places",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "mixer",
+    "zones"
+   ],
+   "what": "The Audio tab's Ambience topic: a soundscape is beds (loops) plus scattered sounds (a bird somewhere every few seconds, a far-off dog) placed around the listener at random; Zone parts and the Level's World topic choose a place's ambience, reverb space and music, blending at their edges.",
+   "chunks": [],
+   "note": "Planned 2026-11-17. The stage is a patch of world with time of day, wind and rain sliders (shared with the Effects tab's World stage); scattered sounds show as dots popping up around you. Weather sounds (rain, wind) are ambience layers that follow the weather. MCP: ambience through the sound tools, zones through the part tools.",
+   "first_game": false,
+   "order": 120
+  },
+  {
+   "id": "music",
+   "name": "Music that follows the game",
+   "area": "Audio and dialog",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "mixer",
+    "timeline",
+    "variables"
+   ],
+   "what": "The Audio tab's Music topic: a piece is stems (drums, bass, pads) and sections (Explore, Tense, Fight) on the timeline with its tempo; the game moves between sections on the next bar or beat, fades stems in and out with a level of intensity, and plays stingers on events.",
+   "chunks": [
+    "Pieces on the timeline: stems as tracks, sections as regions, tempo and bars, loop points; play and audition in the tab",
+    "Following the game: a Music action and variables pick the section and intensity, changes land on the next bar or beat (kira clocks), stingers on events, zones choose a place's music"
+   ],
+   "note": "Planned 2026-11-17. Works like FMOD's and Wwise's adaptive music: vertical (stems in and out) and horizontal (sections on the beat). MCP: list_music, change_music, set_music_state.",
+   "first_game": false,
+   "order": 121
   },
   {
    "id": "kits",
@@ -2106,7 +2158,7 @@
    "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
    "chunks": [],
    "note": "",
-   "order": 119,
+   "order": 122,
    "first_game": false
   },
   {
@@ -2125,7 +2177,7 @@
     "Exposed ports and settings, nested prefabs"
    ],
    "note": "",
-   "order": 120,
+   "order": 123,
    "first_game": false
   },
   {
@@ -2146,7 +2198,7 @@
     "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
    ],
    "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent.",
-   "order": 121,
+   "order": 124,
    "first_game": false
   },
   {
@@ -2165,7 +2217,7 @@
     "Grind rails, zero-g, burrow, ride, perch"
    ],
    "note": "",
-   "order": 122,
+   "order": 125,
    "first_game": false
   },
   {
@@ -2180,7 +2232,7 @@
    "what": "Gamepad controls for games and the input map. Last, as asked.",
    "chunks": [],
    "note": "",
-   "order": 123,
+   "order": 126,
    "first_game": false
   },
   {
@@ -2195,7 +2247,7 @@
    "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
    "chunks": [],
    "note": "",
-   "order": 124,
+   "order": 127,
    "first_game": false
   },
   {
@@ -2210,7 +2262,7 @@
    "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
-   "order": 125,
+   "order": 128,
    "first_game": false
   },
   {
@@ -2229,7 +2281,7 @@
     "Placing kit pieces, doors, keys and spawns along it"
    ],
    "note": "",
-   "order": 126,
+   "order": 129,
    "first_game": false
   },
   {
@@ -2244,7 +2296,7 @@
    "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
    "chunks": [],
    "note": "",
-   "order": 127,
+   "order": 130,
    "first_game": false
   },
   {
@@ -2259,7 +2311,7 @@
    "what": "A generic humanoid and a small cartoon character, skinned and animated, with walk, run, jump and idle clips, so any project can test from day one.",
    "chunks": [],
    "note": "Made by the user, not asset packs (2026-11-15), and skinned in another tool: Prism once it can skin (user, 2026-11-15). They arrive as GLB with their skeleton and clips.",
-   "order": 128,
+   "order": 131,
    "first_game": false
   },
   {
@@ -2274,7 +2326,7 @@
    "what": "Hide in shadow or grass, noise enemies hear, distract.",
    "chunks": [],
    "note": "",
-   "order": 129,
+   "order": 132,
    "first_game": false
   },
   {
@@ -2293,7 +2345,7 @@
     "Quest log, markers on the map and compass"
    ],
    "note": "",
-   "order": 130,
+   "order": 133,
    "first_game": false
   },
   {
@@ -2308,7 +2360,7 @@
    "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
    "chunks": [],
    "note": "",
-   "order": 131,
+   "order": 134,
    "first_game": false
   },
   {
@@ -2328,7 +2380,7 @@
     "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
    ],
    "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
-   "order": 132,
+   "order": 135,
    "first_game": false
   },
   {
@@ -2348,7 +2400,7 @@
     "Cave dressing: drips, rubble and lights along the walls"
    ],
    "note": "fast-surface-nets does the meshing (no Bevy dependency). The open ground is drawn without meshes (terrain); whether caves are meshed with surface nets or drawn from their shapes in a shader is decided when they are planned (user prefers no meshes for the ground).",
-   "order": 133,
+   "order": 136,
    "first_game": false
   },
   {
@@ -2364,7 +2416,7 @@
    "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
    "chunks": [],
    "note": "",
-   "order": 134,
+   "order": 137,
    "first_game": false
   },
   {
@@ -2380,7 +2432,7 @@
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
    "note": "",
-   "order": 135,
+   "order": 138,
    "first_game": false
   },
   {
@@ -2396,7 +2448,7 @@
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 136,
+   "order": 139,
    "first_game": false
   },
   {
@@ -2413,7 +2465,7 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 137,
+   "order": 140,
    "first_game": false
   },
   {
@@ -2432,7 +2484,7 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 138,
+   "order": 141,
    "first_game": false
   },
   {
@@ -2451,7 +2503,7 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "",
-   "order": 139,
+   "order": 142,
    "first_game": false
   },
   {
@@ -2467,7 +2519,7 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 140,
+   "order": 143,
    "first_game": false
   },
   {
@@ -2490,7 +2542,7 @@
     "Multiplayer test mode in the editor (several windows) with fake lag and packet loss"
    ],
    "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction.",
-   "order": 141,
+   "order": 144,
    "first_game": false
   },
   {
@@ -2506,7 +2558,7 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 142,
+   "order": 145,
    "first_game": false
   },
   {
@@ -2524,7 +2576,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 143,
+   "order": 146,
    "first_game": false
   },
   {
@@ -2539,7 +2591,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 144,
+   "order": 147,
    "first_game": false
   }
  ],
