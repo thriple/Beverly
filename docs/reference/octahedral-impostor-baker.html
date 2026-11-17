@@ -1,0 +1,1205 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Octahedral Impostor Baker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-height 3D viewport on the left, an instrument-style control column on the right; stacks on phones. */
+:root {
+  --bg: #e9eeec; --panel: #f7f9f8; --fg: #1b2422; --muted: #5a6964; --line: #cfd8d5;
+  --accent: #2b6b57; --accent-fg: #ffffff; --warn: #9a4f17; --chip: #e1e8e5;
+  --font-ui: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121817; --panel: #19211f; --fg: #e1e9e6; --muted: #8fa09a; --line: #2a3532;
+  --accent: #6bc2a2; --accent-fg: #0d1513; --warn: #e2995a; --chip: #222c29; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121817; --panel: #19211f; --fg: #e1e9e6; --muted: #8fa09a; --line: #2a3532;
+  --accent: #6bc2a2; --accent-fg: #0d1513; --warn: #e2995a; --chip: #222c29; color-scheme: dark }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; }
+.app { box-sizing: border-box; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; padding-block: 12px; padding-inline: 16px; }
+.view { position: relative; min-width: 0; border-radius: 10px; overflow: hidden; background: #8fb3d1; touch-action: none; }
+.view canvas { display: block; width: 100%; height: 100%; }
+.panel { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 2px; }
+.panel h1 { font-size: 20px; font-weight: 600; margin: 2px 0 0; letter-spacing: 0.01em; text-wrap: balance; }
+.panel .sub { color: var(--muted); margin: 2px 0 0; line-height: 1.4; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+section h2 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.row { display: grid; grid-template-columns: 112px minmax(0, 1fr) 52px; align-items: center; gap: 8px; }
+.row label { color: var(--fg); }
+.row output, .mono { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.row output { text-align: right; color: var(--muted); }
+.row.two { grid-template-columns: 112px minmax(0, 1fr); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.check { display: flex; align-items: center; gap: 8px; }
+.check input { accent-color: var(--accent); }
+button { font: inherit; font-weight: 500; border-radius: 6px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+button:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.primary.dirty { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.drop { border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; color: var(--muted); line-height: 1.45; }
+.drop strong { color: var(--fg); font-weight: 600; }
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--font-mono); font-size: 12px; text-align: right; overflow-wrap: anywhere; }
+.note { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin: 0; }
+.note.warn { color: var(--warn); }
+/* viewport overlays */
+.tabs { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; background: rgba(16, 24, 22, 0.72); border-radius: 8px; padding: 3px; gap: 2px; z-index: 2; }
+.tabs button { background: transparent; border: 0; color: #d9e4e0; padding: 6px 12px; border-radius: 6px; }
+.tabs button[aria-pressed=true] { background: #f2f6f4; color: #14201d; }
+.hud { position: absolute; left: 10px; bottom: 10px; background: rgba(16, 24, 22, 0.72); color: #e3ece8; border-radius: 6px; padding: 6px 9px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; white-space: pre; pointer-events: none; }
+.split { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255, 255, 255, 0.85); transform: translateX(-1px); pointer-events: none; }
+.split .grip { position: absolute; top: 50%; left: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; background: #f2f6f4; box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: auto; cursor: ew-resize; touch-action: none; }
+.split .grip::before { content: "‹ ›"; position: absolute; inset: 0; display: grid; place-items: center; color: #14201d; font-size: 13px; letter-spacing: 2px; }
+.tag { position: absolute; top: 54px; background: rgba(16, 24, 22, 0.72); color: #e3ece8; font-size: 12px; padding: 3px 8px; border-radius: 5px; pointer-events: none; }
+.tag.l { left: 10px; } .tag.r { right: 10px; }
+.atlas { position: absolute; inset: 0; background: var(--panel); overflow: auto; padding: 56px 16px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; align-content: start; }
+.atlas figure { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.atlas canvas { width: 100%; height: auto; aspect-ratio: 1; max-width: 100%; image-rendering: pixelated; border-radius: 6px; background-color: #cfd6d3; background-image: linear-gradient(45deg, #b9c2be 25%, transparent 25%, transparent 75%, #b9c2be 75%), linear-gradient(45deg, #b9c2be 25%, transparent 25%, transparent 75%, #b9c2be 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.atlas figcaption { color: var(--muted); font-size: 12.5px; }
+.dropping::after { content: "Drop to load model"; position: absolute; inset: 0; display: grid; place-items: center; background: rgba(20, 60, 48, 0.55); color: #fff; font-size: 20px; font-weight: 600; }
+.busy { position: absolute; inset: auto 10px 10px auto; background: rgba(16, 24, 22, 0.8); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12.5px; }
+@media (max-width: 820px) {
+  html, body { height: auto; }
+  .app { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .view { height: 62vh; }
+  .panel { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <div class="view" id="view">
+    <canvas id="c"></canvas>
+    <div class="tabs" role="group" aria-label="Preview mode">
+      <button id="m-compare" aria-pressed="true">Compare</button>
+      <button id="m-forest" aria-pressed="false">Forest</button>
+      <button id="m-atlas" aria-pressed="false">Atlas</button>
+    </div>
+    <div class="split" id="split"><div class="grip" id="grip" title="Drag to compare"></div></div>
+    <div class="tag l" id="tagL">Mesh</div>
+    <div class="tag r" id="tagR">Impostor</div>
+    <div class="atlas" id="atlas" hidden>
+      <figure><canvas id="cv-alb"></canvas><figcaption>albedo.png · RGB colour (sRGB), A coverage</figcaption></figure>
+      <figure><canvas id="cv-nrm"></canvas><figcaption>normal_depth.png · RGB object-space normal</figcaption></figure>
+      <figure><canvas id="cv-dep"></canvas><figcaption>normal_depth.png · A depth toward the frame camera</figcaption></figure>
+    </div>
+    <div class="hud" id="hud"></div>
+    <div class="busy" id="busy" hidden></div>
+  </div>
+
+  <aside class="panel">
+    <div>
+      <h1>Octahedral Impostor Baker</h1>
+      <p class="sub">Bake any model into a single camera-facing card that keeps its 3D look from every angle.</p>
+    </div>
+
+    <section aria-labelledby="h-src">
+      <h2 id="h-src">Source model</h2>
+      <div class="drop" id="drop"><strong>Drop a model anywhere</strong><br>GLB or glTF (with its .bin and textures), FBX, or OBJ + MTL</div>
+      <div class="btns">
+        <button id="pick">Choose files…</button>
+        <button id="sample">Sample tree</button>
+        <input type="file" id="file" multiple hidden accept=".glb,.gltf,.bin,.fbx,.obj,.mtl,.png,.jpg,.jpeg,.webp,.ktx2,.tga">
+      </div>
+      <dl class="facts" id="facts"></dl>
+      <p class="note warn" id="loadErr" hidden></p>
+    </section>
+
+    <section aria-labelledby="h-bake">
+      <h2 id="h-bake">Bake</h2>
+      <div class="row"><label for="grid">Views per side</label><input type="range" id="grid" min="6" max="32" step="1" value="16"><output for="grid" id="o-grid"></output></div>
+      <div class="row two"><label for="res">Atlas size</label><select id="res"><option>512</option><option>1024</option><option selected>2048</option><option>4096</option></select></div>
+      <div class="row two"><label for="hemi">Coverage</label><select id="hemi"><option value="1" selected>Upper hemisphere (trees, props on ground)</option><option value="0">Full sphere (seen from below too)</option></select></div>
+      <div class="row"><label for="cover">Fill per tile</label><input type="range" id="cover" min="0.8" max="1" step="0.01" value="0.98"><output for="cover" id="o-cover"></output></div>
+      <div class="row"><label for="cut">Alpha cutoff</label><input type="range" id="cut" min="0.05" max="0.95" step="0.05" value="0.5"><output for="cut" id="o-cut"></output></div>
+      <label class="check"><input type="checkbox" id="ss" checked> Supersample 2× (smoother leaf edges)</label>
+      <dl class="facts" id="bakeFacts"></dl>
+      <label class="check"><input type="checkbox" id="autobake" checked> Auto-bake preview when a bake setting changes</label>
+      <button class="primary" id="bake" disabled>Bake impostor</button>
+    </section>
+
+    <section aria-labelledby="h-look">
+      <h2 id="h-look">Look (live)</h2>
+      <div class="row"><label for="clip">Alpha clip</label><input type="range" id="clip" min="0.05" max="0.95" step="0.01" value="0.5"><output for="clip" id="o-clip"></output></div>
+      <div class="row"><label for="parallax">Depth parallax</label><input type="range" id="parallax" min="0" max="1.5" step="0.05" value="1"><output for="parallax" id="o-parallax"></output></div>
+      <div class="row"><label for="nsphere">Rounder normals</label><input type="range" id="nsphere" min="0" max="1" step="0.05" value="0.25"><output for="nsphere" id="o-nsphere"></output></div>
+      <div class="row"><label for="wrap">Wrap lighting</label><input type="range" id="wrap" min="0" max="1" step="0.05" value="0.4"><output for="wrap" id="o-wrap"></output></div>
+      <div class="row"><label for="trans">Translucency</label><input type="range" id="trans" min="0" max="2" step="0.05" value="0.4"><output for="trans" id="o-trans"></output></div>
+      <label class="check"><input type="checkbox" id="pdo" checked> Depth offset (correct ground and tree overlaps)</label>
+    </section>
+
+    <section aria-labelledby="h-scene">
+      <h2 id="h-scene">Scene</h2>
+      <div class="row"><label for="sunAz">Sun direction</label><input type="range" id="sunAz" min="0" max="360" step="1" value="40"><output for="sunAz" id="o-sunAz"></output></div>
+      <div class="row"><label for="sunEl">Sun height</label><input type="range" id="sunEl" min="3" max="90" step="1" value="40"><output for="sunEl" id="o-sunEl"></output></div>
+      <div class="row"><label for="sunI">Sun strength</label><input type="range" id="sunI" min="0" max="6" step="0.1" value="3"><output for="sunI" id="o-sunI"></output></div>
+      <div class="row"><label for="amb">Sky light</label><input type="range" id="amb" min="0" max="3" step="0.05" value="1.1"><output for="amb" id="o-amb"></output></div>
+      <div class="row"><label for="count">Forest trees</label><input type="range" id="count" min="0" max="6" step="1" value="3"><output for="count" id="o-count"></output></div>
+      <div class="row two"><label for="kind">Draw forest as</label><select id="kind"><option value="imp" selected>Impostors</option><option value="mesh">Full meshes</option></select></div>
+      <p class="note warn" id="forestWarn" hidden></p>
+    </section>
+
+    <section aria-labelledby="h-exp">
+      <h2 id="h-exp">Export</h2>
+      <p class="note">One .zip with both atlases, impostor.json, a drop-in three.js module (OctahedralImpostor.js) and a working example page.</p>
+      <button class="primary" id="export" disabled>Download impostor .zip</button>
+      <p class="note" id="expMsg" hidden></p>
+    </section>
+  </aside>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+/* ============================================================================
+   Runtime: this exact function is exported as OctahedralImpostor.js, so the
+   preview and the exported module are the same code.
+   ========================================================================== */
+function impostorRuntime(THREE) {
+  const DEFAULTS = {
+    alphaClip: 0.5, parallax: 1.0, normalSphere: 0.25, wrap: 0.4, translucency: 0.4,
+    sunDirection: [0.55, 0.64, 0.53], sunColor: [1.0, 0.95, 0.86], sunIntensity: 3.0,
+    skyColor: [0.55, 0.7, 0.95], groundColor: [0.32, 0.29, 0.22], ambientIntensity: 1.1,
+  };
+
+  // ---- shared math (JS mirrors the GLSL below exactly) ----
+  function octDecode(px, py, hemi) {
+    let x, y, z;
+    if (hemi) { x = (px + py) * 0.5; z = (px - py) * 0.5; y = 1 - Math.abs(x) - Math.abs(z); }
+    else {
+      x = px; z = py; y = 1 - Math.abs(px) - Math.abs(py);
+      if (y < 0) { const ox = x; x = (1 - Math.abs(z)) * (ox >= 0 ? 1 : -1); z = (1 - Math.abs(ox)) * (z >= 0 ? 1 : -1); }
+    }
+    return new THREE.Vector3(x, y, z).normalize();
+  }
+  function frameDirection(i, j, grid, hemi) {
+    return octDecode(i / (grid - 1) * 2 - 1, j / (grid - 1) * 2 - 1, hemi);
+  }
+  function frameBasis(d) {
+    const up0 = Math.abs(d.y) > 0.999 ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
+    const right = new THREE.Vector3().crossVectors(up0, d).normalize();
+    const up = new THREE.Vector3().crossVectors(d, right);
+    return { right, up };
+  }
+
+  const COMMON = /* glsl */`
+    uniform float uGrid;
+    uniform float uHemi;
+    uniform vec3 uCenter;
+    uniform float uTileHalf;
+    vec2 octEncode(vec3 d) {
+      d /= (abs(d.x) + abs(d.y) + abs(d.z));
+      if (uHemi > 0.5) return vec2(d.x + d.z, d.x - d.z);
+      vec2 p = d.xz;
+      if (d.y < 0.0) p = (1.0 - abs(p.yx)) * vec2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0);
+      return p;
+    }
+    vec3 octDecode(vec2 p) {
+      if (uHemi > 0.5) {
+        vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.5;
+        return normalize(vec3(q.x, 1.0 - abs(q.x) - abs(q.y), q.y));
+      }
+      vec3 d = vec3(p.x, 1.0 - abs(p.x) - abs(p.y), p.y);
+      if (d.y < 0.0) d.xz = (1.0 - abs(d.zx)) * vec2(d.x >= 0.0 ? 1.0 : -1.0, d.z >= 0.0 ? 1.0 : -1.0);
+      return normalize(d);
+    }
+    void frameBasis(vec3 d, out vec3 r, out vec3 u) {
+      vec3 up0 = abs(d.y) > 0.999 ? vec3(0.0, 0.0, -1.0) : vec3(0.0, 1.0, 0.0);
+      r = normalize(cross(up0, d));
+      u = cross(d, r);
+    }
+  `;
+
+  const VERT = /* glsl */`
+    #include <common>
+    #include <fog_pars_vertex>
+    ${COMMON}
+    uniform vec3 uSunDir;
+    flat varying vec2 vA; flat varying vec2 vB; flat varying vec2 vC; flat varying vec3 vW;
+    flat varying vec3 vSunObj; flat varying vec3 vUpObj;
+    varying vec3 vObjPos; varying vec3 vObjCam; varying vec3 vViewPos;
+    void main() {
+      mat4 M = modelMatrix;
+      #ifdef USE_INSTANCING
+        M = modelMatrix * instanceMatrix;
+      #endif
+      mat4 invM = inverse(M);
+      vec3 camObj = (invM * vec4(cameraPosition, 1.0)).xyz;
+      vec3 toCam = camObj - uCenter;
+      float dist = length(toCam);
+      vec3 V = toCam / dist;
+
+      // pick the 3 nearest baked views and their blend weights
+      vec3 Vq = V;
+      if (uHemi > 0.5) Vq.y = max(Vq.y, 0.001);
+      vec2 g = (octEncode(normalize(Vq)) * 0.5 + 0.5) * (uGrid - 1.0);
+      vec2 b = clamp(floor(g), vec2(0.0), vec2(uGrid - 2.0));
+      vec2 f = clamp(g - b, 0.0, 1.0);
+      if (f.x >= f.y) { vA = b; vB = b + vec2(1.0, 0.0); vC = b + vec2(1.0); vW = vec3(1.0 - f.x, f.x - f.y, f.y); }
+      else            { vA = b; vB = b + vec2(0.0, 1.0); vC = b + vec2(1.0); vW = vec3(1.0 - f.y, f.y - f.x, f.x); }
+
+      // camera-facing card, grown slightly so a close camera still sees the whole silhouette
+      vec3 r, u; frameBasis(V, r, u);
+      float grow = clamp(dist / sqrt(max(dist * dist - uTileHalf * uTileHalf, 1e-4 * dist * dist)), 1.0, 3.0);
+      vec3 p = uCenter + (r * position.x + u * position.y) * uTileHalf * grow;
+
+      vObjPos = p; vObjCam = camObj;
+      vSunObj = normalize(mat3(invM) * uSunDir);
+      vUpObj = normalize(mat3(invM) * vec3(0.0, 1.0, 0.0));
+      vec4 mvPosition = viewMatrix * M * vec4(p, 1.0);
+      vViewPos = mvPosition.xyz;
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+    }
+  `;
+
+  const FRAG = /* glsl */`
+    #include <common>
+    #include <fog_pars_fragment>
+    ${COMMON}
+    uniform sampler2D tAlbedo;
+    uniform sampler2D tNormalDepth;
+    uniform float uAtlasPx, uAlphaClip, uParallax, uNormalSphere, uWrap, uTranslucency;
+    uniform vec3 uSunColor, uSkyColor, uGroundColor;
+    #ifdef IMPOSTOR_DEPTH_OFFSET
+      uniform mat4 projectionMatrix;
+    #endif
+    flat varying vec2 vA; flat varying vec2 vB; flat varying vec2 vC; flat varying vec3 vW;
+    flat varying vec3 vSunObj; flat varying vec3 vUpObj;
+    varying vec3 vObjPos; varying vec3 vObjCam; varying vec3 vViewPos;
+
+    void sampleFrame(vec2 frame, float w, vec3 ro, vec3 rd, inout vec4 accA, inout vec3 accN, inout float accT) {
+      vec3 d = octDecode(frame / (uGrid - 1.0) * 2.0 - 1.0);
+      vec3 r, u; frameBasis(d, r, u);
+      float denom = dot(rd, d);
+      denom = denom < 0.0 ? min(denom, -1e-4) : max(denom, 1e-4);
+      float t = dot(uCenter - ro, d) / denom;            // ray hits this view's card plane
+      vec3 hit = ro + rd * t - uCenter;
+      float inset = 0.5 * uGrid / uAtlasPx;
+      vec2 uv = vec2(dot(hit, r), dot(hit, u)) / uTileHalf * 0.5 + 0.5;
+      vec2 tuv0 = (frame + clamp(uv, inset, 1.0 - inset)) / uGrid;
+      // mip level comes from the smooth card uv; the parallax-shifted uv jumps at depth edges
+      vec2 gx = dFdx(tuv0), gy = dFdy(tuv0);
+      // one-step parallax: walk along the ray to the baked depth
+      float h = (textureGrad(tNormalDepth, tuv0, gx, gy).a * 2.0 - 1.0) * uTileHalf;
+      vec3 hit2 = hit + rd * (h / denom) * uParallax;
+      vec2 uv2 = vec2(dot(hit2, r), dot(hit2, u)) / uTileHalf * 0.5 + 0.5;
+      float inside = step(0.0, uv2.x) * step(uv2.x, 1.0) * step(0.0, uv2.y) * step(uv2.y, 1.0);
+      vec2 tuv = (frame + clamp(uv2, inset, 1.0 - inset)) / uGrid;
+      vec4 a = textureGrad(tAlbedo, tuv, gx, gy);
+      vec4 nd = textureGrad(tNormalDepth, tuv, gx, gy);
+      float wa = w * a.a * inside;
+      accA += vec4(a.rgb * wa, wa);
+      accN += (nd.rgb * 2.0 - 1.0) * wa;
+      accT += (t + (nd.a * 2.0 - 1.0) * uTileHalf / denom) * wa;
+    }
+
+    void main() {
+      vec3 ro = vObjCam;
+      vec3 rd = normalize(vObjPos - vObjCam);
+      vec4 accA = vec4(0.0); vec3 accN = vec3(0.0); float accT = 0.0;
+      sampleFrame(vA, vW.x, ro, rd, accA, accN, accT);
+      sampleFrame(vB, vW.y, ro, rd, accA, accN, accT);
+      sampleFrame(vC, vW.z, ro, rd, accA, accN, accT);
+      float alpha = accA.a;
+      if (alpha < uAlphaClip || alpha <= 1e-4) discard;
+
+      vec3 albedo = accA.rgb / alpha;
+      float tS = accT / alpha;
+      vec3 n = normalize(accN / alpha);
+      vec3 sphereN = normalize(ro + rd * tS - uCenter);
+      n = normalize(mix(n, sphereN, uNormalSphere));
+
+      vec3 L = vSunObj;
+      float diff = max((dot(n, L) + uWrap) / (1.0 + uWrap), 0.0);
+      float trans = uTranslucency * pow(max(dot(rd, L), 0.0), 4.0);
+      vec3 amb = mix(uGroundColor, uSkyColor, dot(n, vUpObj) * 0.5 + 0.5);
+      vec3 col = albedo * (uSunColor * (diff + trans) + amb) * RECIPROCAL_PI;
+
+      // Always opaque: any alpha < 1 written here can show the page or render-target background through.
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+      #include <fog_fragment>
+      #ifdef IMPOSTOR_DEPTH_OFFSET
+        float k = tS / length(vObjPos - vObjCam);
+        vec4 clip = projectionMatrix * vec4(vViewPos * k, 1.0);
+        gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+      #endif
+    }
+  `;
+
+  const v3 = (a) => new THREE.Vector3().fromArray(a);
+  const col = (a, s = 1) => new THREE.Color(a[0] * s, a[1] * s, a[2] * s);
+
+  /** Apply look/lighting parameters (any subset of DEFAULTS keys). */
+  function updateImpostorMaterial(material, params = {}) {
+    const p = Object.assign(material.userData.params || { ...DEFAULTS }, params);
+    material.userData.params = p;
+    const u = material.uniforms;
+    u.uAlphaClip.value = p.alphaClip;
+    u.uParallax.value = p.parallax;
+    u.uNormalSphere.value = p.normalSphere;
+    u.uWrap.value = p.wrap;
+    u.uTranslucency.value = p.translucency;
+    u.uSunDir.value.copy(v3(p.sunDirection)).normalize();
+    u.uSunColor.value.copy(col(p.sunColor, p.sunIntensity));
+    u.uSkyColor.value.copy(col(p.skyColor, p.ambientIntensity));
+    u.uGroundColor.value.copy(col(p.groundColor, p.ambientIntensity));
+    return material;
+  }
+
+  /** albedo, normalDepth: THREE.Texture; meta: parsed impostor.json */
+  function createImpostorMaterial({ albedo, normalDepth, meta, depthOffset = true, ...params }) {
+    const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      uGrid: { value: meta.grid }, uHemi: { value: meta.hemi ? 1 : 0 },
+      uCenter: { value: v3(meta.center) }, uTileHalf: { value: meta.tileHalf }, uAtlasPx: { value: meta.atlasPx },
+      uAlphaClip: { value: 0.5 }, uParallax: { value: 1 }, uNormalSphere: { value: 0 }, uWrap: { value: 0 }, uTranslucency: { value: 0 },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Color() },
+      uSkyColor: { value: new THREE.Color() }, uGroundColor: { value: new THREE.Color() },
+    }]);
+    uniforms.tAlbedo = { value: albedo };
+    uniforms.tNormalDepth = { value: normalDepth };
+    const material = new THREE.ShaderMaterial({
+      uniforms, vertexShader: VERT, fragmentShader: FRAG, fog: true, side: THREE.DoubleSide,
+      defines: depthOffset ? { IMPOSTOR_DEPTH_OFFSET: '' } : {},
+    });
+    material.userData.meta = meta;
+    return updateImpostorMaterial(material, params);
+  }
+
+  function setDepthOffset(material, on) {
+    if (on) material.defines.IMPOSTOR_DEPTH_OFFSET = ''; else delete material.defines.IMPOSTOR_DEPTH_OFFSET;
+    material.needsUpdate = true;
+  }
+
+  /** 2x2 card; bounds are set so frustum culling matches what is drawn. */
+  function createImpostorGeometry(meta) {
+    const g = new THREE.PlaneGeometry(2, 2);
+    const c = v3(meta.center), r = meta.tileHalf * 1.05;
+    g.boundingSphere = new THREE.Sphere(c.clone(), r);
+    g.boundingBox = new THREE.Box3(c.clone().subScalar(r), c.clone().addScalar(r));
+    return g;
+  }
+
+  function prepareImpostorTextures(albedo, normalDepth, renderer) {
+    const aniso = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
+    for (const t of [albedo, normalDepth]) {
+      t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
+      t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.premultiplyAlpha = false; t.anisotropy = aniso; t.needsUpdate = true;
+    }
+    albedo.colorSpace = THREE.SRGBColorSpace;
+    normalDepth.colorSpace = THREE.NoColorSpace;
+  }
+
+  async function loadTexture(url) {
+    // ImageBitmap with premultiplyAlpha 'none' keeps RGB intact where alpha is low (depth lives in alpha).
+    if (typeof createImageBitmap !== 'undefined') {
+      const loader = new THREE.ImageBitmapLoader();
+      loader.setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+      const bmp = await loader.loadAsync(url);
+      const t = new THREE.Texture(bmp); t.flipY = false; return t;
+    }
+    return new THREE.TextureLoader().loadAsync(url);
+  }
+
+  /** Load an exported impostor folder: loadImpostor('trees/oak/impostor.json', { renderer }) */
+  async function loadImpostor(jsonUrl, { renderer, ...params } = {}) {
+    const absolute = new URL(jsonUrl, location.href);
+    const meta = await (await fetch(absolute)).json();
+    const [albedo, normalDepth] = await Promise.all([
+      loadTexture(new URL(meta.maps.albedo, absolute).href),
+      loadTexture(new URL(meta.maps.normalDepth, absolute).href),
+    ]);
+    prepareImpostorTextures(albedo, normalDepth, renderer);
+    const material = createImpostorMaterial({ albedo, normalDepth, meta, ...params });
+    const geometry = createImpostorGeometry(meta);
+    return { meta, material, geometry };
+  }
+
+  return { DEFAULTS, octDecode, frameDirection, frameBasis, createImpostorMaterial, updateImpostorMaterial,
+    setDepthOffset, createImpostorGeometry, prepareImpostorTextures, loadImpostor };
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const RT = impostorRuntime(THREE);
+const $ = (s) => document.querySelector(s);
+const THREE_VERSION = '0.170.0';
+const COUNTS = [100, 500, 1000, 5000, 10000, 50000, 100000];
+const SKY = new THREE.Color(0x9cc0de);
+
+// ---------------------------------------------------------------- renderer
+const view = $('#view');
+const renderer = new THREE.WebGLRenderer({ canvas: $('#c'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.info.autoReset = false;
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+
+// ---------------------------------------------------------------- scenes
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x6f7f4e, roughness: 1 });
+function makeScene() {
+  const s = new THREE.Scene();
+  s.background = SKY.clone();
+  const hemi = new THREE.HemisphereLight(); const sun = new THREE.DirectionalLight();
+  s.add(hemi, sun, sun.target);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(1, 64), groundMat);
+  ground.rotation.x = -Math.PI / 2; s.add(ground);
+  s.userData = { hemi, sun, ground };
+  return s;
+}
+const sceneMesh = makeScene(), sceneImp = makeScene(), sceneForest = makeScene();
+sceneForest.fog = new THREE.Fog(SKY, 10, 100);
+const bakeScene = new THREE.Scene();
+
+const S = {
+  wrap: null, name: '', center: new THREE.Vector3(), radius: 1, minY: 0, tris: 0, meshes: 0,
+  bake: null, material: null, impMesh: null, forest: null, mode: 'compare', split: 0.5, dirty: true,
+};
+
+// ---------------------------------------------------------------- UI helpers
+const fmt = {
+  grid: (v) => `${v}×${v}`, cover: (v) => `${Math.round(v * 100)}%`, cut: (v) => (+v).toFixed(2), clip: (v) => (+v).toFixed(2),
+  parallax: (v) => (+v).toFixed(2), nsphere: (v) => (+v).toFixed(2), wrap: (v) => (+v).toFixed(2), trans: (v) => (+v).toFixed(2),
+  sunAz: (v) => `${v}°`, sunEl: (v) => `${v}°`, sunI: (v) => (+v).toFixed(1), amb: (v) => (+v).toFixed(2),
+  count: (v) => COUNTS[v] >= 1000 ? `${COUNTS[v] / 1000}k` : `${COUNTS[v]}`,
+};
+for (const id of Object.keys(fmt)) {
+  const el = document.getElementById(id), out = document.getElementById('o-' + id);
+  const upd = () => { out.textContent = fmt[id](el.value); };
+  el.addEventListener('input', upd); upd();
+}
+const num = (id) => parseFloat(document.getElementById(id).value);
+function setFacts(el, rows) {
+  el.replaceChildren(...rows.flatMap(([k, v]) => { const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; return [dt, dd]; }));
+}
+function busy(msg) { const b = $('#busy'); b.hidden = !msg; b.textContent = msg || ''; }
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+const fmtNum = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
+
+function bakePlan() {
+  const grid = num('grid'), res = num('res');
+  const tile = Math.floor(res / grid), atlas = tile * grid;
+  const maxTex = renderer.capabilities.maxTextureSize;
+  const ss = $('#ss').checked && atlas * 2 <= Math.min(maxTex, 8192) ? 2 : 1;
+  return { grid, tile, atlas, ss, hemi: $('#hemi').value === '1', coverage: num('cover'), cut: num('cut') };
+}
+function showPlan() {
+  const p = bakePlan();
+  const mb = (p.atlas * p.atlas * 4 * 2 * 1.33) / 1048576;
+  const rows = [['Views', `${p.grid * p.grid}${p.hemi ? ' (upper half)' : ''}`], ['Atlas', `${p.atlas} × ${p.atlas}px`], ['Each view', `${p.tile}px`], ['GPU memory', `${mb.toFixed(1)} MB (2 maps + mips)`]];
+  if (S.bake) rows.push(['Last bake', `${S.bake.ms} ms`]);
+  setFacts($('#bakeFacts'), rows);
+  $('#bake').classList.toggle('dirty', S.dirty);
+}
+let autoTimer = 0;
+for (const id of ['grid', 'res', 'hemi', 'cover', 'cut', 'ss']) document.getElementById(id).addEventListener('input', () => {
+  S.dirty = true; showPlan();
+  clearTimeout(autoTimer);
+  if ($('#autobake').checked && S.wrap) autoTimer = setTimeout(() => bake(), 600);
+});
+
+// ---------------------------------------------------------------- look + lighting
+function lookParams() {
+  const az = num('sunAz') * Math.PI / 180, el = num('sunEl') * Math.PI / 180;
+  return {
+    alphaClip: num('clip'), parallax: num('parallax'), normalSphere: num('nsphere'), wrap: num('wrap'), translucency: num('trans'),
+    sunDirection: [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)],
+    sunIntensity: num('sunI'), ambientIntensity: num('amb'),
+    sunColor: RT.DEFAULTS.sunColor, skyColor: RT.DEFAULTS.skyColor, groundColor: RT.DEFAULTS.groundColor,
+  };
+}
+function applyLook() {
+  const p = lookParams();
+  for (const s of [sceneMesh, sceneImp, sceneForest]) {
+    const { hemi, sun } = s.userData;
+    sun.color.setRGB(...p.sunColor); sun.intensity = p.sunIntensity;
+    sun.position.fromArray(p.sunDirection).multiplyScalar(100).add(S.center); sun.target.position.copy(S.center);
+    hemi.color.setRGB(...p.skyColor); hemi.groundColor.setRGB(...p.groundColor); hemi.intensity = p.ambientIntensity;
+  }
+  if (S.material) RT.updateImpostorMaterial(S.material, p);
+}
+for (const id of ['clip', 'parallax', 'nsphere', 'wrap', 'trans', 'sunAz', 'sunEl', 'sunI', 'amb']) document.getElementById(id).addEventListener('input', applyLook);
+$('#pdo').addEventListener('change', () => { if (S.material) RT.setDepthOffset(S.material, $('#pdo').checked); });
+
+// ---------------------------------------------------------------- model loading
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function makeSampleTree() {
+  const rand = rng(11);
+  const tree = new THREE.Group();
+  // bark
+  const parts = [];
+  const trunk = new THREE.CylinderGeometry(0.17, 0.3, 4.4, 10, 3); trunk.translate(0, 2.2, 0); parts.push(trunk);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  const branchTips = [];
+  for (let k = 0; k < 10; k++) {
+    const len = 1.3 + rand() * 1.3, y = 2.4 + rand() * 1.9, yaw = k * 2.4 + rand() * 0.6, tilt = 0.6 + rand() * 0.5;
+    const g = new THREE.CylinderGeometry(0.035, 0.09, len, 6); g.translate(0, len / 2, 0);
+    e.set(0, yaw, tilt, 'YXZ'); q.setFromEuler(e); m.compose(new THREE.Vector3(0, y, 0), q, new THREE.Vector3(1, 1, 1));
+    g.applyMatrix4(m); parts.push(g);
+    branchTips.push(new THREE.Vector3(0, len, 0).applyMatrix4(m));
+  }
+  const bark = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ color: 0x5e4330, roughness: 0.95 }));
+  tree.add(bark);
+
+  // leaf texture: a few leaves on transparent background
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const cx = cv.getContext('2d');
+  for (let i = 0; i < 6; i++) {
+    cx.save(); cx.translate(28 + rand() * 72, 28 + rand() * 72); cx.rotate(rand() * Math.PI * 2);
+    cx.fillStyle = `hsl(${92 + rand() * 30}, ${42 + rand() * 18}%, ${26 + rand() * 14}%)`;
+    cx.beginPath(); cx.ellipse(0, 0, 11 + rand() * 6, 22 + rand() * 8, 0, 0, Math.PI * 2); cx.fill();
+    cx.strokeStyle = 'rgba(30,45,20,0.6)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(0, -24); cx.lineTo(0, 24); cx.stroke();
+    cx.restore();
+  }
+  const leafTex = new THREE.CanvasTexture(cv); leafTex.colorSpace = THREE.SRGBColorSpace;
+
+  const pos = [], nor = [], uv = [], idx = [];
+  const crown = new THREE.Vector3(0, 5.3, 0);
+  const clusters = branchTips.concat([new THREE.Vector3(0, 6.6, 0), new THREE.Vector3(0.6, 5.8, -0.5)]);
+  const n = new THREE.Vector3(), t = new THREE.Vector3(), b = new THREE.Vector3(), p = new THREE.Vector3(), out = new THREE.Vector3(), vn = new THREE.Vector3();
+  for (const c of clusters) {
+    const cr = 0.9 + rand() * 0.5;
+    for (let k = 0; k < 150; k++) {
+      do { p.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1); } while (p.lengthSq() > 1);
+      p.multiplyScalar(cr).add(c);
+      n.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize();
+      t.set(0, 1, 0).cross(n); if (t.lengthSq() < 1e-4) t.set(1, 0, 0); t.normalize(); b.crossVectors(n, t);
+      out.subVectors(p, crown).normalize();
+      vn.copy(n).multiplyScalar(0.35).addScaledVector(out, 0.65).normalize();
+      const s = 0.3 + rand() * 0.12, base = pos.length / 3;
+      for (const [sx, sy, u, v] of [[-1, -1, 0, 0], [1, -1, 1, 0], [1, 1, 1, 1], [-1, 1, 0, 1]]) {
+        pos.push(p.x + (t.x * sx + b.x * sy) * s, p.y + (t.y * sx + b.y * sy) * s, p.z + (t.z * sx + b.z * sy) * s);
+        nor.push(vn.x, vn.y, vn.z); uv.push(u, v);
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  lg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  lg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  lg.setIndex(idx);
+  tree.add(new THREE.Mesh(lg, new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85 })));
+  return tree;
+}
+
+async function loadFiles(fileList) {
+  const files = [...fileList];
+  const main = files.find((f) => /\.(glb|gltf|fbx|obj)$/i.test(f.name));
+  const err = $('#loadErr');
+  err.hidden = true;
+  if (!main) { err.textContent = 'No model found. Drop a .glb, .gltf, .fbx or .obj file (plus any textures it uses).'; err.hidden = false; return; }
+  busy(`Loading ${main.name}…`);
+  const urls = new Map(files.map((f) => [f.name, URL.createObjectURL(f)]));
+  const mgr = new THREE.LoadingManager();
+  mgr.setURLModifier((u) => { const name = decodeURIComponent(u.split(/[\\/]/).pop().split('?')[0]); return urls.get(name) ?? u; });
+  const url = urls.get(main.name), ext = main.name.split('.').pop().toLowerCase();
+  try {
+    let root;
+    if (ext === 'glb' || ext === 'gltf') root = (await new GLTFLoader(mgr).loadAsync(url)).scene;
+    else if (ext === 'fbx') root = await new FBXLoader(mgr).loadAsync(url);
+    else {
+      const loader = new OBJLoader(mgr);
+      const mtl = files.find((f) => /\.mtl$/i.test(f.name));
+      if (mtl) { const mats = await new MTLLoader(mgr).loadAsync(urls.get(mtl.name)); mats.preload(); loader.setMaterials(mats); }
+      root = await loader.loadAsync(url);
+    }
+    setModel(root, main.name);
+    await bake();
+  } catch (e) {
+    console.error(e);
+    const draco = /draco|meshopt/i.test(String(e));
+    err.textContent = draco ? 'This file uses Draco or Meshopt compression, which this page cannot decode. Re-export it uncompressed.' : `Couldn't read ${main.name}: ${e.message || e}`;
+    err.hidden = false;
+  } finally { busy(''); }
+}
+
+function disposeModel(obj) {
+  obj.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose()); } });
+}
+
+function setModel(root, name) {
+  if (S.wrap) { sceneMesh.remove(S.wrap); disposeModel(S.wrap); }
+  bleedCache.forEach((t) => t.dispose()); bleedCache.clear();
+  clearForest();
+  const wrap = new THREE.Group(); wrap.add(root); wrap.updateMatrixWorld(true);
+  let tris = 0, meshes = 0;
+  wrap.traverse((o) => {
+    if (o.isMesh) {
+      meshes++;
+      if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+      tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    }
+  });
+  const box = new THREE.Box3().setFromObject(wrap, true);
+  const center = box.getCenter(new THREE.Vector3());
+  let r2 = 0; const v = new THREE.Vector3();
+  wrap.traverse((o) => {
+    if (!o.isMesh) return;
+    const p = o.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); r2 = Math.max(r2, v.distanceToSquared(center)); }
+  });
+  Object.assign(S, { wrap, name, center, radius: Math.sqrt(r2) || 1, minY: box.min.y, tris: Math.round(tris), meshes, dirty: true });
+  sceneMesh.add(wrap);
+  const size = box.getSize(new THREE.Vector3());
+  setFacts($('#facts'), [['File', name], ['Triangles', fmtNum(S.tris)], ['Meshes', String(meshes)], ['Size (w×h×d)', `${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`]]);
+  for (const s of [sceneMesh, sceneImp]) { const g = s.userData.ground; g.position.set(center.x, S.minY, center.z); g.scale.setScalar(S.radius * 6); }
+  $('#bake').disabled = false;
+  frameCompare();
+  applyLook();
+  showPlan();
+}
+
+// ---------------------------------------------------------------- baking
+const BAKE_VERT = /* glsl */`
+  uniform mat3 uMapM;
+  varying vec2 vUv; varying vec3 vN; varying vec3 vWP;
+  #include <color_pars_vertex>
+  void main() {
+    #include <color_vertex>
+    vUv = (uMapM * vec3(uv, 1.0)).xy;
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWP = wp.xyz;
+    vN = normalize(transpose(inverse(mat3(modelMatrix))) * normal);
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }`;
+const BAKE_FRAG = /* glsl */`
+  uniform vec3 uColor; uniform float uOpacity; uniform sampler2D tMap; uniform sampler2D tAlpha; uniform float uCut;
+  uniform vec3 uDir; uniform vec3 uCenter; uniform float uTileHalf;
+  varying vec2 vUv; varying vec3 vN; varying vec3 vWP;
+  #include <color_pars_fragment>
+  vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+  void main() {
+    vec4 diffuseColor = vec4(uColor, uOpacity);
+    #ifdef USE_MAP
+      diffuseColor *= texture(tMap, vUv);
+    #endif
+    #include <color_fragment>
+    #ifdef USE_AMAP
+      diffuseColor.a *= texture(tAlpha, vUv).g;
+    #endif
+    if (diffuseColor.a < uCut) discard;
+    #ifdef MODE_ND
+      vec3 n = normalize(vN) * (gl_FrontFacing ? 1.0 : -1.0);
+      float d = dot(vWP - uCenter, uDir) / uTileHalf * 0.5 + 0.5;
+      gl_FragColor = vec4(n * 0.5 + 0.5, clamp(d, 1.0 / 255.0, 1.0));
+    #else
+      gl_FragColor = vec4(toSRGB(clamp(diffuseColor.rgb, 0.0, 1.0)), 1.0);
+    #endif
+  }`;
+const bakeShared = { uDir: { value: new THREE.Vector3() }, uCenter: { value: new THREE.Vector3() }, uTileHalf: { value: 1 } };
+
+// Cutout textures often store white/grey in their transparent pixels. Filtering pulls that into leaf
+// edges and bakes a pale fringe, so copy the nearest visible colour into every pixel below the cutoff.
+const bleedCache = new Map();
+function bleedTexture(tex, cut) {
+  const img = tex.image, key = tex.uuid + ':' + cut;
+  if (!img || !(img.width > 0) || img.data) return tex;
+  if (bleedCache.has(key)) return bleedCache.get(key);
+  const w = img.width, h = img.height, cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(img, 0, 0);
+  const id = cx.getImageData(0, 0, w, h), d = id.data;
+  // Seed from nearly opaque pixels: semi-transparent edge pixels are usually matted against white too.
+  let opaque = 0;
+  for (let p = 3; p < d.length; p += 4) if (d[p] >= 250) opaque++;
+  const lim = opaque > w * h * 0.01 ? 250 : Math.max(1, Math.round(cut * 255));
+  const filled = new Uint8Array(w * h), queue = new Int32Array(w * h);
+  let head = 0, tail = 0;
+  for (let p = 0; p < w * h; p++) if (d[p * 4 + 3] >= lim) { filled[p] = 1; queue[tail++] = p; }
+  if (tail === 0 || tail === w * h) { bleedCache.set(key, tex); return tex; }
+  while (head < tail) {
+    const p = queue[head++], x = p % w, y = (p / w) | 0;
+    for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
+      if (q < 0 || filled[q]) continue;
+      filled[q] = 1; queue[tail++] = q;
+      d[q * 4] = d[p * 4]; d[q * 4 + 1] = d[p * 4 + 1]; d[q * 4 + 2] = d[p * 4 + 2];
+    }
+  }
+  // Store the result with alpha intact; ImageData -> DataTexture avoids canvas premultiplication on upload.
+  const out = new THREE.DataTexture(new Uint8Array(d.buffer), w, h);
+  for (const k of ['colorSpace', 'wrapS', 'wrapT', 'flipY', 'channel', 'anisotropy']) out[k] = tex[k];
+  out.generateMipmaps = true; out.minFilter = THREE.LinearMipmapLinearFilter; out.magFilter = THREE.LinearFilter;
+  out.unpackAlignment = 1; out.needsUpdate = true;
+  bleedCache.set(key, out);
+  return out;
+}
+
+function makeBakeMaterial(src, nd, cut) {
+  const alphaMap = src.alphaMap || null;
+  const usesAlpha = src.alphaTest > 0 || src.transparent || !!alphaMap;
+  const map = src.map ? (usesAlpha ? bleedTexture(src.map, src.alphaTest > 0 ? src.alphaTest : cut) : src.map) : null;
+  const defines = {};
+  if (map) { defines.USE_MAP = ''; src.map.updateMatrix(); }
+  if (alphaMap) defines.USE_AMAP = '';
+  if (nd) defines.MODE_ND = '';
+  return new THREE.ShaderMaterial({
+    defines, vertexShader: BAKE_VERT, fragmentShader: BAKE_FRAG, side: src.side ?? THREE.FrontSide,
+    vertexColors: !!src.vertexColors, toneMapped: false,
+    uniforms: {
+      uColor: { value: src.color ? src.color.clone() : new THREE.Color(1, 1, 1) }, uOpacity: { value: src.opacity ?? 1 },
+      tMap: { value: map }, tAlpha: { value: alphaMap }, uMapM: { value: map ? src.map.matrix.clone() : new THREE.Matrix3() },
+      uCut: { value: usesAlpha ? (src.alphaTest > 0 ? src.alphaTest : cut) : -1 }, ...bakeShared,
+    },
+  });
+}
+
+// One bake at a time; a request made mid-bake runs once the current one finishes.
+async function bake() {
+  if (!S.wrap) return;
+  if (S.baking) { S.pending = true; return; }
+  S.baking = true;
+  try { await bakeOnce(); } finally { S.baking = false; }
+  if (S.pending) { S.pending = false; await bake(); }
+}
+
+async function bakeOnce() {
+  const P = bakePlan();
+  const t0 = performance.now();
+  $('#bake').disabled = true; busy('Baking views…'); await nextFrame();
+  const N = P.grid, W = P.atlas, ss = P.ss, size = W * ss, tileS = P.tile * ss;
+  const R = S.radius, T = R / P.coverage;
+  bakeShared.uCenter.value.copy(S.center); bakeShared.uTileHalf.value = T;
+
+  // swap in bake materials
+  const meshes = [], hidden = [];
+  S.wrap.traverse((o) => {
+    if (o.isMesh) meshes.push(o);
+    else if ((o.isLine || o.isPoints || o.isSprite) && o.visible) { hidden.push(o); o.visible = false; }
+  });
+  const cache = new Map();
+  const bakeMats = (o, nd) => {
+    const one = (m) => { const k = m.uuid + (nd ? 'n' : 'a'); if (!cache.has(k)) cache.set(k, makeBakeMaterial(m, nd, P.cut)); return cache.get(k); };
+    return Array.isArray(o.material) ? o.material.map(one) : one(o.material);
+  };
+  const orig = meshes.map((o) => o.material);
+  bakeScene.add(S.wrap);
+
+  const rt = new THREE.WebGLRenderTarget(size, size, { type: THREE.UnsignedByteType, depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+  const cam = new THREE.OrthographicCamera(-T, T, T, -T, R * 0.5, R * 3.5);
+  const basisM = new THREE.Matrix4();
+  const prevAutoClear = renderer.autoClear, prevClear = renderer.getClearColor(new THREE.Color()), prevAlpha = renderer.getClearAlpha();
+  renderer.autoClear = false;
+  const out = {};
+  for (const pass of ['alb', 'nd']) {
+    meshes.forEach((o) => { o.material = bakeMats(o, pass === 'nd'); });
+    rt.scissorTest = false; rt.viewport.set(0, 0, size, size);
+    renderer.setRenderTarget(rt);
+    if (pass === 'alb') renderer.setClearColor(0x000000, 0); else renderer.setClearColor(new THREE.Color(0.5, 0.5, 1), 0.5);
+    renderer.clear();
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const d = RT.frameDirection(i, j, N, P.hemi), { right, up } = RT.frameBasis(d);
+      bakeShared.uDir.value.copy(d);
+      cam.position.copy(S.center).addScaledVector(d, R * 2);
+      cam.quaternion.setFromRotationMatrix(basisM.makeBasis(right, up, d));
+      cam.updateMatrixWorld();
+      rt.viewport.set(i * tileS, j * tileS, tileS, tileS); rt.scissor.copy(rt.viewport); rt.scissorTest = true;
+      renderer.setRenderTarget(rt);
+      renderer.render(bakeScene, cam);
+    }
+    const buf = new Uint8Array(size * size * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, size, size, buf);
+    out[pass] = buf;
+    busy(pass === 'alb' ? 'Baking normals and depth…' : 'Filtering and padding…'); await nextFrame();
+  }
+  renderer.setRenderTarget(null);
+  renderer.autoClear = prevAutoClear; renderer.setClearColor(prevClear, prevAlpha);
+  meshes.forEach((o, k) => { o.material = orig[k]; });
+  hidden.forEach((o) => { o.visible = true; });
+  cache.forEach((m) => m.dispose()); rt.dispose();
+  sceneMesh.add(S.wrap);
+
+  const { alb, nd } = resolve(out.alb, out.nd, size, ss);
+  dilate(alb, nd, W, P.tile);
+
+  const meta = {
+    format: 'octahedral-impostor', version: 1, source: S.name, grid: N, hemi: P.hemi, atlasPx: W, tilePx: P.tile,
+    center: S.center.toArray().map((x) => +x.toFixed(6)), radius: +R.toFixed(6), tileHalf: +T.toFixed(6),
+    maps: { albedo: 'albedo.png', normalDepth: 'normal_depth.png' },
+  };
+  const texA = new THREE.DataTexture(alb, W, W), texN = new THREE.DataTexture(nd, W, W);
+  RT.prepareImpostorTextures(texA, texN, renderer);
+  texA.flipY = texN.flipY = false;
+
+  if (S.material) { S.material.uniforms.tAlbedo.value.dispose(); S.material.uniforms.tNormalDepth.value.dispose(); S.material.dispose(); }
+  S.material = RT.createImpostorMaterial({ albedo: texA, normalDepth: texN, meta, depthOffset: $('#pdo').checked, ...lookParams() });
+  if (S.impMesh) { sceneImp.remove(S.impMesh); S.impMesh.geometry.dispose(); }
+  S.impMesh = new THREE.Mesh(RT.createImpostorGeometry(meta), S.material);
+  sceneImp.add(S.impMesh);
+  S.bake = { alb, nd, W, meta, ms: Math.round(performance.now() - t0) };
+  S.dirty = false;
+  drawAtlas();
+  clearForest(); if (S.mode === 'forest') buildForest();
+  showPlan();
+  $('#bake').disabled = false; $('#export').disabled = false; busy('');
+}
+
+// Box-filter the supersampled bake; colour and normals are averaged over covered samples only.
+function resolve(albS, ndS, size, ss) {
+  const W = size / ss, alb = new Uint8Array(W * W * 4), nd = new Uint8Array(W * W * 4);
+  if (ss === 1) { alb.set(albS); nd.set(ndS); return { alb, nd }; }
+  const n2 = ss * ss;
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+    let c = 0, r = 0, g = 0, b = 0, nr = 0, ng = 0, nb = 0, na = 0;
+    for (let sy = 0; sy < ss; sy++) {
+      let k = ((y * ss + sy) * size + x * ss) * 4;
+      for (let sx = 0; sx < ss; sx++, k += 4) {
+        if (albS[k + 3] === 0) continue;
+        c++; r += albS[k]; g += albS[k + 1]; b += albS[k + 2];
+        nr += ndS[k]; ng += ndS[k + 1]; nb += ndS[k + 2]; na += ndS[k + 3];
+      }
+    }
+    const o = (y * W + x) * 4;
+    if (c) {
+      alb[o] = r / c + 0.5; alb[o + 1] = g / c + 0.5; alb[o + 2] = b / c + 0.5; alb[o + 3] = (c * 255) / n2 + 0.5;
+      nd[o] = nr / c + 0.5; nd[o + 1] = ng / c + 0.5; nd[o + 2] = nb / c + 0.5; nd[o + 3] = na / c + 0.5;
+    }
+  }
+  return { alb, nd };
+}
+
+// Fill empty texels with the nearest covered texel inside the same tile, so mipmaps don't pull in black.
+function dilate(alb, nd, W, tile) {
+  const filled = new Uint8Array(W * W), queue = new Int32Array(W * W);
+  let head = 0, tail = 0;
+  for (let p = 0; p < W * W; p++) if (alb[p * 4 + 3] > 0) { filled[p] = 1; queue[tail++] = p; }
+  while (head < tail) {
+    const p = queue[head++], x = p % W, y = (p / W) | 0, tx = (x / tile) | 0, ty = (y / tile) | 0;
+    const nb = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+    for (const [nx, ny] of nb) {
+      if (nx < 0 || ny < 0 || nx >= W || ny >= W || ((nx / tile) | 0) !== tx || ((ny / tile) | 0) !== ty) continue;
+      const q = ny * W + nx;
+      if (filled[q]) continue;
+      filled[q] = 1; queue[tail++] = q;
+      const a = p * 4, b = q * 4;
+      alb[b] = alb[a]; alb[b + 1] = alb[a + 1]; alb[b + 2] = alb[a + 2];
+      nd[b] = nd[a]; nd[b + 1] = nd[a + 1]; nd[b + 2] = nd[a + 2]; nd[b + 3] = nd[a + 3];
+    }
+  }
+}
+
+function drawAtlas() {
+  const { alb, nd, W } = S.bake;
+  const ctxs = ['#cv-alb', '#cv-nrm', '#cv-dep'].map((sel) => { const cv = $(sel); cv.width = cv.height = W; return cv.getContext('2d'); });
+  const imgs = ctxs.map((c) => c.createImageData(W, W));
+  const [a, n, dp] = imgs.map((i) => i.data);
+  for (let y = 0; y < W; y++) {
+    const row = (W - 1 - y) * W * 4, dst = y * W * 4;
+    for (let x = 0; x < W * 4; x += 4) {
+      const s = row + x, k = dst + x, cov = alb[s + 3] ? 255 : 0;
+      a[k] = alb[s]; a[k + 1] = alb[s + 1]; a[k + 2] = alb[s + 2]; a[k + 3] = alb[s + 3];
+      n[k] = nd[s]; n[k + 1] = nd[s + 1]; n[k + 2] = nd[s + 2]; n[k + 3] = cov;
+      dp[k] = dp[k + 1] = dp[k + 2] = nd[s + 3]; dp[k + 3] = cov;
+    }
+  }
+  ctxs.forEach((c, i) => c.putImageData(imgs[i], 0, 0));
+}
+
+// ---------------------------------------------------------------- forest
+function clearForest() {
+  if (!S.forest) return;
+  sceneForest.remove(S.forest);
+  S.forest.traverse((o) => { if (o.isInstancedMesh) { o.dispose(); if (o.userData.ownGeo) o.geometry.dispose(); } });
+  S.forest = null;
+}
+function buildForest() {
+  clearForest();
+  const warn = $('#forestWarn'); warn.hidden = true;
+  if (!S.bake) return;
+  const N = COUNTS[num('count')], kind = $('#kind').value;
+  if (kind === 'mesh' && S.tris * N > 80e6) {
+    warn.textContent = `${fmtNum(S.tris * N)} triangles is too many to draw as meshes here. Lower the tree count or switch to impostors.`;
+    warn.hidden = false; return;
+  }
+  const R = S.radius, spacing = R * 1.7, side = Math.sqrt(N) * spacing;
+  const rand = rng(5), mats = [];
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+  const cols = Math.ceil(Math.sqrt(N));
+  for (let k = 0; k < N; k++) {
+    const gx = k % cols, gz = (k / cols) | 0;
+    p.set((gx + rand() * 0.8 - 0.4) * spacing - side / 2, 0, (gz + rand() * 0.8 - 0.4) * spacing - side / 2);
+    q.setFromAxisAngle(up, rand() * Math.PI * 2);
+    s.setScalar(0.75 + rand() * 0.5);
+    mats.push(m.clone().compose(p, q, s));
+  }
+  const group = new THREE.Group();
+  if (kind === 'imp') {
+    const im = new THREE.InstancedMesh(RT.createImpostorGeometry(S.bake.meta), S.material, N);
+    im.userData.ownGeo = true;
+    mats.forEach((mm, k) => im.setMatrixAt(k, mm));
+    im.computeBoundingSphere(); group.add(im);
+  } else {
+    S.wrap.traverse((o) => {
+      if (!o.isMesh) return;
+      const im = new THREE.InstancedMesh(o.geometry, o.material, N);
+      mats.forEach((mm, k) => im.setMatrixAt(k, m.multiplyMatrices(mm, o.matrixWorld)));
+      im.computeBoundingSphere(); group.add(im);
+    });
+  }
+  group.position.y = -S.minY;
+  S.forest = group; sceneForest.add(group);
+  const g = sceneForest.userData.ground; g.position.set(0, 0, 0); g.scale.setScalar(side * 0.85);
+  sceneForest.fog.near = side * 0.15; sceneForest.fog.far = side * 0.9;
+  camera.far = side * 3; camera.near = R * 0.02; camera.updateProjectionMatrix();
+}
+$('#count').addEventListener('change', () => { if (S.mode === 'forest') buildForest(); });
+$('#kind').addEventListener('change', () => { if (S.mode === 'forest') buildForest(); });
+
+// ---------------------------------------------------------------- modes + camera
+function frameCompare() {
+  const R = S.radius;
+  controls.target.copy(S.center);
+  camera.position.copy(S.center).add(new THREE.Vector3(R * 2.1, R * 0.35, R * 2.1));
+  camera.near = R * 0.02; camera.far = R * 400; camera.updateProjectionMatrix();
+  controls.update();
+}
+function frameForest() {
+  const R = S.radius, side = Math.sqrt(COUNTS[num('count')]) * R * 1.7;
+  controls.target.set(0, R, -side * 0.1);
+  camera.position.set(side * 0.05, R * 3 + side * 0.04, side * 0.45);
+  controls.update();
+}
+function setMode(mode) {
+  S.mode = mode;
+  for (const k of ['compare', 'forest', 'atlas']) $('#m-' + k).setAttribute('aria-pressed', String(k === mode));
+  $('#atlas').hidden = mode !== 'atlas';
+  for (const id of ['#split', '#tagL', '#tagR']) $(id).hidden = mode !== 'compare';
+  if (mode === 'forest') { if (!S.forest) buildForest(); frameForest(); }
+  if (mode === 'compare') frameCompare();
+}
+$('#m-compare').onclick = () => setMode('compare');
+$('#m-forest').onclick = () => setMode('forest');
+$('#m-atlas').onclick = () => setMode('atlas');
+
+const grip = $('#grip');
+grip.addEventListener('pointerdown', (e) => {
+  grip.setPointerCapture(e.pointerId);
+  const move = (ev) => { const r = view.getBoundingClientRect(); S.split = Math.min(0.95, Math.max(0.05, (ev.clientX - r.left) / r.width)); };
+  const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); };
+  grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up);
+  e.stopPropagation();
+});
+
+// ---------------------------------------------------------------- render loop
+let last = performance.now(), acc = 0, frames = 0, fps = 0, hudT = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = now - last; last = now; acc += dt; frames++;
+  if (acc > 500) { fps = (frames * 1000) / acc; acc = 0; frames = 0; }
+  controls.update();
+  renderer.info.reset();
+  const w = view.clientWidth, h = view.clientHeight;
+  $('#split').style.left = `${S.split * 100}%`;
+  if (S.mode === 'compare') {
+    const sx = Math.round(w * S.split);
+    renderer.setScissorTest(true);
+    renderer.setScissor(0, 0, sx, h); renderer.render(sceneMesh, camera);
+    renderer.setScissor(sx, 0, w - sx, h); renderer.render(S.impMesh ? sceneImp : sceneMesh, camera);
+    renderer.setScissorTest(false);
+  } else if (S.mode === 'forest') {
+    renderer.render(sceneForest, camera);
+  }
+  if (now - hudT > 250) {
+    hudT = now;
+    const i = renderer.info.render;
+    const lines = S.mode === 'atlas' ? [] : [`${fps.toFixed(0)} fps`, `${i.calls} draw calls`, `${fmtNum(i.triangles)} triangles`];
+    if (S.mode === 'forest') lines.unshift(`${fmtNum(COUNTS[num('count')])} trees as ${$('#kind').value === 'imp' ? 'impostors' : 'meshes'}`);
+    $('#hud').textContent = lines.join('\n'); $('#hud').hidden = !lines.length;
+  }
+}
+
+// ---------------------------------------------------------------- export
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(bytes) { let c = 0xffffffff; for (let i = 0; i < bytes.length; i++) c = CRC[(c ^ bytes[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+// Raw RGBA PNG (canvas.toBlob would premultiply alpha and destroy colour where depth/alpha is low).
+async function encodePNG(bottomUp, w, h) {
+  const stride = w * 4, raw = new Uint8Array((stride + 1) * h);
+  for (let y = 0; y < h; y++) {
+    const s = (h - 1 - y) * stride, d = y * (stride + 1);
+    raw[d] = 1; // Sub filter
+    for (let i = 0; i < stride; i++) raw[d + 1 + i] = (bottomUp[s + i] - (i >= 4 ? bottomUp[s + i - 4] : 0)) & 255;
+  }
+  const z = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const chunk = (type, data) => {
+    const out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
+    dv.setUint32(0, data.length); for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8); dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length))); return out;
+  };
+  const ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer);
+  dv.setUint32(0, w); dv.setUint32(4, h); ihdr.set([8, 6, 0, 0, 0], 8);
+  return new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', z), chunk('IEND', new Uint8Array(0))], { type: 'image/png' });
+}
+
+function moduleSource() {
+  return `// OctahedralImpostor.js — generated by Octahedral Impostor Baker (three.js r${THREE_VERSION.split('.')[1]}+)
+import * as THREE from 'three';
+const lib = (${impostorRuntime.toString()})(THREE);
+export const { DEFAULTS, octDecode, frameDirection, frameBasis, createImpostorMaterial, updateImpostorMaterial,
+  setDepthOffset, createImpostorGeometry, prepareImpostorTextures, loadImpostor } = lib;
+export default lib;
+`;
+}
+
+function exampleSource(meta) {
+  return `<!doctype html>
+<meta charset="utf-8"><title>${meta.source} impostor forest</title>
+<style>html,body{margin:0;height:100%;background:#9cc0de}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/examples/jsm/"}}<\/script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { loadImpostor, updateImpostorMaterial } from './OctahedralImpostor.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.append(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9cc0de);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 5000);
+const controls = new OrbitControls(camera, renderer.domElement);
+
+const { meta, material, geometry } = await loadImpostor('./impostor.json', { renderer });
+const look = ${JSON.stringify(Object.fromEntries(Object.entries(lookParams()).map(([k, v]) => [k, Array.isArray(v) ? v.map((x) => +x.toFixed(4)) : +(+v).toFixed(4)])))};
+updateImpostorMaterial(material, look);
+const sun = new THREE.DirectionalLight(new THREE.Color(...look.sunColor), look.sunIntensity);
+sun.position.fromArray(look.sunDirection);
+const sky = new THREE.HemisphereLight(new THREE.Color(...look.skyColor), new THREE.Color(...look.groundColor), look.ambientIntensity);
+
+const COUNT = 5000, spacing = meta.radius * 1.7, side = Math.sqrt(COUNT) * spacing;
+const forest = new THREE.InstancedMesh(geometry, material, COUNT);
+const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+for (let i = 0; i < COUNT; i++) {
+  p.set((Math.random() - 0.5) * side, 0, (Math.random() - 0.5) * side);
+  q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2);
+  s.setScalar(0.75 + Math.random() * 0.5);
+  forest.setMatrixAt(i, m.compose(p, q, s));
+}
+forest.computeBoundingSphere();
+scene.add(forest);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(side * 1.4, side * 1.4), new THREE.MeshLambertMaterial({ color: 0x6f7f4e }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = ${(S.minY).toFixed(4)}; // model's lowest point
+scene.add(ground, sun, sky);
+camera.position.set(0, meta.radius * 4, side * 0.4); controls.target.set(0, meta.radius, 0); controls.update();
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+<\/script>
+`;
+}
+
+function readmeSource(meta) {
+  return `# ${meta.source} — octahedral impostor
+
+Baked ${new Date().toISOString().slice(0, 10)} · ${meta.grid}×${meta.grid} views (${meta.hemi ? 'upper hemisphere' : 'full sphere'}) · ${meta.atlasPx}px atlas
+
+## Files
+- albedo.png — RGB colour (sRGB), A = coverage
+- normal_depth.png — RGB = object-space normal × 0.5 + 0.5, A = depth (linear data, not sRGB)
+- impostor.json — everything the shader needs (grid, hemi, center, tileHalf, atlasPx)
+- OctahedralImpostor.js — three.js runtime (ES module, imports 'three')
+- example.html — 5000-tree demo; serve this folder over http (e.g. \`npx serve\`) and open it
+
+## three.js usage
+\`\`\`js
+import { loadImpostor, updateImpostorMaterial } from './OctahedralImpostor.js';
+const { material, geometry } = await loadImpostor('./impostor.json', { renderer });
+const trees = new THREE.InstancedMesh(geometry, material, count); // same matrices as your tree meshes
+updateImpostorMaterial(material, { sunDirection: [x, y, z], sunIntensity: 3 }); // keep in sync with your sun
+\`\`\`
+The card sits at the model's own origin, so an impostor uses the same instance matrix as the full mesh it replaces.
+Load textures with premultiplyAlpha off (loadImpostor does this), or depth and dilated colour get damaged.
+
+## Format (for porting to other engines)
+- Frame (i, j) occupies tile column i, row j counted from the bottom-left of the atlas.
+- Its view direction is octDecode((i, j) / (grid − 1) × 2 − 1), Y up. Hemisphere: x = (u+v)/2, z = (u−v)/2, y = 1 − |x| − |z|. Full sphere: standard octahedral wrap.
+- Frame basis: up0 = |d.y| > 0.999 ? (0,0,−1) : (0,1,0); right = normalize(cross(up0, d)); up = cross(d, right).
+- Each view is an orthographic render of half-size tileHalf centred on \`center\`.
+- Depth A = dot(p − center, d) / tileHalf × 0.5 + 0.5 (positive toward the frame camera).
+- Runtime picks the 3 nearest frames (triangle split of the grid cell), intersects the view ray with each frame plane, applies one parallax step from depth, and blends by weight × alpha.
+`;
+}
+
+async function exportZip() {
+  if (!S.bake) return;
+  const msg = $('#expMsg'); msg.hidden = true;
+  $('#export').disabled = true; busy('Packing .zip…'); await nextFrame();
+  try {
+    const { alb, nd, W, meta } = S.bake;
+    const base = (S.name.replace(/\.[^.]+$/, '') || 'model').replace(/[^\w.-]+/g, '_');
+    const zip = new JSZip(), dir = zip.folder(`${base}_impostor`);
+    dir.file('albedo.png', await encodePNG(alb, W, W));
+    dir.file('normal_depth.png', await encodePNG(nd, W, W));
+    dir.file('impostor.json', JSON.stringify(meta, null, 2));
+    dir.file('OctahedralImpostor.js', moduleSource());
+    dir.file('example.html', exampleSource(meta));
+    dir.file('README.md', readmeSource(meta));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const filename = `${base}_impostor.zip`;
+    const downloads = window.claude?.use ? await window.claude.use('downloads') : null;
+    if (downloads) {
+      try { await downloads.save({ filename, data: blob }); msg.textContent = `Saved ${filename}.`; }
+      catch (e) { msg.textContent = e?.code === 'declined' ? 'Download cancelled.' : `Couldn't save the file (${e?.code || e}).`; }
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.append(a); a.click(); a.remove();
+      msg.textContent = `Downloaded ${filename} (${(blob.size / 1048576).toFixed(1)} MB).`;
+    }
+    msg.hidden = false;
+  } finally { $('#export').disabled = false; busy(''); }
+}
+
+// ---------------------------------------------------------------- wiring
+$('#bake').onclick = () => bake();
+$('#export').onclick = () => exportZip();
+$('#pick').onclick = () => $('#file').click();
+$('#file').onchange = (e) => { if (e.target.files.length) loadFiles(e.target.files); e.target.value = ''; };
+$('#sample').onclick = async () => { setModel(makeSampleTree(), 'sample_tree'); await bake(); };
+let dragDepth = 0;
+addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; view.classList.add('dropping'); });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; view.classList.remove('dropping'); } });
+addEventListener('dragover', (e) => e.preventDefault());
+addEventListener('drop', (e) => { e.preventDefault(); dragDepth = 0; view.classList.remove('dropping'); if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files); });
+
+window.__baker = { S, bake, setMode, loadFiles, exportZip, moduleSource, renderer, camera, controls };
+resize();
+requestAnimationFrame(loop);
+setModel(makeSampleTree(), 'sample_tree');
+bake();
+</script>
+
+</body></html>

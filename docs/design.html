@@ -566,7 +566,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li><b>The box and its contents:</b> each part is a box (name, position, turn, size), placed like a SketchUp component instance, and instances share everything inside it: the shape or model, its colour, the textures and how they lie, Visible, Collision, surface tags. Parts with the same contents are instances of each other; changing one's contents asks "Change all 12, or make this one Unique?" (<kbd>Enter</kbd> / <kbd>U</kbd>), with the others outlined. One undo takes back the change and the answer.</li>
         <li>Unique (a toggle in the part panel) gives a part contents of its own: its changes never ask, and it is never changed with others. Material files stay shared assets (the Materials panel's Copy makes one of its own).</li>
         <li>Drawing: parts sharing a mesh and a material are batched by Bevy. One mesh per shape, one loaded copy per model, and textured shapes share one mesh per shape, size and textured faces.</li>
-        <li>Foliage later: a paint brush that scatters from a set of variants with random rotation, scale and tint, so repeats aren't obvious. It's always instanced and always LOD'd.</li>
+        <li>Scatter later: the brush and the pen scatter trees, bushes, grass, rocks and other props from a set of variants with random rotation, scale and tint, so repeats aren't obvious. They're always instanced, always LOD'd, and impostors far away.</li>
       </ul>
     </div>
 
@@ -586,6 +586,8 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li>When you select a model, faint coloured rings on the ground show where each swap happens. Drag a ring to move that swap point.</li>
         <li>View menu → "Colour by LOD" tints the whole level so heavy spots stand out.</li>
         <li>Swaps cross-fade instead of popping (Bevy's visibility ranges support this).</li>
+        <li>The last level is an octahedral impostor: one camera-facing card baked from views all around the model, keeping its 3D look from every angle (ported from the user's baker, <code>docs/reference/octahedral-impostor-baker.html</code>). Made on import, with a toggle; its quality can change any time and it rebakes in the background. The atlases are cached, never stored in the project.</li>
+        <li>An LOD drawer pops out beside Assets: the project's LOD settings, and for a selected model each level side by side as small live views you can turn, with triangle counts, swap sizes and a mesh / impostor compare.</li>
       </ul>
     </div>
 
@@ -727,7 +729,9 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <li><b>Physics</b> (Avian, the one collision world while playing, on a fixed 60 Hz step drawn smoothed): each Solid part is Still (things stand on it and bump into it) or Loose (falls and tumbles: crates, barrels, with a Weight and a Grip), a switch in the part panel shared by instances; characters push loose parts (light ones fly, heavy ones don't budge) and stand on them, and loose parts at rest sleep until touched; blasts throw them outward and a winch drags one toward a point; a part that Moves is a moving body that carries what stands on it. Still parts collide exactly (boxes as boxes, everything else triangle for triangle); loose ones as a hull, or convex pieces for concave shapes such as stairs, arches and models. When play stops, everything goes back where it was placed.</li>
       <li><b>The walker</b> (the stand-in character) is a floating character (bevy_tnua) in the same physics world: it walks up steps and slopes, rides moving parts and slides on Slippery ones. A game's own character collides through the same world, as a body of its own or by asking Avian.</li>
       <li><b>Enemy paths:</b> a navigation area enemies can walk, built from the level with one button, across floors, stairs and ramps, with paths found on it; patrol paths are drawn with the Paths tool. The level panel's Navigation column says who it is for (width, height, the step and slope they climb), builds it and says how it stands (square metres, separate areas, out of date once the level changes); the area is drawn over the level in green. <b>Try a path</b> there: click a start, then an end, and the walk between them is drawn (yellow, with its length), or a red line says there is no way. Play works the area out when it starts, so characters can ask it for paths. It is never stored, only rebuilt from the level.</li>
-      <li><b>Paths tool</b> for rails, patrols, camera paths and roads.</li>
+      <li><b>Paths tool</b> for rails, patrols, camera paths and roads, drawn with the pen.</li>
+      <li><b>Brush and pen:</b> a round brush (size, hardness soft to hard as in Photoshop, strength, spacing) and a Bezier pen that draw on terrain, water and parts. They lay textures, raise and carve terrain, or scatter props, and are stored as strokes and curves, never paint images.</li>
+      <li><b>Asset library:</b> rename, duplicate, delete (to a trash folder undo can bring back) and move assets; everything using one follows it; used-by counts and Find in level.</li>
       <li><b>Input map:</b> actions such as Jump or Fire mapped to keys and gamepad, editable in Settings.</li>
       <li><b>Save system:</b> what a save point stores (player, variables, which parts already fired).</li>
     </ul></div>
