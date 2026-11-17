@@ -70,6 +70,7 @@ pub fn ui(
 
     overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
     if ed.looking.is_none() { selection_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
+    eyedropper(&ctx, &ed, &view, (cam.0, cam.1));
     if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
     if let Some(what) = ed.pending { unsaved_modal(&ctx, &mut ed, what, &mut exit); }
@@ -77,6 +78,7 @@ pub fn ui(
     if ed.updates_open { updates_modal(&ctx, &mut ed); }
     if ed.features_open { features_modal(&ctx, &mut ed); }
     if ed.mcp_open { mcp_modal(&ctx, &mut ed); }
+    theme::focus_ring(&ctx);
     Ok(())
 }
 
@@ -157,7 +159,7 @@ fn top_bar(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, window: &m
     let bar = ERect::from_min_size(lay.window.min, vec2(lay.window.width(), frame::TOP));
     egui::Area::new(Id::new("top-bar")).order(egui::Order::Middle).fixed_pos(bar.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(bar.size());
-        let move_it = ui.interact(bar, Id::new("bar-move"), Sense::click_and_drag());
+        let move_it = ui.interact(bar, Id::new("bar-move"), Sense::CLICK | Sense::DRAG);
         if move_it.double_clicked() { window.set_maximized(!ed.maximized); ed.maximized = !ed.maximized; } else if move_it.drag_started() { window.start_drag_move(); }
         let fg = LOOK.frame_text;
         let cy = bar.center().y;
@@ -306,7 +308,7 @@ fn window_edges(ctx: &egui::Context, lay: &frame::Layout, window: &mut Window, m
     ];
     egui::Area::new(Id::new("window-edges")).order(egui::Order::Foreground).fixed_pos(w.min).constrain(false).show(ctx, |ui| {
         for (k, (r, dir, cursor)) in zones.into_iter().enumerate() {
-            let resp = ui.interact(r, Id::new(("edge", k)), Sense::drag()).on_hover_cursor(cursor);
+            let resp = ui.interact(r, Id::new(("edge", k)), Sense::DRAG).on_hover_cursor(cursor);
             if resp.drag_started() { window.start_drag_resize(dir); }
         }
     });
@@ -1059,6 +1061,35 @@ fn kind(shape: Shape) -> (&'static str, &'static str, Color32) {
 }
 
 /// The selection tag: a small pill in the highlight with the part's icon and name, at its top left in the view.
+/// A colour picker's eyedropper is out: the part under the pointer shows its colour (a light's light, a material's
+/// tint on that face, else the part's colour); a click in the view hands it to the picker, Esc puts it away.
+fn eyedropper(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Camera, &GlobalTransform)) {
+    let key = Id::new(crate::settings::EYEDROPPER);
+    let Some(pid) = ctx.data(|d| d.get_temp::<Id>(key)) else { return };
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) { ctx.data_mut(|d| d.remove::<Id>(key)); return; }
+    let Some(at) = ctx.pointer_hover_pos() else { return };
+    let v = view.rect;
+    if !v.contains(Vec2::new(at.x, at.y)) || !frame::inside(&view.outline, at) || ctx.is_pointer_over_egui() { return; }
+    ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
+    let colour = view.ray(cam.0, cam.1, Vec2::new(at.x, at.y)).and_then(|ray| ed.hit(ray)).and_then(|h| {
+        let p = ed.level.get(h.part?)?;
+        Some(if let Some(l) = &p.light { l.colour } else if let Some(m) = h.face.and_then(|f| p.surface(f)).and_then(|s| ed.level.materials.get(&s.material)) { m.tint } else { p.color })
+    });
+    let Some(c) = colour else {
+        theme::float_label(ctx, "eyedropper", at + vec2(16.0, 16.0), "Point at a part", MUTED, &["Esc"]);
+        return;
+    };
+    let c32 = Color32::from_rgb((c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8);
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, Id::new("eyedropper-swatch")));
+    p.circle_filled(at, 14.0, c32);
+    p.circle_stroke(at, 14.0, Stroke::new(2.5, Color32::WHITE));
+    p.circle_stroke(at, 4.0, Stroke::new(1.5, if c[0] + c[1] + c[2] > 1.5 { INK } else { Color32::WHITE }));
+    theme::float_label(ctx, "eyedropper", at + vec2(22.0, 16.0), &theme::colour_name(c), c32, &["Click"]);
+    if ctx.input(|i| i.pointer.primary_clicked()) {
+        ctx.data_mut(|d| { d.remove::<Id>(key); d.insert_temp(Id::new(crate::settings::EYEDROPPED), (pid, c)); });
+    }
+}
+
 fn selection_tag(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Camera, &GlobalTransform)) {
     let Some(p) = ed.selected.and_then(|id| ed.level.get(id)) else { return };
     let (lo, hi) = ed.geo.local_box(p);

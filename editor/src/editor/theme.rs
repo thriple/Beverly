@@ -321,6 +321,22 @@ pub fn main_button(ui: &mut Ui, label: &str) -> Response {
 
 /// A text input (30 px, the field's colour; a 1.5 px accent ring while typing; `lead`: an icon first) whose letters
 /// spring up as they're typed, as the kit's animated input does.
+/// A widget that draws its own focus (fields, inputs, sliders) says so, and `focus_ring` leaves it alone.
+pub fn own_focus(ctx: &Context, id: Id) { ctx.data_mut(|d| d.insert_temp(Id::new("own-focus"), id)); }
+
+/// The focus ring (2 px accent, 2 px out) around whatever has keyboard focus, for egui's own buttons, menus and
+/// edits; shown once Tab moves the focus, until the mouse is pressed. Call after everything is drawn.
+pub fn focus_ring(ctx: &Context) {
+    let k = Id::new("focus-by-keys");
+    let (tab, press) = ctx.input(|i| (i.key_pressed(egui::Key::Tab), i.pointer.any_pressed()));
+    let keys = if press { false } else { tab || ctx.data(|d| d.get_temp::<bool>(k)).unwrap_or(false) };
+    ctx.data_mut(|d| d.insert_temp(k, keys));
+    let Some(id) = ctx.memory(|m| m.focused()) else { return };
+    if !keys || ctx.data(|d| d.get_temp::<Id>(Id::new("own-focus"))) == Some(id) { return; }
+    let Some(r) = ctx.read_response(id) else { return };
+    ctx.layer_painter(r.layer_id).rect_stroke(r.rect.expand(2.0), CornerRadius::same(9), Stroke::new(2.0, ACCENT), StrokeKind::Outside);
+}
+
 pub fn text_input(ui: &mut Ui, text: &mut String, hint: &str, lead: Option<&str>, width: f32) -> Response {
     let font = body(12.5);
     let left = if lead.is_some() { 32.0 } else { 10.0 };
@@ -334,7 +350,7 @@ pub fn text_input(ui: &mut Ui, text: &mut String, hint: &str, lead: Option<&str>
     let resp = out.response.response;
     let r = resp.rect;
     if let Some(icon) = lead { super::frame::paint_icon(ui.painter(), icon, pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, MUTED); }
-    if resp.has_focus() { ui.painter().rect_stroke(r, CornerRadius::same(7), Stroke::new(1.5, ACCENT), StrokeKind::Inside); }
+    if resp.has_focus() { own_focus(ui.ctx(), resp.id); ui.painter().rect_stroke(r, CornerRadius::same(7), Stroke::new(1.5, ACCENT), StrokeKind::Inside); }
     // each letter keeps an id while it stays, so only the ones typed spring in
     let key = resp.id.with("letters");
     let (before, mut ids, mut next): (String, Vec<u64>, u64) = ui.data(|d| d.get_temp(key)).unwrap_or_default();

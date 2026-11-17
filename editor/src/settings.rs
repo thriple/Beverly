@@ -6,7 +6,7 @@
 //! pub struct Mover {
 //!     #[reflect(@Setting::number("Moves by", "m", 0.05, -1e5, 1e5).section("MOVES"))]
 //!     pub to: [f32; 3],
-//!     #[reflect(@Setting::feel("Speed", ("Slow", "Quick"), 20.0, 0.2, "s").log().section("MOVES"))]
+//!     #[reflect(@Setting::feel("Speed", &["Slow", "Steady", "Brisk", "Quick"], 20.0, 0.2, "s").log().section("MOVES"))]
 //!     pub secs: f32,
 //! }
 //! ```
@@ -40,13 +40,14 @@ pub struct Setting {
 
 #[derive(Reflect, Clone, Debug, PartialEq)]
 pub enum Kind {
-    /// A word slider. Fields with the same `group` share one slider; `lo` is the value at the left word and `hi`
-    /// at the right one (`hi` may be smaller), spaced evenly or, with `log`, by ratio.
-    Feel { group: &'static str, ends: (&'static str, &'static str), lo: f32, hi: f32, log: bool },
+    /// A word slider. Fields with the same `group` share one slider; its words are stops spaced evenly along it,
+    /// `lo` the value at the first and `hi` at the last (`hi` may be smaller), spaced evenly or, with `log`, by ratio.
+    Feel { group: &'static str, #[reflect(ignore)] words: &'static [&'static str], lo: f32, hi: f32, log: bool },
     /// A number (or x, y, z for three of them) dragged or typed.
     Number { speed: f32, min: f32, max: f32 },
     Toggle,
-    Colour,
+    /// A colour (`[f32; 3]`, sRGB 0..1); `alpha` names an f32 field (0..1) that the picker's opacity strip sets.
+    Colour { alpha: &'static str },
     Text,
     /// A rotation (quaternion) shown as a turn in degrees, with Stand upright when tilted.
     Turn,
@@ -66,14 +67,14 @@ pub struct Label(pub &'static str);
 
 impl Setting {
     fn new(label: &'static str, kind: Kind) -> Self { Setting { label, kind, section: "", unit: "", help: "", bare: false } }
-    pub fn feel(label: &'static str, ends: (&'static str, &'static str), lo: f32, hi: f32, unit: &'static str) -> Self {
-        Setting { unit, ..Self::new(label, Kind::Feel { group: label, ends, lo, hi, log: false }) }
+    pub fn feel(label: &'static str, words: &'static [&'static str], lo: f32, hi: f32, unit: &'static str) -> Self {
+        Setting { unit, ..Self::new(label, Kind::Feel { group: label, words, lo, hi, log: false }) }
     }
     pub fn number(label: &'static str, unit: &'static str, speed: f32, min: f32, max: f32) -> Self {
         Setting { unit, ..Self::new(label, Kind::Number { speed, min, max }) }
     }
     pub fn toggle(label: &'static str) -> Self { Self::new(label, Kind::Toggle) }
-    pub fn colour(label: &'static str) -> Self { Self::new(label, Kind::Colour) }
+    pub fn colour(label: &'static str) -> Self { Self::new(label, Kind::Colour { alpha: "" }) }
     pub fn text(label: &'static str) -> Self { Self::new(label, Kind::Text) }
     pub fn turn(label: &'static str) -> Self { Self::new(label, Kind::Turn) }
     pub fn optional(label: &'static str, off: &'static str, on: &'static str) -> Self { Self::new(label, Kind::Optional { off, on }) }
@@ -83,6 +84,8 @@ impl Setting {
     pub fn section(mut self, s: &'static str) -> Self { self.section = s; self }
     pub fn help(mut self, h: &'static str) -> Self { self.help = h; self }
     pub fn bare(mut self) -> Self { self.bare = true; self }
+    /// Give a colour's picker an opacity strip for another field (an f32 from 0 to 1).
+    pub fn alpha(mut self, field: &'static str) -> Self { if let Kind::Colour { alpha } = &mut self.kind { *alpha = field; } self }
     /// Space a Feel slider's values by ratio (for ranges like 0.2 s to 20 s).
     pub fn log(mut self) -> Self { if let Kind::Feel { log, .. } = &mut self.kind { *log = true; } self }
     /// Put a Feel field on another field's slider (by that slider's label).
@@ -160,20 +163,27 @@ pub fn section(ui: &mut Ui, value: &mut dyn PartialReflect, section: &str, ctx: 
     for (name, s) in list.iter().cloned() {
         let dflt = defaults.as_ref().and_then(|d| match d.reflect_ref() { ReflectRef::Struct(d) => d.field(name), _ => None });
         match &s.kind {
-            Kind::Feel { group, ends, .. } => {
+            Kind::Feel { group, words, .. } => {
                 if !feels_done.contains(group) {
                     feels_done.push(group);
                     let members: Vec<(&'static str, Setting)> = list.iter().filter(|(_, m)| matches!(&m.kind, Kind::Feel { group: g, .. } if g == group)).cloned().collect();
                     let first = defaults.as_ref().and_then(|d| match d.reflect_ref() { ReflectRef::Struct(d) => d.field(members[0].0).and_then(|f| f.try_downcast_ref::<f32>()).copied(), _ => None });
-                    changed |= feel(ui, st, &ty, group, *ends, &members, first, ctx);
+                    changed |= feel(ui, st, &ty, group, words, &members, first, ctx);
                 }
             }
             _ => {
+                // a colour's opacity field, worked on as a copy (it is another field of the same struct)
+                let alpha = match s.kind { Kind::Colour { alpha } if !alpha.is_empty() => Some(alpha), _ => None };
+                let mut a = alpha.and_then(|n| st.field(n)).and_then(|f| f.try_downcast_ref::<f32>()).copied();
+                let a0 = a;
                 if let Some(f) = st.field_mut(name) {
                     let differs = dflt.is_some_and(|d| !matches!(&s.kind, Kind::Number { .. } | Kind::Turn | Kind::Text) && !d.reflect_partial_eq(f).unwrap_or(true));
                     let mut reset = false;
-                    changed |= one(ui, f, &s, &format!("{ty}.{name}"), differs, &mut reset, ctx);
+                    changed |= one(ui, f, &s, &format!("{ty}.{name}"), differs, &mut reset, a.as_mut(), ctx);
                     if reset { if let Some(d) = dflt { f.apply(d); changed = true; } }
+                }
+                if a != a0 {
+                    if let (Some(n), Some(v)) = (alpha, a) { if let Some(x) = st.field_mut(n).and_then(|f| f.try_downcast_mut::<f32>()) { *x = v; changed = true; } }
                 }
             }
         }
@@ -221,7 +231,8 @@ fn toggle_row(ui: &mut Ui, label: &str, on: &mut bool, help: &str, differs: bool
 }
 
 /// One setting that isn't a slider.
-fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs: bool, reset: &mut bool, ctx: &mut Ctx) -> bool {
+#[allow(clippy::too_many_arguments)]
+fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs: bool, reset: &mut bool, alpha: Option<&mut f32>, ctx: &mut Ctx) -> bool {
     match &s.kind {
         Kind::Number { speed, min, max } => {
             if let Some(v) = f.try_downcast_mut::<f32>() {
@@ -246,9 +257,9 @@ fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs:
         Kind::Tags => tags(ui, f, s),
         Kind::Toggle => f.try_downcast_mut::<bool>().is_some_and(|b| toggle_row(ui, s.label, b, s.help, differs, reset)),
         // on a copy: the picker nudges the numbers through its colour conversions even when nothing is picked
-        Kind::Colour => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| {
+        Kind::Colour { .. } => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| {
             let mut copy = *c;
-            let picked = row(ui, s.label, s.help, differs, reset, |ui| colour(ui, &mut copy, key, &ctx.palette));
+            let picked = row(ui, s.label, s.help, differs, reset, |ui| colour(ui, &mut copy, alpha, key, &ctx.palette));
             if picked { *c = copy; }
             picked
         }),
@@ -281,6 +292,7 @@ fn number(ui: &mut Ui, v: &mut f32, speed: f32, min: f32, max: f32, suffix: &str
         p.text(chip.center(), egui::Align2::CENTER_CENTER, ["X", "Y", "Z"][i], theme::bold(10.0), theme::INK);
     }
     if resp.has_focus() {
+        theme::own_focus(ui.ctx(), resp.id);
         p.rect_stroke(r, CornerRadius::same(round), Stroke::new(1.5, ACCENT), egui::StrokeKind::Inside);
     } else if hot {
         crate::editor::frame_icon(p, "scrub", pos2(r.right() - 11.0, r.center().y), 12.0, ACCENT);
@@ -414,7 +426,7 @@ fn list(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, ctx: &m
 
 /// One word slider for every Feel field in `group`, with their numbers and range ends under More numbers.
 #[allow(clippy::too_many_arguments)]
-fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &str), members: &[(&'static str, Setting)], default: Option<f32>, ctx: &mut Ctx) -> bool {
+fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, words: &[&str], members: &[(&'static str, Setting)], default: Option<f32>, ctx: &mut Ctx) -> bool {
     let range = |ctx: &Ctx, name: &str, s: &Setting| -> (f32, f32, bool) {
         let Kind::Feel { lo, hi, log, .. } = s.kind else { return (0.0, 1.0, false) };
         let (lo, hi) = ctx.ranges.get(&format!("{ty}.{name}")).copied().unwrap_or((lo, hi));
@@ -427,7 +439,7 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &s
     let mut t = feel_t(v0, lo, hi, log);
     let differs = default.is_some_and(|d| (d - v0).abs() > 1e-4 * d.abs().max(1.0));
     let mut reset = false;
-    if row(ui, group, s0.help, differs, &mut reset, |ui| word_slider(ui, &mut t, ends).changed()) {
+    if row(ui, group, s0.help, differs, &mut reset, |ui| word_slider(ui, &mut t, words).changed()) {
         for (n, s) in members {
             let (lo, hi, log) = range(ctx, n, s);
             if let Some(v) = st.field_mut(n).and_then(|f| f.try_downcast_mut::<f32>()) { *v = feel_value(t, lo, hi, log); }
@@ -457,8 +469,8 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &s
             let (mut a, mut b) = (lo, hi);
             let (ca, cb) = row(ui, "Range", "What the slider's two ends mean", false, &mut none, |ui| {
                 let w = (ui.available_width() - 6.0) / 2.0;
-                let ca = number(ui, &mut a, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", ends.0)).changed();
-                let cb = number(ui, &mut b, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", ends.1)).changed();
+                let ca = number(ui, &mut a, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", words[0])).changed();
+                let cb = number(ui, &mut b, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", words[words.len() - 1])).changed();
                 (ca, cb)
             });
             if (ca || cb) && a != b && (!log || (a > 0.0 && b > 0.0)) {
@@ -470,9 +482,10 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, ends: (&str, &s
     changed
 }
 
-/// The word slider: a 4 px track filling with the accent, a tick at each word, a white thumb with an accent halo,
-/// the words under the track (the nearer one white). Dragging thickens it and the word rides above the thumb.
-pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Response {
+/// The word slider: a 4 px track filling with the accent, a tick at each word (its stops, spaced evenly), a white
+/// thumb with an accent halo, the words under the track (the nearest one white). Dragging thickens it and the word
+/// rides above the thumb.
+pub fn word_slider(ui: &mut Ui, t: &mut f32, words: &[&str]) -> egui::Response {
     let w = ui.available_width();
     let (rect, mut resp) = ui.allocate_exact_size(vec2(w, 40.0), Sense::click_and_drag());
     let track = egui::Rect::from_center_size(pos2(rect.center().x, rect.top() + 11.0), vec2(rect.width() - 12.0, 4.0));
@@ -492,20 +505,30 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Respon
     p.rect_filled(tr, CornerRadius::same(3), theme::TRACK);
     let x = tr.left() + tr.width() * shown;
     p.rect_filled(egui::Rect::from_min_max(tr.min, pos2(x, tr.max.y)), CornerRadius::same(3), ACCENT);
-    for k in [0.0, 0.5, 1.0] {
-        let tx = tr.left() + tr.width() * k;
+    let last = (words.len().max(2) - 1) as f32;
+    for k in 0..words.len() {
+        let tx = tr.left() + tr.width() * k as f32 / last;
         if (tx - x).abs() > 9.0 { p.rect_filled(egui::Rect::from_center_size(pos2(tx, tr.center().y), vec2(2.0, 8.0)), CornerRadius::same(1), Color32::from_rgb(0x4A, 0x4A, 0x52)); }
     }
     let r = 8.0 + 2.0 * held;
     let c = pos2(x, tr.center().y);
     p.circle_filled(c, r + 3.0, ACCENT.gamma_multiply(0.3));
     p.circle_filled(c, r, Color32::WHITE);
-    if resp.has_focus() { p.circle_stroke(c, r + 4.0, Stroke::new(2.0, ACCENT)); }
-    let near = if *t < 0.5 { ends.0 } else { ends.1 };
+    if resp.has_focus() { theme::own_focus(ui.ctx(), resp.id); p.circle_stroke(c, r + 4.0, Stroke::new(2.0, ACCENT)); }
+    let k_near = (*t * last).round() as usize;
+    let near = words.get(k_near).copied().unwrap_or("");
     let y = rect.bottom() - 8.0;
-    for (word, at, align) in [(ends.0, rect.left() + 6.0, egui::Align2::LEFT_CENTER), (ends.1, rect.right() - 6.0, egui::Align2::RIGHT_CENTER)] {
-        let on = word == near;
-        p.text(pos2(at, y), align, word, if on { theme::semi(11.0) } else { theme::body(11.0) }, if on { TEXT } else { MUTED });
+    for (k, word) in words.iter().enumerate() {
+        // the ends sit inside the slider's edges, the rest under their ticks
+        let (at, align) = match k {
+            0 => (rect.left() + 6.0, egui::Align2::LEFT_CENTER),
+            _ if k + 1 == words.len() => (rect.right() - 6.0, egui::Align2::RIGHT_CENTER),
+            _ => (tr.left() + tr.width() * k as f32 / last, egui::Align2::CENTER_CENTER),
+        };
+        // the middle words are smaller (user, 2026-11-17): the ends carry the meaning
+        let on = k == k_near;
+        let size = if k == 0 || k + 1 == words.len() { 11.0 } else { 9.5 };
+        p.text(pos2(at, y), align, *word, if on { theme::semi(size) } else { theme::body(size) }, if on { TEXT } else { MUTED });
     }
     if held > 0.01 {
         let g = p.layout_no_wrap(near.to_owned(), theme::semi(11.5), Color32::WHITE);
@@ -519,7 +542,7 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, ends: (&str, &str)) -> egui::Respon
 
 /// A colour: its swatch and a friendly name; click for the picker (saturation and brightness, hue, hex), with the
 /// project's colours first so a game keeps one palette.
-fn colour(ui: &mut Ui, c: &mut [f32; 3], key: &str, palette: &[[f32; 3]]) -> bool {
+fn colour(ui: &mut Ui, c: &mut [f32; 3], mut alpha: Option<&mut f32>, key: &str, palette: &[[f32; 3]]) -> bool {
     let col = |c: [f32; 3]| Color32::from_rgb((c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8);
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
     let p = ui.painter();
@@ -530,8 +553,16 @@ fn colour(ui: &mut Ui, c: &mut [f32; 3], key: &str, palette: &[[f32; 3]]) -> boo
     p.text(pos2(sw.right() + 8.0, r.center().y), egui::Align2::LEFT_CENTER, theme::colour_name(*c), theme::body(12.5), TEXT);
     crate::editor::frame_icon(p, "down", pos2(r.right() - 14.0, r.center().y), 12.0, MUTED);
     let mut changed = false;
-    egui::Popup::menu(&resp).id(ui.id().with(("colour", key))).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+    let pid = ui.id().with(("colour", key));
+    let ctx = ui.ctx().clone();
+    let dropping = ctx.data(|d| d.get_temp::<egui::Id>(egui::Id::new(EYEDROPPER))) == Some(pid);
+    // while the eyedropper is out, clicks in the view pick instead of closing the picker
+    let close = if dropping { egui::PopupCloseBehavior::IgnoreClicks } else { egui::PopupCloseBehavior::CloseOnClickOutside };
+    egui::Popup::menu(&resp).id(pid).close_behavior(close).show(|ui| {
         ui.set_width(280.0);
+        if let Some((from, picked)) = ctx.data(|d| d.get_temp::<(egui::Id, [f32; 3])>(egui::Id::new(EYEDROPPED))) {
+            if from == pid { *c = picked; changed = true; ctx.data_mut(|d| d.remove::<(egui::Id, [f32; 3])>(egui::Id::new(EYEDROPPED))); }
+        }
         ui.horizontal(|ui| {
             let (sw, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
             ui.painter().rect_filled(sw, CornerRadius::same(8), col(*c));
@@ -542,14 +573,29 @@ fn colour(ui: &mut Ui, c: &mut [f32; 3], key: &str, palette: &[[f32; 3]]) -> boo
             });
         });
         changed |= picker(ui, c);
+        if let Some(a) = alpha.as_deref_mut() { changed |= opacity_strip(ui, a, col(*c)); }
         let c32 = col(*c);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Hex").color(MUTED));
+            ui.spacing_mut().item_spacing.x = 6.0;
+            // the eyedropper: the colour of a part in the view (I)
+            let (b, bresp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+            ui.painter().rect_filled(b, CornerRadius::same(7), if dropping { ACCENT } else if bresp.hovered() { theme::FIELD_HOVER } else { rgb3(0x26262B) });
+            crate::editor::frame_icon(ui.painter(), "pipette", b.center(), 16.0, if dropping { theme::INK } else { TEXT });
+            let key_i = ui.memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(egui::Key::I));
+            if bresp.tip_keys("Pick a colour from a part in the view", &["I"]).clicked() || key_i {
+                ctx.data_mut(|d| if dropping { d.remove::<egui::Id>(egui::Id::new(EYEDROPPER)); } else { d.insert_temp(egui::Id::new(EYEDROPPER), pid); });
+            }
             let mut hex = format!("{:02X}{:02X}{:02X}", c32.r(), c32.g(), c32.b());
-            if ui.add(egui::TextEdit::singleline(&mut hex).font(theme::mono(12.0)).desired_width(90.0)).changed() {
+            ui.label(egui::RichText::new("Hex").size(12.0).color(MUTED));
+            let w = ui.available_width() - if alpha.is_some() { 76.0 } else { 0.0 };
+            if theme::text_input(ui, &mut hex, "", None, w).changed() {
                 if let Ok(v) = u32::from_str_radix(hex.trim_start_matches('#'), 16) {
                     if hex.trim_start_matches('#').len() == 6 { *c = [(v >> 16) as f32 / 255.0, ((v >> 8) & 255) as f32 / 255.0, (v & 255) as f32 / 255.0]; changed = true; }
                 }
+            }
+            if let Some(a) = alpha.as_deref_mut() {
+                let mut pct = (*a * 100.0).round();
+                if number(ui, &mut pct, 1.0, 0.0, 100.0, "%", None, 70.0).tip("Opacity").changed() { *a = pct / 100.0; changed = true; }
             }
         });
         if !palette.is_empty() {
@@ -565,7 +611,47 @@ fn colour(ui: &mut Ui, c: &mut [f32; 3], key: &str, palette: &[[f32; 3]]) -> boo
             });
         }
     });
+    // the picker closed: put the eyedropper away
+    if dropping && !egui::Popup::is_id_open(&ctx, pid) { ctx.data_mut(|d| d.remove::<egui::Id>(egui::Id::new(EYEDROPPER))); }
     changed
+}
+
+/// Temp data: the colour picker (its popup id) whose eyedropper is out; the editor's view answers it.
+pub const EYEDROPPER: &str = "eyedropper";
+/// Temp data: (the picker's popup id, the colour picked in the view).
+pub const EYEDROPPED: &str = "eyedropped";
+
+fn rgb3(x: u32) -> Color32 { Color32::from_rgb((x >> 16) as u8, (x >> 8) as u8, x as u8) }
+
+/// The opacity strip: the colour from clear to solid over a checker, with a thumb; drag to set `a` (0..1).
+fn opacity_strip(ui: &mut Ui, a: &mut f32, c: Color32) -> bool {
+    let (strip, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 12.0), Sense::click_and_drag());
+    let p = ui.painter().with_clip_rect(strip);
+    p.rect_filled(strip, CornerRadius::same(6), rgb3(0x26262B));
+    let n = (strip.width() / 6.0).ceil() as i32;
+    for i in 0..n {
+        for j in 0..2 {
+            if (i + j) % 2 == 0 { continue; }
+            let q = egui::Rect::from_min_size(pos2(strip.left() + i as f32 * 6.0, strip.top() + j as f32 * 6.0), vec2(6.0, 6.0));
+            p.rect_filled(q.intersect(strip.shrink2(vec2(3.0, 0.0))), CornerRadius::ZERO, rgb3(0x3A3A40));
+        }
+    }
+    let mut mesh = egui::Mesh::default();
+    let clear = Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), 0);
+    for (x, k) in [(strip.left(), clear), (strip.right(), c)] {
+        mesh.colored_vertex(pos2(x, strip.top()), k);
+        mesh.colored_vertex(pos2(x, strip.bottom()), k);
+    }
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(1, 3, 2);
+    p.add(mesh);
+    let before = *a;
+    if let Some(q) = resp.interact_pointer_pos() { *a = ((q.x - strip.left()) / strip.width()).clamp(0.0, 1.0); }
+    let at = pos2(strip.left() + strip.width() * *a, strip.center().y);
+    ui.painter().circle_filled(at, 8.0, c);
+    ui.painter().circle_stroke(at, 8.0, Stroke::new(2.5, Color32::WHITE));
+    resp.tip("Opacity: clear at the left, solid at the right");
+    *a != before
 }
 
 /// The picker: a square of saturation (across) and brightness (up), and a strip of hues under it.
@@ -656,7 +742,7 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
             else { Value::Null };
         let mut d = json!({ "field": name, "label": s.label, "section": s.section, "value": v });
         let kind = match &s.kind {
-            Kind::Feel { group, ends, lo, hi, log } => { d["slider"] = json!({ "group": group, "ends": [ends.0, ends.1], "values": [num(*lo), num(*hi)], "by_ratio": log }); "feel" }
+            Kind::Feel { group, words, lo, hi, log } => { d["slider"] = json!({ "group": group, "words": words, "values": [num(*lo), num(*hi)], "by_ratio": log }); "feel" }
             Kind::Number { min, max, .. } => { d["min"] = num(*min); d["max"] = num(*max); "number" }
             Kind::Turn => {
                 if let Some(r) = f.try_downcast_ref::<[f32; 4]>() {
@@ -666,7 +752,7 @@ pub fn describe(value: &dyn PartialReflect) -> serde_json::Value {
                 }
                 "turn"
             }
-            Kind::Toggle => "toggle", Kind::Colour => "colour", Kind::Text => "text",
+            Kind::Toggle => "toggle", Kind::Colour { .. } => "colour", Kind::Text => "text",
             Kind::Optional { .. } => "optional", Kind::Choice => "choice", Kind::List => "list",
             Kind::Tags => { d["choices"] = json!(d_tags); "tags" }
         };
@@ -715,14 +801,14 @@ fn apply_one(f: &mut dyn PartialReflect, s: &Setting, v: &serde_json::Value) -> 
     } else if let Some(x) = f.try_downcast_mut::<String>() {
         *x = v.as_str().ok_or_else(|| format!("expected text, not {v}"))?.to_string();
     } else if let Some(x) = f.try_downcast_mut::<[f32; 3]>() {
-        if let (Kind::Colour, Some(h)) = (&s.kind, v.as_str()) {
+        if let (Kind::Colour { .. }, Some(h)) = (&s.kind, v.as_str()) {
             let h = h.trim_start_matches('#');
             let c = (h.len() == 6).then(|| u32::from_str_radix(h, 16).ok()).flatten().ok_or("expected \"#rrggbb\"")?;
             *x = [(c >> 16) as f32 / 255.0, ((c >> 8) & 255) as f32 / 255.0, (c & 255) as f32 / 255.0];
         } else {
             let a = v.as_array().filter(|a| a.len() == 3).ok_or_else(|| format!("expected [x, y, z], not {v}"))?;
             for i in 0..3 { x[i] = num(&a[i])?; }
-            if matches!(s.kind, Kind::Colour) { for c in x.iter_mut() { *c = c.clamp(0.0, 1.0); } }
+            if matches!(s.kind, Kind::Colour { .. }) { for c in x.iter_mut() { *c = c.clamp(0.0, 1.0); } }
         }
     } else if let Some(x) = f.try_downcast_mut::<[f32; 4]>() {
         use bevy::math::Quat;
@@ -816,7 +902,7 @@ mod tests {
         let f = |name: &str| d.as_array().unwrap().iter().find(|x| x["field"] == name).unwrap().clone();
         assert_eq!(f("collision")["value"], "Solid");
         assert_eq!(f("size")["kind"], "number");
-        assert_eq!(f("mover")["value"].as_array().unwrap().iter().find(|x| x["field"] == "secs").unwrap()["slider"]["ends"][1], "Quick");
+        assert_eq!(f("mover")["value"].as_array().unwrap().iter().find(|x| x["field"] == "secs").unwrap()["slider"]["words"][3], "Quick");
         assert!(d.as_array().unwrap().iter().all(|x| x["field"] != "id"), "id isn't a setting");
     }
 

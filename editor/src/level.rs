@@ -149,7 +149,7 @@ pub struct Mover {
     /// The end position, relative to the start (metres).
     #[reflect(@Setting::number("By", "m", 0.05, -100000.0, 100000.0).section(MOVES).help("Where it moves to, from where it was placed"))]
     pub to: [f32; 3],
-    #[reflect(@Setting::feel("Speed", ("Slow", "Quick"), 20.0, 0.2, "s").log().section(MOVES).help("How long it takes to get there"))]
+    #[reflect(@Setting::feel("Speed", &["Slow", "Steady", "Brisk", "Quick"], 20.0, 0.2, "s").log().section(MOVES).help("How long it takes to get there"))]
     pub secs: f32,
 }
 
@@ -168,13 +168,13 @@ pub struct Light {
     #[reflect(@Setting::toggle("Shadows").section(LIGHT).help("Off is cheaper: light passes through parts"))]
     pub shadows: bool,
     /// Lumens.
-    #[reflect(@Setting::feel("Brightness", ("Dim", "Bright"), 1000.0, 10000000.0, "lm").log().section(LIGHT))]
+    #[reflect(@Setting::feel("Brightness", &["Dim", "Soft", "Bright", "Blinding"], 1000.0, 10000000.0, "lm").log().section(LIGHT))]
     pub brightness: f32,
     /// How far the light reaches, in metres (the sphere's or cone's handle).
-    #[reflect(@Setting::feel("Reach", ("Near", "Far"), 1.0, 100.0, "m").log().section(LIGHT).help("Nothing past this is lit"))]
+    #[reflect(@Setting::feel("Reach", &["Near", "Room", "Hall", "Far"], 1.0, 100.0, "m").log().section(LIGHT).help("Nothing past this is lit"))]
     pub reach: f32,
     /// The spot's cone, edge to edge, in degrees.
-    #[reflect(@Setting::feel("Cone", ("Narrow", "Wide"), 5.0, 150.0, "°").section(CONE).help("Spot lights only: how wide the cone is"))]
+    #[reflect(@Setting::feel("Cone", &["Pin", "Narrow", "Wide", "Flood"], 5.0, 150.0, "°").section(CONE).help("Spot lights only: how wide the cone is"))]
     pub cone: f32,
 }
 
@@ -199,13 +199,13 @@ pub const ORBIT: &str = "ORBIT";
 #[serde(default)]
 pub struct Camera {
     /// How much it sees, top to bottom, in degrees.
-    #[reflect(@Setting::feel("View", ("Narrow", "Wide"), 10.0, 120.0, "°").section(CAMERA).help("How much it sees, top to bottom"))]
+    #[reflect(@Setting::feel("View", &["Zoomed", "Narrow", "Normal", "Wide", "Fisheye"], 10.0, 120.0, "°").section(CAMERA).help("How much it sees, top to bottom"))]
     pub fov: f32,
     /// The point an Orbit camera circles and looks at.
     #[reflect(@Setting::number("Target", "m", 0.05, -100000.0, 100000.0).section(ORBIT).help("The point it circles and looks at (drag the handle)"))]
     pub target: [f32; 3],
     /// Seconds for one circle.
-    #[reflect(@Setting::feel("Lap", ("Quick", "Slow"), 3.0, 120.0, "s").log().section(ORBIT).help("How long one circle takes"))]
+    #[reflect(@Setting::feel("Lap", &["Quick", "Steady", "Slow", "Crawl"], 3.0, 120.0, "s").log().section(ORBIT).help("How long one circle takes"))]
     pub lap: f32,
 }
 
@@ -247,7 +247,7 @@ pub struct Lighting {
     #[reflect(@Setting::toggle("Interior").section(LIGHTING).help("No sun: only the fill light and your own lights"))]
     pub interior: bool,
     /// The flat light from every side (sky light outdoors).
-    #[reflect(@Setting::feel("Fill", ("Dark", "Bright"), 10.0, 5000.0, "").log().section(LIGHTING).help("Flat light from every side, so shade is never black"))]
+    #[reflect(@Setting::feel("Fill", &["Dark", "Dim", "Soft", "Bright"], 10.0, 5000.0, "").log().section(LIGHTING).help("Flat light from every side, so shade is never black"))]
     pub fill: f32,
     /// sRGB, 0..1.
     #[reflect(@Setting::colour("Fill colour").section(LIGHTING))]
@@ -256,13 +256,13 @@ pub struct Lighting {
     #[reflect(@Setting::number("Direction", "°", 1.0, 0.0, 360.0).section(SUN).help("Which way the sun is, round the level"))]
     pub direction: f32,
     /// How high the sun is above the horizon, in degrees.
-    #[reflect(@Setting::feel("Height", ("Low", "Overhead"), 2.0, 90.0, "°").section(SUN).help("Low: long shadows"))]
+    #[reflect(@Setting::feel("Height", &["Horizon", "Low", "High", "Overhead"], 2.0, 90.0, "°").section(SUN).help("Low: long shadows"))]
     pub height: f32,
     /// sRGB, 0..1.
     #[reflect(@Setting::colour("Colour").section(SUN))]
     pub colour: [f32; 3],
     /// Lux.
-    #[reflect(@Setting::feel("Brightness", ("Dim", "Bright"), 500.0, 100000.0, "lx").log().section(SUN))]
+    #[reflect(@Setting::feel("Brightness", &["Dusk", "Overcast", "Hazy", "Full sun"], 500.0, 100000.0, "lx").log().section(SUN))]
     pub brightness: f32,
     #[reflect(@Setting::toggle("Shadows").section(SUN))]
     pub shadows: bool,
@@ -352,15 +352,15 @@ pub struct Material {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub texture: Option<String>,
     /// sRGB, 0..1; multiplies the texture.
-    #[reflect(@Setting::colour("Tint").section(MATERIAL).help("Colours the texture (white leaves it as it is)"))]
+    #[reflect(@Setting::colour("Tint").alpha("opacity").section(MATERIAL).help("Colours the texture (white leaves it as it is)"))]
     pub tint: [f32; 3],
-    #[reflect(@Setting::feel("Opacity", ("Clear", "Solid"), 0.0, 1.0, "").section(MATERIAL).help("See-through below Solid, like glass"))]
+    #[reflect(@Setting::feel("Opacity", &["Clear", "Faint", "Frosted", "Solid"], 0.0, 1.0, "").section(MATERIAL).help("See-through below Solid, like glass"))]
     pub opacity: f32,
-    #[reflect(@Setting::feel("Metal", ("Not metal", "Metal"), 0.0, 1.0, "").section(MATERIAL))]
+    #[reflect(@Setting::feel("Metal", &["Not metal", "Worn", "Metal"], 0.0, 1.0, "").section(MATERIAL))]
     pub metal: f32,
-    #[reflect(@Setting::feel("Roughness", ("Glossy", "Rough"), 0.0, 1.0, "").section(MATERIAL))]
+    #[reflect(@Setting::feel("Roughness", &["Glossy", "Satin", "Matte"], 0.0, 1.0, "").section(MATERIAL))]
     pub roughness: f32,
-    #[reflect(@Setting::feel("Glow", ("None", "Bright"), 0.0, 10.0, "").section(MATERIAL).help("Gives off its own light, for screens, signs and light strips"))]
+    #[reflect(@Setting::feel("Glow", &["None", "Faint", "Glowing", "Bright"], 0.0, 10.0, "").section(MATERIAL).help("Gives off its own light, for screens, signs and light strips"))]
     pub glow: f32,
 }
 
@@ -467,10 +467,10 @@ pub enum Tag {
 #[serde(default)]
 pub struct Loose {
     /// Kilograms.
-    #[reflect(@Setting::feel("Weight", ("Light", "Heavy"), 1.0, 2000.0, "kg").log().section(LOOK).help("Light things are pushed and thrown easily"))]
+    #[reflect(@Setting::feel("Weight", &["Feather", "Light", "Medium", "Heavy", "Massive"], 1.0, 2000.0, "kg").log().section(LOOK).help("Light things are pushed and thrown easily"))]
     pub mass: f32,
     /// How much it grips what it lies on (0: slides like ice).
-    #[reflect(@Setting::feel("Grip", ("Slick", "Grippy"), 0.0, 1.5, "").section(LOOK).help("How much it grips what it lies on"))]
+    #[reflect(@Setting::feel("Grip", &["Icy", "Loose", "Firm", "Glued"], 0.0, 1.5, "").section(LOOK).help("How much it grips what it lies on"))]
     pub friction: f32,
 }
 
