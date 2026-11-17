@@ -260,7 +260,7 @@ pub fn tools() -> Value {
         {
             "name": "get_sound",
             "title": "Describe a sound",
-            "description": "A sound file (list_assets lists them under sounds, beside the recordings): its recordings, how many Sound parts play it, and its settings as its panel shows them (Pick, Volume, Pitch, Vary, Near, Range, Loop, At once, with ranges).",
+            "description": "A sound file (list_assets lists them under sounds, beside the recordings): its recordings, those it plays on particular surfaces instead (on_surfaces), how many Sound parts play it, and its settings as its panel shows them (Pick, Volume, Pitch, Vary, Near, Range, Loop, At once, with ranges).",
             "inputSchema": {"type": "object", "properties": {"sound": {"type": "string", "description": "Such as birds, birds.bev or assets/sounds/birds.bev."}}, "required": ["sound"]},
         },
         {
@@ -273,6 +273,7 @@ pub fn tools() -> Value {
                     "sound": {"type": "string"},
                     "settings": {"type": "object", "description": "Setting label or field → new value, such as {\"Loop\": true, \"Range\": 80}."},
                     "recordings": {"type": "array", "items": {"type": "string"}, "description": "Such as [\"step 1.ogg\", \"step 2.ogg\"]; one plays each time."},
+                    "sets": {"type": "object", "description": "Recordings it plays on particular surfaces instead (Stone, Wood, Metal, Grass, Dirt, Sand, Gravel, Water, Snow, Carpet), such as {\"Grass\": [\"grass 1.ogg\"]}; an empty list goes back to its usual ones there."},
                 },
                 "required": ["sound"],
             },
@@ -287,6 +288,7 @@ pub fn tools() -> Value {
                     "name": {"type": "string", "description": "Its name (a number is added), such as Footsteps."},
                     "copy_of": {"type": "string"},
                     "recordings": {"type": "array", "items": {"type": "string"}},
+                    "sets": {"type": "object"},
                     "settings": {"type": "object"},
                 },
             },
@@ -295,7 +297,7 @@ pub fn tools() -> Value {
             "name": "play_sound",
             "title": "Play a sound",
             "description": "Play a sound file once for the user to hear (as its panel's Play does), or the one a Sound part plays (part). Nothing is changed.",
-            "inputSchema": {"type": "object", "properties": {"sound": {"type": "string"}, "part": {"type": ["string", "integer"], "description": "A Sound part's name or id."}}},
+            "inputSchema": {"type": "object", "properties": {"sound": {"type": "string"}, "part": {"type": ["string", "integer"], "description": "A Sound part's name or id."}, "ground": {"type": "string", "description": "Play it as on this surface (its recordings for there), such as Grass."}}},
         },
         {
             "name": "get_material",

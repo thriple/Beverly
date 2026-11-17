@@ -1,6 +1,7 @@
 //! The editor: a simple, no-code-first 3D game editor for Bevy. See README.md and docs/design.html.
 
 mod actions;
+mod audio;
 mod bev_type;
 mod caps;
 mod edit;
@@ -94,8 +95,12 @@ pub struct Editor {
     pub material_open: Option<String>,
     /// The sound file shown in the bottom panel instead of the selected part (clicked in Assets or the part's panel).
     pub sound_open: Option<String>,
-    /// A sound file to hear once (its panel's Play), taken by `edit::hear`.
-    pub preview_sound: Option<String>,
+    /// A sound file to hear once (its panel's Play), on a surface, taken by `edit::hear`.
+    pub preview_sound: Option<(String, Option<crate::level::Ground>)>,
+    /// The open tab (an index into `theme::TABS`; see `audio::built`).
+    pub tab: usize,
+    /// The Audio tab's stage.
+    pub stage: audio::Stage,
     pub hover_handle: Option<edit::Grip>,
     /// The selected light's handle being dragged, and the one under the pointer.
     pub light_drag: Option<light::Grip>,
@@ -201,6 +206,8 @@ impl Editor {
             material_open: None,
             sound_open: None,
             preview_sound: None,
+            tab: 0,
+            stage: audio::Stage::default(),
             hover_handle: None,
             light_drag: None,
             light_hot: None,
@@ -308,14 +315,15 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::models_in,
                 view::input,
                 camera::lens,
-                edit::test_mode,
-                edit::interact,
+                edit::test_mode.run_if(audio::in_level),
+                edit::interact.run_if(audio::in_level),
                 edit::shortcuts,
                 edit::files,
                 edit::sync,
+                (audio::follow_tab, audio::stage).chain(),
                 edit::hear,
                 edit::stage,
-                edit::nav_overlay,
+                edit::nav_overlay.run_if(audio::in_level),
                 edit::draw,
                 view::grid,
                 view::apply_viewport,

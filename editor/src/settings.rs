@@ -16,7 +16,7 @@
 //! lists the same settings with their values, for the MCP server (and later the timeline's keyable values), and
 //! `apply` sets them from the same JSON.
 //! Fields without a `Setting` are not shown. Range ends changed under More are kept per file in a `Ranges` map.
-use crate::editor::theme::{self, Tip, ACCENT, MUTED, TEXT, TEXT_2};
+use crate::editor::theme::{self, Tip, accent, MUTED, TEXT, TEXT_2};
 use bevy::reflect::{
     enums::{DynamicEnum, DynamicVariant}, std_traits::ReflectDefault, structs::Struct, tuple::DynamicTuple, PartialReflect,
     Reflect, ReflectMut, ReflectRef, TypeInfo, TypeRegistry,
@@ -212,7 +212,7 @@ fn row<R>(ui: &mut Ui, label: &str, help: &str, differs: bool, reset: &mut bool,
 /// The accent bar left of a changed setting's row; true when clicked (put it back).
 fn changed_bar(ui: &mut Ui, r: egui::Rect) -> bool {
     let bar = egui::Rect::from_min_max(pos2(r.left() - 18.0, r.top() + 5.0), pos2(r.left() - 15.0, r.top() + 23.0));
-    ui.painter().rect_filled(bar, CornerRadius { nw: 0, sw: 0, ne: 2, se: 2 }, ACCENT);
+    ui.painter().rect_filled(bar, CornerRadius { nw: 0, sw: 0, ne: 2, se: 2 }, accent());
     ui.interact(bar.expand2(vec2(3.0, 2.0)), ui.id().with(("changed", r.min.x as i32, r.min.y as i32)), Sense::click()).tip("Changed from default. Click the bar to put it back.").clicked()
 }
 
@@ -293,9 +293,9 @@ fn number(ui: &mut Ui, v: &mut f32, speed: f32, min: f32, max: f32, suffix: &str
     }
     if resp.has_focus() {
         theme::own_focus(ui.ctx(), resp.id);
-        p.rect_stroke(r, CornerRadius::same(round), Stroke::new(1.5, ACCENT), egui::StrokeKind::Inside);
+        p.rect_stroke(r, CornerRadius::same(round), Stroke::new(1.5, accent()), egui::StrokeKind::Inside);
     } else if hot {
-        crate::editor::frame_icon(p, "scrub", pos2(r.right() - 11.0, r.center().y), 12.0, ACCENT);
+        crate::editor::frame_icon(p, "scrub", pos2(r.right() - 11.0, r.center().y), 12.0, accent());
     }
     resp
 }
@@ -504,7 +504,7 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, words: &[&str]) -> egui::Response {
     let tr = egui::Rect::from_center_size(track.center(), vec2(track.width(), th));
     p.rect_filled(tr, CornerRadius::same(3), theme::TRACK);
     let x = tr.left() + tr.width() * shown;
-    p.rect_filled(egui::Rect::from_min_max(tr.min, pos2(x, tr.max.y)), CornerRadius::same(3), ACCENT);
+    p.rect_filled(egui::Rect::from_min_max(tr.min, pos2(x, tr.max.y)), CornerRadius::same(3), accent());
     let last = (words.len().max(2) - 1) as f32;
     for k in 0..words.len() {
         let tx = tr.left() + tr.width() * k as f32 / last;
@@ -512,9 +512,9 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, words: &[&str]) -> egui::Response {
     }
     let r = 8.0 + 2.0 * held;
     let c = pos2(x, tr.center().y);
-    p.circle_filled(c, r + 3.0, ACCENT.gamma_multiply(0.3));
+    p.circle_filled(c, r + 3.0, accent().gamma_multiply(0.3));
     p.circle_filled(c, r, Color32::WHITE);
-    if resp.has_focus() { theme::own_focus(ui.ctx(), resp.id); p.circle_stroke(c, r + 4.0, Stroke::new(2.0, ACCENT)); }
+    if resp.has_focus() { theme::own_focus(ui.ctx(), resp.id); p.circle_stroke(c, r + 4.0, Stroke::new(2.0, accent())); }
     let k_near = (*t * last).round() as usize;
     let near = words.get(k_near).copied().unwrap_or("");
     let y = rect.bottom() - 8.0;
@@ -534,7 +534,7 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, words: &[&str]) -> egui::Response {
         let g = p.layout_no_wrap(near.to_owned(), theme::semi(11.5), Color32::WHITE);
         let pill = egui::Rect::from_center_size(pos2(x, c.y - r - 16.0), vec2(g.size().x + 18.0, 20.0));
         let a = held.min(1.0);
-        p.rect_filled(pill, CornerRadius::same(10), ACCENT.gamma_multiply(a));
+        p.rect_filled(pill, CornerRadius::same(10), accent().gamma_multiply(a));
         p.galley(pill.center() - g.size() / 2.0, g, Color32::WHITE.gamma_multiply(a));
     }
     resp
@@ -579,7 +579,7 @@ fn colour(ui: &mut Ui, c: &mut [f32; 3], mut alpha: Option<&mut f32>, key: &str,
             ui.spacing_mut().item_spacing.x = 6.0;
             // the eyedropper: the colour of a part in the view (I)
             let (b, bresp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
-            ui.painter().rect_filled(b, CornerRadius::same(7), if dropping { ACCENT } else if bresp.hovered() { theme::FIELD_HOVER } else { rgb3(0x26262B) });
+            ui.painter().rect_filled(b, CornerRadius::same(7), if dropping { accent() } else if bresp.hovered() { theme::FIELD_HOVER } else { rgb3(0x26262B) });
             crate::editor::frame_icon(ui.painter(), "pipette", b.center(), 16.0, if dropping { theme::INK } else { TEXT });
             let key_i = ui.memory(|m| m.focused().is_none()) && ui.input(|i| i.key_pressed(egui::Key::I));
             if bresp.tip_keys("Pick a colour from a part in the view", &["I"]).clicked() || key_i {
@@ -605,7 +605,7 @@ fn colour(ui: &mut Ui, c: &mut [f32; 3], mut alpha: Option<&mut f32>, key: &str,
                 for q in palette {
                     let (sw, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
                     ui.painter().rect_filled(sw, CornerRadius::same(6), col(*q));
-                    if col(*q) == col(*c) { ui.painter().rect_stroke(sw.expand(2.0), CornerRadius::same(7), Stroke::new(1.5, ACCENT), egui::StrokeKind::Inside); }
+                    if col(*q) == col(*c) { ui.painter().rect_stroke(sw.expand(2.0), CornerRadius::same(7), Stroke::new(1.5, accent()), egui::StrokeKind::Inside); }
                     if resp.tip(theme::colour_name(*q)).clicked() { *c = *q; changed = true; }
                 }
             });

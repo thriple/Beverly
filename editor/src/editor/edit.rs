@@ -575,7 +575,7 @@ pub fn interact(
         // what the drag (or the typed number) asks for
         let mut next: Option<Part> = None;
         let mut text = String::new();
-        let mut color = theme::HIGHLIGHT;
+        let mut color = theme::highlight();
         match drag_h {
             Grip::Axis(i) => {
                 let delta = match (enter, typed_val) {
@@ -693,8 +693,8 @@ pub fn interact(
             let at = ptr + vec2(18.0, 14.0);
             ed.label = Some(match h {
                 Grip::Axis(i) => (at, format!("Move along {}", axis_name(i)), axis_color(i)),
-                Grip::Ring => (at, "Rotate".into(), theme::HIGHLIGHT),
-                Grip::Corner(_) => (at, "Scale (Shift: from the middle)".into(), theme::HIGHLIGHT),
+                Grip::Ring => (at, "Rotate".into(), theme::highlight()),
+                Grip::Corner(_) => (at, "Scale (Shift: from the middle)".into(), theme::highlight()),
                 Grip::Face(i, _) => (at, format!("Stretch along {} (Shift: both sides)", axis_name(i)), axis_color(i)),
             });
             if mouse.just_pressed(MouseButton::Left) {
@@ -761,6 +761,8 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
         if jp(KeyCode::KeyZ) { act(if shift { "edit.redo" } else { "edit.undo" }); }
         if jp(KeyCode::KeyY) { act("edit.redo"); }
         if jp(KeyCode::KeyD) { act("edit.duplicate"); }
+        if jp(KeyCode::Digit1) { act("tab.level"); }
+        if jp(KeyCode::Digit5) { act("tab.audio"); }
         return;
     }
     if typing { return; }
@@ -776,7 +778,8 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::KeyU) { act("edit.make_unique"); }
 }
 
-/// Files dragged in from Explorer are copied into the project's assets; a single recording is then placed as a Sound part.
+/// Files dragged in from Explorer are copied into the project's assets; a single recording is then placed as a Sound part
+/// (in the Audio tab: opened as a sound).
 pub fn files(mut ed: ResMut<Editor>, mut drops: MessageReader<FileDragAndDrop>) {
     let mut imported: Vec<&'static str> = vec![];
     let mut recordings: Vec<String> = vec![];
@@ -807,6 +810,11 @@ pub fn files(mut ed: ResMut<Editor>, mut drops: MessageReader<FileDragAndDrop>) 
     // one recording dropped: place a Sound part playing it (click a surface)
     if let [r] = recordings.as_slice() {
         let sound = ed.level.sound_for_clip(r);
+        // in the Audio tab it opens there instead
+        if ed.tab == super::audio::AUDIO {
+            ed.sound_open = Some(sound);
+            return;
+        }
         ed.island.show("♪", format!("Placing {}", std::path::Path::new(&sound).file_stem().unwrap_or_default().to_string_lossy()), "Click a surface · Esc cancels", Tone::Accent);
         ed.placing = Some(Shape::Sound);
         ed.placing_model = Some(sound);
@@ -819,7 +827,13 @@ pub fn hear(mut sounds: ResMut<crate::sound::Sounds>, mut ed: ResMut<Editor>, mu
     let run = play.on.then_some(play.run);
     let inputs = std::mem::take(&mut play.script.inputs);
     let script = &play.script;
-    sounds.step(&ed.level, &ed.dir, run, inputs, &ear, |id| ed.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
+    // the Audio tab: its stage instead of the level, and the open sound's recordings read for drawing
+    if ed.tab == super::audio::AUDIO {
+        if let Some(s) = ed.sound_open.as_ref().and_then(|p| ed.level.sounds.get(p)) { sounds.read_waves(&ed.dir, s.all_clips()); }
+        sounds.step(&ed.level, &super::audio::speakers(&ed), &ed.dir, None, inputs, &ear, |id| super::audio::at(&ed, id));
+        return;
+    }
+    sounds.step(&ed.level, &crate::sound::speakers(&ed.level), &ed.dir, run, inputs, &ear, |id| ed.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
 }
 
 #[derive(Component)]
@@ -895,6 +909,10 @@ pub fn stage(ed: Res<Editor>, mut applied: Local<Option<level::Lighting>>, mut s
 /// Outlines (selection, hidden colliders) and the widget.
 pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
     if ed.testing.is_some() { return; }
+    if ed.tab != super::audio::LEVEL {
+        super::audio::draw(&ed, &view, &mut w);
+        return;
+    }
     texture::draw(&ed, &view, &mut w);
     light::draw(&ed, &view, &mut w);
     camera::draw(&ed, &view, &mut g, &mut w);

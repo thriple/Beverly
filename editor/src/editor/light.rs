@@ -87,7 +87,7 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
             }
         };
         if let Some(m) = ed.level.get_mut(p.id) { *m = q; }
-        if let Some(ptr) = pointer { ed.label = Some((ptr + vec2(18.0, 14.0), text, theme::HIGHLIGHT)); }
+        if let Some(ptr) = pointer { ed.label = Some((ptr + vec2(18.0, 14.0), text, theme::highlight())); }
         return true;
     }
     let Some(ptr) = pointer else { return false };
@@ -105,7 +105,7 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
         Grip::Tip => "Aim the light (and how far it reaches)",
         Grip::Rim => "How wide the cone is",
     };
-    ed.label = Some((ptr + vec2(18.0, 14.0), hint.into(), theme::HIGHLIGHT));
+    ed.label = Some((ptr + vec2(18.0, 14.0), hint.into(), theme::highlight()));
     if just_pressed { ed.light_drag = Some(grip); }
     true
 }

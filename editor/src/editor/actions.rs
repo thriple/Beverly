@@ -43,6 +43,8 @@ pub const ACTIONS: &[Action] = &[
     a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
+    a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
+    a("tab.audio", "Audio tab", "Tab bar", "Ctrl+5"),
     a("help.about", "About Beverly", "Help", ""),
     a("help.updates", "Check for updates…", "Help", ""),
     a("help.features", "Features", "Help", ""),
@@ -53,7 +55,11 @@ pub fn get(id: &str) -> Option<&'static Action> { ACTIONS.iter().find(|a| a.id =
 
 /// Why an action can't run right now (None: it can).
 pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
-    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.");
+    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tab.");
+    // what works on the level's parts, only in the Level tab
+    let parts = id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.")
+        || matches!(id, "edit.duplicate" | "edit.delete" | "edit.change_all" | "edit.make_unique" | "edit.snap");
+    if parts && ed.tab != super::audio::LEVEL { return Some("Only in the Level tab"); }
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
     if editing && ed.looking.is_some() && id != "view.look_through" { return Some("Not while looking through a camera (Esc goes back)"); }
     if ed.pending.is_some() && id.starts_with("file.") { return Some("The unsaved-changes question is open"); }
@@ -122,6 +128,8 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             super::camera::toggle(ed, view);
         }
         "level.build_navigation" => ed.build_navigation(),
+        "tab.level" => ed.tab = super::audio::LEVEL,
+        "tab.audio" => ed.tab = super::audio::AUDIO,
         "help.about" => ed.about_open = true,
         "help.updates" => {
             ed.updates_open = true;

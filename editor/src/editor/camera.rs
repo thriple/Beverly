@@ -118,13 +118,13 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
         let mut q = p.clone();
         let _ = aim(&mut q, to);
         if let Some(m) = ed.level.get_mut(p.id) { *m = q; }
-        if let Some(ptr) = pointer { ed.label = Some((ptr + vec2(18.0, 14.0), format!("Target · {:.1} m away", to.distance(Vec3::from(p.pos))), theme::HIGHLIGHT)); }
+        if let Some(ptr) = pointer { ed.label = Some((ptr + vec2(18.0, 14.0), format!("Target · {:.1} m away", to.distance(Vec3::from(p.pos))), theme::highlight())); }
         return true;
     }
     let Some(ptr) = pointer else { return false };
     if view.to_screen(cam, gtf, at).is_none_or(|s| s.distance(ptr) > 10.0) { return false; }
     ed.camera_hot = true;
-    ed.label = Some((ptr + vec2(18.0, 14.0), "What it circles and looks at".into(), theme::HIGHLIGHT));
+    ed.label = Some((ptr + vec2(18.0, 14.0), "What it circles and looks at".into(), theme::highlight()));
     if just_pressed { ed.camera_drag = true; }
     true
 }

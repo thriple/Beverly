@@ -335,6 +335,27 @@ pub enum Pick {
     InTurn,
 }
 
+/// What a surface is made of, for sounds that change with it (footsteps on grass, metal, water).
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
+pub enum Ground { Stone, Wood, Metal, Grass, Dirt, Sand, Gravel, Water, Snow, Carpet }
+
+impl Ground {
+    pub const ALL: [Ground; 10] = [Ground::Stone, Ground::Wood, Ground::Metal, Ground::Grass, Ground::Dirt, Ground::Sand, Ground::Gravel, Ground::Water, Ground::Snow, Ground::Carpet];
+    pub fn label(self) -> &'static str {
+        match self {
+            Ground::Stone => "Stone", Ground::Wood => "Wood", Ground::Metal => "Metal", Ground::Grass => "Grass", Ground::Dirt => "Dirt",
+            Ground::Sand => "Sand", Ground::Gravel => "Gravel", Ground::Water => "Water", Ground::Snow => "Snow", Ground::Carpet => "Carpet",
+        }
+    }
+}
+
+/// The recordings a sound plays on one kind of surface instead of its own.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+pub struct SoundSet {
+    pub ground: Ground,
+    pub clips: Vec<String>,
+}
+
 /// A sound file (assets/sounds/NAME.bev): which recordings it plays and how, wherever it is used.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
 #[reflect(Default)]
@@ -343,6 +364,9 @@ pub struct Sound {
     pub format: u32,
     /// The recordings (the user's own), e.g. "assets/sounds/step 1.ogg"; one plays each time.
     pub clips: Vec<String>,
+    /// Recordings for particular surfaces (on others, `clips`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sets: Vec<SoundSet>,
     #[reflect(@Setting::choice("Pick").section(SOUND).help("Which recording plays each time (at random never plays the same one twice running)"))]
     pub pick: Pick,
     /// Decibels.
@@ -368,7 +392,16 @@ pub struct Sound {
 }
 
 impl Default for Sound {
-    fn default() -> Self { Sound { format: 0, clips: vec![], pick: Pick::Random, volume: 0.0, pitch: 0.0, vary: 0.0, near: 2.0, far: 40.0, looped: false, at_once: 4.0 } }
+    fn default() -> Self { Sound { format: 0, clips: vec![], sets: vec![], pick: Pick::Random, volume: 0.0, pitch: 0.0, vary: 0.0, near: 2.0, far: 40.0, looped: false, at_once: 4.0 } }
+}
+
+impl Sound {
+    /// The recordings it plays on `ground` (its own set there, else its usual ones).
+    pub fn clips_on(&self, ground: Option<Ground>) -> &[String] {
+        ground.and_then(|g| self.sets.iter().find(|s| s.ground == g && !s.clips.is_empty())).map_or(&self.clips[..], |s| &s.clips[..])
+    }
+    /// Every recording it can play.
+    pub fn all_clips(&self) -> impl Iterator<Item = &String> { self.clips.iter().chain(self.sets.iter().flat_map(|s| &s.clips)) }
 }
 
 /// When a Sound part plays.
@@ -1036,6 +1069,16 @@ mod tests {
         assert_eq!(back.sounds, lvl.sounds);
         assert_eq!(back.parts[0].sound.as_ref().unwrap().sound, birds);
         assert!(!is_recording("birds.bev") && is_recording("Birds.OGG"));
+        // on a surface with a set of its own it plays that set; elsewhere its usual recordings
+        let mut steps = Sound { clips: vec!["step.ogg".into()], ..Default::default() };
+        steps.sets.push(SoundSet { ground: Ground::Grass, clips: vec!["grass 1.ogg".into(), "grass 2.ogg".into()] });
+        steps.sets.push(SoundSet { ground: Ground::Metal, clips: vec![] });
+        assert_eq!(steps.clips_on(Some(Ground::Grass)), ["grass 1.ogg", "grass 2.ogg"]);
+        assert_eq!(steps.clips_on(Some(Ground::Metal)), ["step.ogg"], "an empty set plays the usual ones");
+        assert_eq!(steps.clips_on(None), ["step.ogg"]);
+        assert_eq!(steps.all_clips().count(), 3);
+        let text = ron::to_string(&steps).unwrap();
+        assert_eq!(ron::from_str::<Sound>(&text).unwrap(), steps);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

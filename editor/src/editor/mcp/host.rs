@@ -369,6 +369,10 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 m.clips = recordings(ed, c)?;
                 changed.push("recordings");
             }
+            if let Some(sets) = args.get("sets") {
+                set_sets(ed, &mut m, sets)?;
+                changed.push("sets");
+            }
             ed.level.sounds.insert(path.clone(), m);
             ed.commit();
             Ok(json!({"changed": changed, "sound": describe_sound(ed, &path)}))
@@ -380,6 +384,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 None => crate::level::Sound::default(),
             };
             if let Some(c) = args.get("recordings") { m.clips = recordings(ed, c)?; }
+            if let Some(sets) = args.get("sets") { set_sets(ed, &mut m, sets)?; }
             if let Some(set) = args.get("settings") { settings::apply(&mut m, set)?; }
             let name = args.get("name").and_then(Value::as_str).unwrap_or("Sound").replace(['/', '\\'], " ");
             let path = ed.level.new_sound(&name, m);
@@ -395,9 +400,13 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 }
                 _ => return Err("Give the sound (or a Sound part)".into()),
             };
-            if ed.level.sounds[&path].clips.is_empty() { return Err(format!("{path} has no recordings yet (change_sound)")); }
-            ed.preview_sound = Some(path.clone());
-            Ok(json!({"playing": path}))
+            let ground = match args.get("ground").and_then(Value::as_str) {
+                Some(g) => Some(ground_ref(g)?),
+                None => None,
+            };
+            if ed.level.sounds[&path].clips_on(ground).is_empty() { return Err(format!("{path} has no recordings yet (change_sound)")); }
+            ed.preview_sound = Some((path.clone(), ground));
+            Ok(json!({"playing": path, "on": ground.map(|g| g.label())}))
         }
         "get_material" => {
             let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
@@ -750,6 +759,12 @@ fn sound_ref(ed: &Editor, m: &str) -> Result<String, String> {
     Err(format!("No sound {name} (there are: {})", list_or_none(&have)))
 }
 
+/// A surface by name (Grass, Metal…).
+fn ground_ref(g: &str) -> Result<crate::level::Ground, String> {
+    crate::level::Ground::ALL.into_iter().find(|x| x.label().eq_ignore_ascii_case(g))
+        .ok_or_else(|| format!("No surface {g} (there are: {})", crate::level::Ground::ALL.map(|x| x.label()).join(", ")))
+}
+
 /// Recordings by path or file name (a list).
 fn recordings(ed: &Editor, v: &Value) -> Result<Vec<String>, String> {
     let list = v.as_array().ok_or("recordings is a list of files, such as [\"step 1.ogg\", \"step 2.ogg\"]")?;
@@ -764,7 +779,22 @@ fn recordings(ed: &Editor, v: &Value) -> Result<Vec<String>, String> {
 
 fn describe_sound(ed: &Editor, path: &str) -> Value {
     let m = &ed.level.sounds[path];
-    json!({"sound": path, "recordings": m.clips, "used_by_parts": ed.level.sound_users(path), "settings": settings::describe(m)})
+    let sets: serde_json::Map<String, Value> = m.sets.iter().map(|s| (s.ground.label().to_string(), json!(s.clips))).collect();
+    json!({"sound": path, "recordings": m.clips, "on_surfaces": sets, "used_by_parts": ed.level.sound_users(path), "settings": settings::describe(m)})
+}
+
+/// The recordings a sound plays on particular surfaces, from {"Grass": ["grass 1.ogg"], "Metal": []} (an empty
+/// list goes back to its usual recordings there).
+fn set_sets(ed: &Editor, m: &mut crate::level::Sound, v: &Value) -> Result<(), String> {
+    let map = v.as_object().ok_or("sets is an object of surface → recordings, such as {\"Grass\": [\"grass 1.ogg\"]}")?;
+    for (g, list) in map {
+        let g = ground_ref(g)?;
+        let clips = recordings(ed, list)?;
+        m.sets.retain(|s| s.ground != g);
+        if !clips.is_empty() { m.sets.push(crate::level::SoundSet { ground: g, clips }); }
+    }
+    m.sets.sort_by_key(|s| crate::level::Ground::ALL.iter().position(|g| *g == s.ground));
+    Ok(())
 }
 
 /// A Sound part's sound file, from `sound`: a sound file or a recording (which gets a sound file of its own).

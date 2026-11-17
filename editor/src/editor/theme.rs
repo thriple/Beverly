@@ -17,9 +17,21 @@ pub use super::tokens::TEXT_3 as MUTED;
 
 const fn rgb(c: u32) -> Color32 { Color32::from_rgb((c >> 16) as u8, (c >> 8) as u8, c as u8) }
 
-/// Level's colours, the only tab built so far: its highlight (selected, where you are) and accent (values).
-pub const HIGHLIGHT: Color32 = TABS[0].highlight;
-pub const ACCENT: Color32 = TABS[0].accent;
+/// The tab that is open (an index into `TABS`): the frame, highlight and accent are its colours.
+static TAB: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub fn set_tab(i: usize) { TAB.store(i.min(TABS.len() - 1), std::sync::atomic::Ordering::Relaxed); }
+pub fn tab() -> TabTheme { TABS[TAB.load(std::sync::atomic::Ordering::Relaxed)] }
+/// The open tab's highlight (selected, where you are) and accent (values, what you can change).
+pub fn highlight() -> Color32 { tab().highlight }
+pub fn accent() -> Color32 { tab().accent }
+/// egui's own colours that come from the tab (text selection, links), after the tab changes.
+pub fn retint(ctx: &Context) {
+    ctx.all_styles_mut(|s| {
+        s.visuals.selection.bg_fill = accent().gamma_multiply(0.45);
+        s.visuals.selection.stroke = Stroke::new(1.5, accent());
+        s.visuals.hyperlink_color = accent();
+    });
+}
 /// Saved (the green check).
 pub const OK: Color32 = CAT_FLOW;
 pub const fn white(a: u8) -> Color32 { Color32::from_rgba_unmultiplied_const(255, 255, 255, a) }
@@ -84,9 +96,9 @@ pub fn setup(ctx: &Context) {
         v.menu_corner_radius = CornerRadius::same(10);
         v.window_shadow = egui::Shadow { offset: [0, 10], blur: 34, spread: 0, color: Color32::from_black_alpha(140) };
         v.popup_shadow = egui::Shadow { offset: [0, 8], blur: 24, spread: 0, color: Color32::from_black_alpha(120) };
-        v.selection.bg_fill = ACCENT.gamma_multiply(0.45);
-        v.selection.stroke = Stroke::new(1.5, ACCENT);
-        v.hyperlink_color = ACCENT;
+        v.selection.bg_fill = accent().gamma_multiply(0.45);
+        v.selection.stroke = Stroke::new(1.5, accent());
+        v.hyperlink_color = accent();
         for (w, fill) in [
             (&mut v.widgets.noninteractive, Color32::TRANSPARENT),
             (&mut v.widgets.inactive, FIELD),
@@ -219,7 +231,7 @@ pub fn segmented(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize, 
     let tx = spring(ui.ctx(), id.with("x"), starts[*selected], SNAPPY);
     let tw = spring(ui.ctx(), id.with("w"), widths[*selected], SNAPPY);
     let ind = Rect::from_min_size(pos2(tx, rect.top() + 2.0), vec2(tw, h - 4.0));
-    p.rect_filled(ind, CornerRadius::same(6), HIGHLIGHT);
+    p.rect_filled(ind, CornerRadius::same(6), highlight());
     let mut changed = false;
     for (i, o) in options.iter().enumerate() {
         let r = Rect::from_min_size(pos2(starts[i], rect.top()), vec2(widths[i], h));
@@ -230,7 +242,7 @@ pub fn segmented(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize, 
         }
         let on = ind.intersects(r.shrink2(vec2(widths[i] * 0.45, 0.0)));
         if !on && resp.hovered() { p.rect_filled(r.shrink(2.0), CornerRadius::same(6), white(13)); }
-        let col = if on { TABS[0].highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 };
+        let col = if on { tab().highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 };
         let f = if on { semi(12.0) } else { font.clone() };
         let mut cx = r.left() + pad;
         if numbered {
@@ -259,7 +271,7 @@ pub fn paint_toggle(ui: &Ui, rect: Rect, on: bool, id: Id) {
     let t = spring(ui.ctx(), id.with("t"), if on { 1.0 } else { 0.0 }, SNAPPY);
     let p = ui.painter();
     let c = t.clamp(0.0, 1.0);
-    p.rect_filled(rect, CornerRadius::same(8), lerp_color(TOGGLE_OFF, ACCENT, c));
+    p.rect_filled(rect, CornerRadius::same(8), lerp_color(TOGGLE_OFF, accent(), c));
     let x = egui::lerp(rect.left() + 8.0..=rect.right() - 8.0, t);
     p.circle_filled(pos2(x, rect.center().y), 6.0, lerp_color(rgb(0x9A9AA0), INK, c));
 }
@@ -274,7 +286,7 @@ pub fn chip(ui: &mut Ui, label: &str, on: &mut bool) -> Response {
     }
     let t = spring(ui.ctx(), r.id.with("t"), if *on { 1.0 } else { 0.0 }, SNAPPY).clamp(0.0, 1.0);
     let p = ui.painter();
-    p.rect_filled(rect, CornerRadius::same(12), lerp_color(if r.hovered() { FIELD_HOVER } else { FIELD }, HIGHLIGHT, t));
+    p.rect_filled(rect, CornerRadius::same(12), lerp_color(if r.hovered() { FIELD_HOVER } else { FIELD }, highlight(), t));
     p.text(rect.center(), Align2::CENTER_CENTER, label, if *on { semi(12.0) } else { body(12.0) }, lerp_color(TEXT_2, INK, t));
     r
 }
@@ -287,14 +299,14 @@ pub fn choices(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize) ->
     p.rect_filled(rect, CornerRadius::same(8), FIELD);
     let w = (rect.width() - 4.0) / options.len() as f32;
     let at = spring(ui.ctx(), id.with("x"), *selected as f32, SNAPPY);
-    p.rect_filled(Rect::from_min_size(pos2(rect.left() + 2.0 + at * w, rect.top() + 2.0), vec2(w, 24.0)), CornerRadius::same(6), HIGHLIGHT);
+    p.rect_filled(Rect::from_min_size(pos2(rect.left() + 2.0 + at * w, rect.top() + 2.0), vec2(w, 24.0)), CornerRadius::same(6), highlight());
     let mut changed = false;
     for (i, o) in options.iter().enumerate() {
         let r = Rect::from_min_size(pos2(rect.left() + 2.0 + i as f32 * w, rect.top() + 2.0), vec2(w, 24.0));
         let resp = ui.interact(r, id.with(i), Sense::click());
         let on = (at - i as f32).abs() < 0.5;
         if !on && resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(6), white(13)); }
-        ui.painter().text(r.center(), Align2::CENTER_CENTER, *o, if on { semi(12.0) } else { body(12.0) }, if on { TABS[0].highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 });
+        ui.painter().text(r.center(), Align2::CENTER_CENTER, *o, if on { semi(12.0) } else { body(12.0) }, if on { tab().highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 });
         if resp.clicked() && *selected != i { *selected = i; changed = true; }
     }
     changed
@@ -302,9 +314,9 @@ pub fn choices(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize) ->
 
 /// A quiet button: the accent's text alone (More numbers, Stand upright).
 pub fn quiet_button(ui: &mut Ui, label: &str) -> Response {
-    let g = ui.painter().layout_no_wrap(label.to_owned(), semi(12.0), ACCENT);
+    let g = ui.painter().layout_no_wrap(label.to_owned(), semi(12.0), accent());
     let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 4.0, 24.0), Sense::click());
-    let c = if resp.hovered() { lerp_color(ACCENT, Color32::WHITE, 0.3) } else { ACCENT };
+    let c = if resp.hovered() { lerp_color(accent(), Color32::WHITE, 0.3) } else { accent() };
     ui.painter().galley(pos2(r.left() + 2.0, r.center().y - g.size().y / 2.0), g, c);
     resp
 }
@@ -314,7 +326,7 @@ pub fn main_button(ui: &mut Ui, label: &str) -> Response {
     let g = ui.painter().layout_no_wrap(label.to_owned(), semi(12.5), INK);
     let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 24.0, 30.0), Sense::click());
     let hot = spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, SNAPPY).clamp(0.0, 1.0);
-    ui.painter().rect_filled(r, CornerRadius::same(8), lerp_color(HIGHLIGHT, Color32::WHITE, 0.18 * hot));
+    ui.painter().rect_filled(r, CornerRadius::same(8), lerp_color(highlight(), Color32::WHITE, 0.18 * hot));
     ui.painter().galley(r.center() - g.size() / 2.0, g, INK);
     resp
 }
@@ -334,7 +346,7 @@ pub fn focus_ring(ctx: &Context) {
     let Some(id) = ctx.memory(|m| m.focused()) else { return };
     if !keys || ctx.data(|d| d.get_temp::<Id>(Id::new("own-focus"))) == Some(id) { return; }
     let Some(r) = ctx.read_response(id) else { return };
-    ctx.layer_painter(r.layer_id).rect_stroke(r.rect.expand(2.0), CornerRadius::same(9), Stroke::new(2.0, ACCENT), StrokeKind::Outside);
+    ctx.layer_painter(r.layer_id).rect_stroke(r.rect.expand(2.0), CornerRadius::same(9), Stroke::new(2.0, accent()), StrokeKind::Outside);
 }
 
 pub fn text_input(ui: &mut Ui, text: &mut String, hint: &str, lead: Option<&str>, width: f32) -> Response {
@@ -350,7 +362,7 @@ pub fn text_input(ui: &mut Ui, text: &mut String, hint: &str, lead: Option<&str>
     let resp = out.response.response;
     let r = resp.rect;
     if let Some(icon) = lead { super::frame::paint_icon(ui.painter(), icon, pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, MUTED); }
-    if resp.has_focus() { own_focus(ui.ctx(), resp.id); ui.painter().rect_stroke(r, CornerRadius::same(7), Stroke::new(1.5, ACCENT), StrokeKind::Inside); }
+    if resp.has_focus() { own_focus(ui.ctx(), resp.id); ui.painter().rect_stroke(r, CornerRadius::same(7), Stroke::new(1.5, accent()), StrokeKind::Inside); }
     // each letter keeps an id while it stays, so only the ones typed spring in
     let key = resp.id.with("letters");
     let (before, mut ids, mut next): (String, Vec<u64>, u64) = ui.data(|d| d.get_temp(key)).unwrap_or_default();
@@ -501,7 +513,7 @@ impl Island {
             let fade = |c: Color32| c.gamma_multiply(a);
             let clip = p.with_clip_rect(rect.shrink(1.0));
             if let Some((t, _)) = &self.toast {
-                let gc = match t.tone { Tone::Accent => ACCENT, Tone::Danger => DANGER, Tone::Plain => TEXT };
+                let gc = match t.tone { Tone::Accent => accent(), Tone::Danger => DANGER, Tone::Plain => TEXT };
                 let gr = Rect::from_center_size(pos2(rect.left() + 8.0 + 14.0, rect.center().y), vec2(28.0, 28.0));
                 clip.circle_filled(gr.center(), 14.0, fade(gc));
                 clip.text(gr.center(), Align2::CENTER_CENTER, &t.glyph, semi(13.0), fade(INK));
@@ -513,7 +525,7 @@ impl Island {
                     clip.text(pos2(x, rect.center().y + 8.5), Align2::LEFT_CENTER, &t.sub, body(11.0), fade(TEXT_2));
                 }
             } else {
-                super::frame::paint_icon(&clip, icon, pos2(rect.left() + 12.0 + 7.0, rect.center().y), 14.0, fade(ACCENT));
+                super::frame::paint_icon(&clip, icon, pos2(rect.left() + 12.0 + 7.0, rect.center().y), 14.0, fade(accent()));
                 clip.text(pos2(rect.left() + 12.0 + 14.0 + 8.0, rect.center().y), Align2::LEFT_CENTER, rest, body(12.0), fade(TEXT));
             }
         });

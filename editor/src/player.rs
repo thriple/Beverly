@@ -111,7 +111,7 @@ fn hear(mut sounds: ResMut<crate::sound::Sounds>, game: Res<Game>, mut play: Res
     let run = play.on.then_some(play.run);
     let inputs = std::mem::take(&mut play.script.inputs);
     let script = &play.script;
-    sounds.step(&game.level, &root.get(), run, inputs, &ear, |id| game.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
+    sounds.step(&game.level, &crate::sound::speakers(&game.level), &root.get(), run, inputs, &ear, |id| game.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
 }
 
 /// The mouse is captured while playing; Esc lets it go, a click takes it back.

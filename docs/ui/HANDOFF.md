@@ -78,6 +78,7 @@ Roboto 400/500/700; Roboto Mono for numbers and timecodes. Panel title 16/700, g
 - **Timeline** (bottom, above the bottom notch, radius 16): resize grip, breadcrumb, transport (to start, Play in highlight colour, loop), timecode in mono, Seconds↔Frames zoom; track names with category icons; diamonds for keys, bars for clips; playhead and its time label in the accent; footer with Auto key toggle. One timeline widget is reused everywhere.
 - **Status pills** (top-left of view): glass, icon in accent + short text. Warnings get a danger ring and a fix.
 - **Selection tag**: small pill in the highlight colour with the part icon and name, next to the selected thing.
+- **Audio tab**: the dock is `Inspect · Sounds · Assets`; a **stage bar** (glass, radius 12) sits under the status pill: `On` + Speaker / Walker choices, the surface dropdown (Walker), and Play / Stop as the main button. The stage's range rings are in the accent.
 - **Screens tab**: flow graph — screen cards with previews and one port per button; wires grey, selected wire in highlight; back links dashed; a **Flow check** card lists reachability, depth and dead ends with fixes.
 
 ## Controls (see the Components board)
@@ -92,6 +93,7 @@ Roboto 400/500/700; Roboto Mono for numbers and timecodes. Panel title 16/700, g
 - **Text input**: 30 px, field fill; focus = 1.5 px accent ring; error = danger ring + message + a fix.
 - **Buttons**: one main action per panel (highlight fill, ink text); second (`#2A2A2F`); quiet (accent text); danger (danger 16% fill, `#FF8A98` text). Labels are verbs.
 - **Indicators**: Saved (green check) / Saving (accent spinner) / Unsaved (highlight dot); count badge (highlight); warning chip; info chip; Recording (danger dot); progress bars always labelled with what's happening and %.
+- **Waveform** (a recording, Audio tab): 32 px field-coloured strip, radius 6; one bar per slice from its lowest to its highest, in the accent, scaled to the recording's own loudest; its length in mono beside its name. A thin muted line while it is being read.
 - **Keycaps**: on panels dark `#26262A` with a 2 px bottom edge; on frames solid frame-text colour with frame-colour text.
 - **Focus**: 2 px accent ring, 2 px offset, on every interactive element.
 
