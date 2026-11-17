@@ -451,7 +451,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <text x="96" y="312">ticks every 0.25 s: bunched = slow, spread out = fast</text>
         <text x="700" y="80">click to add points</text>
       </g>
-      <g font-family="JetBrains Mono" font-size="11"><rect x="14" y="14" width="196" height="24" rx="12" fill="var(--panel)" stroke="var(--accent)"/><text x="28" y="30" fill="var(--fg)">PATHS OVERLAY ON · P</text></g>
+      <g font-family="JetBrains Mono" font-size="11"><rect x="14" y="14" width="196" height="24" rx="12" fill="var(--panel)" stroke="var(--accent)"/><text x="28" y="30" fill="var(--fg)">PATHS OVERLAY ON · ⇧P</text></g>
     </svg>
   </div>
   <p class="cap">A camera path being animated. The keys, handles and playhead in the world are the same ones on the timeline below: select a key in either place and it's selected in both.</p>
@@ -571,10 +571,41 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
     </div>
 
     <div class="card you">
+      <span class="tag">Tabs and topics</span><h3>Make it in its tab, place it in the Level</h3>
+      <div class="said">Redundant ways to get somewhere are fine, as long as they don't conflict. A right-click menu in the Level tab such as "Edit this in the ___ Effects tab".</div>
+      <ul>
+        <li><b>The rule:</b> each tab <b>makes</b> one kind of thing (Characters: characters; Vehicles: vehicles; UI/HUD: the HUD; Audio: sounds and music; Effects: effects; Screens: menus; Animatics: cut scenes). The <b>Level</b> tab <b>places</b> and arranges them, and shapes the level itself, so its topics are about the level: All · Physics · Lighting · Cameras · Terrain · Foliage · World. Terrain takes over the Water topic (water is part of the ground); World holds what is level-wide (sky, the kind of ground, wind, weather, boundaries).</li>
+        <li><b>Getting from a placed thing to where it is made</b> (all of these, none conflicting):
+          <ul>
+            <li><b>Right-click</b> it: <i>Edit Runner in Characters</i>, <i>Edit its effects in Effects › Character effects</i>, <i>Edit its sounds in Audio</i>, plus the usual duplicate, delete, rename, make unique. Right-click on empty ground or sky offers the level's World and Terrain topics and <i>World effects</i>.</li>
+            <li><b>Inspect:</b> a thing's groups end with links to where it is made (an Effects group listing its effects, each with <i>Edit ↗</i>).</li>
+            <li><b>Double-click</b> = open what it is made of, everywhere: a timeline clip, a screen card, a group or prefab, and a placed character or vehicle (its tab).</li>
+            <li><b>The tab bar</b> and <kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>8</kbd> (in tab order).</li>
+            <li>After any jump, a <b>back chip</b> (a status pill, top left: <i>← Level · Runner</i>, <kbd>Alt</kbd> <kbd>←</kbd>) returns to where you were, with the same selection and view.</li>
+          </ul></li>
+        <li><b>Keys stay per tab:</b> a letter may mean different things in different tabs (Characters' <kbd>P</kbd> poses, the Level's <kbd>P</kbd> is the pen); within a tab each key has one job. Kept everywhere: <kbd>Tab</kbd> parts, <kbd>Caps Lock</kbd> movement mode, <kbd>[</kbd> <kbd>]</kbd> fly speed, <kbd>`</kbd> test, <kbd>T</kbd> timeline, <kbd>F</kbd> frame, <kbd>Esc</kbd> deselect or leave a tool.</li>
+        <li><b>Right mouse:</b> a plain right-click opens the menu; while a tool or placing is active it leaves it (as it already cancels placing); <kbd>Alt</kbd> + right-drag sizes the brush. No tool erases with the right button: erasing is <kbd>Alt</kbd> with the tool.</li>
+        <li><b>Handles:</b> everything you can drag to change (texture handles, curve handles, key tangents) is drawn in the tab's accent (the Level's violet), and only the active tool's handles show, so they never overlap.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
+      <span class="tag">Effects tab</span><h3>Topics by what the effect is on, each with a stage</h3>
+      <div class="said">Topics like Character Effects, Vehicle Effects, Object Effects and World Effects, each with a viewing stage for context. How you select them, with the least friction, and a right-click "Edit this in ___ Effects".</div>
+      <ul>
+        <li><b>Topics:</b> Character effects · Vehicle effects · Object effects · World effects. A topic is where you look at an effect, not where it is stored: an effect is one file (assets/effects) that can sit on many things (the same dust kick on a runner's feet and a buggy's wheels).</li>
+        <li><b>Stages:</b> Character: the chosen character on a turntable, its joints shown, playing its moves (run, jump, land) so the effects fire on their events. Vehicle: the chosen vehicle on a short test track with throttle, boost and skid. Object: the chosen part or model on a plinth with its triggers (hit, break, open, pick up). World: a patch of ground under the sky, with time of day, wind and rain sliders. The stage's subject is picked with an <i>On: Runner ▾</i> chip (or a stand-in when the effect is for anything); a topic whose subjects don't exist yet waits as "Coming soon".</li>
+        <li><b>Kinds become layers:</b> an effect is layers of Plume, Particles, Marks (decals), Glow, Trail, Shake and a short post-processing touch (a flash, heat haze, a hit vignette), timed together. The dock's list shows effects grouped by what they are on; the Inspect panel shows the selected layer.</li>
+        <li><b>Looks versus moments:</b> a level's or a camera's lasting look (bloom, colour grading) is set in the Level tab (World and Cameras); a momentary touch fired by an event is an effect layer here. Weather is made here (what the rain looks like) and placed in the Level (zones and the World topic choose it).</li>
+        <li><b>Getting here:</b> right-click a thing in the Level, its Inspect Effects group, its Characters or Vehicles tab (their Effects group), double-click an effect file in Assets, or the tab bar; the back chip returns.</li>
+      </ul>
+    </div>
+
+    <div class="card you">
       <span class="tag">Brush, pen and fill</span><h3>One set of tools in every tab</h3>
       <div class="said">Precision placement of single items, brushes from small amounts up to whole forests, spline tools with orderly or random spacing, a bucket that fills by the colour clicked; the brush and Bezier tool reused across Foliage, Assets, Characters, Vehicles and more. Something must control what is under the foliage too.</div>
       <ul>
-        <li><b>Four tools, the same keys everywhere:</b> <b>Place</b> one item exactly (on the surface, upright or tilted to it; wheel turns, Shift+wheel scales; snapping as today). <b>Brush</b> from a 10 cm dab to a 500 m forest (S / M / L / XL presets, the slider, Alt + right-drag in the view), with strength as <b>Add / Subtract</b> (each pass a little) or <b>Set</b> (exactly this density, however often you go over it). <b>Pen</b> (Bezier). <b>Fill</b> (the bucket). Plus <b>Pick</b> (take what is under the cursor) and erasing as each tool's other side.</li>
+        <li><b>Four tools, the same keys everywhere:</b> <b>Place</b> one item exactly (on the surface, upright or tilted to it; wheel turns, Shift+wheel scales; snapping as today). <b>Brush</b> from a 10 cm dab to a 500 m forest (S / M / L / XL presets, the slider, Alt + right-drag in the view), with strength as <b>Add / Subtract</b> (each pass a little) or <b>Set</b> (exactly this density, however often you go over it). <b>Pen</b> (Bezier). <b>Fill</b> (the bucket). Plus <b>Pick</b> (take what is under the cursor) and erasing as each tool's other side (hold <kbd>Alt</kbd>). Keys: <kbd>V</kbd> Place, <kbd>B</kbd> Brush, <kbd>P</kbd> Pen, <kbd>G</kbd> Fill, <kbd>I</kbd> Pick; <kbd>1</kbd>–<kbd>4</kbd> the brush sizes S to XL while the brush is out.</li>
         <li><b>The pen's modes:</b> <b>Even</b> (one every N metres, facing along it: fences, lamp posts, avenues, hedges), <b>Scattered</b> (random in a band of a given width that thins at its edges: forest edges, stream banks), <b>Both sides</b>, and a closed curve fills inside (a lasso). A curve stays live (move a point and the hedge follows); <b>Turn into items</b> makes them placed items to nudge one by one.</li>
         <li><b>Fill matches a rule:</b> the same material or texture (a blue square on concrete: only the blue gets grass), the same colour (with a tolerance), the same surface tag, everything inside this part, or this whole floor; Connected only stops at gaps. The fill stays a rule: recolour the square and the grass follows.</li>
         <li><b>Rules any tool carries:</b> slope limit, height band, keep clear of paths, roads and water, spacing between items, which surfaces it may land on.</li>
@@ -593,14 +624,14 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li><b>Mixes:</b> one pick for a whole look: a ground material, grass species with weights, plant sets with their spacing. Meadow: soil, grass 70%, daisies 10%, tall grass 20%. Forest floor: leaf litter, ivy, ferns, trees 6 to 10 m apart. Riverbank: wet mud, reeds and rushes. The ground layer belongs to the Mix, with a per-stroke override (the same meadow, muddier here).</li>
         <li><b>What is under the foliage:</b> a stroke lays a <b>ground</b> layer (a material: soil, moss, leaf litter) and the <b>plants</b> together. The ground's Spread says how far it reaches past the plants, its edge is soft, and it follows density (thin grass shows the soil through). Grass takes the colour of the surface at its roots. Ground-only strokes are plain surface painting. The stroke can tag what it covers (grass, mud) for footsteps, hiding in grass and slipping.</li>
         <li><b>The grass carpet</b> (the user's grass system, ported from their game, checked 2026-11-17: it draws, follows its centre without swimming, and the species match): one instanced lattice that exists only in a circle around the camera or player, every blade placed, shaped, coloured and swayed in the shader; 17 species as data. It reads where the ground is and what to grow from textures built while playing, from the strokes and the surfaces under them (part tops, and walls or ceilings where painted), never stored. One height per spot: grass under a bridge and on it needs a second layer; walls and ceilings may need plants laid on the surface instead of the carpet's upright blades.</li>
-        <li><b>Ground relief:</b> flat colour and texture for now. Researched 2026-11-17 for later: wgpu has no tessellation; Bevy's materials already do parallax occlusion (depth from the user's own height texture, cost per pixel, best close up, odd on bent surfaces, no silhouettes or shadows); terrain can be displaced for real in its own mesh; a bump from noise in the shader is nearly free; leaf litter is cheapest as flat cards lying on the ground (the carpet's lily-pad and ivy kinds already do this); wet mud is a darker, glossier ground with no geometry at all.</li>
+        <li><b>Ground relief:</b> flat colour and texture for now. Researched 2026-11-17 for later: wgpu has no tessellation stage, but we can build our own on the GPU when it is needed (user), the way the terrain is drawn: rings of grid around the camera, finer close up, shaped in the shader; Bevy's materials already do parallax occlusion (depth from the user's own height texture, cost per pixel, best close up, odd on bent surfaces, no silhouettes or shadows); terrain can be displaced for real in its own mesh; a bump from noise in the shader is nearly free; leaf litter is cheapest as flat cards lying on the ground (the carpet's lily-pad and ivy kinds already do this); wet mud is a darker, glossier ground with no geometry at all.</li>
       </ul>
     </div>
 
     <div class="card">
       <span class="tag">Terrain</span><h3>A Terrain topic for the ground itself</h3>
       <ul>
-        <li>Everything about the ground in one place: the level's ground (none, flat floor, terrain, ocean), <b>Surfaces</b> (the ground materials Mixes use, and ground-only painting with the same tools, on parts and the flat floor before any terrain exists), then sculpting (raise, lower, smooth, flatten; ridges and beds with the pen), water (lakes, rivers), roads and caves as they come. Foliage stays its own topic and borrows the Surfaces.</li>
+        <li>Everything about the ground's shape and skin in one place (the level-wide choice of ground, none, flat floor, terrain or ocean, stays in the World topic with the sky): <b>Surfaces</b> (the ground materials Mixes use, and ground-only painting with the same tools, on parts and the flat floor before any terrain exists), then sculpting (raise, lower, smooth, flatten; ridges and beds with the pen; the ground is drawn from its description on the GPU, not stored as meshes), water (the ocean's waves, lakes, rivers: it takes over the Water topic), roads and caves as they come. Foliage stays its own topic and borrows the Surfaces.</li>
       </ul>
     </div>
 
@@ -682,7 +713,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
     <div class="card">
       <span class="tag">Game UI (HUD)</span><h3>A 2D layer over the game view</h3>
       <ul>
-        <li><kbd>F4</kbd> swaps the editor panels for the game's HUD. In HUD-edit mode the HUD's own widgets become selectable.</li>
+        <li>The UI/HUD tab (<kbd>Ctrl</kbd> <kbd>4</kbd>, and <kbd>F4</kbd> as you first asked) is where the HUD is edited: its own widgets become selectable over the game view.</li>
         <li>Widgets: text, image, bar, crosshair, objective, dialog box, minimap. Each pins to one of 9 anchor points and stays inside the safe area.</li>
         <li>Preview at 16:9, 21:9 and 4:3 from a toggle.</li>
         <li>Bind by wire: drag from a bar to a value (fuel, health, a counter variable).</li>
@@ -793,7 +824,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
     <li><b>Fly speed:</b> Mouse 5 faster, Mouse 4 slower; <kbd>]</kbd> and <kbd>[</kbd> as backups.</li>
     <li><b>Builder up / down:</b> none; you fly where you look.</li>
     <li><b>Test characters:</b> the mech for Last Ascent; Beverly ships a generic humanoid and a small cartoon character for other games.</li>
-    <li><b>Overlay key:</b> <kbd>P</kbd> toggles the paths overlay.</li>
+    <li><b>Overlay:</b> the paths overlay shows whenever a path, or anything on a timeline, is selected; <kbd>Shift</kbd> <kbd>P</kbd> keeps it on. (<kbd>P</kbd> alone is the pen.)</li>
   </ul>
   <h2>Next</h2>
   <p class="lede">Apply the UI style kit to the editor's panels, then start v0.1 in a new Beverly repository.</p>
