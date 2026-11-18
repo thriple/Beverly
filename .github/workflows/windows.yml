@@ -11,7 +11,8 @@ name: Windows build
 on:
   workflow_dispatch:
   push:
-    paths: ['editor/**', '.github/workflows/windows.yml']
+    branches: [main]   # the virtual-geometry branch is built and tested in its sessions, not here, so build numbers stay main's
+    paths: ['editor/**', 'crates/**', '.github/workflows/windows.yml']
 permissions:
   contents: write   # to publish the release
 jobs:
