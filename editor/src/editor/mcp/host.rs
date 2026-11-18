@@ -432,6 +432,33 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             ed.preview_sound = Some((path.clone(), ground));
             Ok(json!({"playing": path, "on": ground.map(|g| g.label())}))
         }
+        "paint_stroke" => {
+            editable(ed)?;
+            let p = part_of(ed, args)?;
+            let (id, name) = (p.id, p.name.clone());
+            if !crate::paint::paintable(p) { return Err(format!("{name} can't be painted (the brush paints visible basic shapes)")); }
+            if args.get("clear").and_then(Value::as_bool) == Some(true) {
+                ed.level.get_mut(id).expect("found above").strokes.clear();
+                ed.commit();
+                return Ok(json!({"part": name, "strokes": 0}));
+            }
+            let erase = args.get("erase").and_then(Value::as_bool) == Some(true);
+            let material = match (erase, args.get("material").and_then(Value::as_str)) {
+                (true, _) => String::new(),
+                (false, Some(m)) => material_ref(ed, m)?,
+                (false, None) => return Err("Give the material to paint (or erase: true)".into()),
+            };
+            let points: Vec<Vec3> = args.get("points").and_then(Value::as_array).map(|a| a.iter().filter_map(vec3_of).collect()).unwrap_or_default();
+            if points.is_empty() { return Err("Give points: [[x, y, z], ...] on its surface, in the world".into()); }
+            let num = |k: &str, d: f32, lo: f32, hi: f32| args.get(k).and_then(Value::as_f64).map_or(d, |v| (v as f32).clamp(lo, hi));
+            let b = ed.brush.clone();
+            let p = ed.level.get_mut(id).expect("found above");
+            let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local });
+            settle_instances(ed, args)?;
+            ed.commit();
+            Ok(describe(ed, ed.level.get(id).expect("found above")))
+        }
         "get_material" => {
             let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
             Ok(describe_material(ed, &path))
@@ -921,6 +948,7 @@ fn describe(ed: &Editor, p: &Part) -> Value {
     }
     if let Some(s) = p.sound.as_ref() { v["sound"] = json!(s.sound); }
     v["events"] = json!(p.events());
+    if !p.strokes.is_empty() { v["painted"] = json!({"strokes": p.strokes.len(), "materials": p.painted()}); }
     v["sounds"] = Value::Object(p.sounds.iter().map(|h| (h.on.clone(), json!(h.sound))).collect());
     if let Some(g) = p.sounds_like { v["sounds_like"] = json!(g.label()); }
     if p.shape == Shape::SpotLight { v["shines"] = settings::nums(&crate::editor::light::aim(p).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0)); }

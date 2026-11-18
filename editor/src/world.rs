@@ -109,20 +109,42 @@ impl Mats {
         h
     }
 
+    /// A texture, loaded once, repeating.
+    fn image(&mut self, server: &AssetServer, t: &str) -> Handle<Image> {
+        self.images.entry(t.to_string()).or_insert_with(|| {
+            use bevy::image::{ImageAddressMode as A, ImageFilterMode as F, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
+            server.load_builder().with_settings(|l: &mut ImageLoaderSettings| {
+                l.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                    address_mode_u: A::Repeat, address_mode_v: A::Repeat, mag_filter: F::Linear, min_filter: F::Linear, ..default()
+                });
+            }).load(format!("project://{t}"))
+        }).clone()
+    }
+
+    /// How a material looks painted on with the brush: see-through where the strokes don't cover it, drawn over
+    /// the part (one copy of the texture every `tile` metres).
+    pub fn painted(&mut self, server: &AssetServer, m: &level::Material, tile: f32) -> StandardMaterial {
+        let texture = m.texture.as_ref().map(|t| self.image(server, t));
+        let tint = Color::srgb(m.tint[0], m.tint[1], m.tint[2]);
+        StandardMaterial {
+            base_color: tint.with_alpha(m.opacity.clamp(0.0, 1.0)),
+            base_color_texture: texture.clone(),
+            emissive: LinearRgba { alpha: 1.0, ..tint.to_linear() * m.glow },
+            emissive_texture: if m.glow > 0.0 { texture } else { None },
+            uv_transform: bevy::math::Affine2::from_scale(Vec2::splat(1.0 / tile.max(0.01))),
+            metallic: m.metal.clamp(0.0, 1.0),
+            perceptual_roughness: m.roughness.clamp(0.0, 1.0),
+            alpha_mode: AlphaMode::Blend,
+            depth_bias: 1.0,
+            ..default()
+        }
+    }
+
     /// How a surface looks: its material, laid at the surface's size and offset.
     pub fn surface(&mut self, assets: &mut Assets<StandardMaterial>, server: &AssetServer, m: &level::Material, s: &Surface) -> Handle<StandardMaterial> {
         let key = (format!("{m:?}"), [s.tile[0], s.tile[1], s.offset[0], s.offset[1]].map(f32::to_bits));
         if let Some(h) = self.laid.get(&key) { return h.clone(); }
-        let texture = m.texture.as_ref().map(|t| {
-            self.images.entry(t.clone()).or_insert_with(|| {
-                use bevy::image::{ImageAddressMode as A, ImageFilterMode as F, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
-                server.load_builder().with_settings(|l: &mut ImageLoaderSettings| {
-                    l.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-                        address_mode_u: A::Repeat, address_mode_v: A::Repeat, mag_filter: F::Linear, min_filter: F::Linear, ..default()
-                    });
-                }).load(format!("project://{t}"))
-            }).clone()
-        });
+        let texture = m.texture.as_ref().map(|t| self.image(server, t));
         let tile = Vec2::from(s.tile).max(Vec2::splat(0.01));
         let tint = Color::srgb(m.tint[0], m.tint[1], m.tint[2]);
         let see_through = m.opacity < 0.999;

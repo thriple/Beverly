@@ -1,0 +1,17 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 1.0, 6.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Floor", shape: Plane, pos: (0.0, 0.05, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (10.0, 0.1, 10.0), color: (0.45, 0.45, 0.48), visible: true, collision: Solid, strokes: [
+            (material: "assets/materials/moss.bev", size: 3.0, hardness: 0.2, strength: 1.0, points: [(-4.0, 0.05, -2.0), (-2.0, 0.05, -1.0), (0.0, 0.05, -1.5), (2.0, 0.05, -0.5), (4.0, 0.05, -1.0)]),
+            (material: "assets/materials/sand.bev", size: 1.5, hardness: 0.9, strength: 1.0, points: [(-1.0, 0.05, -4.0), (-0.5, 0.05, 0.0), (0.0, 0.05, 3.0)]),
+            (material: "", size: 1.0, hardness: 0.9, strength: 1.0, points: [(2.0, 0.05, -0.5)]),
+        ]),
+        (id: 3, name: "Block", shape: Box, pos: (3.0, 1.1, 2.5), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 2.0, 2.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid, strokes: [
+            (material: "assets/materials/moss.bev", size: 1.2, hardness: 0.0, strength: 0.8, points: [(-1.0, 1.0, 1.0), (0.0, 1.0, 0.0), (1.0, 1.0, -1.0)]),
+            (material: "assets/materials/moss.bev", size: 0.8, hardness: 0.5, strength: 1.0, points: [(-1.0, 0.0, 1.0), (1.0, 0.5, 1.0)]),
+        ]),
+    ],
+    next_id: 3,
+)

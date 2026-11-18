@@ -553,6 +553,34 @@ impl Part {
     }
 }
 
+/// A brush stroke on a part: a material (or erasing) laid along points on its surface, with a soft or hard edge.
+/// Later strokes cover earlier ones; erasing uncovers. Kept as the stroke, never as an image.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+pub struct Stroke {
+    /// The material painted, e.g. "assets/materials/moss.bev"; empty: erasing.
+    pub material: String,
+    /// Metres across.
+    pub size: f32,
+    /// 0: soft all the way in, 1: a hard edge.
+    pub hardness: f32,
+    /// How much it covers, 0..1.
+    pub strength: f32,
+    /// Where it went, in metres in the part's own frame (from its middle, turned with it), so it stays put when the
+    /// part moves, turns or is resized.
+    pub points: Vec<[f32; 3]>,
+}
+
+impl Part {
+    /// The materials painted on it, in the order they were first painted.
+    pub fn painted(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = vec![];
+        for s in &self.strokes { if !s.material.is_empty() && !v.contains(&s.material.as_str()) { v.push(&s.material); } }
+        v
+    }
+    /// A point in the world in the part's own frame (metres from its middle, turned with it).
+    pub fn to_local(&self, world: Vec3) -> Vec3 { Quat::from_array(self.rot).inverse() * (world - Vec3::from(self.pos)) }
+}
+
 /// The material panel's section.
 pub const MATERIAL: &str = "MATERIAL";
 
@@ -751,6 +779,9 @@ pub struct Part {
     /// Sounds it plays when things happen to it (Pressed, Arrived, Hit…).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sounds: Vec<Hook>,
+    /// Brush strokes painted on it, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub strokes: Vec<Stroke>,
     /// What its surface sounds like underfoot (None: nothing special; a material can say instead).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sounds_like: Option<Ground>,
@@ -771,7 +802,7 @@ impl Part {
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
-            sounds: vec![], sounds_like: None,
+            sounds: vec![], sounds_like: None, strokes: vec![],
         }
     }
 
@@ -800,7 +831,7 @@ impl Part {
     /// own, as an instance's placement is in SketchUp.
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
-            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like
+            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like && self.strokes == o.strokes
     }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
@@ -813,6 +844,7 @@ impl Part {
         self.tags = from.tags.clone();
         self.loose = from.loose.clone();
         self.sounds_like = from.sounds_like;
+        self.strokes = from.strokes.clone();
     }
 }
 

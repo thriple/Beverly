@@ -55,14 +55,14 @@ pub fn run(extra: fn(&mut App)) {
     }));
     extra(&mut app);
     if let Some(t) = test { crate::scripted::add(&mut app, &dir, &t, &level, record); }
-    app.add_plugins(PlayPlugin)
+    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin))
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()
     .init_resource::<crate::sound::Sounds>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, stage, start, cursor, hear).chain());
+    .add_systems(Update, (models::build_geometry, stage, start, cursor, hear, paint).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
@@ -105,6 +105,9 @@ fn start(mut commands: Commands, mut game: ResMut<Game>, lib: Res<ModelLib>, mut
     };
     play.start(&mut commands, &mut meshes, &mut mats, &game.level, &game.geo, feet, yaw);
 }
+
+/// The brush strokes drawn on the parts.
+fn paint(game: Res<Game>, mut paint: crate::paint::PaintSync) { paint.run(&game.level); }
 
 /// The sounds, heard from the camera.
 fn hear(mut sounds: ResMut<crate::sound::Sounds>, game: Res<Game>, mut play: ResMut<Play>, root: Res<ProjectRoot>, ear: Single<&GlobalTransform, With<PlayCamera>>) {

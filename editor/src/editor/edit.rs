@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, camera, light, texture, Editor, PathTry, Pending, Saved, TestRequest};
+use super::{actions, brush, camera, light, texture, Editor, PathTry, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -410,6 +410,13 @@ pub fn interact(
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
 
+    // ---- the brush (B)
+    if brush::input(&mut ed, &view, ray, &mouse, &keys) {
+        *ghost.1 = Visibility::Hidden;
+        press.at = None;
+        return;
+    }
+
     // ---- a texture dragged from the Assets panel
     let cancel = keys.just_pressed(KeyCode::Escape) || mouse.just_pressed(MouseButton::Right);
     if texture::dropping(&mut ed, ray, pointer, mouse.just_released(MouseButton::Left), cancel, shift) {
@@ -776,6 +783,7 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::KeyF) { act("view.frame"); }
     if jp(KeyCode::Enter) || jp(KeyCode::NumpadEnter) { act("edit.change_all"); }
     if jp(KeyCode::KeyU) { act("edit.make_unique"); }
+    if jp(KeyCode::KeyB) { act("tool.brush"); }
 }
 
 /// Files dragged in from Explorer are copied into the project's assets; a single recording is then placed as a Sound part
@@ -836,6 +844,9 @@ pub fn hear(mut sounds: ResMut<crate::sound::Sounds>, mut ed: ResMut<Editor>, mu
     }
     sounds.step(&ed.level, &crate::sound::speakers(&ed.level), &ed.dir, run, inputs, happened, &ear, |id| ed.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
 }
+
+/// The brush strokes drawn on the parts.
+pub fn paint(ed: Res<Editor>, mut paint: crate::paint::PaintSync) { paint.run(&ed.level); }
 
 #[derive(Component)]
 pub struct PartView { id: u64, applied: Part }
@@ -915,6 +926,7 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
         return;
     }
     texture::draw(&ed, &view, &mut w);
+    brush::draw(&ed, &mut w);
     light::draw(&ed, &view, &mut w);
     camera::draw(&ed, &view, &mut g, &mut w);
     // a selected Sound part: where it is heard at full volume, and how far it carries (as seen, and level)
@@ -1054,7 +1066,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![],
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -1068,7 +1080,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![],
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

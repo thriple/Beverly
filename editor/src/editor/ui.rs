@@ -339,7 +339,8 @@ fn window_edges(ctx: &egui::Context, lay: &frame::Layout, window: &mut Window, m
 }
 
 /// What the mouse does in the view (the bottom notch's hints).
-fn hints(mode: Mode) -> &'static [(&'static str, &'static [&'static str])] {
+fn hints(mode: Mode, brush: bool) -> &'static [(&'static str, &'static [&'static str])] {
+    if brush { return &[("Size", &["[", "]"]), ("Hardness", &["Shift", "[", "]"]), ("Erase", &["Alt"]), ("Done", &["Esc"])]; }
     match mode {
         Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Fly", &["Caps Lock"])],
         Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Edit", &["Caps Lock"])],
@@ -376,13 +377,13 @@ fn notch_contents(ctx: &egui::Context, p: Option<(&egui::Painter, f32, f32)>, sa
 /// The bottom notch: Saved (click to save) and the hints.
 fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
     let saved = !ed.dirty();
-    let w = notch_contents(ctx, None, saved, hints(view.mode));
+    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on));
     let n = lay.bottom_notch;
     let cy = n.top() + 4.0 + 13.0;
     let x0 = n.center().x - w / 2.0;
     egui::Area::new(Id::new("bottom-notch")).order(egui::Order::Middle).fixed_pos(n.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(n.size());
-        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode));
+        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on));
         let sr = ERect::from_min_size(pos2(x0 - 4.0, cy - 12.0), vec2(20.0 + text_w(ctx, if saved { "Saved" } else { "Not saved" }, semi(12.0)) + 8.0, 24.0));
         let resp = ui.interact(sr, Id::new("save-state"), if saved { Sense::hover() } else { Sense::click() }).tip_keys(if saved { "Everything is saved" } else { "Save" }, &["Ctrl", "S"]);
         if resp.clicked() { let _ = actions::run(ed, None, "file.save", exit); }
@@ -391,7 +392,7 @@ fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::
 
 /// The notch's width for these contents (shoulders and a little air).
 fn bottom_width(ctx: &egui::Context, ed: &Editor, view: &View) -> f32 {
-    notch_contents(ctx, None, !ed.dirty(), hints(view.mode)) + 2.0 * frame::SHOULDER + 16.0
+    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on)) + 2.0 * frame::SHOULDER + 16.0
 }
 
 /// The dock's three views: (name, icon); the middle one is the tab's list.
@@ -482,6 +483,7 @@ fn dock(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::Layo
                 match ed.dock_view {
                     0 if ed.tab == audio::AUDIO => audio_ui::inspect(ui, ed, sounds),
                     1 if ed.tab == audio::AUDIO => audio_ui::list(ui, ed),
+                    0 if ed.brush_on => brush_panel(ui, ed),
                     0 => {
                         if ed.selected.is_some() || ed.material_open.is_some() { inspector(ui, ed, view, exit); } else { mode_panel(ui, ed); }
                     }
@@ -631,8 +633,9 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
                 }
             } else if material {
                 // materials: click to change, drag onto a face
-                let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("Click to change it (every surface using it changes) · drag onto a face");
-                if resp.clicked() { ed.material_open = Some(path); } else if resp.drag_started() { ed.texturing = Some(path); }
+                let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip(if ed.brush_on { "Click to paint with it" } else { "Click to change it (every surface using it changes) · drag onto a face" });
+                if resp.clicked() && ed.brush_on { ed.brush.material = path; ed.dock_view = 0; }
+                else if resp.clicked() { ed.material_open = Some(path); } else if resp.drag_started() { ed.texturing = Some(path); }
             } else if texture {
                 // textures: drag onto a face (or click, then click a face)
                 let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("Drag onto a face of a part (Shift: the whole part)");
@@ -926,6 +929,37 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     if build { ed.build_navigation(); }
 }
 
+/// The brush's panel (in Inspect while the brush is out): what it paints and how.
+fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
+    let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let sub = if ed.brush.material.is_empty() { "Pick a material to paint with".to_string() } else { format!("Brush · painting {}", name(&ed.brush.material)) };
+    identity(ui, theme::VIOLET, "palette", Err("Brush"), &sub, None);
+    let mut b = ed.brush.clone();
+    let mut ranges = ed.level.ranges.clone();
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
+    column(ui, 0.0, "BRUSH", |ui| {
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Paints").color(TEXT_2)); });
+            let shown = if b.material.is_empty() { "No material".to_string() } else { name(&b.material) };
+            egui::ComboBox::from_id_salt("brush material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                for m in ed.level.materials.keys() { ui.selectable_value(&mut b.material, m.clone(), name(m)); }
+                if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
+            });
+        });
+        settings::section(ui, &mut b, super::brush::BRUSH, &mut ctx);
+    });
+    column(ui, 0.0, "SHORTCUTS", |ui| {
+        theme::hint(ui, "Smaller / larger", &["[", "]"]);
+        theme::hint(ui, "Softer / harder", &["Shift", "[", "]"]);
+        theme::hint(ui, "Size it in the view", &["Alt", "Right-drag"]);
+        theme::hint(ui, "Erase", &["Alt"]);
+        theme::hint(ui, "Put it away", &["Esc"]);
+    });
+    if theme::main_button(ui, "Done").clicked() { ed.brush_on = false; }
+    if ctx.ranges_changed { ed.level.ranges = ranges; }
+    if b != ed.brush { ed.brush = b; }
+}
+
 /// A row choosing a sound file (or none) for `label`; true when it changed.
 fn sound_row(ui: &mut Ui, label: &str, chosen: &mut String, files: &[String], help: &str) -> bool {
     let before = chosen.clone();
@@ -1120,6 +1154,7 @@ fn group_look(title: &str) -> (String, &'static str, Color32) {
         "ADVANCED" => ("Advanced", "sliders", MUTED),
         "SOUNDS" => ("Sounds", "wave", theme::CAT_ACTIONS),
         "WALKER SOUNDS" => ("Walker sounds", "person", theme::CAT_GAME),
+        "BRUSH" => ("Brush", "palette", theme::VIOLET),
         "RECORDINGS" => ("Recordings", "wave", theme::CAT_ACTIONS),
         "ON SURFACES" => ("On surfaces", "layers", theme::CAT_ACTIONS),
         level::SOUND => ("Sound", "sliders", theme::CAT_ACTIONS),

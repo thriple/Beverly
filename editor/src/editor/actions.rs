@@ -43,6 +43,7 @@ pub const ACTIONS: &[Action] = &[
     a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
+    a("tool.brush", "Brush", "Tools", "B"),
     a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
     a("tab.audio", "Audio tab", "Tab bar", "Ctrl+5"),
     a("help.about", "About Beverly", "Help", ""),
@@ -55,9 +56,9 @@ pub fn get(id: &str) -> Option<&'static Action> { ACTIONS.iter().find(|a| a.id =
 
 /// Why an action can't run right now (None: it can).
 pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
-    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tab.");
+    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tab.") || id.starts_with("tool.");
     // what works on the level's parts, only in the Level tab
-    let parts = id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.")
+    let parts = id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tool.")
         || matches!(id, "edit.duplicate" | "edit.delete" | "edit.change_all" | "edit.make_unique" | "edit.snap");
     if parts && ed.tab != super::audio::LEVEL { return Some("Only in the Level tab"); }
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
@@ -109,6 +110,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             ed.test_request = Some(super::TestRequest::Start(Vec3::from(p.pos) - Vec3::Y * p.size[1] * 0.5));
         }
         "view.parts" => {
+            ed.brush_on = false;
             ed.parts_open = true;
             ed.parts_fresh = true;
             ed.parts_query.clear();
@@ -128,6 +130,15 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             super::camera::toggle(ed, view);
         }
         "level.build_navigation" => ed.build_navigation(),
+        "tool.brush" => {
+            ed.brush_on = !ed.brush_on;
+            ed.painting = Default::default();
+            if ed.brush_on {
+                ed.placing = None;
+                if !ed.level.materials.contains_key(&ed.brush.material) { ed.brush.material = ed.level.materials.keys().next().cloned().unwrap_or_default(); }
+                ed.island.show("◍", "Brush", "[ ] size · Shift + [ ] hardness · Alt erases · Esc puts it away", Tone::Accent);
+            }
+        }
         "tab.level" => ed.tab = super::audio::LEVEL,
         "tab.audio" => ed.tab = super::audio::AUDIO,
         "help.about" => ed.about_open = true,

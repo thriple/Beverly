@@ -7,6 +7,7 @@ pub mod editor;
 pub mod level;
 pub mod models;
 pub mod nav;
+pub mod paint;
 pub mod physics;
 pub mod play;
 pub mod player;

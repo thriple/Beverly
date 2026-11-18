@@ -1,0 +1,7 @@
+// The painted floor and block as the game draws them: soft moss, hard sand over it, an erased spot, paint on the
+// block's top and side.
+(
+    steps: [
+        (at: 0.5, shot: "painted", expect: [Feet((0, 0.1, 6), 0.2)]),
+    ],
+)

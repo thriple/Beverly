@@ -2,6 +2,7 @@
 
 mod actions;
 mod audio;
+mod brush;
 mod bev_type;
 mod caps;
 mod edit;
@@ -97,6 +98,10 @@ pub struct Editor {
     pub sound_open: Option<String>,
     /// A sound file to hear once (its panel's Play), on a surface, taken by `edit::hear`.
     pub preview_sound: Option<(String, Option<crate::level::Ground>)>,
+    /// The brush (B): out or not, how it paints, and what it is doing.
+    pub brush_on: bool,
+    pub brush: brush::Brush,
+    pub painting: brush::Painting,
     /// The open tab (an index into `theme::TABS`; see `audio::built`).
     pub tab: usize,
     /// The Audio tab's stage.
@@ -206,6 +211,9 @@ impl Editor {
             material_open: None,
             sound_open: None,
             preview_sound: None,
+            brush_on: false,
+            brush: brush::Brush::default(),
+            painting: brush::Painting::default(),
             tab: 0,
             stage: audio::Stage::default(),
             hover_handle: None,
@@ -294,7 +302,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin))
+    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
@@ -319,7 +327,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::interact.run_if(audio::in_level),
                 edit::shortcuts,
                 edit::files,
-                edit::sync,
+                (edit::sync, edit::paint).chain(),
                 (audio::follow_tab, audio::stage).chain(),
                 edit::hear,
                 edit::stage,
