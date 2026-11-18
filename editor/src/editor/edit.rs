@@ -826,14 +826,15 @@ pub fn hear(mut sounds: ResMut<crate::sound::Sounds>, mut ed: ResMut<Editor>, mu
     if let Some(p) = ed.bypass_change_detection().preview_sound.take() { sounds.preview = Some(p); }
     let run = play.on.then_some(play.run);
     let inputs = std::mem::take(&mut play.script.inputs);
+    let happened = std::mem::take(&mut play.script.happened);
     let script = &play.script;
     // the Audio tab: its stage instead of the level, and the open sound's recordings read for drawing
     if ed.tab == super::audio::AUDIO {
         if let Some(s) = ed.sound_open.as_ref().and_then(|p| ed.level.sounds.get(p)) { sounds.read_waves(&ed.dir, s.all_clips()); }
-        sounds.step(&ed.level, &super::audio::speakers(&ed), &ed.dir, None, inputs, &ear, |id| super::audio::at(&ed, id));
+        sounds.step(&ed.level, &super::audio::speakers(&ed), &ed.dir, None, inputs, happened, &ear, |id| super::audio::at(&ed, id));
         return;
     }
-    sounds.step(&ed.level, &crate::sound::speakers(&ed.level), &ed.dir, run, inputs, &ear, |id| ed.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
+    sounds.step(&ed.level, &crate::sound::speakers(&ed.level), &ed.dir, run, inputs, happened, &ear, |id| ed.level.get(id).map(|p| Vec3::from(p.pos) + script.offset_of(id).unwrap_or_default()));
 }
 
 #[derive(Component)]
@@ -1053,7 +1054,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -1067,7 +1068,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

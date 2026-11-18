@@ -404,6 +404,34 @@ impl Sound {
     pub fn all_clips(&self) -> impl Iterator<Item = &String> { self.clips.iter().chain(self.sets.iter().flat_map(|s| &s.clips)) }
 }
 
+/// A sound a part plays when something happens to it (one of [`Part::events`]).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+pub struct Hook {
+    pub on: String,
+    pub sound: String,
+}
+
+/// The walker's sounds (until characters come with their own): sound files, empty for none.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default, Reflect)]
+#[serde(default)]
+pub struct WalkerSounds {
+    pub steps: String,
+    pub jump: String,
+    pub land: String,
+}
+
+impl WalkerSounds {
+    /// What the walker does that can make a sound.
+    pub const EVENTS: [&str; 3] = ["Step", "Jump", "Land"];
+    pub fn is_default(&self) -> bool { *self == Self::default() }
+    pub fn get(&self, e: &str) -> &str {
+        match e { "Step" => &self.steps, "Jump" => &self.jump, "Land" => &self.land, _ => "" }
+    }
+    pub fn get_mut(&mut self, e: &str) -> Option<&mut String> {
+        match e { "Step" => Some(&mut self.steps), "Jump" => Some(&mut self.jump), "Land" => Some(&mut self.land), _ => None }
+    }
+}
+
 /// When a Sound part plays.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
 pub enum Plays {
@@ -481,6 +509,17 @@ impl Level {
         self.sounds.insert(path.clone(), m);
         path
     }
+    /// What the top of part `id` sounds like underfoot: the material on its top face, else the part's own.
+    pub fn ground_under(&self, id: u64) -> Option<Ground> {
+        let p = self.get(id)?;
+        let rot = Quat::from_array(p.rot);
+        let faces = crate::shapes::build(p.shape).faces;
+        let top = faces.iter().enumerate().filter_map(|(i, l)| match l { crate::shapes::Lay::Flat(n) => Some((i, (rot * *n).y)), _ => None })
+            .max_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i as u8);
+        let from_material = p.surfaces.iter().find(|s| s.face.is_some() && s.face == top).or_else(|| p.surfaces.iter().find(|s| s.face.is_none()))
+            .and_then(|s| self.materials.get(&s.material)).and_then(|m| m.sounds_like);
+        from_material.or(p.sounds_like)
+    }
     /// How many Sound parts play a sound file.
     pub fn sound_users(&self, path: &str) -> usize { self.parts.iter().filter(|p| p.sound.as_ref().is_some_and(|s| s.sound == path)).count() }
 }
@@ -537,10 +576,13 @@ pub struct Material {
     pub roughness: f32,
     #[reflect(@Setting::feel("Glow", &["None", "Faint", "Glowing", "Bright"], 0.0, 10.0, "").section(MATERIAL).help("Gives off its own light, for screens, signs and light strips"))]
     pub glow: f32,
+    /// What it sounds like underfoot (None: what the part says).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sounds_like: Option<Ground>,
 }
 
 impl Default for Material {
-    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0 } }
+    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0, sounds_like: None } }
 }
 
 pub fn load_material(dir: &Path, path: &str) -> Result<Material, String> {
@@ -706,6 +748,12 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Sound", "Off", "On").section(SPEAKER))]
     pub sound: Option<Speaker>,
+    /// Sounds it plays when things happen to it (Pressed, Arrived, Hit…).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sounds: Vec<Hook>,
+    /// What its surface sounds like underfoot (None: nothing special; a material can say instead).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sounds_like: Option<Ground>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
@@ -723,6 +771,7 @@ impl Part {
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
+            sounds: vec![], sounds_like: None,
         }
     }
 
@@ -731,6 +780,17 @@ impl Part {
         if self.mover.is_some() { v.extend(Mover::OUTPUTS); }
         v
     }
+    /// What can happen to it while playing, each of which can play a sound: what it sends along wires, Starts
+    /// (beginning to move) and Hit (a loose part knocking into something).
+    pub fn events(&self) -> Vec<&'static str> {
+        let mut v = self.outputs();
+        if self.mover.is_some() { v.insert(0, "Starts"); }
+        if self.loose.is_some() { v.push("Hit"); }
+        v
+    }
+    /// The sound it plays when `e` happens.
+    pub fn sound_on(&self, e: &str) -> Option<&str> { self.sounds.iter().find(|h| h.on == e).map(|h| h.sound.as_str()).filter(|s| !s.is_empty()) }
+
     pub fn inputs(&self) -> &'static [&'static str] {
         if self.mover.is_some() { &Mover::INPUTS } else if self.shape == Shape::Sound { &Speaker::INPUTS } else { &[] }
     }
@@ -740,7 +800,7 @@ impl Part {
     /// own, as an instance's placement is in SketchUp.
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
-            && self.tags == o.tags && self.loose == o.loose
+            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like
     }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
@@ -752,6 +812,7 @@ impl Part {
         self.collision = from.collision;
         self.tags = from.tags.clone();
         self.loose = from.loose.clone();
+        self.sounds_like = from.sounds_like;
     }
 }
 
@@ -772,6 +833,8 @@ pub struct Level {
     pub lighting: Lighting,
     #[serde(default, skip_serializing_if = "Navigation::is_default")]
     pub navigation: Navigation,
+    #[serde(default, skip_serializing_if = "WalkerSounds::is_default")]
+    pub walker: WalkerSounds,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]
@@ -1079,6 +1142,23 @@ mod tests {
         assert_eq!(steps.all_clips().count(), 3);
         let text = ron::to_string(&steps).unwrap();
         assert_eq!(ron::from_str::<Sound>(&text).unwrap(), steps);
+        // underfoot: the part's own sound, or the material on its top face over it
+        let mut lvl = Level::default();
+        let mut floor = Part::placed(Shape::Box, None, "Floor".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [4.0, 1.0, 4.0]);
+        floor.sounds_like = Some(Ground::Wood);
+        let id = lvl.add(floor);
+        assert_eq!(lvl.ground_under(id), Some(Ground::Wood));
+        lvl.materials.insert("assets/materials/turf.bev".into(), Material { sounds_like: Some(Ground::Grass), ..Default::default() });
+        lvl.get_mut(id).unwrap().lay(Surface { face: None, material: "assets/materials/turf.bev".into(), tile: [1.0, 1.0], offset: [0.0, 0.0] });
+        assert_eq!(lvl.ground_under(id), Some(Ground::Grass));
+        // what can happen to a part: its outputs, Starts when it moves, Hit when it's loose
+        let mut b = Part::placed(Shape::Interact, None, "B".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [0.5; 3]);
+        assert_eq!(b.events(), ["Pressed"]);
+        b.mover = Some(Mover::default());
+        b.loose = Some(Loose::default());
+        assert_eq!(b.events(), ["Starts", "Pressed", "Arrived", "Returned", "Hit"]);
+        b.sounds.push(Hook { on: "Hit".into(), sound: "assets/sounds/knock.bev".into() });
+        assert_eq!((b.sound_on("Hit"), b.sound_on("Pressed")), (Some("assets/sounds/knock.bev"), None));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

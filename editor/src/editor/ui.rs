@@ -747,6 +747,20 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                 if let Some(i) = remove { p.surfaces.remove(i); }
             });
         }
+        // what it plays when things happen to it
+        let events = p.events();
+        if !events.is_empty() {
+            let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
+            column(ui, 0.0, "SOUNDS", |ui| {
+                for e in events {
+                    let mut chosen = p.sound_on(e).unwrap_or_default().to_string();
+                    if sound_row(ui, e, &mut chosen, &files, &format!("What it plays when it's {}", event_words(e))) {
+                        p.sounds.retain(|h| h.on != e);
+                        if !chosen.is_empty() { p.sounds.push(level::Hook { on: e.into(), sound: chosen }); }
+                    }
+                }
+            });
+        }
         let outs = p.outputs();
         let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
         if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
@@ -783,7 +797,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
         }
         // rarely used: Unique, and its surface's tags (the player start, lights and cameras have no surface to tag)
         let tags = !(p.shape == Shape::PlayerStart || p.shape.is_marker());
-        group(ui, "ADVANCED", Some(1 + tags as usize), |ui| {
+        group(ui, "ADVANCED", Some(1 + 2 * tags as usize), |ui| {
             ui.horizontal(|ui| {
                 let help = if p.unique {
                     "Its contents are its own"
@@ -797,7 +811,10 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
                     theme::toggle(ui, &mut p.unique).tip("On: changing its look never changes the parts just like it");
                 });
             });
-            if tags { settings::section(ui, &mut p, level::TAGS, &mut ctx); }
+            if tags {
+                settings::section(ui, &mut p, level::TAGS, &mut ctx);
+                ground_row(ui, "part sounds like", &mut p.sounds_like, "What its surface sounds like underfoot: steps play their recordings for it");
+            }
         });
         ranges_changed = ctx.ranges_changed;
     });
@@ -845,6 +862,16 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 theme::hint(ui, "Test", &["`"]);
                 theme::hint(ui, "Save", &["Ctrl", "S"]);
             });
+            // the walker's sounds (until characters have their own)
+            let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
+            let mut w = ed.level.walker.clone();
+            column(ui, 0.0, "WALKER SOUNDS", |ui| {
+                for e in level::WalkerSounds::EVENTS {
+                    let help = match e { "Step" => "Each step (its recordings for the surface underfoot)", "Jump" => "Leaving the ground", _ => "Coming down from a jump or a fall" };
+                    sound_row(ui, e, w.get_mut(e).expect("one of its events"), &files, help);
+                }
+            });
+            if w != ed.level.walker { ed.level.walker = w; }
         }
         LevelMode::Lighting => {
             column(ui, 0.0, "LEVEL · LIGHTING", |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
@@ -897,6 +924,37 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     if l != ed.level.lighting { ed.level.lighting = l; }
     if n != ed.level.navigation { ed.level.navigation = n; }
     if build { ed.build_navigation(); }
+}
+
+/// A row choosing a sound file (or none) for `label`; true when it changed.
+fn sound_row(ui: &mut Ui, label: &str, chosen: &mut String, files: &[String], help: &str) -> bool {
+    let before = chosen.clone();
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new(label).color(TEXT_2)).tip(help); });
+        let shown = if chosen.is_empty() { "None".to_string() } else { sound_name(chosen) };
+        egui::ComboBox::from_id_salt(("sound row", label, ui.id())).selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(chosen, String::new(), "None");
+            for f in files { ui.selectable_value(chosen, f.clone(), sound_name(f)); }
+            if files.is_empty() { ui.label(egui::RichText::new("No sounds yet (Audio tab)").color(MUTED)); }
+        });
+    });
+    *chosen != before
+}
+
+/// A row choosing what a surface sounds like underfoot.
+fn ground_row(ui: &mut Ui, id: &str, g: &mut Option<level::Ground>, help: &str) {
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Sounds like").color(TEXT_2)).tip(help); });
+        egui::ComboBox::from_id_salt(id).selected_text(g.map_or("Nothing special", |g| g.label())).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(g, None, "Nothing special");
+            for x in level::Ground::ALL { ui.selectable_value(g, Some(x), x.label()); }
+        });
+    });
+}
+
+/// An event in words: "pressed", "hit", "starts moving".
+fn event_words(e: &str) -> String {
+    match e { "Starts" => "starting to move".into(), "Hit" => "knocked into something".into(), _ => e.to_lowercase() }
 }
 
 /// The dock's list: the level's parts (those of the Level topic), found by name, in sections by kind, each with its
@@ -1011,7 +1069,10 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
         ui.label(egui::RichText::new("Drag the material from Assets onto faces").color(MUTED).size(11.0));
     });
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: project_palette(&ed.level) };
-    column(ui, 0.0, "LOOK", |ui| { settings::section(ui, &mut m, level::MATERIAL, &mut ctx); });
+    column(ui, 0.0, "LOOK", |ui| {
+        settings::section(ui, &mut m, level::MATERIAL, &mut ctx);
+        ground_row(ui, "material sounds like", &mut m.sounds_like, "What it sounds like underfoot, wherever it's laid (else what the part says)");
+    });
     ranges_changed = ctx.ranges_changed;
     if m != before { ed.level.materials.insert(path.to_string(), m.clone()); }
     if ranges_changed { ed.level.ranges = ranges; }
@@ -1057,6 +1118,8 @@ fn group_look(title: &str) -> (String, &'static str, Color32) {
         "LEVEL · PHYSICS · NAVIGATION" => ("Navigation", "route", theme::CAT_FLOW),
         "LEVEL · CAMERAS" => ("Cameras", "camera", theme::CAT_CAMERAS),
         "ADVANCED" => ("Advanced", "sliders", MUTED),
+        "SOUNDS" => ("Sounds", "wave", theme::CAT_ACTIONS),
+        "WALKER SOUNDS" => ("Walker sounds", "person", theme::CAT_GAME),
         "RECORDINGS" => ("Recordings", "wave", theme::CAT_ACTIONS),
         "ON SURFACES" => ("On surfaces", "layers", theme::CAT_ACTIONS),
         level::SOUND => ("Sound", "sliders", theme::CAT_ACTIONS),

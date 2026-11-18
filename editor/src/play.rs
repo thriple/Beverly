@@ -23,6 +23,11 @@ const GRAVITY: f32 = 22.0;
 const JUMP: f32 = 1.45;
 const WALK: f32 = 5.0;
 const RUN: f32 = 9.0;
+/// How far the walker goes between steps (each one a Step for its sound).
+const STRIDE: f32 = 1.8;
+/// How sharply a loose part's speed must change in one step to be a Hit (m/s), and how soon it can be another.
+const KNOCK: f32 = 3.0;
+const KNOCK_AGAIN: f32 = 0.2;
 
 /// What the walker can do: walk (always), and jump.
 #[derive(TnuaScheme)]
@@ -34,7 +39,7 @@ pub enum Moves {
 /// The walker as the rest of Beverly sees it: feet, velocity, facing, the camera's yaw / pitch, whether it stands on
 /// something and on which part. Read from its body each step.
 #[derive(Default, Clone)]
-pub struct Walker { pub pos: Vec3, pub vel: Vec3, pub facing: f32, pub yaw: f32, pub pitch: f32, pub ground: bool, on: Option<u64> }
+pub struct Walker { pub pos: Vec3, pub vel: Vec3, pub facing: f32, pub yaw: f32, pub pitch: f32, pub ground: bool, on: Option<u64>, stride: f32 }
 
 impl Walker {
     /// The part it stands on.
@@ -67,6 +72,9 @@ pub struct Play {
     homes: HashMap<u64, Transform>,
     /// Slippery parts (surface tag).
     slippery: HashSet<u64>,
+    /// Loose parts: their speed last step, and when each last made a Hit.
+    loose: HashMap<u64, (Vec3, f32)>,
+    clock: f32,
     /// E pressed since the last step (keys are read every frame, play moves on the fixed step).
     pub(crate) press: bool,
     /// A game's own player character plays instead of the walker: its plugin sets this to its controls hint,
@@ -97,7 +105,7 @@ impl Plugin for PlayPlugin {
             .add_plugins((crate::physics::PhysicsPlugin, TnuaControllerPlugin::<Moves>::new(PhysicsSchedule), TnuaAvian3dPlugin::new(PhysicsSchedule)))
             .add_systems(Startup, feel)
             .add_systems(Update, (keys.run_if(playing), follow.run_if(walking)))
-            .add_systems(FixedUpdate, (sense.run_if(walking), crate::script::run.run_if(playing), controls.run_if(walking)).chain());
+            .add_systems(FixedUpdate, (sense.run_if(walking), knocks.run_if(playing), crate::script::run.run_if(playing), controls.run_if(walking)).chain());
     }
 }
 
@@ -119,6 +127,8 @@ impl Play {
         self.nav = crate::nav::build(level, geo).ok().and_then(|m| crate::nav::Finder::new(&m, &level.navigation).ok());
         self.homes = level.parts.iter().filter(|p| crate::physics::kind(p).is_some_and(|k| !k.is_static())).map(|p| (p.id, part_transform(p))).collect();
         self.slippery = level.parts.iter().filter(|p| p.tags.contains(&Tag::Slippery)).map(|p| p.id).collect();
+        self.loose = level.parts.iter().filter(|p| p.loose.is_some()).map(|p| (p.id, (Vec3::ZERO, -1.0))).collect();
+        self.clock = 0.0;
         self.press = false;
         self.feet = feet;
         self.run += 1;
@@ -180,15 +190,43 @@ fn keys(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, motion: Res<Acc
     }
 }
 
-/// At the start of each step: where the walker's body got to, and what it stands on.
-fn sense(mut play: ResMut<Play>, body: Query<(&Position, &LinearVelocity, &TnuaController<Moves>), With<WalkerBody>>, parts: Query<&PartBody>) {
+/// At the start of each step: where the walker's body got to and what it stands on; a Step each stride on the
+/// ground, Jump on leaving it upward and Land on coming down.
+fn sense(mut play: ResMut<Play>, time: Res<Time>, body: Query<(&Position, &LinearVelocity, &TnuaController<Moves>), With<WalkerBody>>, parts: Query<&PartBody>) {
     let Ok((at, v, c)) = body.single() else { return };
+    let play = &mut *play;
     let w = &mut play.walker;
+    let (was_ground, was_vel) = (w.ground, w.vel);
     w.pos = at.0 - Vec3::Y * FLOAT;
     w.vel = v.0;
     w.ground = c.is_airborne().is_ok_and(|air| !air);
     w.on = c.basis_memory.standing_on_entity().and_then(|e| parts.get(e).ok()).map(|b| b.0);
     play.feet = w.pos;
+    let (pos, on) = (w.pos, w.on);
+    let mut happen = |what: &str| play.script.happened.push(crate::script::Happened { what: what.into(), part: None, at: Some(pos), on });
+    if w.ground && !was_ground && was_vel.y < -3.0 { happen("Land"); w.stride = 0.0; }
+    if !w.ground && was_ground && w.vel.y > 1.5 { happen("Jump"); }
+    if w.ground {
+        w.stride += w.vel.with_y(0.0).length() * time.delta_secs();
+        if w.stride >= STRIDE { w.stride -= STRIDE; happen("Step"); }
+    } else {
+        // the first step after landing comes soon
+        w.stride = STRIDE * 0.6;
+    }
+}
+
+/// Loose parts that knock into something (their speed changes sharply in one step) make a Hit.
+fn knocks(mut play: ResMut<Play>, time: Res<Time>, bodies: Query<(&PartBody, &LinearVelocity, &Position)>) {
+    let play = &mut *play;
+    play.clock += time.delta_secs();
+    for (b, v, at) in &bodies {
+        let Some((last, hit)) = play.loose.get_mut(&b.0) else { continue };
+        if (v.0 - *last).length() > KNOCK && play.clock - *hit > KNOCK_AGAIN {
+            *hit = play.clock;
+            play.script.happened.push(crate::script::Happened { what: "Hit".into(), part: Some(b.0), at: Some(at.0), on: None });
+        }
+        *last = v.0;
+    }
 }
 
 /// The walker's controls for this step: walk where the keys say (Shift runs), jump while Space is held; slippery

@@ -1,0 +1,1 @@
+(format: 1, clips: ["assets/sounds/knock.wav"], near: 1.0, far: 30.0, at_once: 4.0)

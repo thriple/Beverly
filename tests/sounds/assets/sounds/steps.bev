@@ -1,0 +1,1 @@
+(format: 1, clips: ["assets/sounds/bell.wav"], sets: [(ground: Grass, clips: ["assets/sounds/hum.wav"])], volume: -6.0, vary: 0.3, near: 1.0, far: 25.0, at_once: 4.0)

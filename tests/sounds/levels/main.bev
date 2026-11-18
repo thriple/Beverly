@@ -5,8 +5,11 @@
         (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 1.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
         (id: 2, name: "Bell button", shape: Interact, pos: (1.0, 0.6, -0.5), rot: (0.0, 0.0, 0.0, 1.0), size: (0.5, 1.0, 0.5), color: (0.94, 0.55, 0.26), visible: true, collision: Solid),
         (id: 3, name: "Hum", shape: Sound, pos: (0.0, 1.0, -3.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.4, 0.4, 0.4), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough, sound: Some((sound: "assets/sounds/hum.bev", plays: OnStart))),
+        (id: 5, name: "Grass patch", shape: Plane, pos: (0.0, 0.05, -4.0), rot: (0.0, 0.0, 0.0, 1.0), size: (4.0, 0.1, 10.0), color: (0.36, 0.6, 0.3), visible: true, collision: Solid, sounds_like: Some(Grass)),
+        (id: 6, name: "Crate", shape: Box, pos: (-3.0, 3.0, -3.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 0.8, 0.8), color: (0.6, 0.45, 0.3), visible: true, collision: Solid, loose: Some((mass: 20.0, friction: 0.6)), sounds: [(on: "Hit", sound: "assets/sounds/knock.bev")]),
         (id: 4, name: "Bell", shape: Sound, pos: (3.0, 1.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.4, 0.4, 0.4), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough, sound: Some((sound: "assets/sounds/bell.bev", plays: WhenWired))),
     ],
-    next_id: 4,
+    next_id: 6,
+    walker: (steps: "assets/sounds/steps.bev"),
     wires: [(from: 2, out: "Pressed", to: 4, input: "Play"), (from: 2, out: "Pressed", to: 3, input: "Stop")],
 )

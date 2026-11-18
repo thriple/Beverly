@@ -153,13 +153,22 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         }
         "change_level" => {
             editable(ed)?;
-            if args.get("settings").is_none() && args.get("navigation").is_none() { return Err("Give settings, such as {\"Interior\": true}, or navigation, such as {\"Step\": 0.3}".into()); }
+            if args.get("settings").is_none() && args.get("navigation").is_none() && args.get("walker_sounds").is_none() { return Err("Give settings, such as {\"Interior\": true}, or navigation, such as {\"Step\": 0.3}".into()); }
+            let mut w = ed.level.walker.clone();
+            if let Some(map) = args.get("walker_sounds") {
+                let map = map.as_object().ok_or("walker_sounds is an object such as {\"Step\": \"footsteps\"} (null for none)")?;
+                for (e, v) in map {
+                    let key = crate::level::WalkerSounds::EVENTS.into_iter().find(|x| x.eq_ignore_ascii_case(e)).ok_or_else(|| format!("The walker has no {e} (it has: Step, Jump, Land)"))?;
+                    *w.get_mut(key).expect("one of its events") = match v.as_str() { Some(s) => sound_ref(ed, s)?, None => String::new() };
+                }
+            }
             let mut l = ed.level.lighting.clone();
             let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut l, set)?, None => vec![] };
             let mut n = ed.level.navigation.clone();
             if let Some(set) = args.get("navigation") { changed.extend(settings::apply(&mut n, set)?); }
             ed.level.lighting = l;
             ed.level.navigation = n;
+            if w != ed.level.walker { changed.push("walker_sounds"); ed.level.walker = w; }
             ed.commit();
             Ok(json!({"changed": changed, "level": describe_level(ed)}))
         }
@@ -270,10 +279,25 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             editable(ed)?;
             let mut p = part_of(ed, args)?.clone();
             let set = args.get("settings");
-            if set.is_none() && args.get("aim").is_none() && args.get("sound").is_none() { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
+            if ["settings", "aim", "sound", "sounds", "sounds_like"].iter().all(|k| args.get(*k).is_none()) { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
             let mut changed = match set { Some(set) => settings::apply(&mut p, set)?, None => vec![] };
             if aim(&mut p, args)? { changed.push("rot"); }
             if plays(ed, &mut p, args)? { changed.push("sound"); }
+            if let Some(map) = args.get("sounds") {
+                let map = map.as_object().ok_or("sounds is an object of event → sound, such as {\"Pressed\": \"click\"} (null for none)")?;
+                let events = p.events();
+                for (e, v) in map {
+                    let e = *events.iter().find(|x| x.eq_ignore_ascii_case(e)).ok_or_else(|| format!("{} has no event {e} (it has: {})", p.name, list_or_none(&events)))?;
+                    let sound = match v.as_str() { Some(s) => sound_ref(ed, s)?, None => String::new() };
+                    p.sounds.retain(|h| h.on != e);
+                    if !sound.is_empty() { p.sounds.push(crate::level::Hook { on: e.into(), sound }); }
+                }
+                changed.push("sounds");
+            }
+            if let Some(g) = args.get("sounds_like") {
+                p.sounds_like = match g.as_str() { Some(g) => Some(ground_ref(g)?), None => None };
+                changed.push("sounds_like");
+            }
             let id = p.id;
             *ed.level.get_mut(id).expect("found above") = p;
             settle_instances(ed, args)?;
@@ -417,6 +441,10 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
             let mut m = ed.level.materials[&path].clone();
             let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut m, set)?, None => vec![] };
+            if let Some(g) = args.get("sounds_like") {
+                m.sounds_like = match g.as_str() { Some(g) => Some(ground_ref(g)?), None => None };
+                changed.push("sounds_like");
+            }
             if let Some(t) = args.get("texture") {
                 m.texture = match t.as_str() { Some(t) => Some(texture_ref(ed, t)?), None => None };
                 changed.push("texture");
@@ -823,7 +851,7 @@ fn texture_ref(ed: &Editor, t: &str) -> Result<String, String> {
 fn describe_material(ed: &Editor, path: &str) -> Value {
     let m = &ed.level.materials[path];
     let (surfaces, parts) = ed.level.material_users(path);
-    json!({"material": path, "texture": m.texture, "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)})
+    json!({"material": path, "texture": m.texture, "sounds_like": m.sounds_like.map(|g| g.label()), "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)})
 }
 
 /// Point a spot light at `aim` [x, y, z]: it turns to it and reaches it. Returns whether there was one.
@@ -863,6 +891,7 @@ fn describe_level(ed: &Editor) -> Value {
     json!({
         "name": ed.level.name,
         "settings": settings::describe(&ed.level.lighting),
+        "walker_sounds": {"Step": ed.level.walker.steps, "Jump": ed.level.walker.jump, "Land": ed.level.walker.land},
         "navigation": {
             "settings": settings::describe(&ed.level.navigation),
             "built": ed.nav.is_some(),
@@ -891,6 +920,9 @@ fn describe(ed: &Editor, p: &Part) -> Value {
         v["looks"] = settings::nums(&(rot * Vec3::NEG_Z).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0));
     }
     if let Some(s) = p.sound.as_ref() { v["sound"] = json!(s.sound); }
+    v["events"] = json!(p.events());
+    v["sounds"] = Value::Object(p.sounds.iter().map(|h| (h.on.clone(), json!(h.sound))).collect());
+    if let Some(g) = p.sounds_like { v["sounds_like"] = json!(g.label()); }
     if p.shape == Shape::SpotLight { v["shines"] = settings::nums(&crate::editor::light::aim(p).to_array().map(|x| (x * 1e4).round() / 1e4 + 0.0)); }
     v["wires_out"] = Value::Array(ed.level.wires.iter().filter(|w| w.from == p.id).map(|w| json!({"output": w.out, "to": name(w.to), "to_id": w.to, "input": w.input})).collect());
     v["wires_in"] = Value::Array(ed.level.wires.iter().filter(|w| w.to == p.id).map(|w| json!({"input": w.input, "from": name(w.from), "from_id": w.from, "output": w.out})).collect());

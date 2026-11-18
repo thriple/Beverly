@@ -14,6 +14,7 @@
 //!         (at: 2.0, expect: [Part("Lift", (0, 3, 0), 0.1)]),
 //!         (at: 2.0, expect: [Path((0, 0, 8), (0, 2, -2), Some(12.5), 0.5)]),  // a walk this long; None: no way
 //!         (at: 2.5, expect: [Playing("Bell", true)]),  // a Sound part is playing (skipped with no sound device)
+//!         (at: 3.0, expect: [Played("grass 1.ogg", true)]),  // a recording started since the last Played check
 //!     ],
 //! )
 //! ```
@@ -75,6 +76,9 @@ pub enum Expect {
     Path((f32, f32, f32), (f32, f32, f32), Option<f32>, f32),
     /// The named Sound part is playing (true) or not (false). Skipped on a computer with no sound device.
     Playing(String, bool),
+    /// This recording (its file name) started (true) or didn't (false) since the step with the last Played check.
+    /// Skipped with no sound device.
+    Played(String, bool),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -128,6 +132,8 @@ struct Run {
     checks: u32,
     failed: u32,
     strayed: Option<(u32, f32)>,
+    /// How much of the sounds' log the last Played check had seen.
+    heard: usize,
 }
 
 /// Read a test file and check its keys and part names against the level.
@@ -159,7 +165,7 @@ fn load(dir: &Path, file: &Path, level: &Level, record: bool) -> Result<Run, Str
     Ok(Run {
         out: dir.join("test-output").join(&name), name, steps, parts, trace_path, trace_within: s.trace_within, golden,
         record, next: 0, begun: false, step: 0, waited: 0, held: vec![], trace: vec![], shots: vec![], lines: vec![], checks: 0,
-        failed: 0, strayed: None,
+        failed: 0, strayed: None, heard: 0,
     })
 }
 
@@ -237,7 +243,21 @@ fn drive(
             said.push(format!("screenshot {}", st.shot));
         }
         if !said.is_empty() { run.lines.push(format!("{t:6.2}s  {}", said.join(", "))); }
+        let heard_now = sounds.log.len();
+        let mut checked_played = false;
         for e in &st.expect {
+            if let Expect::Played(clip, want) = e {
+                if !sounds.on() {
+                    run.lines.push(format!("{t:6.2}s  - \"{clip}\" played: skipped (no sound device)"));
+                    continue;
+                }
+                checked_played = true;
+                let got = sounds.log[run.heard.min(heard_now)..heard_now].iter().any(|c| c.rsplit('/').next() == Some(clip.as_str()));
+                run.checks += 1;
+                if got != *want { run.failed += 1; }
+                run.lines.push(format!("{t:6.2}s  {} \"{clip}\" {}played: {}", if got == *want { "✓" } else { "✗ FAIL" }, if *want { "" } else { "not " }, if got { "played" } else { "not heard" }));
+                continue;
+            }
             if let Expect::Path(a, b, want, d) = e {
                 let got = play.nav.as_ref().map(|f| f.path(Vec3::from(*a), Vec3::from(*b)).map(|p| crate::nav::length(&p)));
                 let ok = match (got, want) { (Some(Ok(l)), Some(w)) => (l - w).abs() <= *d, (Some(Err(_)), None) => true, _ => false };
@@ -267,7 +287,7 @@ fn drive(
                     let at = parts.iter().find(|(pid, _)| Some(pid.0) == id).map(|(_, tr)| tr.translation);
                     (format!("part \"{n}\""), at, Vec3::from(*p), *d)
                 }
-                Expect::Path(..) | Expect::Playing(..) => unreachable!("checked above"),
+                Expect::Path(..) | Expect::Playing(..) | Expect::Played(..) => unreachable!("checked above"),
             };
             run.checks += 1;
             let ok = at.is_some_and(|a| a.distance(want) <= d);
@@ -275,6 +295,7 @@ fn drive(
             let got = at.map(v).unwrap_or("not found".into());
             run.lines.push(format!("{t:6.2}s  {} {what} near {} ± {d}: {got}", if ok { "✓" } else { "✗ FAIL" }, v(want)));
         }
+        if checked_played { run.heard = heard_now; }
         run.next += 1;
     }
     for h in &run.held {

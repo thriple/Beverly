@@ -27,6 +27,20 @@ impl Moving {
     fn offset(&self) -> Vec3 { self.to * (self.t * self.t * (3.0 - 2.0 * self.t)) }
 }
 
+/// Something that happened while playing, for sounds (and later effects) to follow; they never steer the game.
+/// A part's events are what it sends along wires, Starts and Hit (see `Part::events`); the walker's (no part) are
+/// Step, Jump and Land, with `on` the part underfoot. A game's own player character pushes its Step, Jump and Land
+/// into `Script::happened` the same way.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Happened {
+    pub what: String,
+    pub part: Option<u64>,
+    /// Where (None: where the part is).
+    pub at: Option<Vec3>,
+    /// The part the walker stands on.
+    pub on: Option<u64>,
+}
+
 /// Where the level's buttons and moving parts are and how they are wired.
 #[derive(Default)]
 pub struct Script {
@@ -38,6 +52,8 @@ pub struct Script {
     pub fired: Vec<usize>,
     /// What the wires sent (part, input) since the sounds last took it (see `sound.rs`).
     pub inputs: Vec<(u64, String)>,
+    /// What happened since the sounds last took it.
+    pub happened: Vec<Happened>,
 }
 
 impl Script {
@@ -51,7 +67,7 @@ impl Script {
             })
             .collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
-        Self { movers, buttons, wires: level.wires.clone(), fired: vec![], inputs: vec![] }
+        Self { movers, buttons, wires: level.wires.clone(), fired: vec![], inputs: vec![], happened: vec![] }
     }
 
     /// The button the player at `feet` could press now.
@@ -72,6 +88,7 @@ impl Script {
         }
         self.fired.clear();
         self.inputs.clear();
+        self.happened.clear();
     }
 
     /// How far moving part `id` is from where it was placed.
@@ -92,17 +109,20 @@ impl Script {
 
     /// Send `out` from part `from` along its wires.
     pub fn send(&mut self, from: u64, out: &str) {
+        self.happened.push(Happened { what: out.into(), part: Some(from), at: None, on: None });
         for (i, w) in self.wires.iter().enumerate() {
             if w.from != from || w.out != out { continue; }
             self.fired.push(i);
             self.inputs.push((w.to, w.input.clone()));
             if let Some(m) = self.movers.iter_mut().find(|m| m.id == w.to) {
+                let was = m.goal;
                 match w.input.as_str() {
                     "Go" => m.goal = 1.0,
                     "Back" => m.goal = 0.0,
                     "Toggle" => m.goal = if m.goal > 0.5 { 0.0 } else { 1.0 },
                     _ => {}
                 }
+                if m.goal != was && m.t != m.goal { self.happened.push(Happened { what: "Starts".into(), part: Some(m.id), at: None, on: None }); }
             }
         }
     }
@@ -130,7 +150,7 @@ mod tests {
     use crate::level::{Collision, Part};
 
     fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
-        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None }
+        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None }
     }
 
     #[test]

@@ -1,9 +1,13 @@
-// The hum plays from the start; the button rings the bell and stops the hum.
+// The hum plays from the start; the button rings the bell and stops the hum; the walker's steps on the grass
+// patch play the steps' Grass recording (the hum's), not their usual one (the bell's); the crate falls and knocks.
 (
     steps: [
         (at: 0.3, expect: [Playing("Hum", true), Playing("Bell", false)]),
         (at: 0.5, press: ["E"]),
         (at: 0.6, release: ["E"]),
-        (at: 0.8, expect: [Playing("Bell", true), Playing("Hum", false)]),
+        (at: 0.8, expect: [Playing("Bell", true), Playing("Hum", false), Played("bell.wav", true), Played("knock.wav", true)]),
+        (at: 0.9, press: ["W"]),
+        (at: 2.2, release: ["W"]),
+        (at: 2.3, expect: [Played("hum.wav", true), Played("bell.wav", false), Feet((0, 0.1, -6), 1.5)]),
     ],
 )

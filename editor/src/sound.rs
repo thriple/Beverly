@@ -6,6 +6,7 @@
 //! a sound file can be heard once with [`Sounds::preview`]. While playing, On start parts start with the run and wires
 //! send Play and Stop.
 use crate::level::{Ground, Level, Pick, Plays, Sound, Speaker};
+use crate::script::Happened;
 use bevy::prelude::*;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
 use kira::sound::PlaybackState;
@@ -37,6 +38,8 @@ struct Voice {
     stopped: bool,
     /// Started by `cue` or Play: it plays to its end, whatever the speakers are doing.
     cued: bool,
+    /// Where it plays from when that isn't a part's place (something that happened somewhere).
+    fixed: Option<Vec3>,
 }
 
 impl Voice {
@@ -66,6 +69,8 @@ pub struct Sounds {
     waves: HashMap<String, Wave>,
     /// The project the waves are from.
     waves_dir: std::path::PathBuf,
+    /// The recordings started lately, oldest first (for scripted tests: what was heard).
+    pub log: Vec<String>,
     seed: u64,
 }
 
@@ -124,7 +129,7 @@ impl Sounds {
     /// `run`: `Some(Play::run)` while playing, None while editing; `inputs`: what the wires sent this frame (part,
     /// input); `ear`: the camera; `at`: where a part is now.
     #[allow(clippy::too_many_arguments)]
-    pub fn step(&mut self, level: &Level, speakers: &[(u64, Speaker)], dir: &Path, run: Option<u32>, inputs: Vec<(u64, String)>, ear: &GlobalTransform, at: impl Fn(u64) -> Option<Vec3>) {
+    pub fn step(&mut self, level: &Level, speakers: &[(u64, Speaker)], dir: &Path, run: Option<u32>, inputs: Vec<(u64, String)>, happened: Vec<Happened>, ear: &GlobalTransform, at: impl Fn(u64) -> Option<Vec3>) {
         if !self.tried {
             self.tried = true;
             self.seed = 0x2545_F491_4F6C_DD1D;
@@ -170,8 +175,20 @@ impl Sounds {
                     if !self.voices.iter().any(|v| v.part == Some(id) && !v.cued) { self.start(level, dir, Some(id), &path, at(id), None, false); }
                 }
             }
-            // playing: what the wires say
+            // playing: what the wires say, and the sounds of what happens
             Some(_) => {
+                for h in happened {
+                    let (path, ground) = match h.part {
+                        None => (level.walker.get(&h.what).to_string(), h.on.and_then(|p| level.ground_under(p))),
+                        Some(id) => (level.get(id).and_then(|p| p.sound_on(&h.what)).unwrap_or_default().to_string(), None),
+                    };
+                    if path.is_empty() { continue; }
+                    let pos = h.at.or_else(|| h.part.and_then(&at));
+                    let n = self.voices.len();
+                    self.start(level, dir, h.part, &path, pos, ground, true);
+                    // it stays where it happened (a moving part's own sounds follow it)
+                    if let (Some(v), Some(p)) = (self.voices.get_mut(n), h.at) { v.fixed = Some(p); }
+                }
                 for (id, input) in inputs {
                     let Some(path) = speakers().find(|(p, _)| *p == id).map(|(_, s)| s.sound.clone()) else { continue };
                     match input.as_str() {
@@ -188,7 +205,7 @@ impl Sounds {
         for (id, path, ground) in std::mem::take(&mut self.cues) { self.start(level, dir, Some(id), &path, at(id), ground, true); }
         // sounds follow their parts (and a preview the listener)
         for v in &mut self.voices {
-            let p = match v.part { Some(id) => at(id), None => Some(ear.translation()) };
+            let p = match (v.fixed, v.part) { (Some(f), _) => Some(f), (None, Some(id)) => at(id), (None, None) => Some(ear.translation()) };
             if let Some(p) = p { v.track.set_position(mint(p), Tween::default()); }
         }
     }
@@ -203,6 +220,8 @@ impl Sounds {
         let k = pick(sound.pick, clips.len(), self.last.get(&key).copied(), &mut self.seed);
         self.last.insert(key, k);
         let clip = clips[k].clone();
+        self.log.push(clip.clone());
+        if self.log.len() > 4096 { self.log.drain(..2048); }
         let Some(data) = self.data(dir, &clip) else { return };
         // no more than At once of this sound: the oldest stops
         let most = sound.at_once.round().max(1.0) as usize;
@@ -224,7 +243,7 @@ impl Sounds {
             .persist_until_sounds_finish(true);
         let Ok(mut track) = engine.manager.add_spatial_sub_track(&engine.listener, mint(pos), builder) else { return };
         match track.play(data) {
-            Ok(handle) => self.voices.push(Voice { part, path: path.to_string(), sound: sound.clone(), track, handle, stopped: false, cued }),
+            Ok(handle) => self.voices.push(Voice { part, path: path.to_string(), sound: sound.clone(), track, handle, stopped: false, cued, fixed: None }),
             Err(e) => warn!("Couldn't play {clip}: {e}"),
         }
     }
