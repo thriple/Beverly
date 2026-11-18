@@ -576,6 +576,68 @@ pub struct Stroke {
     /// Where it went, in metres in the part's own frame (from its middle, turned with it), so it stays put when the
     /// part moves, turns or is resized.
     pub points: Vec<[f32; 3]>,
+    /// How it lays its material: adding to what is there, taking it away, or setting it to exactly its strength.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub lays: Lays,
+    /// Where it may land (slope, height), worked out where it shows, so it holds wherever the part goes.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub rules: Rules,
+}
+
+/// How a stroke lays its layer.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Lays {
+    /// Adds a little each pass (as much as its strength), covering other layers as it goes.
+    #[default]
+    Add,
+    /// Takes a little of its own layer away each pass, leaving the others.
+    Subtract,
+    /// Sets its layer to exactly its strength, however often it goes over a place.
+    Set,
+}
+
+/// Where a brush (or any tool) may land, whatever it lays. Kept with each stroke.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+#[serde(default)]
+pub struct Rules {
+    /// The steepest surface it lands on, in degrees from flat (90: any, walls included).
+    #[reflect(@Setting::feel("Slope", &["Flat", "Gentle", "Steep", "Any"], 0.0, 90.0, "°").section(RULES).help("The steepest surface it lands on: Flat only paints tops, Any paints walls too"))]
+    pub slope: f32,
+    /// Only between these heights in the world (metres), when set.
+    pub band: Option<[f32; 2]>,
+    /// Only on parts with this surface tag, when set.
+    pub on: Option<Tag>,
+}
+
+/// The rules' section in the brush's panel.
+pub const RULES: &str = "RULES";
+
+impl Default for Rules {
+    fn default() -> Self { Rules { slope: 90.0, band: None, on: None } }
+}
+
+impl Rules {
+    /// How much a surface with this upward share of its normal (1: flat, 0: a wall) at this height lets through.
+    pub fn allows(&self, up: f32, y: f32) -> f32 {
+        let (c, lo, hi) = self.shader();
+        let slope = if c < -1.0 { 1.0 } else { smooth(c - 0.03, c + 0.03, up) };
+        slope * smooth(lo - 0.05, lo + 0.05, y) * (1.0 - smooth(hi - 0.05, hi + 0.05, y))
+    }
+    /// As the shader takes them: the cosine of the steepest slope (below -1: any), and the height band.
+    pub fn shader(&self) -> (f32, f32, f32) {
+        let c = if self.slope >= 89.5 { -2.0 } else { self.slope.to_radians().cos() };
+        let [lo, hi] = self.band.unwrap_or([-1e9, 1e9]);
+        (c, lo, hi)
+    }
+}
+
+/// For serde: leave a field out of the file while it is its default.
+fn is_default<T: Default + PartialEq>(v: &T) -> bool { *v == T::default() }
+
+fn smooth(a: f32, b: f32, x: f32) -> f32 {
+    let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 impl Part {
@@ -712,6 +774,10 @@ pub enum Tag {
     #[reflect(@Label("Perch spot"))]
     PerchSpot,
     Slippery,
+}
+
+impl Tag {
+    pub const ALL: [Tag; 6] = [Tag::Climbable, Tag::Diggable, Tag::Water, Tag::GrindRail, Tag::PerchSpot, Tag::Slippery];
 }
 
 /// A loose part: it falls and tumbles when played (a crate, a barrel), is pushed by characters and blasts.

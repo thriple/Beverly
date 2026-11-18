@@ -36,6 +36,8 @@ pub struct View {
     pub cursor: Option<Vec2>,
     /// The pointer is over a panel or a pop-up, so the 3D view ignores it.
     pub over_ui: bool,
+    /// Wheel notches this frame while placing (they turn or size what is placed instead of zooming).
+    pub wheel: f32,
     pub keyboard_in_ui: bool,
     orbit_pivot: Option<Vec3>,
 }
@@ -53,6 +55,7 @@ impl Default for View {
             outline: vec![],
             cursor: None,
             over_ui: false,
+            wheel: 0.0,
             keyboard_in_ui: false,
             orbit_pivot: None,
         }
@@ -121,6 +124,7 @@ pub fn input(
     view.keyboard_in_ui = egui_in.wants_keyboard_input() || ed.dialog_open();
     // only when the pointer is over a panel or pop-up (not merely held down: drags in the 3D view keep going)
     view.over_ui = egui_in.is_pointer_over_area() || egui_in.is_popup_open() || ed.parts_open || ed.dialog_open();
+    view.wheel = 0.0;
     let dt = time.delta_secs();
     let now = time.elapsed_secs_f64();
     let typing = view.keyboard_in_ui || ed.pending.is_some();
@@ -213,7 +217,9 @@ pub fn input(
                 MouseScrollUnit::Line => scroll.delta.y,
                 MouseScrollUnit::Pixel => scroll.delta.y / 60.0,
             };
-            if notches != 0.0 && !over {
+            if notches != 0.0 && !over && ed.placing.is_some() {
+                view.wheel = notches;
+            } else if notches != 0.0 && !over {
                 if let Some(ray) = view.cursor.and_then(|c| view.ray(cam, gtf, c)) {
                     match ed.hit(ray) {
                         Some(h) => {

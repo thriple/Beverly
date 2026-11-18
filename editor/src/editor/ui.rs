@@ -948,9 +948,39 @@ fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
                 if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
             });
         });
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Preset").color(TEXT_2)).tip("Four brushes to switch between (1 to 4); each remembers how you left it"); });
+            let mut k = b.preset;
+            if theme::choices(ui, "brush-preset", &super::brush::PRESETS, &mut k) { b.pick(k); }
+        });
+        ui.add_space(8.0);
         settings::section(ui, &mut b, super::brush::BRUSH, &mut ctx);
     });
+    column(ui, 0.0, level::RULES, |ui| {
+        settings::section(ui, &mut b.rules, level::RULES, &mut ctx);
+        ui.add_space(8.0);
+        // only between two heights in the world
+        let mut band = b.rules.band.is_some();
+        let mut none = false;
+        if settings::toggle_row(ui, "", "Only between heights", &mut band, "Paints only between two heights in the world, wherever the part goes", false, &mut none) {
+            b.rules.band = band.then(|| { let y = ed.painting.over.map_or(0.0, |o| o.1.y); [y - 1.0, y + 1.0] });
+        }
+        if let Some([lo, hi]) = b.rules.band.as_mut() {
+            settings::row(ui, "", "From", "The lowest it paints (metres)", false, &mut none, |ui| settings::number(ui, lo, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
+            settings::row(ui, "", "To", "The highest it paints (metres)", false, &mut none, |ui| settings::number(ui, hi, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
+        }
+        // only on parts with a surface tag
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Only on").color(TEXT_2)).tip("Paints only parts with this surface tag (their Tags, in Advanced)"); });
+            let label = |t: Option<level::Tag>| t.map_or("Any surface".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
+            egui::ComboBox::from_id_salt("brush only on").selected_text(label(b.rules.on)).width(ui.available_width()).show_ui(ui, |ui| {
+                ui.selectable_value(&mut b.rules.on, None, label(None));
+                for t in level::Tag::ALL { ui.selectable_value(&mut b.rules.on, Some(t), label(Some(t))); }
+            });
+        });
+    });
     column(ui, 0.0, "SHORTCUTS", |ui| {
+        theme::hint(ui, "Presets S to XL", &["1", "2", "3", "4"]);
         theme::hint(ui, "Smaller / larger", &["[", "]"]);
         theme::hint(ui, "Softer / harder", &["Shift", "[", "]"]);
         theme::hint(ui, "Size it in the view", &["Alt", "Right-drag"]);
@@ -959,7 +989,7 @@ fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     });
     if theme::main_button(ui, "Done").clicked() { ed.brush_on = false; }
     if ctx.ranges_changed { ed.level.ranges = ranges; }
-    if b != ed.brush { ed.brush = b; }
+    if b != ed.brush { b.keep(); ed.brush = b; }
 }
 
 /// A row choosing a sound file (or none) for `label`; true when it changed.
@@ -1157,6 +1187,7 @@ fn group_look(title: &str) -> (String, &'static str, Color32) {
         "SOUNDS" => ("Sounds", "wave", theme::CAT_ACTIONS),
         "WALKER SOUNDS" => ("Walker sounds", "person", theme::CAT_GAME),
         "BRUSH" => ("Brush", "palette", theme::VIOLET),
+        level::RULES => ("Where it lands", "pin", theme::VIOLET),
         "RECORDINGS" => ("Recordings", "wave", theme::CAT_ACTIONS),
         "ON SURFACES" => ("On surfaces", "layers", theme::CAT_ACTIONS),
         level::SOUND => ("Sound", "sliders", theme::CAT_ACTIONS),
@@ -1253,6 +1284,15 @@ fn kind(shape: Shape) -> (&'static str, &'static str, Color32) {
         Shape::Model => ("Models", "cube", theme::CAT_SHAPES),
         _ => ("Shapes", "cube", theme::CAT_SHAPES),
     }
+}
+
+/// While placing: how the wheel has turned and sized it, when it has.
+fn placed_how(ed: &Editor) -> String {
+    let mut s = String::new();
+    let deg = ed.place_turn.to_degrees().rem_euclid(360.0).round();
+    if deg != 0.0 && deg != 360.0 { s += &format!(" · turned {deg}°"); }
+    if (ed.place_scale - 1.0).abs() > 1e-3 { s += &format!(" · ×{:.2}", ed.place_scale); }
+    s
 }
 
 /// The selection tag: a small pill in the highlight with the part's icon and name, at its top left in the view.
@@ -1373,7 +1413,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
     }
 
     if let Some(shape) = ed.placing {
-        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0 - 34.0), &format!("Placing {} · click a surface", if matches!(shape, Shape::Model | Shape::Sound) { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).map(|m| m.trim_end_matches(".bev").to_string()).unwrap_or_else(|| shape.label().to_string()) } else { shape.label().to_string() }), highlight(), &["Shift", "Esc"]);
+        theme::float_label(ctx, "placing", pos2(r.center().x - 170.0, r.max.y - 48.0 - 34.0), &format!("Placing {}{} · click a surface", if matches!(shape, Shape::Model | Shape::Sound) { ed.placing_model.as_deref().and_then(|m| m.rsplit('/').next()).map(|m| m.trim_end_matches(".bev").to_string()).unwrap_or_else(|| shape.label().to_string()) } else { shape.label().to_string() }, placed_how(ed)), highlight(), &["Wheel", "Shift", "Esc"]);
     }
 
     if let Some((from, out)) = ed.wiring {
@@ -1678,8 +1718,9 @@ fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
     if let Some(s) = pick {
         ed.placing = Some(s);
         ed.placing_model = None;
+        (ed.place_turn, ed.place_scale) = (0.0, 1.0);
         ed.parts_open = false;
-        ed.island.show(s.glyph(), format!("Placing {}", s.label()), "Click a surface · Shift keeps it upright · Esc cancels", Tone::Accent);
+        ed.island.show(s.glyph(), format!("Placing {}", s.label()), "Click a surface · wheel turns, Shift + wheel sizes · Shift keeps it upright · Esc cancels", Tone::Accent);
     } else if let Some(l) = soon {
         ed.island.show("…", format!("{l} arrives with script parts"), "v0.2: triggers, actions, flow, logic", Tone::Plain);
     }

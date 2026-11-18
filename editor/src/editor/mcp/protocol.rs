@@ -263,7 +263,7 @@ pub fn tools() -> Value {
         {
             "name": "paint_stroke",
             "title": "Paint a brush stroke",
-            "description": "Paint a material onto a part with the brush, along points on its surface (in the world): size in metres, hardness 0 (soft) to 1 (hard), strength 0 to 1 (the brush's settings when left out). Later strokes cover earlier ones; erase: true takes paint away instead; clear: true removes every stroke. Visible basic shapes only. Kept as strokes, one undo step each.",
+            "description": "Paint a material onto a part with the brush, along points on its surface (in the world): size in metres, hardness 0 (soft) to 1 (hard), strength 0 to 1, lays add (a little more each pass), subtract (takes that material away, leaving others) or set (exactly its strength), and rules for where it lands: slope (the steepest surface in degrees, 90 any), band ([lowest, highest] world height, or null) and on (a surface tag the part must have). The brush's settings when left out. Later strokes cover earlier ones; erase: true takes all paint away instead; clear: true removes every stroke. Visible basic shapes only. Kept as strokes, one undo step each.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -274,6 +274,8 @@ pub fn tools() -> Value {
                     "size": {"type": "number"},
                     "hardness": {"type": "number"},
                     "strength": {"type": "number"},
+                    "lays": {"type": "string", "enum": ["add", "subtract", "set"]},
+                    "rules": {"type": "object", "properties": {"slope": {"type": "number"}, "band": {"type": ["array", "null"], "items": {"type": "number"}}, "on": {"type": ["string", "null"]}}},
                     "erase": {"type": "boolean"},
                     "clear": {"type": "boolean"},
                     "instances": {"type": "string", "enum": ["all", "this one"]},

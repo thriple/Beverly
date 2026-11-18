@@ -203,7 +203,7 @@ const ICON_W: f32 = 21.0;
 
 /// A settings row: the label in its column, then the control. A setting changed from its default has a bold, white
 /// label and the accent bar at its left: click the bar to put it back.
-fn row<R>(ui: &mut Ui, icon: &str, label: &str, help: &str, differs: bool, reset: &mut bool, add: impl FnOnce(&mut Ui) -> R) -> R {
+pub(crate) fn row<R>(ui: &mut Ui, icon: &str, label: &str, help: &str, differs: bool, reset: &mut bool, add: impl FnOnce(&mut Ui) -> R) -> R {
     ui.horizontal_top(|ui| {
         let colour = if differs { Color32::WHITE } else { TEXT_2 };
         let lead = if icon.is_empty() { 0.0 } else { ICON_W };
@@ -225,7 +225,7 @@ fn changed_bar(ui: &mut Ui, r: egui::Rect) -> bool {
 }
 
 /// A toggle's row: its label across, the toggle at the right.
-fn toggle_row(ui: &mut Ui, icon: &str, label: &str, on: &mut bool, help: &str, differs: bool, reset: &mut bool) -> bool {
+pub(crate) fn toggle_row(ui: &mut Ui, icon: &str, label: &str, on: &mut bool, help: &str, differs: bool, reset: &mut bool) -> bool {
     ui.horizontal(|ui| {
         ui.set_min_height(28.0);
         let r = ui.max_rect();
@@ -282,7 +282,7 @@ fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs:
 fn unit(s: &Setting) -> String { if s.unit.is_empty() { String::new() } else if s.unit == "×" || s.unit == "°" { s.unit.into() } else { format!(" {}", s.unit) } }
 
 /// A number field: on placement's, the axis letter in its colour first. Drag sideways to scrub, click to type.
-fn number(ui: &mut Ui, v: &mut f32, speed: f32, min: f32, max: f32, suffix: &str, axis: Option<usize>, w: f32) -> egui::Response {
+pub(crate) fn number(ui: &mut Ui, v: &mut f32, speed: f32, min: f32, max: f32, suffix: &str, axis: Option<usize>, w: f32) -> egui::Response {
     let h = if axis.is_some() { 26.0 } else { 28.0 };
     let (r, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     let round = if axis.is_some() { 6 } else { 7 };
@@ -490,7 +490,7 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, words: &[&str],
                 changed |= row(ui, "", s.label, "", false, &mut none, |ui| number(ui, v, 0.01, f32::MIN, f32::MAX, &u, None, ui.available_width()).changed());
             }
             let (mut a, mut b) = (lo, hi);
-            let (ca, cb) = row(ui, "", "Range", "What the slider's two ends mean", false, &mut none, |ui| {
+            let (ca, cb) = row(ui, "", "Ends", "What the slider's two ends mean: the value at its first word and at its last", false, &mut none, |ui| {
                 let w = (ui.available_width() - 6.0) / 2.0;
                 let ca = number(ui, &mut a, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", words[0])).changed();
                 let cb = number(ui, &mut b, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", words[words.len() - 1])).changed();

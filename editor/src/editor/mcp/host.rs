@@ -452,9 +452,41 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             if points.is_empty() { return Err("Give points: [[x, y, z], ...] on its surface, in the world".into()); }
             let num = |k: &str, d: f32, lo: f32, hi: f32| args.get(k).and_then(Value::as_f64).map_or(d, |v| (v as f32).clamp(lo, hi));
             let b = ed.brush.clone();
+            let lays = match args.get("lays").and_then(Value::as_str) {
+                None => b.lays,
+                Some("add") => crate::level::Lays::Add,
+                Some("subtract") => crate::level::Lays::Subtract,
+                Some("set") => crate::level::Lays::Set,
+                Some(o) => return Err(format!("lays is add, subtract or set, not {o}")),
+            };
+            if erase && lays != crate::level::Lays::Add { return Err("Erasing takes every material away; give lays only when painting".into()); }
+            let mut rules = b.rules;
+            if let Some(r) = args.get("rules") {
+                if let Some(v) = r.get("slope").and_then(Value::as_f64) { rules.slope = (v as f32).clamp(0.0, 90.0); }
+                match r.get("band") {
+                    Some(Value::Null) => rules.band = None,
+                    Some(v) => {
+                        let lh: Vec<f32> = v.as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect()).unwrap_or_default();
+                        let [lo, hi] = lh[..] else { return Err("band is [lowest, highest] in metres, or null".into()) };
+                        rules.band = Some([lo.min(hi), lo.max(hi)]);
+                    }
+                    None => {}
+                }
+                match r.get("on") {
+                    Some(Value::Null) => rules.on = None,
+                    Some(v) => {
+                        let want = v.as_str().unwrap_or_default().to_lowercase().replace([' ', '_'], "");
+                        rules.on = Some(crate::level::Tag::ALL.into_iter().find(|t| format!("{t:?}").to_lowercase() == want).ok_or_else(|| format!("No surface tag called {v} (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery)"))?);
+                    }
+                    None => {}
+                }
+            }
+            if let Some(t) = rules.on {
+                if !ed.level.get(id).expect("found above").tags.contains(&t) { return Err(format!("{name} isn't tagged {t:?}, and the rules paint only on parts that are")); }
+            }
             let p = ed.level.get_mut(id).expect("found above");
             let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
-            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local });
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules });
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))

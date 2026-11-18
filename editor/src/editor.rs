@@ -64,6 +64,13 @@ pub struct Editor {
     pub name: String,
     pub selected: Option<u64>,
     pub placing: Option<Shape>,
+    /// Placing: how far the wheel has turned it (radians) and Shift + wheel sized it; and the last thing placed or
+    /// picked, which Place (V) places again.
+    pub place_turn: f32,
+    pub place_scale: f32,
+    pub last_placed: Option<(Shape, Option<String>)>,
+    /// Pick (I) was pressed: take what is under the pointer (the brush's material, or a part to place).
+    pub pick: bool,
     pub snap: bool,
     pub parts_open: bool,
     pub parts_query: String,
@@ -199,6 +206,10 @@ impl Editor {
             island: default(),
             geo: default(),
             placing_model: None,
+            place_turn: 0.0,
+            place_scale: 1.0,
+            last_placed: None,
+            pick: false,
             testing: None,
             test_request: None,
             project_changed: false,

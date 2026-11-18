@@ -410,6 +410,9 @@ pub fn interact(
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
 
+    // ---- Pick (I): the brush's material, or a part to place another of
+    if std::mem::take(&mut ed.pick) { pick(&mut ed, ray); }
+
     // ---- the brush (B)
     if brush::input(&mut ed, &view, ray, &mouse, &keys) {
         *ghost.1 = Visibility::Hidden;
@@ -437,11 +440,16 @@ pub fn interact(
             None => (Vec3::splat(-0.5), Vec3::splat(0.5)),
         };
         if shape != Shape::Model { mesh.0 = lib.mesh(shape); }
+        // the wheel turns it about the surface's normal (15 degrees a notch), Shift + wheel sizes it
+        if view.wheel != 0.0 {
+            if shift { ed.place_scale = (ed.place_scale * 1.1f32.powf(view.wheel)).clamp(0.05, 50.0); } else { ed.place_turn += view.wheel * 15f32.to_radians(); }
+        }
+        let (turn, scale) = if shape.is_camera() { (0.0, 1.0) } else { (ed.place_turn, ed.place_scale) };
         match ray.and_then(|r| ed.hit(r)) {
             Some(h) => {
-                let size = Vec3::from(shape.default_size());
+                let size = Vec3::from(shape.default_size()) * scale;
                 let n = if shift || shape == Shape::PlayerStart || shape.is_camera() { Vec3::Y } else { h.normal };
-                let rot = Quat::from_rotation_arc(Vec3::Y, n);
+                let rot = Quat::from_rotation_arc(Vec3::Y, n) * Quat::from_rotation_y(turn);
                 let mut p = h.point;
                 if ed.snap && n.y > 0.999 {
                     p.x = snapf(p.x, 0.25);
@@ -466,6 +474,7 @@ pub fn interact(
                     if shape.is_camera() { camera::place(&mut part, p, view.yaw); }
                     if let (Some(sp), Some(path)) = (part.sound.as_mut(), sound.clone()) { sp.sound = path; }
                     ed.selected = Some(ed.level.add(part));
+                    ed.last_placed = Some((shape, model.clone().or(sound.clone())));
                     ed.placing = None;
                     ed.island.show(shape.glyph(), format!("Placed {name}"), "Drag the arrows to move it · Tab for more", Tone::Plain);
                     press.at = None;
@@ -475,6 +484,7 @@ pub fn interact(
         }
         if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
             ed.placing = None;
+            (ed.place_turn, ed.place_scale) = (0.0, 1.0);
         }
         if ed.placing.is_none() { *ghost.1 = Visibility::Hidden; }
         return;
@@ -784,7 +794,44 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::Enter) || jp(KeyCode::NumpadEnter) { act("edit.change_all"); }
     if jp(KeyCode::KeyU) { act("edit.make_unique"); }
     if jp(KeyCode::KeyB) { act("tool.brush"); }
+    if jp(KeyCode::KeyV) { act("tool.place"); }
+    if jp(KeyCode::KeyI) { act("tool.pick"); }
     if jp(KeyCode::KeyP) { act("audio.play"); }
+}
+
+/// Pick (I): with the brush out, the material showing most under the pointer (a painted one, else the surface's own)
+/// becomes the brush's; otherwise the part under the pointer becomes what Place puts down (its shape, model or sound).
+fn pick(ed: &mut Editor, ray: Option<Ray3d>) {
+    let Some((h, p)) = ray.and_then(|r| ed.hit(r)).and_then(|h| { let p = ed.level.get(h.part?)?.clone(); Some((h, p)) }) else {
+        ed.island.show("!", "Nothing to pick there", "Point at a part and press I", Tone::Plain);
+        return;
+    };
+    let name = |m: &str| std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    if ed.brush_on {
+        let local = p.to_local(h.point);
+        let pc = crate::paint::pieces(&p);
+        let painted = p.painted().iter().enumerate()
+            .map(|(i, m)| (m.to_string(), crate::paint::coverage(&pc, pc.len(), i as i32, local, h.normal.y, h.point.y)))
+            .filter(|(_, c)| *c > 0.3).max_by(|a, b| a.1.total_cmp(&b.1)).map(|(m, _)| m);
+        let own = p.surfaces.iter().find(|s| s.face.is_some() && s.face == h.face).or_else(|| p.surfaces.iter().find(|s| s.face.is_none())).map(|s| s.material.clone());
+        match painted.or(own).filter(|m| ed.level.materials.contains_key(m)) {
+            Some(m) => {
+                ed.island.show("◍", format!("Picked {}", name(&m)), "The brush paints with it", Tone::Accent);
+                ed.brush.material = m;
+            }
+            None => ed.island.show("!", "No material there", format!("{} has no material where you pointed", p.name), Tone::Plain),
+        }
+        return;
+    }
+    if p.shape == Shape::PlayerStart {
+        ed.island.show("!", "There is one player start", "Move it instead", Tone::Plain);
+        return;
+    }
+    let model = match p.shape { Shape::Model => p.model.clone(), Shape::Sound => p.sound.as_ref().map(|s| s.sound.clone()), _ => None };
+    ed.placing = Some(p.shape);
+    ed.placing_model = model.clone();
+    ed.last_placed = Some((p.shape, model));
+    ed.island.show(p.shape.glyph(), format!("Picked {}", p.name), "Click a surface to place another · V places it again", Tone::Accent);
 }
 
 /// Files dragged in from Explorer are copied into the project's assets; a single recording is then placed as a Sound part

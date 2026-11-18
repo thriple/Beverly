@@ -1,5 +1,7 @@
 // The painted floor and block as the game draws them: soft moss, hard sand over it, an erased spot, paint on the
-// block's top and side.
+// block's top and side; Subtract thinning the moss, a Set patch of sand gone over twice (still faint), and a block
+// painted with rules: moss across its front where only the top takes it (slope up to 30 degrees), sand down a corner
+// only between 0.6 and 1.4 m high.
 (
     steps: [
         (at: 0.5, shot: "painted", expect: [Feet((0, 0.1, 6), 0.2)]),

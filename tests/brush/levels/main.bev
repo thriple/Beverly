@@ -7,11 +7,18 @@
             (material: "assets/materials/moss.bev", size: 3.0, hardness: 0.2, strength: 1.0, points: [(-4.0, 0.05, -2.0), (-2.0, 0.05, -1.0), (0.0, 0.05, -1.5), (2.0, 0.05, -0.5), (4.0, 0.05, -1.0)]),
             (material: "assets/materials/sand.bev", size: 1.5, hardness: 0.9, strength: 1.0, points: [(-1.0, 0.05, -4.0), (-0.5, 0.05, 0.0), (0.0, 0.05, 3.0)]),
             (material: "", size: 1.0, hardness: 0.9, strength: 1.0, points: [(2.0, 0.05, -0.5)]),
+            (material: "assets/materials/moss.bev", size: 2.0, hardness: 0.6, strength: 0.7, points: [(-4.0, 0.05, -2.0), (-3.0, 0.05, -1.5)], lays: Subtract),
+            (material: "assets/materials/sand.bev", size: 2.5, hardness: 0.8, strength: 0.4, points: [(-3.0, 0.05, 3.0), (-2.0, 0.05, 3.5)], lays: Set),
+            (material: "assets/materials/sand.bev", size: 2.5, hardness: 0.8, strength: 0.4, points: [(-3.0, 0.05, 3.0), (-2.0, 0.05, 3.5)], lays: Set),
         ]),
         (id: 3, name: "Block", shape: Box, pos: (3.0, 1.1, 2.5), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 2.0, 2.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid, strokes: [
             (material: "assets/materials/moss.bev", size: 1.2, hardness: 0.0, strength: 0.8, points: [(-1.0, 1.0, 1.0), (0.0, 1.0, 0.0), (1.0, 1.0, -1.0)]),
             (material: "assets/materials/moss.bev", size: 0.8, hardness: 0.5, strength: 1.0, points: [(-1.0, 0.0, 1.0), (1.0, 0.5, 1.0)]),
         ]),
+        (id: 4, name: "Tops only", shape: Box, pos: (-3.0, 1.1, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (2.0, 2.0, 2.0), color: (0.62, 0.64, 0.7), visible: true, collision: Solid, strokes: [
+            (material: "assets/materials/moss.bev", size: 3.0, hardness: 0.6, strength: 1.0, points: [(-1.0, 0.6, 1.0), (1.0, 0.6, 1.0)], rules: (slope: 30.0)),
+            (material: "assets/materials/sand.bev", size: 1.2, hardness: 0.8, strength: 1.0, points: [(1.0, 1.0, -1.0), (1.0, -1.0, -1.0)], rules: (band: Some((0.6, 1.4)))),
+        ]),
     ],
-    next_id: 3,
+    next_id: 4,
 )

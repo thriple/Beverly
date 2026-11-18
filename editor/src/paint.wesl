@@ -1,6 +1,7 @@
 // A painted layer of a part (paint.rs): the material's own look, shown only as much as the part's brush strokes
-// leave of it here. Strokes go in order: one of this layer's adds over what is there, any other (another material,
-// or erasing) covers it. Each stroke counts once where its pieces overlap (the most of them), as a brush stroke does.
+// leave of it here. Strokes go in order: one of this layer's adds over what is there (or takes its own away, or sets
+// it to exactly its strength), any other (another material, or erasing) covers it. Each stroke counts once where its
+// pieces overlap (the most of them), as a brush stroke does, and lands only where its rules (slope, height) let it.
 import bevy_pbr::render::{
     pbr_fragment::pbr_input_from_standard_material,
     pbr_functions::alpha_discard,
@@ -25,11 +26,14 @@ struct Frame {
     info: vec4<i32>,
 }
 
-// one piece of a stroke: from a to b (w: radius, hardness), c: strength, layer (-1 erases), stroke number
+// one piece of a stroke: from a to b (w: radius, hardness), c: strength, layer (-1 erases), stroke number, how it
+// lays (0 add, 1 subtract, 2 set); d: its rules (the cosine of the steepest slope, below -1 any; lowest and highest
+// height in the world)
 struct Piece {
     a: vec4<f32>,
     b: vec4<f32>,
     c: vec4<f32>,
+    d: vec4<f32>,
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> frame: Frame;
@@ -48,7 +52,14 @@ fn dab(p: Piece, at: vec3<f32>) -> f32 {
     return 1.0 - smoothstep(r * min(p.b.w, 0.98), r, d);
 }
 
-fn coverage(at: vec3<f32>) -> f32 {
+// how much a stroke's rules let through on a surface whose normal points up this much, at this height
+fn allows(d: vec4<f32>, up: f32, y: f32) -> f32 {
+    var slope = 1.0;
+    if d.x >= -1.0 { slope = smoothstep(d.x - 0.03, d.x + 0.03, up); }
+    return slope * smoothstep(d.y - 0.05, d.y + 0.05, y) * (1.0 - smoothstep(d.z - 0.05, d.z + 0.05, y));
+}
+
+fn coverage(at: vec3<f32>, up: f32, y: f32) -> f32 {
     var cov = 0.0;
     var i = 0;
     let n = frame.info.y;
@@ -57,14 +68,24 @@ fn coverage(at: vec3<f32>) -> f32 {
         let stroke = pieces[i].c.z;
         let layer = i32(pieces[i].c.y);
         let strength = pieces[i].c.x;
-        var f = 0.0;
+        let lays = i32(pieces[i].c.w);
+        let d = pieces[i].d;
+        var m = 0.0;
         loop {
             if i >= n || pieces[i].c.z != stroke { break; }
-            f = max(f, dab(pieces[i], at));
+            m = max(m, dab(pieces[i], at));
             i = i + 1;
         }
-        f = f * strength;
-        if layer == frame.info.x { cov = cov + f * (1.0 - cov); } else { cov = cov * (1.0 - f); }
+        m = m * allows(d, up, y);
+        let f = m * strength;
+        if layer == frame.info.x {
+            if lays == 1 { cov = cov * (1.0 - f); }
+            else if lays == 2 { cov = cov + (strength - cov) * m; }
+            else { cov = cov + f * (1.0 - cov); }
+        } else if !(lays == 1 && layer >= 0) {
+            // taking another layer away leaves this one; anything else covers it
+            cov = cov * (1.0 - f);
+        }
     }
     return cov;
 }
@@ -76,7 +97,8 @@ fn fragment(
 ) -> FragmentOutput {
     var pbr_input = pbr_input_from_standard_material(in, is_front);
     let local = turn(frame.unturn, in.world_position.xyz - frame.centre.xyz);
-    pbr_input.material.base_color.a = pbr_input.material.base_color.a * coverage(local);
+    let up = normalize(pbr_input.world_normal).y;
+    pbr_input.material.base_color.a = pbr_input.material.base_color.a * coverage(local, up, in.world_position.y);
     pbr_input.material.base_color = alpha_discard(
         pbr_input.material.flags,
         pbr_input.material.alpha_cutoff,

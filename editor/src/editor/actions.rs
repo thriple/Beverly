@@ -43,7 +43,9 @@ pub const ACTIONS: &[Action] = &[
     a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
+    a("tool.place", "Place (the last thing placed or picked)", "Tools", "V"),
     a("tool.brush", "Brush", "Tools", "B"),
+    a("tool.pick", "Pick what is under the pointer", "Tools", "I"),
     a("audio.play", "Play or stop the stage", "Stage bar", "P"),
     a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
     a("tab.audio", "Audio tab", "Tab bar", "Ctrl+5"),
@@ -133,6 +135,15 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             super::camera::toggle(ed, view);
         }
         "level.build_navigation" => ed.build_navigation(),
+        "tool.place" => match ed.last_placed.clone() {
+            Some((shape, model)) => {
+                ed.brush_on = false;
+                ed.placing = Some(shape);
+                ed.placing_model = model;
+            }
+            None => return run(ed, None, "view.parts", exit),
+        },
+        "tool.pick" => ed.pick = true,
         "tool.brush" => {
             ed.brush_on = !ed.brush_on;
             ed.painting = Default::default();

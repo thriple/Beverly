@@ -1,7 +1,8 @@
 //! Brush strokes, drawn, in the editor and the game: each material painted on a part is a see-through copy of the
 //! part (a child of its entity) whose shader (paint.wesl) works out, pixel by pixel, how much of that material shows
-//! from the part's strokes in order: a stroke of it adds over what is there, any other stroke (another material, or
-//! erasing) covers it. Only the strokes are kept; nothing is painted into an image.
+//! from the part's strokes in order: a stroke of it adds over what is there (or takes its own away, or sets it to
+//! exactly its strength), any other stroke (another material, or erasing) covers it, and each stroke lands only where
+//! its rules (slope, height) let it. Only the strokes are kept; nothing is painted into an image.
 use crate::level::{Level, Part, Shape};
 use crate::world::{Mats, PartId};
 use bevy::ecs::system::SystemParam;
@@ -37,12 +38,15 @@ pub struct Frame {
     pub info: IVec4,
 }
 
-/// A piece of a stroke: from `a` to `b` (w: its radius, its hardness), `c`: strength, layer (-1 erases), stroke.
+/// A piece of a stroke: from `a` to `b` (w: its radius, its hardness), `c`: strength, layer (-1 erases), stroke, how
+/// it lays (0 add, 1 subtract, 2 set); `d`: its rules (the cosine of the steepest slope, below -1 any; lowest and
+/// highest world height).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Piece {
     pub a: Vec4,
     pub b: Vec4,
     pub c: Vec4,
+    pub d: Vec4,
 }
 
 impl MaterialExtension for PaintLayer {
@@ -67,7 +71,10 @@ pub fn pieces(p: &Part) -> Vec<Piece> {
     let mut v = vec![];
     for (k, s) in p.strokes.iter().enumerate() {
         let layer = layers.iter().position(|m| *m == s.material).map_or(-1.0, |i| i as f32);
-        let c = Vec4::new(s.strength.clamp(0.0, 1.0), layer, k as f32, 0.0);
+        let lays = match s.lays { crate::level::Lays::Add => 0.0, crate::level::Lays::Subtract => 1.0, crate::level::Lays::Set => 2.0 };
+        let c = Vec4::new(s.strength.clamp(0.0, 1.0), layer, k as f32, lays);
+        let (cos, lo, hi) = s.rules.shader();
+        let d = Vec4::new(cos, lo, hi, 0.0);
         let r = (s.size * 0.5).max(0.005);
         let pts: Vec<Vec3> = s.points.iter().map(|q| Vec3::from(*q)).collect();
         let pairs: Vec<(Vec3, Vec3)> = match pts.len() {
@@ -75,7 +82,7 @@ pub fn pieces(p: &Part) -> Vec<Piece> {
             1 => vec![(pts[0], pts[0])],
             _ => pts.windows(2).map(|w| (w[0], w[1])).collect(),
         };
-        for (a, b) in pairs { v.push(Piece { a: a.extend(r), b: b.extend(s.hardness.clamp(0.0, 1.0)), c }); }
+        for (a, b) in pairs { v.push(Piece { a: a.extend(r), b: b.extend(s.hardness.clamp(0.0, 1.0)), c, d }); }
     }
     if v.is_empty() { v.push(Piece::default()); }
     v
@@ -83,15 +90,17 @@ pub fn pieces(p: &Part) -> Vec<Piece> {
 
 /// Pieces as the shader reads them.
 fn upload(pieces: Vec<Piece>) -> ShaderBuffer {
-    let flat: Vec<[f32; 12]> = pieces.iter().map(|p| {
-        let [a, b, c] = [p.a.to_array(), p.b.to_array(), p.c.to_array()];
-        [a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3], c[0], c[1], c[2], c[3]]
+    let flat: Vec<[f32; 16]> = pieces.iter().map(|p| {
+        let mut f = [0.0; 16];
+        for (i, v) in [p.a, p.b, p.c, p.d].iter().enumerate() { f[i * 4..i * 4 + 4].copy_from_slice(&v.to_array()); }
+        f
     }).collect();
     ShaderBuffer::from(flat)
 }
 
-/// How much of layer `layer` shows at `at` (in the part's frame): the shader's sum, for tests and the MCP.
-pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3) -> f32 {
+/// How much of layer `layer` shows at `at` (in the part's frame), on a surface whose normal points `up` this much
+/// (1: flat) at height `y` in the world: the shader's sum, for tests and the MCP.
+pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, up: f32, y: f32) -> f32 {
     let dab = |p: &Piece| {
         let (a, b) = (p.a.truncate(), p.b.truncate());
         let ab = b - a;
@@ -103,13 +112,28 @@ pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3) -> f32 {
     };
     let (mut cov, mut i) = (0.0, 0);
     while i < count {
-        let (stroke, l, strength) = (pieces[i].c.z, pieces[i].c.y as i32, pieces[i].c.x);
-        let mut f: f32 = 0.0;
-        while i < count && pieces[i].c.z == stroke { f = f.max(dab(&pieces[i])); i += 1; }
-        f *= strength;
-        if l == layer { cov += f * (1.0 - cov); } else { cov *= 1.0 - f; }
+        let (stroke, l, strength, lays, d) = (pieces[i].c.z, pieces[i].c.y as i32, pieces[i].c.x, pieces[i].c.w, pieces[i].d);
+        let mut m: f32 = 0.0;
+        while i < count && pieces[i].c.z == stroke { m = m.max(dab(&pieces[i])); i += 1; }
+        let rules = crate::level::Rules { slope: if d.x < -1.0 { 90.0 } else { d.x.clamp(-1.0, 1.0).acos().to_degrees() }, band: (d.y > -1e8).then_some([d.y, d.z]), on: None };
+        m *= rules.allows(up, y);
+        let f = m * strength;
+        cov = lay(cov, l == layer, l < 0, lays, m, f, strength);
     }
     cov
+}
+
+/// One stroke over a layer's coverage `cov`: `own` when it is this layer's, `erase` when it erases; `m` how much of it
+/// reaches here (its edge and rules), `f` that times its strength. As in paint.wesl.
+fn lay(cov: f32, own: bool, erase: bool, lays: f32, m: f32, f: f32, strength: f32) -> f32 {
+    match (own, lays as i32) {
+        (true, 1) => cov * (1.0 - f),
+        (true, 2) => cov + (strength - cov) * m,
+        (true, _) => cov + f * (1.0 - cov),
+        // taking its own layer away leaves the others
+        (false, 1) if !erase => cov,
+        (false, _) => cov * (1.0 - f),
+    }
 }
 
 /// A painted part as drawn: its entity, what its layers were made from, and their materials and pieces.
@@ -209,10 +233,10 @@ mod tests {
     #[test]
     fn later_strokes_cover_earlier_ones_and_erasing_uncovers() {
         let mut p = Part::placed(Shape::Plane, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [10.0, 0.1, 10.0]);
-        let s = |m: &str, x: f32, hard: f32| Stroke { material: m.into(), size: 2.0, hardness: hard, strength: 1.0, points: vec![[x - 1.0, 0.05, 0.0], [x, 0.05, 0.0], [x + 1.0, 0.05, 0.0]] };
+        let s = |m: &str, x: f32, hard: f32| Stroke { material: m.into(), size: 2.0, hardness: hard, strength: 1.0, points: vec![[x - 1.0, 0.05, 0.0], [x, 0.05, 0.0], [x + 1.0, 0.05, 0.0]], lays: Default::default(), rules: Default::default() };
         p.strokes = vec![s("moss", 0.0, 1.0), s("sand", 3.0, 1.0), s("", -3.0, 1.0)];
         let pc = pieces(&p);
-        let at = |x: f32, layer: i32| coverage(&pc, pc.len(), layer, Vec3::new(x, 0.05, 0.0));
+        let at = |x: f32, layer: i32| coverage(&pc, pc.len(), layer, Vec3::new(x, 0.05, 0.0), 1.0, 0.0);
         assert_eq!(p.painted(), ["moss", "sand"]);
         // moss shows where only it went, sand covers it where sand went after, erasing took moss away on the left
         assert!((at(0.0, 0) - 1.0).abs() < 1e-4, "{}", at(0.0, 0));
@@ -223,10 +247,32 @@ mod tests {
         // overlapping pieces of one stroke count once; a soft edge fades out
         p.strokes = vec![Stroke { strength: 0.5, ..s("moss", 0.0, 1.0) }];
         let pc = pieces(&p);
-        assert!((coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.0)) - 0.5).abs() < 1e-4);
+        assert!((coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.0), 1.0, 0.0) - 0.5).abs() < 1e-4);
         p.strokes = vec![s("moss", 0.0, 0.0)];
         let pc = pieces(&p);
-        let mid = coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.5));
+        let mid = coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.5), 1.0, 0.0);
         assert!(mid > 0.2 && mid < 0.8, "{mid}");
+    }
+
+    #[test]
+    fn subtract_takes_only_its_own_and_set_holds_its_strength() {
+        use crate::level::{Lays, Rules};
+        let mut p = Part::placed(Shape::Plane, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [10.0, 0.1, 10.0]);
+        let s = |m: &str, strength: f32, lays: Lays| Stroke { material: m.into(), size: 2.0, hardness: 1.0, strength, points: vec![[0.0, 0.05, 0.0]], lays, rules: Rules::default() };
+        let at = |p: &Part, layer: i32, up: f32, y: f32| { let pc = pieces(p); coverage(&pc, pc.len(), layer, Vec3::new(0.0, 0.05, 0.0), up, y) };
+        // moss, then sand half over it, then half the moss taken away: the sand stays
+        p.strokes = vec![s("moss", 1.0, Lays::Add), s("sand", 0.5, Lays::Add), s("moss", 0.5, Lays::Subtract)];
+        assert!((at(&p, 0, 1.0, 0.0) - 0.25).abs() < 1e-4, "{}", at(&p, 0, 1.0, 0.0));
+        assert!((at(&p, 1, 1.0, 0.0) - 0.5).abs() < 1e-4);
+        // Set: exactly its strength, however often
+        p.strokes = vec![s("moss", 0.3, Lays::Set), s("moss", 0.3, Lays::Set), s("moss", 0.3, Lays::Set)];
+        assert!((at(&p, 0, 1.0, 0.0) - 0.3).abs() < 1e-4);
+        p.strokes = vec![s("moss", 1.0, Lays::Add), s("moss", 0.3, Lays::Set)];
+        assert!((at(&p, 0, 1.0, 0.0) - 0.3).abs() < 1e-4, "set brings it down too");
+        // rules: tops only (slope up to 30 degrees) leaves walls bare; a height band leaves what is above it
+        p.strokes = vec![Stroke { rules: Rules { slope: 30.0, band: Some([0.0, 2.0]), on: None }, ..s("moss", 1.0, Lays::Add) }];
+        assert!((at(&p, 0, 1.0, 1.0) - 1.0).abs() < 1e-4);
+        assert!(at(&p, 0, 0.0, 1.0) < 1e-4, "a wall");
+        assert!(at(&p, 0, 1.0, 3.0) < 1e-4, "above the band");
     }
 }
