@@ -119,7 +119,20 @@ def tg(t, on):
     return '<span class="tg" style="background: #3A3A40"><i style="left: 2px; background: #9A9AA0"></i></span>'
 
 
-def ws(label, stops, idx, chg=False):
+def lic(icon):
+    """A row's label icon: 14 px, in the label's colour, before its word."""
+    return ic(icon, 'currentColor', 14).replace('style="flex: none"', 'style="flex: none; vertical-align: -2px; margin-right: 7px"') if icon else ''
+
+
+def more_btn(acc2, open=False):
+    """More: at the right of the row under a slider, its caret turned down while its numbers are open."""
+    turn = ' transform: rotate(90deg);' if open else ''
+    caret = ic('right', acc2, 12).replace('style="flex: none"', f'style="flex: none;{turn}"')
+    return (f'<div style="display: flex; justify-content: flex-end; margin-top: 4px"><button type="button" aria-expanded="{str(open).lower()}" title="Its numbers, and what the slider&apos;s ends mean" '
+            f'style="display: inline-flex; align-items: center; gap: 4px; height: 20px; font-size: 12px; font-weight: 500; color: {acc2}">More{caret}</button></div>')
+
+
+def ws(label, stops, idx, chg=False, icon=None):
     n = len(stops)
     pct = idx / (n - 1) * 100
     ticks = ''.join(f'<span class="tk" style="left: {i/(n-1)*100:.1f}%"></span>' for i in range(n))
@@ -134,18 +147,18 @@ def ws(label, stops, idx, chg=False):
             pos = f'left: {i/(n-1)*100:.1f}%; transform: translateX(-50%)'
         labs.append(f'<span{cls} style="{pos}">{s}</span>')
     c = ' chg' if chg else ''
-    return (f'<div class="row wsr{c}"{CHG_T if chg else ""}><span class="lbl">{label}</span><div class="ws"><div class="trk">'
+    return (f'<div class="row wsr{c}"{CHG_T if chg else ""}><span class="lbl">{lic(icon)}{label}</span><div class="ws"><div class="trk">'
             f'<div class="fil" style="width: {pct:.1f}%"></div>{ticks}<span class="th" style="left: {pct:.1f}%"></span></div>'
             f'<div class="stp">{"".join(labs)}</div></div></div>')
 
 
-def trow(t, label, on, key=None, chg=False):
-    return f'<div class="row{" chg" if chg else ""}"{CHG_T if chg else ""}><span class="lbl2">{label}</span>{kc(key)}{tg(t, on)}</div>'
+def trow(t, label, on, key=None, chg=False, icon=None):
+    return f'<div class="row{" chg" if chg else ""}"{CHG_T if chg else ""}><span class="lbl2">{lic(icon)}{label}</span>{kc(key)}{tg(t, on)}</div>'
 
 
-def seg(label, opts, idx, chg=False):
+def seg(label, opts, idx, chg=False, icon=None):
     s = ''.join(f'<span class="on">{o}</span>' if i == idx else f'<span>{o}</span>' for i, o in enumerate(opts))
-    return f'<div class="row{" chg" if chg else ""}"{CHG_T if chg else ""}><span class="lbl">{label}</span><div class="sg" role="radiogroup" aria-label="{label}">{s}</div></div>'
+    return f'<div class="row{" chg" if chg else ""}"{CHG_T if chg else ""}><span class="lbl">{lic(icon)}{label}</span><div class="sg" role="radiogroup" aria-label="{label}">{s}</div></div>'
 
 
 CHG_T = ' title="Changed from default. Click the bar to reset."'

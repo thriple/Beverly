@@ -75,7 +75,8 @@ NAMES = dict(cube='Shape', bolt='Trigger', play='Action', route='Flow', diamond=
              cone='Shape', wind='Motion', map='Minimap', home='Start', pointer='Button',
              sliders='Inspect', layers='Scene · Pop-up', folder='Assets', search='Find', clock='Timeline', undo='Undo', redo='Redo',
              left='Open', right='Collapse', down='Expanded', copy='Duplicate', trash='Delete', reset='Reset', plus='Add', x='Close',
-             check='Done', alert='Warning', loop='Loop', start='To start', back='Back')
+             check='Done', alert='Warning', loop='Loop', start='To start', back='Back',
+             volume='Volume', pitch='Pitch', vary='Vary', near='Near', range='Range', shuffle='Pick')
 TINT = dict(cube=CAT['shape'], bolt=CAT['trig'], play=CAT['act'], route=CAT['flow'], diamond=CAT['logic'], person=CAT['game'], bulb=CAT['light'], camera=CAT['cam'])
 
 
@@ -97,7 +98,7 @@ def icons_board():
     body = (f'<div style="display: flex; align-items: baseline; gap: 20px"><h1 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em">Icons</h1>'
             f'<span style="font-size: 15px; color: #B0B0B6">One family. Part icons carry their category colour; everything else takes the text colour.</span></div>'
             + rules + ''.join(secs))
-    open(OUT + 'Icons.dc.html', 'w').write(shell('Beverly — icons', 1600, 1180, body))
+    open(OUT + 'Icons.dc.html', 'w').write(shell('Beverly — icons', 1600, 1420, body))
 
 
 if __name__ == '__main__':

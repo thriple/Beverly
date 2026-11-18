@@ -94,6 +94,13 @@ P = dict(
     loop='M17 3.5 L20.5 7 L17 10.5 M4 12 V10 A3 3 0 0 1 7 7 H20.5 M7 20.5 L3.5 17 L7 13.5 M20 12 V14 A3 3 0 0 1 17 17 H3.5',
     start='M6 5 V19 M19 5 L9 12 L19 19 Z',
     back='M10 6 L4 12 L10 18 M4 12 H20',
+    # settings (a row's label icon)
+    volume='M3.5 9.5 H7 L11.5 5.5 V18.5 L7 14.5 H3.5 Z M15 9 A4.2 4.2 0 0 1 15 15 M17.5 6 A8.5 8.5 0 0 1 17.5 18',
+    pitch=_c(6.5, 17.5, 2.5) + ' M9 17.5 V4.5 L13 6.5 M18 4.5 V19.5 M15 7.5 L18 4.5 L21 7.5 M15 16.5 L18 19.5 L21 16.5',
+    vary='M12 3.5 V13.5 M7 8.5 H17 M7 19.5 H17',
+    near=_c(12, 12, 1.5) + ' ' + _c(12, 12, 5),
+    range=_c(12, 12, 8.5) + ' ' + _c(12, 12, 1.5) + ' M14.5 12 H18.5 M16 9.5 L18.5 12 L16 14.5',
+    shuffle='M3.5 7 H6.5 C 11.5 7, 12.5 17, 17.5 17 H20.5 M3.5 17 H6.5 C 11.5 17, 12.5 7, 17.5 7 H20.5 M18 4.5 L20.5 7 L18 9.5 M18 14.5 L20.5 17 L18 19.5',
 )
 # legacy names used by earlier boards
 P['key'] = P['keyboard']
@@ -116,5 +123,6 @@ GROUPS = [
                            'cone', 'wind', 'map', 'home', 'pointer']),
     ('Actions', ['sliders', 'layers', 'folder', 'search', 'clock', 'undo', 'redo', 'left', 'right', 'down', 'copy', 'trash',
                  'reset', 'plus', 'x', 'check', 'alert', 'loop', 'start', 'back', 'minus', 'square', 'pipette', 'lock', 'unlock', 'scrub', 'info']),
+    ('Settings', ['volume', 'pitch', 'vary', 'near', 'range', 'shuffle']),
     ('Alignment', ['align_l', 'align_ch', 'align_r', 'align_t', 'align_cv', 'align_b', 'dist_h', 'dist_v']),
 ]

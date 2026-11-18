@@ -6,7 +6,7 @@ mod brush;
 mod bev_type;
 mod caps;
 mod edit;
-mod frame;
+pub(crate) mod frame;
 pub(crate) use frame::paint_icon as frame_icon;
 mod tokens;
 mod text;

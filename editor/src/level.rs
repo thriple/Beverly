@@ -370,24 +370,24 @@ pub struct Sound {
     /// Recordings for particular surfaces (on others, `clips`).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sets: Vec<SoundSet>,
-    #[reflect(@Setting::choice("Pick").section(SOUND).help("Which recording plays each time (at random never plays the same one twice running)"))]
+    #[reflect(@Setting::choice("Pick").icon("shuffle").section(SOUND).help("Which recording plays each time (at random never plays the same one twice running)"))]
     pub pick: Pick,
     /// Decibels.
-    #[reflect(@Setting::feel("Volume", &["Whisper", "Quiet", "Normal", "Loud"], -30.0, 9.0, "dB").section(SOUND))]
+    #[reflect(@Setting::feel("Volume", &["Whisper", "Quiet", "Normal", "Loud"], -30.0, 9.0, "dB").icon("volume").section(SOUND))]
     pub volume: f32,
     /// Semitones.
-    #[reflect(@Setting::feel("Pitch", &["Low", "Normal", "High"], -12.0, 12.0, "semitones").section(SOUND))]
+    #[reflect(@Setting::feel("Pitch", &["Low", "Normal", "High"], -12.0, 12.0, "semitones").icon("pitch").section(SOUND))]
     pub pitch: f32,
     /// 0..1: how much volume (up to ±6 dB) and pitch (up to ±2 semitones) change each time it plays.
-    #[reflect(@Setting::feel("Vary", &["Same", "A little", "A lot"], 0.0, 1.0, "").section(SOUND).help("How much volume and pitch change each time it plays, so repeats don't sound the same"))]
+    #[reflect(@Setting::feel("Vary", &["Same", "A little", "A lot"], 0.0, 1.0, "").icon("vary").section(SOUND).help("How much volume and pitch change each time it plays, so repeats don't sound the same"))]
     pub vary: f32,
     /// Metres: full volume this close.
-    #[reflect(@Setting::feel("Near", &["Close", "Arm's length", "Room"], 0.5, 20.0, "m").log().section(REACH).help("Full volume this close"))]
+    #[reflect(@Setting::feel("Near", &["Close", "Arm's length", "Room"], 0.5, 20.0, "m").log().icon("near").section(REACH).help("Full volume this close"))]
     pub near: f32,
     /// Metres: silent past this.
-    #[reflect(@Setting::feel("Range", &["Room", "Yard", "Field", "Valley"], 5.0, 500.0, "m").log().section(REACH).help("Heard out to here, fading with distance"))]
+    #[reflect(@Setting::feel("Range", &["Room", "Yard", "Field", "Valley"], 5.0, 500.0, "m").log().icon("range").section(REACH).help("Heard out to here, fading with distance"))]
     pub far: f32,
-    #[reflect(@Setting::toggle("Loop").section(SOUND).help("Plays over and over until stopped"))]
+    #[reflect(@Setting::toggle("Loop").icon("loop").section(SOUND).help("Plays over and over until stopped"))]
     pub looped: bool,
     /// How many may play at once (the oldest stops); a count.
     #[reflect(@Setting::feel("At once", &["One", "A few", "Many"], 1.0, 16.0, "").log().section(SOUND_MORE).help("How many can play at the same time; the oldest stops for a new one"))]

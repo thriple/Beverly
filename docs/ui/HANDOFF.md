@@ -13,14 +13,14 @@
 | `design/canvas.json` | Board layout on the canvas. |
 | `tokens/tokens.json` | Every colour, size, radius and state in one place. |
 | `tokens/theme.rs` | The same tokens as `egui::Color32` constants and a `TabTheme` table. |
-| `icons/svg/*.svg` | All 82 icons, 24 × 24, `stroke="currentColor"`. |
+| `icons/svg/*.svg` | All 88 icons, 24 × 24, `stroke="currentColor"`. |
 | `icons/icons.json` | The same icons as raw path data, for the vector renderer. |
 | `generator/` | The Python that produced the boards. Run `python3 windows2.py`, `boards.py`, `components.py` to regenerate into `generator/out/`. `base.py` holds the shared frame and controls; it's the most readable spec of how pieces combine. |
 
 ## Principles
 
 1. **The view is the star.** Chrome is thin and translucent; panels float over the view and collapse.
-2. **Words before numbers.** Feel settings are word sliders (Feather … Fixed). Exact numbers live under "More numbers". Only placement (position / turn / size) uses number fields.
+2. **Words before numbers.** Feel settings are word sliders (Feather … Fixed). Exact numbers live under **More** (at the right of the row under each slider; its caret turns down while open). Only placement (position / turn / size) uses number fields.
 3. **Futuristic with intent, minimal.** No decorative filler, no micro-text (nothing under 11 px), no random badges or lines. Every mark must mean something.
 4. **Every action has a name and a shortcut.** Show the keycap on primary actions and hints; everywhere else the shortcut lives in the tooltip ("Duplicate  Ctrl D").
 5. **Icons always come with a word.** Icon-only buttons are allowed for well-known actions (undo, duplicate, delete, collapse) and must have a tooltip and an accessible name.
@@ -43,7 +43,7 @@ Window 1600 × 960 reference, 10 px outer corner radius, 1 px hairline edge.
 ### Tabs — two colours each, two jobs
 
 - **Frame colour = where you are**: frame, active tab, active topic, selected part outline and tag, active dock view, Play button.
-- **Accent = what you can change**: slider fills, toggles (on), playhead, focus ring, changed-value bar, "More numbers", status icon.
+- **Accent = what you can change**: slider fills, toggles (on), playhead, focus ring, changed-value bar, More, status icon.
 
 | Tab | Frame | Frame text | Highlight | Accent | Icon |
 |---|---|---|---|---|---|
@@ -78,12 +78,13 @@ Roboto 400/500/700; Roboto Mono for numbers and timecodes. Panel title 16/700, g
 - **Timeline** (bottom, above the bottom notch, radius 16): resize grip, breadcrumb, transport (to start, Play in highlight colour, loop), timecode in mono, Seconds↔Frames zoom; track names with category icons; diamonds for keys, bars for clips; playhead and its time label in the accent; footer with Auto key toggle. One timeline widget is reused everywhere.
 - **Status pills** (top-left of view): glass, icon in accent + short text. Warnings get a danger ring and a fix.
 - **Selection tag**: small pill in the highlight colour with the part icon and name, next to the selected thing.
-- **Audio tab** (Audio board): the dock is `Inspect · Sounds · Assets`; a **stage bar** (glass, radius 12) sits under the status pill: `On` + Speaker / Walker choices, the surface dropdown (Walker, layers icon), and Play / Stop as the main button (play / square icon, `P` keycap). In the view: the plinth and speaker, the walker's path as a faint dashed ring while it is out, the open sound's range rings in the accent round whichever plays it, and the selection tag on it. Inspect: the sound's identity (Play it once and Copy as icon buttons), then **Recordings** (each a name, its length in mono and a trash button over its waveform; an "Add a recording" dropdown), **On surfaces** (a heading per surface with its own recordings; "Add a surface"), **Sound** (Pick, Volume, Pitch, Vary, Loop), **Reach** (Near, Range) and **Advanced** (At once). The Sounds list: search, "New sound", then "In the level" and "Not used yet".
+- **Audio tab** (Audio board): the dock is `Inspect · Sounds · Assets`; a **stage bar** (glass, radius 12) sits under the status pill: `On` + Speaker / Walker choices, the surface dropdown (Walker, layers icon), and Play / Stop as the main button (play / square icon, `P` keycap). In the view: the plinth and speaker, the walker's path as a faint dashed ring while it is out, the open sound's range rings in the accent round whichever plays it, and the selection tag on it. Inspect: the sound's identity (Play it once and Copy as icon buttons), then **Recordings** (each a name, its length in mono and a trash button over its waveform; an "Add a recording" dropdown), **On surfaces** (a heading per surface with its own recordings; "Add a surface"), **Sound** (Pick, Volume, Pitch, Vary, Loop), **Reach** (Near, Range), each with its setting icon (shuffle, volume, pitch, vary, loop, near, range), and **Advanced** (At once). The Sounds list: search, "New sound", then "In the level" and "Not used yet".
 - **Screens tab**: flow graph — screen cards with previews and one port per button; wires grey, selected wire in highlight; back links dashed; a **Flow check** card lists reachability, depth and dead ends with fixes.
 
 ## Controls (see the Components board)
 
-- **Word slider**: 4 px track, accent fill, 16 px white thumb with accent halo, tick per stop, stop labels under the track (current word white/500). Dragging: 6 px track, 20 px thumb, the word rides above in an accent pill. Changed from default: accent bar left of the row + bold label + reset icon on hover.
+- **Setting icons**: a row may lead with a 14 px icon before its label, in the label's colour (white when changed); the label moves along 21 px. Every row of a group has one or none.
+- **Word slider**: 4 px track, accent fill, 16 px white thumb with accent halo, tick per stop, stop labels under the track (current word white/500). Dragging: 6 px track, 20 px thumb, the word rides above in an accent pill. Changed from default: accent bar left of the row + bold label + reset icon on hover. Under it at the right, **More** (12/500, accent) with a 12 px caret that turns from › to ⌄ as it opens the exact numbers.
 - **Number fields** (placement only): axis letter chip in axis colour + mono value; hover shows ↔ scrub arrows; drag to scrub, double-click to type (accent ring, value selected); lock icon links size proportions.
 - **Colour picker**: opens from a swatch row (swatch + friendly name, e.g. "Warm concrete"). Popover 280 wide: name header, saturation/brightness square, hue strip, opacity strip (checker), eyedropper + hex + %, then **project colours first** and a + to save.
 - **Toggle** 30 × 16, on = accent with ink knob; off = `#3A3A40`; mixed (multi-select) = dash knob on half accent. Show its shortcut keycap when it has one.

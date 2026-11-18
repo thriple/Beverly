@@ -16,6 +16,7 @@
 //! lists the same settings with their values, for the MCP server (and later the timeline's keyable values), and
 //! `apply` sets them from the same JSON.
 //! Fields without a `Setting` are not shown. Range ends changed under More are kept per file in a `Ranges` map.
+use crate::editor::frame;
 use crate::editor::theme::{self, Tip, accent, MUTED, TEXT, TEXT_2};
 use bevy::reflect::{
     enums::{DynamicEnum, DynamicVariant}, std_traits::ReflectDefault, structs::Struct, tuple::DynamicTuple, PartialReflect,
@@ -36,6 +37,8 @@ pub struct Setting {
     pub help: &'static str,
     /// The panel leaves the label out (its section title says it); descriptions still give it.
     pub bare: bool,
+    /// An icon before its label (a name in the icon set), or none.
+    pub icon: &'static str,
 }
 
 #[derive(Reflect, Clone, Debug, PartialEq)]
@@ -66,7 +69,7 @@ pub enum Kind {
 pub struct Label(pub &'static str);
 
 impl Setting {
-    fn new(label: &'static str, kind: Kind) -> Self { Setting { label, kind, section: "", unit: "", help: "", bare: false } }
+    fn new(label: &'static str, kind: Kind) -> Self { Setting { label, kind, section: "", unit: "", help: "", bare: false, icon: "" } }
     pub fn feel(label: &'static str, words: &'static [&'static str], lo: f32, hi: f32, unit: &'static str) -> Self {
         Setting { unit, ..Self::new(label, Kind::Feel { group: label, words, lo, hi, log: false }) }
     }
@@ -84,6 +87,7 @@ impl Setting {
     pub fn section(mut self, s: &'static str) -> Self { self.section = s; self }
     pub fn help(mut self, h: &'static str) -> Self { self.help = h; self }
     pub fn bare(mut self) -> Self { self.bare = true; self }
+    pub fn icon(mut self, i: &'static str) -> Self { self.icon = i; self }
     /// Give a colour's picker an opacity strip for another field (an f32 from 0 to 1).
     pub fn alpha(mut self, field: &'static str) -> Self { if let Kind::Colour { alpha } = &mut self.kind { *alpha = field; } self }
     /// Space a Feel slider's values by ratio (for ranges like 0.2 s to 20 s).
@@ -193,16 +197,20 @@ pub fn section(ui: &mut Ui, value: &mut dyn PartialReflect, section: &str, ctx: 
 
 fn tip(r: egui::Response, s: &Setting) -> egui::Response { if s.help.is_empty() { r } else { r.tip(s.help) } }
 
-/// The label column's width.
+/// The label column's width, and how far an icon before a label moves it along.
 const LABEL_W: f32 = 76.0;
+const ICON_W: f32 = 21.0;
 
 /// A settings row: the label in its column, then the control. A setting changed from its default has a bold, white
 /// label and the accent bar at its left: click the bar to put it back.
-fn row<R>(ui: &mut Ui, label: &str, help: &str, differs: bool, reset: &mut bool, add: impl FnOnce(&mut Ui) -> R) -> R {
+fn row<R>(ui: &mut Ui, icon: &str, label: &str, help: &str, differs: bool, reset: &mut bool, add: impl FnOnce(&mut Ui) -> R) -> R {
     ui.horizontal_top(|ui| {
-        let g = ui.painter().layout(label.to_owned(), if differs { theme::semi(12.5) } else { theme::body(12.5) }, if differs { Color32::WHITE } else { TEXT_2 }, LABEL_W);
+        let colour = if differs { Color32::WHITE } else { TEXT_2 };
+        let lead = if icon.is_empty() { 0.0 } else { ICON_W };
+        let g = ui.painter().layout(label.to_owned(), if differs { theme::semi(12.5) } else { theme::body(12.5) }, colour, LABEL_W - lead);
         let (r, resp) = ui.allocate_exact_size(vec2(LABEL_W, g.size().y.max(28.0)), Sense::hover());
-        ui.painter().galley(pos2(r.left(), r.top() + (28.0 - g.size().y).max(0.0) / 2.0), g, TEXT);
+        if !icon.is_empty() { frame::paint_icon(ui.painter(), icon, pos2(r.left() + 7.0, r.top() + 14.0), 14.0, colour); }
+        ui.painter().galley(pos2(r.left() + lead, r.top() + (28.0 - g.size().y).max(0.0) / 2.0), g, TEXT);
         if !help.is_empty() { resp.tip(help); }
         if differs { *reset |= changed_bar(ui, r); }
         add(ui)
@@ -217,11 +225,15 @@ fn changed_bar(ui: &mut Ui, r: egui::Rect) -> bool {
 }
 
 /// A toggle's row: its label across, the toggle at the right.
-fn toggle_row(ui: &mut Ui, label: &str, on: &mut bool, help: &str, differs: bool, reset: &mut bool) -> bool {
+fn toggle_row(ui: &mut Ui, icon: &str, label: &str, on: &mut bool, help: &str, differs: bool, reset: &mut bool) -> bool {
     ui.horizontal(|ui| {
         ui.set_min_height(28.0);
         let r = ui.max_rect();
         if differs { *reset |= changed_bar(ui, egui::Rect::from_min_size(pos2(r.left(), ui.cursor().top()), vec2(1.0, 28.0))); }
+        if !icon.is_empty() {
+            let (b, _) = ui.allocate_exact_size(vec2(ICON_W - ui.spacing().item_spacing.x, 28.0), Sense::hover());
+            frame::paint_icon(ui.painter(), icon, pos2(b.left() + 7.0, b.center().y), 14.0, if differs { Color32::WHITE } else { TEXT_2 });
+        }
         ui.label(egui::RichText::new(label).font(if differs { theme::semi(12.5) } else { theme::body(12.5) }).color(if differs { Color32::WHITE } else { Color32::from_rgb(0xE6, 0xE6, 0xE8) }));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let r = theme::toggle(ui, on);
@@ -236,10 +248,10 @@ fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs:
     match &s.kind {
         Kind::Number { speed, min, max } => {
             if let Some(v) = f.try_downcast_mut::<f32>() {
-                return row(ui, s.label, s.help, false, reset, |ui| number(ui, v, *speed, *min, *max, &unit(s), None, ui.available_width()).changed());
+                return row(ui, s.icon, s.label, s.help, false, reset, |ui| number(ui, v, *speed, *min, *max, &unit(s), None, ui.available_width()).changed());
             }
             if let Some(v) = f.try_downcast_mut::<[f32; 3]>() {
-                return row(ui, s.label, s.help, false, reset, |ui| {
+                return row(ui, s.icon, s.label, s.help, false, reset, |ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
                     let w = (ui.available_width() - 12.0) / 3.0;
                     let mut c = false;
@@ -249,17 +261,17 @@ fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs:
             }
             false
         }
-        Kind::Text => f.try_downcast_mut::<String>().is_some_and(|t| row(ui, s.label, s.help, false, reset, |ui| theme::text_input(ui, t, "", None, ui.available_width()).changed())),
+        Kind::Text => f.try_downcast_mut::<String>().is_some_and(|t| row(ui, s.icon, s.label, s.help, false, reset, |ui| theme::text_input(ui, t, "", None, ui.available_width()).changed())),
         Kind::Turn => f.try_downcast_mut::<[f32; 4]>().is_some_and(|r| turn(ui, r, s)),
         Kind::Choice => choice(ui, f, s, key, differs, reset),
         Kind::Optional { off, on } => optional(ui, f, s, off, on, differs, reset, ctx),
         Kind::List => list(ui, f, s, key, ctx),
         Kind::Tags => tags(ui, f, s),
-        Kind::Toggle => f.try_downcast_mut::<bool>().is_some_and(|b| toggle_row(ui, s.label, b, s.help, differs, reset)),
+        Kind::Toggle => f.try_downcast_mut::<bool>().is_some_and(|b| toggle_row(ui, s.icon, s.label, b, s.help, differs, reset)),
         // on a copy: the picker nudges the numbers through its colour conversions even when nothing is picked
         Kind::Colour { .. } => f.try_downcast_mut::<[f32; 3]>().is_some_and(|c| {
             let mut copy = *c;
-            let picked = row(ui, s.label, s.help, differs, reset, |ui| colour(ui, &mut copy, alpha, key, &ctx.palette));
+            let picked = row(ui, s.icon, s.label, s.help, differs, reset, |ui| colour(ui, &mut copy, alpha, key, &ctx.palette));
             if picked { *c = copy; }
             picked
         }),
@@ -305,7 +317,7 @@ fn turn(ui: &mut Ui, r: &mut [f32; 4], s: &Setting) -> bool {
     let (yaw, pitch, roll) = Quat::from_array(*r).to_euler(EulerRot::YXZ);
     let mut deg = yaw.to_degrees();
     let mut reset = false;
-    row(ui, s.label, s.help, false, &mut reset, |ui| {
+    row(ui, s.icon, s.label, s.help, false, &mut reset, |ui| {
         let mut c = false;
         let w = (ui.available_width() - 12.0) / 3.0;
         if number(ui, &mut deg, 1.0, -100000.0, 100000.0, "°", Some(1), w).changed() {
@@ -327,7 +339,7 @@ fn choice(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, diffe
     let names: Vec<&'static str> = info.variant_names().to_vec();
     let labels: Vec<&str> = info.iter().map(|v| v.get_attribute::<Label>().map_or(v.name(), |l| l.0)).collect();
     let mut i = names.iter().position(|n| *n == e.variant_name()).unwrap_or(0);
-    let picked = row(ui, s.label, s.help, differs, reset, |ui| {
+    let picked = row(ui, s.icon, s.label, s.help, differs, reset, |ui| {
         if labels.len() <= 4 { return theme::choices(ui, key, &labels, &mut i); }
         let before = i;
         egui::ComboBox::from_id_salt(key).selected_text(labels[i]).width(ui.available_width()).show_ui(ui, |ui| {
@@ -383,7 +395,7 @@ fn optional(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, off: &str, on_
     let Some(TypeInfo::Enum(info)) = f.get_represented_type_info() else { return false };
     let ReflectMut::Enum(e) = f.reflect_mut() else { return false };
     let mut on = e.variant_name() == "Some";
-    if toggle_row(ui, if on { on_word } else { off }, &mut on, s.help, differs, reset) {
+    if toggle_row(ui, s.icon, if on { on_word } else { off }, &mut on, s.help, differs, reset) {
         let mut next = DynamicEnum::new("None", DynamicVariant::Unit);
         if on {
             let inner = info.variant("Some").and_then(|v| v.as_tuple_variant().ok()).and_then(|t| t.field_at(0)).and_then(|f| default_of(f.type_id()));
@@ -424,6 +436,20 @@ fn list(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, ctx: &m
     changed
 }
 
+/// "More" at the right of the row under a slider, its caret turning down while its numbers are open. True when clicked.
+fn more(ui: &mut Ui, id: egui::Id, open: bool) -> bool {
+    let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::hover());
+    let g = ui.painter().layout_no_wrap("More".to_owned(), theme::semi(12.0), accent());
+    let w = g.size().x + 4.0 + 12.0;
+    let hit = egui::Rect::from_min_max(pos2(row.right() - w, row.top()), row.max);
+    let resp = ui.interact(hit, id.with("more"), Sense::click());
+    let c = if resp.hovered() { theme::lerp_color(accent(), Color32::WHITE, 0.3) } else { accent() };
+    let turn = theme::spring(ui.ctx(), id.with("turn"), if open { 1.0 } else { 0.0 }, theme::SNAPPY);
+    ui.painter().galley(pos2(hit.left(), row.center().y - g.size().y / 2.0), g, c);
+    frame::paint_icon_turned(ui.painter(), "right", pos2(row.right() - 6.0, row.center().y), 12.0, c, turn * std::f32::consts::FRAC_PI_2);
+    resp.tip(if open { "Fewer: hide its numbers" } else { "Its numbers, and what the slider's ends mean" }).clicked()
+}
+
 /// One word slider for every Feel field in `group`, with their numbers and range ends under More numbers.
 #[allow(clippy::too_many_arguments)]
 fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, words: &[&str], members: &[(&'static str, Setting)], default: Option<f32>, ctx: &mut Ctx) -> bool {
@@ -439,7 +465,7 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, words: &[&str],
     let mut t = feel_t(v0, lo, hi, log);
     let differs = default.is_some_and(|d| (d - v0).abs() > 1e-4 * d.abs().max(1.0));
     let mut reset = false;
-    if row(ui, group, s0.help, differs, &mut reset, |ui| word_slider(ui, &mut t, words).changed()) {
+    if row(ui, s0.icon, group, s0.help, differs, &mut reset, |ui| word_slider(ui, &mut t, words).changed()) {
         for (n, s) in members {
             let (lo, hi, log) = range(ctx, n, s);
             if let Some(v) = st.field_mut(n).and_then(|f| f.try_downcast_mut::<f32>()) { *v = feel_value(t, lo, hi, log); }
@@ -451,23 +477,20 @@ fn feel(ui: &mut Ui, st: &mut dyn Struct, ty: &str, group: &str, words: &[&str],
     }
     let id = ui.id().with(("more", ty, group));
     let mut open = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-    ui.horizontal(|ui| {
-        ui.add_space(LABEL_W + 8.0);
-        if theme::quiet_button(ui, if open { "Fewer numbers ‹" } else { "More numbers ›" }).clicked() {
-            open = !open;
-            ui.data_mut(|d| d.insert_temp(id, open));
-        }
-    });
+    if more(ui, id, open) {
+        open = !open;
+        ui.data_mut(|d| d.insert_temp(id, open));
+    }
     if open {
         let mut none = false;
         for (n, s) in members {
             let (lo, hi, log) = range(ctx, n, s);
             let u = unit(s);
             if let Some(v) = st.field_mut(n).and_then(|f| f.try_downcast_mut::<f32>()) {
-                changed |= row(ui, s.label, "", false, &mut none, |ui| number(ui, v, 0.01, f32::MIN, f32::MAX, &u, None, ui.available_width()).changed());
+                changed |= row(ui, "", s.label, "", false, &mut none, |ui| number(ui, v, 0.01, f32::MIN, f32::MAX, &u, None, ui.available_width()).changed());
             }
             let (mut a, mut b) = (lo, hi);
-            let (ca, cb) = row(ui, "Range", "What the slider's two ends mean", false, &mut none, |ui| {
+            let (ca, cb) = row(ui, "", "Range", "What the slider's two ends mean", false, &mut none, |ui| {
                 let w = (ui.available_width() - 6.0) / 2.0;
                 let ca = number(ui, &mut a, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", words[0])).changed();
                 let cb = number(ui, &mut b, 0.01, f32::MIN, f32::MAX, &u, None, w).tip(format!("{} end", words[words.len() - 1])).changed();

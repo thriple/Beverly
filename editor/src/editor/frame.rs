@@ -331,6 +331,13 @@ pub fn paint_icon(p: &egui::Painter, name: &str, c: Pos2, size: f32, colour: Col
     paint(p, part, |q| c + (q - pos2(12.0, 12.0)) * k, |_| colour);
 }
 
+/// An icon turned by `angle` (radians, clockwise on screen) about its middle, e.g. a caret that turns as it opens.
+pub fn paint_icon_turned(p: &egui::Painter, name: &str, c: Pos2, size: f32, colour: Color32, angle: f32) {
+    let Some(part) = icons().get(name) else { return };
+    let (k, rot) = (size / 24.0, egui::emath::Rot2::from_angle(angle));
+    paint(p, part, |q| c + rot * ((q - pos2(12.0, 12.0)) * k), |_| colour);
+}
+
 /// Fill a closed polygon (any shape, in window points) in `colour`.
 pub fn paint_polygon(p: &egui::Painter, pts: &[Pos2], colour: Color32) {
     let mut b = LPath::builder();

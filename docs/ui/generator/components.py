@@ -41,8 +41,10 @@ slider = card('Word slider', 'Feel settings use words first. Drag or click a wor
               + state('Dragging — the value rides above the thumb', '<div style="padding-top: 26px">' + slider_drag() + '</div>')
               + state('Changed from default — bar marks it, reset appears on hover',
                       ws('Bounce', ['None', 'Soft', 'Springy'], 2, True).replace('</div></div></div>', f'</div></div><button type="button" class="ib" aria-label="Reset Bounce" title="Reset to None" style="color: {A2}">{ic("reset", "currentColor", 15)}</button></div>', 1))
-              + state('More numbers — exact value under the words',
-                      ws('Weight', ['Feather', 'Light', 'Medium', 'Heavy', 'Fixed'], 3)
+              + state('With an icon — 14 px before the label, in its colour (white when changed)',
+                      ws('Volume', ['Whisper', 'Quiet', 'Normal', 'Loud'], 2, icon='volume') + more_btn(A2))
+              + state('More open — its caret turns down; exact value under the words',
+                      ws('Weight', ['Feather', 'Light', 'Medium', 'Heavy', 'Fixed'], 3) + more_btn(A2, True)
                       + f'<div class="row"><span class="lbl"></span><div class="ax" style="flex: none; width: 120px"><span style="flex: 1">120</span><span style="color: #8E8E95; padding-right: 9px">kg</span></div><span style="font-size: 12px; color: #8E8E95">Typing a number moves the word</span></div>'))
 
 # ---------- number fields ----------
@@ -159,7 +161,7 @@ buttons = card('Buttons', 'One main action per panel. Labels are verbs.',
                      f'<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">'
                      f'<button type="button" class="btn" style="background: {A}; color: {INK}">{ic("play", "currentColor", 14, 2.5)}Play here <span class="kc" style="background: {INK}; border-color: {INK}; color: {A}">`</span></button>'
                      f'<button type="button" class="btn" style="background: #2A2A2F; color: #F3F3F1">{ic("plus", "currentColor", 15)}Add wire</button>'
-                     f'<button type="button" class="btn" style="color: {A2}; padding: 0 6px">More numbers ›</button>'
+                     f'<button type="button" class="btn" style="color: {A2}; padding: 0 6px">{ic("plus", "currentColor", 15)}New sound</button>'
                      f'<button type="button" class="btn" style="background: {hexa(DANGER, 0.16)}; color: #FF8A98">{ic("trash", "currentColor", 15)}Delete 3 parts</button></div>', pad=False)
                + state('Icon buttons — tooltip with shortcut on hover',
                        f'<div style="display: flex; gap: 4px; align-items: center"><button type="button" class="ib" aria-label="Duplicate">{ic("copy", "currentColor", 16)}</button><button type="button" class="ib" aria-label="Delete">{ic("trash", "currentColor", 16)}</button>'

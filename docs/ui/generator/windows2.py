@@ -29,7 +29,7 @@ def tag(t, x, y, text, icon):
 
 
 def more(t):
-    return f'<button type="button" style="margin-top: 14px; font-size: 12px; font-weight: 500; color: {t["acc2"]}">More numbers ›</button>'
+    return more_btn(t['acc2'])
 
 
 # ---------------- timeline ----------------
@@ -348,9 +348,10 @@ def audio():
            + grp('Recordings', recording(t, 'step_1.wav', '0.4 s', 1, 3.2) + recording(t, 'step_2.wav', '0.3 s', 2, 4) + adder(t, 'Add a recording'), 'wave', CAT['act'])
            + grp('On surfaces', '<div style="font-size: 11.5px; color: #8E8E95; margin: -4px 0 10px">On these surfaces it plays these instead</div>'
                  + grass + recording(t, 'grass_step.wav', '0.5 s', 3, 2.2) + adder(t, 'Add a recording') + '<div style="height: 8px"></div>' + adder(t, 'Add a surface', 'layers'), 'layers', CAT['act'])
-           + grp('Sound', seg('Pick', ['At random', 'In turn'], 0) + ws('Volume', ['Whisper', 'Quiet', 'Normal', 'Loud'], 2) + ws('Pitch', ['Low', 'Normal', 'High'], 1)
-                 + ws('Vary', ['Same', 'A little', 'A lot'], 1, True) + trow(t, 'Loop', False) + more(t), 'sliders', CAT['act'])
-           + grp('Reach', ws('Near', ['Close', "Arm's length", 'Room'], 0) + ws('Range', ['Room', 'Yard', 'Field', 'Valley'], 1) + more(t), 'target', a2)
+           + grp('Sound', seg('Pick', ['At random', 'In turn'], 0, icon='shuffle') + ws('Volume', ['Whisper', 'Quiet', 'Normal', 'Loud'], 2, icon='volume') + more(t)
+                 + ws('Pitch', ['Low', 'Normal', 'High'], 1, icon='pitch') + more(t) + ws('Vary', ['Same', 'A little', 'A lot'], 1, True, icon='vary') + more(t)
+                 + trow(t, 'Loop', False, icon='loop'), 'sliders', CAT['act'])
+           + grp('Reach', ws('Near', ['Close', "Arm's length", 'Room'], 0, icon='near') + more(t) + ws('Range', ['Room', 'Yard', 'Field', 'Valley'], 1, icon='range') + more(t), 'target', a2)
            + grp('Advanced', '', 'sliders', '#8E8E95', '1 setting'))
     L = lst([('In the level', [(CAT['act'], 'hum', False, '1 recording', 'wave'), (CAT['act'], 'knock', False, '1 recording', 'wave'), (CAT['act'], 'steps', True, '3 recordings', 'wave')]),
              ('Not used yet', [(CAT['act'], 'bell', False, '1 recording', 'wave'), (CAT['act'], 'door creak', False, '!No recordings', 'wave')])], 'Find a sound')
