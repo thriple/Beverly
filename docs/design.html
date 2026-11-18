@@ -668,6 +668,25 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li>Swaps cross-fade instead of popping (Bevy's visibility ranges support this).</li>
         <li>The last level is an octahedral impostor: one camera-facing card baked from views all around the model, keeping its 3D look from every angle (ported from the user's baker, <code>docs/reference/octahedral-impostor-baker.html</code>). Made on import, with a toggle; its quality can change any time and it rebakes in the background. The atlases are cached, never stored in the project.</li>
         <li>An LOD drawer pops out beside Assets: the project's LOD settings, and for a selected model each level side by side as small live views you can turn, with triangle counts, swap sizes and a mesh / impostor compare.</li>
+        <li>Later, <b>virtual geometry</b> (Nanite-like, <code>docs/virtual-geometry.md</code>): dense models drawn cluster by cluster with seamless detail and GPU culling, from a fork of Bevy's meshlet renderer. Classic LOD stays for skinned and see-through models and as the last fallback; a 32-bit path keeps the seamless detail on cards without 64-bit atomics.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Shaders</span><h3>Any shader, written by hand or by Claude</h3>
+      <ul>
+        <li>Shaders are project assets (<code>assets/shaders/*.wesl</code>): a settings header turns their values into sliders, edits reload at once and errors show in the island with the line.</li>
+        <li>Any material can use one. Moving vertices (wind, wobble) and cut-out edges (leaves) are declared as raster hooks, so the normal renderer and virtual geometry both draw them; see-through shaders are marked so they take the normal path.</li>
+        <li>The MCP server can write, list and assign shaders.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <span class="tag">Prepared models</span><h3>A model's own file, made ready in its tab</h3>
+      <ul>
+        <li>Each imported model gets its own file beside it: collision, scale, materials, LOD and tags, plus lights, sounds, decals and effects that come with every copy. Changing it changes every copy, as materials do.</li>
+        <li>Edit it in the tab that knows it (a vehicle in Vehicles, a tree in Foliage, a character in Characters), then place it in the Level. Assets shows where it is prepared and chips for its LODs, impostor and virtual geometry.</li>
+        <li>Faster placing: your models in the parts pop-up, drag from Assets into the view, Shift keeps placing.</li>
       </ul>
     </div>
 
@@ -701,7 +720,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li>Light parts (the Lights section of the parts pop-up): point (a sphere showing its reach, with a handle to size it) and spot (its cone drawn: drag the tip to aim it and set its reach, the rim to widen or narrow it). A spot shines away from the surface it is placed on, so on a ceiling it points down. Each has a colour, brightness, reach and shadows on or off; the editor shows a small bulb to click, the game only the light. Lights are always individual and never collide. Plus a glowing-surface material for screens and strips.</li>
         <li>Reflection box parts for shiny areas. Their influence box is always drawn, so a stray reflection, like the mech's silver square, is easy to find.</li>
         <li>A light budget meter in the view's top-right corner shows the most shadowed lights reaching one place, against a budget of 4; it turns red when over, says which lights they are, and clicking it selects them in turn. It shows only while the level has shadowed lights.</li>
-        <li>No light baking at first. It can come later if interiors need it.</li>
+        <li>Cheaper lights later (<code>docs/lighting.md</code>): shadows cached until something in a light's reach moves (aim: 20 shadowed lights without notice), still lights baked into light probes and reflection boxes (kept in the bake cache, never the project), and ray-traced realtime GI on cards that can.</li>
       </ul>
     </div>
 

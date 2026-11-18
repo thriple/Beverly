@@ -6,6 +6,11 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 ## Rules from the user
 
 - **Work on `main` only:** every session commits and pushes to `main`, never to a session branch (user, 2026-11-15).
+  One exception (user, 2026-11-18): the virtual-geometry plugin lives on the branch `virtual-geometry`
+  (`crates/beverly_vg`, its job list in `crates/beverly_vg/JOBS.md` there), worked on by nightly unattended runs and
+  merged into main part by part after review. Unattended runs never push to main, never release, and stop on taste
+  questions (they go in JOBS.md). On that branch only the `virtual-geometry` entry of `editor/features.json` is edited
+  and `tools/roadmap.py` is not run; main reruns it after each merge.
 - **The editor's look (user, 2026-11-17):** the user's redesign in `docs/ui/` is the source of truth: `HANDOFF.md`
   (frame, tab colours, type, panels, controls, icons, checklists for new tabs and controls), the boards in
   `docs/ui/design/boards` (live canvas linked in HANDOFF.md), `tokens/` and `icons/`. Every new window, panel, control
@@ -33,6 +38,12 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   editor actions; anything else is part of the feature).
 - Keep it simple: minimum code for what was asked, surgical changes, ask when unclear.
 - Never put model names or ids in repository files. Never ask for keys in chat or write them into files.
+- **Built to spec for virtual geometry (user, 2026-11-18; docs/virtual-geometry.md):** every material or shader goes
+  through Beverly's shader pipeline (`shaders`), with vertex movement and cut-out edges declared as raster hooks and
+  see-through materials marked; models are used through their split meshes (`models-split`), never a spawned glTF
+  scene; anything worked out from the user's files (bakes, atlases, probes) goes through the bake cache, never into the
+  project; nothing relies on MSAA or one graphics card (read `GpuCaps`, work on the fallback); and each feature's
+  checks include the performance meter's numbers once it exists.
 
 ## Tech
 
