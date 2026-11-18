@@ -668,7 +668,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li>Swaps cross-fade instead of popping (Bevy's visibility ranges support this).</li>
         <li>The last level is an octahedral impostor: one camera-facing card baked from views all around the model, keeping its 3D look from every angle (ported from the user's baker, <code>docs/reference/octahedral-impostor-baker.html</code>). Made on import, with a toggle; its quality can change any time and it rebakes in the background. The atlases are cached, never stored in the project.</li>
         <li>An LOD drawer pops out beside Assets: the project's LOD settings, and for a selected model each level side by side as small live views you can turn, with triangle counts, swap sizes and a mesh / impostor compare.</li>
-        <li>Later, <b>virtual geometry</b> (Nanite-like, <code>docs/virtual-geometry.md</code>): dense models drawn cluster by cluster with seamless detail and GPU culling, from a fork of Bevy's meshlet renderer. Classic LOD stays for skinned and see-through models and as the last fallback; a 32-bit path keeps the seamless detail on cards without 64-bit atomics.</li>
+        <li>Later, <b>virtual geometry</b>, Tessera (Nanite-like, <code>docs/tessera.md</code>): dense models drawn cluster by cluster with seamless detail and GPU culling, from a fork of Bevy's meshlet renderer. Classic LOD stays for skinned and see-through models and as the last fallback; a 32-bit path keeps the seamless detail on cards without 64-bit atomics.</li>
       </ul>
     </div>
 
