@@ -929,7 +929,7 @@
    ],
    "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
    "chunks": [],
-   "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need. A key switches first and third person while playing, and a cutscene hands back to the mode the player was in (user, 2026-11-18, the island-to-orbit demo).",
+   "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need. The creator chooses how cameras behave, per game and per character, at any step, nothing hardwired (user, 2026-11-18): which modes a character has (first, third person or both), whether a key switches them while playing (and which key), and the mode it starts in.",
    "order": 53,
    "first_game": true
   },
@@ -1316,7 +1316,7 @@
     "Animatics tab: camera-cut and subtitle tracks, the Animatic action",
     "Character recordings into editable keys; letterbox and skippable"
    ],
-   "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. Blends in from the player's camera and back out to it without a cut, whichever mode it was in (user, 2026-11-18, the island-to-orbit demo).",
+   "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. The creator chooses, per animatic, how it starts and ends (user, 2026-11-18: a choice, not hardwired): blend in from the player's camera or cut (and how long the blend takes), and on the way out blend or cut back to the mode the player was in, or to a mode the creator picks.",
    "order": 74,
    "first_game": true
   },
@@ -2586,10 +2586,10 @@
    ],
    "what": "A very basic level in a simple cartoon style: a 50 × 50 m slice of a world, 100 m tall, a tropical island meeting three sides and ocean on the fourth (sea at 25 m); walk, run, jump and swim, switching between first and third person to try the camera modes; a rocket you enter that lifts off by itself to above the atmosphere (50 m), seen as a seamless third-person cutscene, where you step out in a space suit and move in six directions without gravity, then fly back down and pop out on the ground, back in the camera mode you had.",
    "chunks": [
-    "The world: the 50 × 50 × 100 m slice held in by boundaries; the island (terrain, beach, palms) on three sides and the ocean to the fourth edge, its surface at 25 m and floor at 0, cut away at the edges; the cartoon look (flat colours, cel shading, outlines); the sky fading to black and stars above 50 m; walk, run, jump, swim and dive; first and third person switched with a key while in control, for the islander and the astronaut alike",
-    "The round trip: the rocket (a vehicle that flies itself along a path) entered with E; lift-off, the stop at about 80 m, the descent and the landing each an animatic with a third-person cutscene camera that blends in from the player's camera without a cut and blends back out to the mode the player was in (first or third person); shake, flame and smoke; the door; the astronaut (a second character file) in a no-gravity zone above 50 m, moving in six directions with a gentle flight assist; back in, down, and the islander popping out; a test project that plays the whole round trip, in both camera modes"
+    "The world: the 50 × 50 × 100 m slice held in by boundaries; the island (terrain, beach, palms) on three sides and the ocean to the fourth edge, its surface at 25 m and floor at 0, cut away at the edges; the cartoon look (flat colours, cel shading, outlines); the sky fading to black and stars above 50 m; walk, run, jump, swim and dive; its characters set to switch first and third person with a key while in control (a choice in their camera settings)",
+    "The round trip: the rocket (a vehicle that flies itself along a path) entered with E; lift-off, the stop at about 80 m, the descent and the landing each an animatic with a third-person cutscene camera, set to blend in from the player's camera and back out to the mode the player was in (the animatics' own choices); shake, flame and smoke; the door; the astronaut (a second character file) in a no-gravity zone above 50 m, moving in six directions with a gentle flight assist; back in, down, and the islander popping out; a test project that plays the whole round trip, in both camera modes"
    ],
-   "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): switch between first and third person while in control, to test the camera modes; the rocket's flights are a seamless third-person cutscene that blends from the player's camera and back to whichever mode the player was in.",
+   "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): the demo sets its characters to switch between first and third person while in control, and its rocket animatics to blend in and back out to the player's mode; these are the creator's choices in the character camera and animatics settings, not built in.",
    "first_game": false,
    "order": 146
   },
