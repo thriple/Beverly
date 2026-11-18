@@ -17,11 +17,11 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 4. **No taste calls.** If the work needs a decision about how something looks, feels, is worded or is set up for the user, don't guess. Write the question under *Questions for the user*, mark the job ⏸, and move to the next job, or stop if there is none.
    - Engine API shapes that only code sees are fine to decide. Explain them in the run log.
 5. **Leave the wiring in place.** When a job needs something that main hasn't built yet, build this side behind clean seams and write what main must call or provide under *Wiring main needs*:
-   - `GpuCaps` from `gpu-setup`
+   - `GpuCaps` is built on main (`editor/src/gpu.rs`); read it, don't make another
    - split meshes from `models-split`
    - raster hooks from `shaders`
    - the cache directory from `bake-cache`
-   - the SMAA swap from `gpu-setup`
+   - the SMAA swap is built on main (editor and player cameras on `Msaa::Off` + SMAA)
 6. **Keep main's behaviour.** With the `tessera` feature off, the editor must build and behave exactly as on main. Every run checks:
    - `cd editor && CARGO_INCREMENTAL=0 cargo build && cargo test` (feature off)
    - the same with `--features tessera`, once that feature exists
@@ -51,14 +51,15 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    - Vendor `bevy_pbr-0.20.1` into `crates/bevy_pbr`, untouched, in its own commit. Add the patch and the `tessera` feature, and make both builds pass.
    - Fill in `crates/tessera` (a crate named `tessera`) with a procedural dense test mesh (a displaced, subdivided sphere; about 1 M triangles; seeded; no third-party assets).
    - **Check the GPU here:** can lavapipe (Mesa's software Vulkan, `/usr/share/vulkan/icd.d/lvp_icd.json`) provide the six features (`docs/tessera.md`)?
-     - Write a small headless check program that prints the adapter's features.
-     - If they are there, render the test mesh with Bevy's meshlet path off-screen and save a screenshot.
+     - Main's `gpu-setup` already found that lavapipe reports all six (`beverly::gpu::GpuCaps::virtual_geometry()` is true here; the editor logs `Graphics card: ...`). Confirm it with that, no separate check program.
+     - Since they are there, render the test mesh with Bevy's meshlet path off-screen and save a screenshot.
      - Record the answer at the top of *Run log* as **GPU-testable here: yes/no**. Later jobs use it to decide what they can check themselves.
 2. ⬜ **No exit on a missing feature.**
    - In the fork, replace the `exit(1)`s (`mod.rs` feature check, MSAA check) with a disabled state that leaves the app running.
    - Limit the MSAA check to views that actually draw virtual geometry.
-   - Add `tessera::GpuCaps`: probe the adapter before the app is built (backend, the six features, mesh shaders, ray query), and choose Vulkan on Windows when it qualifies.
-   - Wiring note: main's `gpu-setup` should adopt this type.
+   - Use main's `beverly::gpu::GpuCaps` (`editor/src/gpu.rs`: probed before the app is built, Vulkan chosen when it can run virtual geometry, the renderer pinned to that adapter). Don't add a second probe.
+     - The `tessera` crate can't depend on the editor, so the editor passes what it needs in (e.g. a `bool` or the `WgpuFeatures`) when it adds the plugin; turn the plugin's parts on or off from that.
+     - If Tessera needs more from the card (mesh shaders, ray query, limits), add a method on `GpuCaps` in `gpu.rs` on this branch, and note it under *Wiring main needs* so main takes the same change when it merges.
 3. ⬜ **Bug fixes** (the list in `docs/tessera.md`):
    - the prepass and deferred material bind group 2 → 3
    - `unclipped_depth` on the directional-shadow pipeline
