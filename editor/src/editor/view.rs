@@ -8,7 +8,9 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseSc
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use bevy::camera::{CameraOutputMode, visibility::RenderLayers};
-use bevy::render::render_resource::BlendState;
+use bevy::light::NotShadowCaster;
+use bevy::render::render_resource::{AsBindGroup, BlendState};
+use bevy::shader::ShaderRef;
 use bevy_egui::input::EguiWantsInput;
 use bevy_egui::{EguiGlobalSettings, PrimaryEguiContext};
 
@@ -85,15 +87,17 @@ pub struct MainCamera;
 
 pub fn setup(mut commands: Commands, mut egui_settings: ResMut<EguiGlobalSettings>) {
     let v = View::default();
-    // BEVERLY_LITE=1: no anti-aliasing (for slow software renderers, e.g. automated tests)
-    let msaa = if std::env::var_os("BEVERLY_LITE").is_some() { Msaa::Off } else { Msaa::Sample4 };
-    commands.spawn((Camera3d::default(), MainCamera, crate::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), msaa, RenderLayers::from_layers(&[0, 1]))); // the level and the editor's own layer (world::EDITOR_ONLY)
+    // anti-aliasing by SMAA, not MSAA (virtual geometry can't take MSAA); BEVERLY_LITE=1: none (for slow software
+    // renderers, e.g. automated tests)
+    let cam = commands.spawn((Camera3d::default(), MainCamera, crate::play::PlayCamera, Transform::from_translation(v.pos).with_rotation(v.rot()), Msaa::Off, RenderLayers::from_layers(&[0, 1]))).id(); // the level and the editor's own layer (world::EDITOR_ONLY)
+    if std::env::var_os("BEVERLY_LITE").is_none() { commands.entity(cam).insert(bevy::anti_alias::smaa::Smaa::default()); }
     commands.insert_resource(v);
     // The panels get their own full-window camera, drawn over the 3D view.
     egui_settings.auto_create_primary_context = false;
     commands.spawn((
         PrimaryEguiContext,
         Camera2d,
+        Msaa::Off, // the vector UI covers pixels itself
         RenderLayers::none(),
         Camera {
             order: 1,
@@ -244,22 +248,32 @@ pub fn apply_viewport(mut cam: Single<&mut Camera, With<MainCamera>>) {
     if cam.viewport.is_some() { cam.viewport = None; }
 }
 
-/// Ground grid around the camera: 1 m lines, brighter every 10 m, fading out.
-pub fn grid(view: Res<View>, mut g: Gizmos) {
-    let c = view.pos;
-    let reach = (c.y.abs() * 3.0).clamp(30.0, 400.0);
-    let step = if reach > 150.0 { 10.0 } else { 1.0 };
-    let n = (reach / step) as i32;
-    let (cx, cz) = ((c.x / step).round() * step, (c.z / step).round() * step);
-    for i in -n..=n {
-        let v = i as f32 * step;
-        let major = ((cx + v) / 10.0).round() * 10.0 == (cx + v).round() && ((cx + v) % 10.0).abs() < 0.01;
-        let a = if major { 0.16 } else { 0.06 };
-        g.line(vec3(cx + v, 0.0, cz - reach), vec3(cx + v, 0.0, cz + reach), Color::srgba(1.0, 1.0, 1.0, a));
-        let major = ((cz + v) % 10.0).abs() < 0.01;
-        let a = if major { 0.16 } else { 0.06 };
-        g.line(vec3(cx - reach, 0.0, cz + v), vec3(cx + reach, 0.0, cz + v), Color::srgba(1.0, 1.0, 1.0, a));
-    }
+/// The ground grid: a plane under the camera on the editor's own layer, its lines drawn by grid.wesl.
+#[derive(Asset, TypePath, AsBindGroup, Clone)]
+pub struct GridMaterial {}
+
+impl Material for GridMaterial {
+    fn fragment_shader() -> ShaderRef { "embedded://beverly/editor/grid.wesl".into() }
+    fn alpha_mode(&self) -> AlphaMode { AlphaMode::Blend }
+}
+
+#[derive(Component)]
+pub struct Grid;
+
+pub fn grid_plugin(app: &mut App) {
+    bevy::asset::embedded_asset!(app, "grid.wesl");
+    app.add_plugins(MaterialPlugin::<GridMaterial>::default());
+}
+
+pub fn spawn_grid(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<GridMaterial>>) {
+    // as far as the grid reaches (400 m) each way
+    let plane = meshes.add(Plane3d::default().mesh().size(800.0, 800.0));
+    commands.spawn((Grid, Mesh3d(plane), MeshMaterial3d(mats.add(GridMaterial {})), Transform::default(), NotShadowCaster, crate::world::EDITOR_ONLY));
+}
+
+/// The grid follows the camera across the ground.
+pub fn grid(view: Res<View>, mut grid: Single<&mut Transform, With<Grid>>) {
+    grid.translation = vec3(view.pos.x, 0.0, view.pos.z);
 }
 
 /// BEVERLY_LITE=1 also logs key presses and the frame time every 20 frames.

@@ -84,7 +84,7 @@ Research of 2026-11-18. Tessera is Beverly's virtual-geometry plugin (named by t
 1. Materials and shaders go through the `shaders` pipeline. Raster hooks are declared there, and see-through materials are marked.
 2. Models are used through `models-split` meshes, never a spawned glTF scene.
 3. Derived data goes through `bake-cache`: local, never in the project.
-4. Nothing relies on MSAA or on one card. `GpuCaps` decides, and everything works on the fallback.
+4. Nothing relies on MSAA or on one card. `GpuCaps` (main's `editor/src/gpu.rs`) decides, and everything works on the fallback.
 5. Verification includes `perf-meter` numbers.
 
 ## Size estimates
@@ -101,4 +101,4 @@ Research of 2026-11-18. Tessera is Beverly's virtual-geometry plugin (named by t
 | Lighting (`shadow-cache`, `baked-light`, `realtime-gi`) | 6–8 |
 | `virtual-shadows` | 4+ |
 
-The biggest unknown is testing on the user's RTX card. Whether this container's lavapipe runs Bevy's meshlet path is job 1 on the branch.
+The biggest unknown is testing on the user's RTX card. This container's lavapipe (Mesa's software Vulkan) reports every feature the meshlet path asks for (gpu-setup, 2026-11-18); whether it really runs it is job 1 on the branch.

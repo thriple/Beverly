@@ -648,6 +648,7 @@ dependencies = [
  "tiny_http",
  "ureq",
  "usvg",
+ "wgpu",
  "windows-sys 0.59.0",
  "winit",
  "winresource",

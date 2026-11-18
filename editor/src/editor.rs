@@ -307,13 +307,14 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
     let root = models::ProjectRoot::new(ed.dir.clone());
     let mut app = App::new();
     models::register_source(&mut app, &root);
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+    let render = crate::gpu::render_plugin(&mut app);
+    app.add_plugins(DefaultPlugins.set(render).set(WindowPlugin {
             primary_window: Some(Window { title: title.into(), resolution: (1600, 960).into(), decorations: false, ..default() }),
             close_when_requested: false,
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin))
+    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, view::grid_plugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
@@ -322,7 +323,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .insert_resource(ed)
         .init_gizmo_group::<edit::WidgetGizmos>()
         .init_gizmo_group::<edit::OutlineGizmos>()
-        .add_systems(Startup, (shapes::setup, view::setup, edit::setup, caps::startup))
+        .add_systems(Startup, (shapes::setup, view::setup, view::spawn_grid, edit::setup, caps::startup))
         .init_resource::<mcp::host::Injected>()
         .add_systems(PreUpdate, mcp::host::inject.after(bevy::input::InputSystems))
         .add_systems(Update, (window_icon, mcp::host::serve))

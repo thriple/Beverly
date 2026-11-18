@@ -90,7 +90,7 @@ pub fn tools() -> Value {
         {
             "name": "get_project",
             "title": "Describe the project",
-            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, and Beverly's build.",
+            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry).",
             "inputSchema": none,
         },
         {
