@@ -49,7 +49,8 @@ pub fn run(extra: fn(&mut App)) {
     };
     let mut app = App::new();
     models::register_source(&mut app, &ProjectRoot::new(dir.clone()));
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+    let render = crate::gpu::render_plugin(&mut app);
+    app.add_plugins(DefaultPlugins.set(render).set(WindowPlugin {
         primary_window: Some(Window { title: name, resolution: (1600, 900).into(), ..default() }),
         ..default()
     }));
@@ -77,7 +78,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut assets: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn((Camera3d::default(), PlayCamera, Msaa::Sample4, Transform::from_xyz(0.0, 3.0, 8.0)));
+    commands.spawn((Camera3d::default(), PlayCamera, Msaa::Off, bevy::anti_alias::smaa::Smaa::default(), Transform::from_xyz(0.0, 3.0, 8.0)));
     let mut mats = world::setup_stage(&mut commands, &mut meshes, &mut assets, true);
     let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &game.level.materials, shadows: true };
     for p in &game.level.parts {

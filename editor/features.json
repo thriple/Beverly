@@ -600,7 +600,7 @@
     "shell"
    ],
    "what": "Antialiasing by SMAA instead of 4x MSAA in the editor and games, a GpuCaps check of what the graphics card can do at start, and Vulkan on Windows when the card qualifies.",
-   "note": "Planned 2026-11-18 (docs/tessera.md): virtual geometry needs MSAA off and the card's features known before the app starts. The egui camera also goes to MSAA off (the vector UI covers pixels itself; check it still looks right). Every feature reads GpuCaps instead of assuming a card.",
+   "note": "Built 2026-11-18: gpu.rs probes the card before the app starts (a real card before a software one, a separate one before a built-in one), takes its Vulkan driver when that has every feature virtual geometry needs, pins Bevy's renderer to that adapter and keeps GpuCaps (name, backend, kind, features, virtual_geometry()) as a resource; the log and the MCP server's get_project say which card. SMAA instead of 4x MSAA on the editor's view and the player's camera, MSAA off on the panels' camera. The ground grid is now a shader (editor/grid.wesl) that smooths its own lines, since thin gizmo lines broke up without MSAA. The test machine's software Vulkan (lavapipe) has every virtual-geometry feature. Waiting for the user's eye on the look.",
    "chunks": [],
    "status": "planned",
    "first_game": true,
