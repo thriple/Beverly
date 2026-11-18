@@ -600,7 +600,7 @@
     "shell"
    ],
    "what": "Antialiasing by SMAA instead of 4x MSAA in the editor and games, a GpuCaps check of what the graphics card can do at start, and Vulkan on Windows when the card qualifies.",
-   "note": "Planned 2026-11-18 (docs/virtual-geometry.md): virtual geometry needs MSAA off and the card's features known before the app starts. The egui camera also goes to MSAA off (the vector UI covers pixels itself; check it still looks right). Every feature reads GpuCaps instead of assuming a card.",
+   "note": "Planned 2026-11-18 (docs/tessera.md): virtual geometry needs MSAA off and the card's features known before the app starts. The egui camera also goes to MSAA off (the vector UI covers pixels itself; check it still looks right). Every feature reads GpuCaps instead of assuming a card.",
    "chunks": [],
    "status": "planned",
    "first_game": true,
@@ -1181,7 +1181,7 @@
     "Draw-distance classes tied to the haze end, Always visible flag",
     "The LOD drawer: pops out beside the Assets panel with the project’s LOD settings; with a model selected it shows each level side by side (a small live view of it you can turn, triangle count, swap size) and its impostor"
    ],
-   "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd. Since 2026-11-18: classic LOD is the path for skinned and see-through models and the last fallback for virtual geometry (docs/virtual-geometry.md).",
+   "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd. Since 2026-11-18: classic LOD is the path for skinned and see-through models and the last fallback for virtual geometry (docs/tessera.md).",
    "order": 67,
    "first_game": true
   },
@@ -1531,8 +1531,8 @@
    "first_game": true
   },
   {
-   "id": "virtual-geometry",
-   "name": "Virtual geometry (Nanite-like detail)",
+   "id": "tessera",
+   "name": "Tessera: virtual geometry (Nanite-like detail)",
    "area": "Level building",
    "effort": "XL",
    "needs": [
@@ -1544,14 +1544,14 @@
    ],
    "what": "Dense models drawn with seamless, per-cluster detail, culled on the GPU and with no draw-call cost per object; a fork of Bevy’s meshlet renderer with Beverly’s fixes and additions; a fallback on any card.",
    "chunks": [
-    "The fork: Bevy’s meshlet code as Beverly’s own (crates/), its bugs fixed, no exit on a missing feature, GpuCaps deciding, a dense test project",
+    "The fork: Bevy’s meshlet code as Beverly’s own (crates/tessera), its bugs fixed, no exit on a missing feature, GpuCaps deciding, a dense test project",
     "Baking: each model’s meshes into cluster hierarchies in the bake cache, missing attributes filled in, status in Assets and the LOD drawer",
     "Programmable raster and Beverly’s materials: raster hooks from Custom shaders, texture tiling, vertex colours, the paint layers inside the material pass; instances updated by change for big scatters",
     "The 32-bit fallback: hardware raster only with a depth test, so cards without 64-bit atomics keep the seamless detail and culling",
     "Streaming: clusters in pages, loaded when the GPU asks for them",
     "Mesh shaders for the hardware raster path, where wgpu supports them"
    ],
-   "note": "Planned 2026-11-18 (docs/virtual-geometry.md). Built on its own branch, virtual-geometry, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with.",
+   "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with.",
    "status": "planned",
    "first_game": true,
    "order": 87
@@ -1888,7 +1888,7 @@
    "area": "Look and effects",
    "effort": "XL",
    "needs": [
-    "virtual-geometry",
+    "tessera",
     "shadow-cache"
    ],
    "what": "Sharp shadows for very dense levels: one huge shadow drawn only where the view needs it, and only redrawn where things changed.",
@@ -2089,7 +2089,7 @@
    "area": "Look and effects",
    "effort": "L",
    "needs": [
-    "virtual-geometry",
+    "tessera",
     "graphics-settings"
    ],
    "what": "Ray-traced light that bounces, many lights and glowing surfaces lighting their surroundings, on ray-tracing cards (the Lumen-like option).",

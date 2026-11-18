@@ -1,6 +1,6 @@
-# Virtual geometry (Nanite-like detail) for Beverly
+# Tessera: virtual geometry (Nanite-like detail) for Beverly
 
-Research of 2026-11-18. The roadmap feature is `virtual-geometry`. The work happens on the `virtual-geometry` branch; its job list is `crates/beverly_vg/JOBS.md` on that branch. Line references are to Bevy 0.20.1's `bevy_pbr-0.20.1/src/meshlet/` (call it `M/`) in the cargo registry.
+Research of 2026-11-18. Tessera is Beverly's virtual-geometry plugin (named by the user: a tessera is one tile of a mosaic, from the Greek for four). The roadmap feature is `tessera`. The work happens on the `tessera` branch, in `crates/tessera`; its job list is `crates/tessera/JOBS.md` on that branch. Line references are to Bevy 0.20.1's `bevy_pbr-0.20.1/src/meshlet/` (call it `M/`) in the cargo registry.
 
 ## Decisions (user, 2026-11-18)
 - **Fork Bevy's meshlet renderer** rather than write one from scratch. It already has most of a Nanite-style pipeline, and its wiring into Bevy's renderer saves weeks of wgpu work.
