@@ -2563,6 +2563,35 @@
    "first_game": false
   },
   {
+   "id": "island-orbit",
+   "name": "Demo level: island to orbit",
+   "area": "Demo levels",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "terrain-tab",
+    "ocean",
+    "water-play",
+    "sky",
+    "styles",
+    "foliage",
+    "zones",
+    "boundaries",
+    "particles",
+    "char-core",
+    "vehicles",
+    "space"
+   ],
+   "what": "A very basic level in a simple cartoon style: a 50 × 50 m slice of a world, 100 m tall, a tropical island meeting three sides and ocean on the fourth (sea at 25 m); walk, run, jump and swim; a rocket you enter that lifts off by itself to above the atmosphere (50 m), where you step out in a space suit and move in six directions without gravity, then fly back down and pop out on the ground.",
+   "chunks": [
+    "The world: the 50 × 50 × 100 m slice held in by boundaries; the island (terrain, beach, palms) on three sides and the ocean to the fourth edge, its surface at 25 m and floor at 0, cut away at the edges; the cartoon look (flat colours, cel shading, outlines); the sky fading to black and stars above 50 m; walk, run, jump, swim and dive",
+    "The round trip: the rocket (a vehicle that flies itself along a path) entered with E, lift-off with shake, flame and smoke, the stop at about 80 m and the door; the astronaut (a second character file) in a no-gravity zone above 50 m, moving in six directions with a gentle flight assist; back in, down, landing and the islander popping out; a test project that plays the whole round trip; the MCP drives it like any level"
+   ],
+   "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them).",
+   "first_game": false,
+   "order": 146
+  },
+  {
    "id": "polish-2",
    "name": "Polish pass: the whole editor",
    "area": "Editor basics",
@@ -2577,7 +2606,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 146,
+   "order": 147,
    "first_game": false
   },
   {
@@ -2592,7 +2621,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 147,
+   "order": 148,
    "first_game": false
   }
  ],

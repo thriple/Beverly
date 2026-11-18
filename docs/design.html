@@ -789,6 +789,34 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
         <li><kbd>Shift</kbd>+<kbd>`</kbd> starts from the level's Player start instead of the reticle, to test the real opening.</li>
       </ul>
     </div>
+
+    <div class="card you">
+      <span class="tag">Demo level</span><h3>Island to orbit: a cube slice of a cartoon world</h3>
+      <div class="said">A very basic level in a simple cartoony style: a cube slice of a world, a tropical island touching three sides and ocean on the fourth. Jump into the water, or walk, run and jump on land. A simple rocket ship you enter; it lifts off by itself into space above (cartoon proportions) and stops above the atmosphere, the door opens and you come out in a simple space suit, free to move around with 6-DOF, or go back in: it flies back down, lands, the door opens and you pop out on the ground. 50 m wide, 50 m long, 100 m tall, the sea at 25 m.</div>
+      <div class="mini">
+        <svg viewBox="0 0 360 150" aria-label="The level from the side: space above 50 m, island and sky below, ocean to 25 m">
+          <rect x="120" y="4" width="120" height="70" fill="#000"/>
+          <g fill="#fff"><circle cx="140" cy="16" r="1.4"/><circle cx="180" cy="12" r="1"/><circle cx="215" cy="22" r="1.6"/><circle cx="160" cy="40" r="1"/><circle cx="228" cy="50" r="1.3"/><circle cx="135" cy="58" r="1"/></g>
+          <path d="M180 50l-4 10h8z" fill="#e8e8e8"/><path d="M177 60h6l-3 6z" fill="#ff8a1f"/>
+          <rect x="120" y="66" width="120" height="8" fill="#5aa9d6" opacity="0.5"/>
+          <rect x="120" y="74" width="120" height="38" fill="#8fd3f5"/>
+          <path d="M120 112 Q150 98 180 104 Q210 98 240 108 V112z" fill="#f1d38a"/>
+          <g stroke="#2e7d32" stroke-width="3" fill="none"><path d="M150 104q2-10 0-16M205 104q-2-12 2-18"/></g>
+          <rect x="120" y="112" width="120" height="34" fill="#34508f"/>
+          <g stroke="var(--high)" stroke-dasharray="4 3" stroke-width="1.5"><path d="M60 4H120M60 74H120M60 146H120"/></g>
+          <g font-family="Inter" font-size="10" fill="var(--muted)"><text x="62" y="42">space · no gravity</text><text x="62" y="96">sky · island</text><text x="62" y="130">ocean</text>
+          <text x="248" y="8">100 m</text><text x="248" y="78">50 m: the atmosphere</text><text x="248" y="115">25 m: the sea</text><text x="248" y="146">0 m: the sea floor</text><text x="164" y="142" fill="#fff">50 m</text></g>
+        </svg>
+      </div>
+      <ul>
+        <li><b>The slice:</b> 50 × 50 m, 100 m tall, held in by the level's boundaries. The island (terrain with a beach, palms from the user's own models or built from shapes) meets the north, east and west edges; the south edge is open ocean, its surface at 25 m and its floor at 0. The ocean's sides at the edges show as a cut-away, as in the sketch.</li>
+        <li><b>The look:</b> a simple cartoon style: the project's art style set to flat, bright colours with soft cel shading and outlines; the sky fades from a cartoon blue into black with stars above the atmosphere line at 50 m.</li>
+        <li><b>On the island:</b> walk, run and jump; jump in the sea and swim at the surface or dive.</li>
+        <li><b>The rocket:</b> stands on the beach. Press <kbd>E</kbd> at its door: the player goes in, the door shuts, it lifts off with a shake, flame and smoke (cartoon proportions: a few metres tall, quick), climbs to about 80 m and stops above the atmosphere. The door opens and the player comes out as the astronaut (a second character file: the same player in a simple space suit).</li>
+        <li><b>In space:</b> above 50 m is a zone with no gravity: the suit moves in six directions (forward, back, sideways, up, down and turning freely, with a gentle flight assist so it doesn't drift away). Press <kbd>E</kbd> at the rocket's door to go back in: it flies down, lands where it stood, the door opens and the islander pops out on the ground, back in control.</li>
+        <li><b>Built from:</b> the terrain, ocean, swimming, sky, art styles, zones, boundaries, particles, character files, space movement and the vehicles' enter and exit (the rocket is a vehicle that flies itself along a path); a test project plays the whole round trip.</li>
+      </ul>
+    </div>
   </div>
 
   <h2>Things not on the list yet</h2>
