@@ -20,7 +20,7 @@ THEMES = {
     'Screens':    dict(bg='#B77BFF', fg=INK, acc='#B77BFF', accFg=INK, acc2='#D8FF4A'),
     'Animatics':  dict(bg='#E9E7E2', fg=INK, acc='#FF2D46', accFg=INK, acc2='#19D3C5'),
 }
-TAB_FILES = {'Level': 'Main.dc.html', 'Characters': 'Characters.dc.html', 'Vehicles': 'Vehicles.dc.html', 'UI/HUD': 'Hud.dc.html',
+TAB_FILES = {'Level': 'Main.dc.html', 'Characters': 'Characters.dc.html', 'Vehicles': 'Vehicles.dc.html', 'UI/HUD': 'Hud.dc.html', 'Audio': 'Audio.dc.html',
              'Effects': 'Effects.dc.html', 'Screens': 'Screens.dc.html', 'Animatics': 'Animatics.dc.html'}
 TAB_ICON = {'Level': 'mountain', 'Characters': 'person', 'Vehicles': 'car', 'UI/HUD': 'layout', 'Audio': 'wave',
             'Effects': 'flame', 'Screens': 'monitor', 'Animatics': 'film'}
@@ -271,6 +271,7 @@ TOPIC_ICON = dict(All='grid', Physics='feel', Lighting='bulb', Cameras='camera',
                   Body='person', Moves='run', Camera='camera', Controls='keyboard', Drive='wheel', Seats='seat',
                   Layout='layout', Widgets='target', Fonts='text', Bindings='wire',
                   Plumes='flame', Particles='spark', Fire='heat', Post='aperture',
+                  Sounds='wave', Music='music', Ambience='wind', Mixer='sliders', Voices='caption',
                   Shots='film', Captions='caption', Sound='music', Menus='monitor', Flow='route', Transitions='swap', Styles='palette')
 
 

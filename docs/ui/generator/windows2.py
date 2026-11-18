@@ -291,6 +291,76 @@ def effects():
     write('Effects.dc.html', page('Effects', 'Beverly — Effects', view, DOCK_SCRIPT, [('Orbit', 'Middle-drag'), ('Replay', 'R'), ('Throttle', 'Wheel')], world=svg(inner)))
 
 
+# ---------------- AUDIO ----------------
+AUDIO_TOPICS = ['Sounds', 'Music*', 'Ambience*', 'Mixer*', 'Voices*']
+
+
+def wave_bars(t, seed, decay, n=56):
+    """A recording's outline as the waveform control draws it: one bar per slice, lowest to highest, scaled to its loudest."""
+    import math
+    out, w = [], 300 / n
+    for i in range(n):
+        x = i / n
+        env = math.exp(-x * decay) if decay else 0.55 + 0.35 * math.sin(x * 9 + seed)
+        h = max(1, 13 * env * (0.6 + 0.4 * abs(math.sin(i * 1.7 + seed * 3.1))))
+        out.append(f'<rect x="{6 + i * w:.1f}" y="{16 - h:.1f}" width="{w - 0.6:.1f}" height="{2 * h:.1f}" fill="{t["acc2"]}"></rect>')
+    return f'<svg width="100%" height="32" viewBox="0 0 312 32" preserveAspectRatio="none" style="display: block; border-radius: 6px; background: {FIELD}" aria-hidden="true">{"".join(out)}</svg>'
+
+
+def recording(t, name, secs, seed, decay):
+    return (f'<div style="display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12.5px; color: #E6E6E8">{name}'
+            f'<span style="margin-left: auto; font: 11px \'Roboto Mono\', monospace; color: #8E8E95">{secs}</span>'
+            f'<button type="button" class="ib" aria-label="Take {name} out" title="Take this recording out" style="height: 24px; min-width: 24px; padding: 0">{ic("trash", "currentColor", 14)}</button></div>'
+            + wave_bars(t, seed, decay) + '<div style="height: 8px"></div>')
+
+
+def adder(t, text, icon='plus'):
+    return f'<button type="button" class="fld" style="width: 100%; flex: none">{ic(icon, t["acc2"], 14)}{text}{CHEV}</button>'
+
+
+def audio():
+    t = THEMES['Audio']
+    a, a2 = t['acc'], t['acc2']
+    # the stage: a plinth with the speaker on it, the walker going round it, the open sound's range round the walker
+    wx, wy = 428, 556
+    inner = (f'<ellipse cx="620" cy="560" rx="300" ry="74" fill="none" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1.5" stroke-dasharray="6 6"></ellipse>'
+             f'<ellipse cx="620" cy="548" rx="86" ry="20" fill="#1C2A16" opacity=".25"></ellipse>'
+             f'<path d="M548 442 V532 A72 18 0 0 0 692 532 V442 Z" fill="#5A5A60"></path>'
+             f'<ellipse cx="620" cy="442" rx="72" ry="18" fill="#76767C"></ellipse>'
+             f'<g transform="translate(620 404) rotate(-8)"><rect x="-44" y="-20" width="34" height="40" rx="3" fill="{CAT["act"]}"></rect><path d="M-12 -20 L34 -48 V48 L-12 20 Z" fill="{CAT["act"]}"></path></g>'
+             f'<ellipse cx="{wx}" cy="{wy + 8}" rx="236" ry="58" fill="none" stroke="{a2}" stroke-opacity=".9" stroke-width="2.5"></ellipse>'
+             f'<ellipse cx="{wx}" cy="{wy + 8}" rx="54" ry="13" fill="none" stroke="{a2}" stroke-opacity=".9" stroke-width="2.5"></ellipse>'
+             f'<circle cx="{wx}" cy="{wy - 40}" r="62" fill="none" stroke="{a2}" stroke-opacity=".35" stroke-width="2"></circle>'
+             f'<rect x="{wx - 16}" y="{wy - 84}" width="32" height="92" rx="16" fill="#C7C7CF"></rect>'
+             f'<g fill="none" stroke="{a2}" stroke-width="2.5" stroke-linecap="round"><path d="M{wx + 26} {wy - 2} q8 8 0 16"></path><path d="M{wx + 36} {wy - 8} q14 14 0 28"></path></g>')
+    stage = (f'<div class="glass" style="position: absolute; left: 14px; top: 54px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; font-size: 12.5px">'
+             f'<span style="color: #B0B0B6">On</span>'
+             f'<div class="sg" role="radiogroup" aria-label="Plays from" style="flex: none; width: 170px"><span>Speaker</span><span class="on">Walker</span></div>'
+             f'<button type="button" class="fld" style="flex: none; width: 128px">{ic("layers", "#B0B0B6", 14)}Grass{CHEV}</button>'
+             f'<button type="button" title="Stop  P" style="display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 6px 0 11px; border-radius: 8px; background: {a}; color: {INK}; font-weight: 500">'
+             f'{ic("square", "currentColor", 14, 2.5)}Stop <span class="kf" style="background: {INK}; color: {a}">P</span></button></div>')
+    head = ident(CAT['act'], 'wave', 'steps', 'Sound · 3 recordings · on 1 part', actions=False)
+    head = head[:-len('</div>')] + (f'<button type="button" class="ib" aria-label="Play it once" title="Play it once">{ic("play", "currentColor", 16)}</button>'
+                                   f'<button type="button" class="ib" aria-label="Copy" title="Copy  Ctrl D">{ic("copy", "currentColor", 16)}</button></div>')
+    grass = (f'<div style="display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12.5px; font-weight: 500">{ic("leaf", CAT["flow"], 14)}Grass'
+             f'<button type="button" class="ib" aria-label="Take grass out" title="Plays its usual recordings on grass again" style="margin-left: auto; height: 24px; min-width: 24px; padding: 0">{ic("trash", "currentColor", 14)}</button></div>')
+    ins = (head
+           + grp('Recordings', recording(t, 'step_1.wav', '0.4 s', 1, 3.2) + recording(t, 'step_2.wav', '0.3 s', 2, 4) + adder(t, 'Add a recording'), 'wave', CAT['act'])
+           + grp('On surfaces', '<div style="font-size: 11.5px; color: #8E8E95; margin: -4px 0 10px">On these surfaces it plays these instead</div>'
+                 + grass + recording(t, 'grass_step.wav', '0.5 s', 3, 2.2) + adder(t, 'Add a recording') + '<div style="height: 8px"></div>' + adder(t, 'Add a surface', 'layers'), 'layers', CAT['act'])
+           + grp('Sound', seg('Pick', ['At random', 'In turn'], 0) + ws('Volume', ['Whisper', 'Quiet', 'Normal', 'Loud'], 2) + ws('Pitch', ['Low', 'Normal', 'High'], 1)
+                 + ws('Vary', ['Same', 'A little', 'A lot'], 1, True) + trow(t, 'Loop', False) + more(t), 'sliders', CAT['act'])
+           + grp('Reach', ws('Near', ['Close', "Arm's length", 'Room'], 0) + ws('Range', ['Room', 'Yard', 'Field', 'Valley'], 1) + more(t), 'target', a2)
+           + grp('Advanced', '', 'sliders', '#8E8E95', '1 setting'))
+    L = lst([('In the level', [(CAT['act'], 'hum', False, '1 recording', 'wave'), (CAT['act'], 'knock', False, '1 recording', 'wave'), (CAT['act'], 'steps', True, '3 recordings', 'wave')]),
+             ('Not used yet', [(CAT['act'], 'bell', False, '1 recording', 'wave'), (CAT['act'], 'door creak', False, '!No recordings', 'wave')])], 'Find a sound')
+    L = L.replace('<div class="sh">In the level</div>',
+                  f'<button class="srow" type="button" style="color: {a2}">{ic("plus", a2, 14)}New sound</button><div class="sh">In the level</div>', 1)
+    view = (notch(t, AUDIO_TOPICS, 'Sounds') + status(t, 'Editor movement') + stage
+            + tag(t, wx - 30, wy - 124, 'steps', 'wave') + dock(t, ins, L, 'Sounds', 'wave'))
+    write('Audio.dc.html', page('Audio', 'Beverly — Audio', view, DOCK_SCRIPT, [('Orbit', 'Middle-drag'), ('Pan', 'Space'), ('Zoom', 'Wheel'), ('Play', 'P')], world=svg(inner)))
+
+
 # ---------------- ANIMATICS ----------------
 def animatics():
     t = THEMES['Animatics']
@@ -315,7 +385,7 @@ def animatics():
 
 
 if __name__ == '__main__':
-    level(); level_timeline(); characters(); vehicles(); hud(); effects(); animatics()
+    level(); level_timeline(); characters(); vehicles(); hud(); audio(); effects(); animatics()
     print('ok')
 
 
