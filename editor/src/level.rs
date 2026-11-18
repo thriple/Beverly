@@ -321,6 +321,9 @@ impl Mover {
 
 /// The sound panel's section.
 pub const SOUND: &str = "SOUND";
+/// A sound's reach (how near is full volume, how far it carries) and its rarely used settings.
+pub const REACH: &str = "REACH";
+pub const SOUND_MORE: &str = "SOUND  ·  MORE";
 /// A Sound part's section.
 pub const SPEAKER: &str = "PLAYS";
 
@@ -379,15 +382,15 @@ pub struct Sound {
     #[reflect(@Setting::feel("Vary", &["Same", "A little", "A lot"], 0.0, 1.0, "").section(SOUND).help("How much volume and pitch change each time it plays, so repeats don't sound the same"))]
     pub vary: f32,
     /// Metres: full volume this close.
-    #[reflect(@Setting::feel("Near", &["Close", "Arm's length", "Room"], 0.5, 20.0, "m").log().section(SOUND).help("Full volume this close"))]
+    #[reflect(@Setting::feel("Near", &["Close", "Arm's length", "Room"], 0.5, 20.0, "m").log().section(REACH).help("Full volume this close"))]
     pub near: f32,
     /// Metres: silent past this.
-    #[reflect(@Setting::feel("Range", &["Room", "Yard", "Field", "Valley"], 5.0, 500.0, "m").log().section(SOUND).help("Heard out to here, fading with distance"))]
+    #[reflect(@Setting::feel("Range", &["Room", "Yard", "Field", "Valley"], 5.0, 500.0, "m").log().section(REACH).help("Heard out to here, fading with distance"))]
     pub far: f32,
     #[reflect(@Setting::toggle("Loop").section(SOUND).help("Plays over and over until stopped"))]
     pub looped: bool,
     /// How many may play at once (the oldest stops); a count.
-    #[reflect(@Setting::feel("At once", &["One", "A few", "Many"], 1.0, 16.0, "").log().section(SOUND).help("How many can play at the same time; the oldest stops for a new one"))]
+    #[reflect(@Setting::feel("At once", &["One", "A few", "Many"], 1.0, 16.0, "").log().section(SOUND_MORE).help("How many can play at the same time; the oldest stops for a new one"))]
     pub at_once: f32,
 }
 
@@ -522,6 +525,11 @@ impl Level {
     }
     /// How many Sound parts play a sound file.
     pub fn sound_users(&self, path: &str) -> usize { self.parts.iter().filter(|p| p.sound.as_ref().is_some_and(|s| s.sound == path)).count() }
+    /// Whether anything in the level plays this sound file: a Sound part, a part's sounds, or the walker's.
+    pub fn plays(&self, path: &str) -> bool {
+        self.sound_users(path) > 0 || self.parts.iter().any(|p| p.sounds.iter().any(|h| h.sound == path))
+            || WalkerSounds::EVENTS.iter().any(|e| self.walker.get(e) == path)
+    }
 }
 
 /// A material laid on a part, all over or on one face, through its file in assets/materials. Where it sits is the

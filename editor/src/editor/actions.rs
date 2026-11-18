@@ -44,6 +44,7 @@ pub const ACTIONS: &[Action] = &[
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
     a("tool.brush", "Brush", "Tools", "B"),
+    a("audio.play", "Play or stop the stage", "Stage bar", "P"),
     a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
     a("tab.audio", "Audio tab", "Tab bar", "Ctrl+5"),
     a("help.about", "About Beverly", "Help", ""),
@@ -56,11 +57,12 @@ pub fn get(id: &str) -> Option<&'static Action> { ACTIONS.iter().find(|a| a.id =
 
 /// Why an action can't run right now (None: it can).
 pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
-    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tab.") || id.starts_with("tool.");
+    let editing = id.starts_with("edit.") || id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tab.") || id.starts_with("tool.") || id.starts_with("audio.");
     // what works on the level's parts, only in the Level tab
     let parts = id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tool.")
         || matches!(id, "edit.duplicate" | "edit.delete" | "edit.change_all" | "edit.make_unique" | "edit.snap");
     if parts && ed.tab != super::audio::LEVEL { return Some("Only in the Level tab"); }
+    if id.starts_with("audio.") && ed.tab != super::audio::AUDIO { return Some("Only in the Audio tab"); }
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
     if editing && ed.looking.is_some() && id != "view.look_through" { return Some("Not while looking through a camera (Esc goes back)"); }
     if ed.pending.is_some() && id.starts_with("file.") { return Some("The unsaved-changes question is open"); }
@@ -72,6 +74,7 @@ pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
         "edit.change_all" if ed.ask.is_none() => Some("Nothing to change all of (it asks after a change to a part with instances)"),
         "edit.make_unique" if ed.ask.is_none() && ed.selected.is_none() => Some("Nothing is selected"),
         "edit.make_unique" if ed.ask.is_none() && ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.unique) => Some("It is Unique already"),
+        "audio.play" if !ed.sound_open.as_ref().is_some_and(|p| ed.level.sounds.contains_key(p)) => Some("Open a sound in Sounds first"),
         "play.test" if !ed.level.parts.iter().any(|p| p.shape == crate::level::Shape::PlayerStart) => Some("No Player start yet: place one from the Game section (Tab)"),
         "view.look_through" if ed.looking.is_none() && !ed.selected.and_then(|id| ed.level.get(id)).is_some_and(|p| p.shape.is_camera()) => Some("Select a camera part first"),
         _ => None,
@@ -139,6 +142,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
                 ed.island.show("◍", "Brush", "[ ] size · Shift + [ ] hardness · Alt erases · Esc puts it away", Tone::Accent);
             }
         }
+        "audio.play" => ed.stage.playing = !ed.stage.playing,
         "tab.level" => ed.tab = super::audio::LEVEL,
         "tab.audio" => ed.tab = super::audio::AUDIO,
         "help.about" => ed.about_open = true,

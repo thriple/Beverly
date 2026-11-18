@@ -152,10 +152,18 @@ pub fn follow_tab(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut parts: Que
     }
 }
 
-/// The stage's lines: how far the open sound is heard at full volume and how far it carries, round the speaker or
-/// the walker.
+/// The stage's lines: the walker's path while it is out (faint, dashed), and how far the open sound is heard at full
+/// volume and how far it carries, round the speaker or the walker.
 pub fn draw(ed: &Editor, view: &View, g: &mut Gizmos<super::edit::WidgetGizmos>) {
     let Some(s) = ed.sound_open.as_ref().and_then(|p| ed.level.sounds.get(p)) else { return };
+    if ed.stage.walker {
+        const DASHES: usize = 48;
+        for i in 0..DASHES {
+            let (a, b) = (i as f32 / DASHES as f32 * std::f32::consts::TAU, (i as f32 + 0.5) / DASHES as f32 * std::f32::consts::TAU);
+            let at = |t: f32| Vec3::new(t.cos() * WALK_R, 0.03, t.sin() * WALK_R);
+            g.line(at(a), at(b), Color::srgba(1.0, 1.0, 1.0, 0.3));
+        }
+    }
     let c = if ed.stage.walker { walker_at(ed.stage.turn) } else { SPEAKER_AT };
     let col = Color::srgba_u8(0xFF, 0x7A, 0x59, 170);
     for r in [s.near, s.far] {

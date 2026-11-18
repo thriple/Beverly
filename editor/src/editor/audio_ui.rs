@@ -18,29 +18,37 @@ pub(super) fn list(ui: &mut Ui, ed: &mut Editor) {
         ed.dock_view = 0;
     }
     let q = find.trim().to_lowercase();
-    let rows: Vec<(String, usize, usize)> = ed.level.sounds.iter()
+    let rows: Vec<(String, usize, usize, bool)> = ed.level.sounds.iter()
         .filter(|(p, _)| q.is_empty() || sound_name(p).to_lowercase().contains(&q))
-        .map(|(p, s)| (p.clone(), s.all_clips().count(), ed.level.sound_users(p)))
+        .map(|(p, s)| (p.clone(), s.all_clips().count(), ed.level.sound_users(p), ed.level.plays(p)))
         .collect();
     if rows.is_empty() {
         ui.label(egui::RichText::new(if q.is_empty() { "No sounds yet: drop recordings on the window, or make a new one" } else { "No sound by that name" }).color(MUTED));
     }
-    for (path, clips, users) in rows {
+    // the ones the level plays first, then the rest
+    for (head, used) in [("In the level", true), ("Not used yet", false)] {
+        let rows: Vec<&(String, usize, usize, bool)> = rows.iter().filter(|r| r.3 == used).collect();
+        if rows.is_empty() { continue; }
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(head).size(11.5).color(MUTED));
+    for (path, clips, users, _) in rows.into_iter().cloned() {
         let on = ed.sound_open.as_deref() == Some(path.as_str());
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
         if on { ui.painter().rect_filled(r, CornerRadius::same(7), theme::SELECTED_ROW); } else if resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(7), theme::FIELD); }
         frame::paint_icon(ui.painter(), "wave", pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, theme::CAT_ACTIONS);
-        ui.painter().text(pos2(r.left() + 32.0, r.center().y), Align2::LEFT_CENTER, sound_name(&path), if on { semi(12.5) } else { body(12.5) }, if on { theme::highlight() } else { TEXT });
+        ui.painter().text(pos2(r.left() + 32.0, r.center().y), Align2::LEFT_CENTER, sound_name(&path), if on { semi(12.5) } else { body(12.5) }, if on { Color32::WHITE } else { TEXT });
         let n = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
-        ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, n(clips, "recording"), body(11.5), MUTED);
+        let (note, c) = if clips == 0 { ("No recordings".to_string(), theme::DANGER_TEXT) } else { (n(clips, "recording"), MUTED) };
+        ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, note, body(11.5), c);
         if resp.tip(format!("Played by {}", n(users, "Sound part"))).clicked() { ed.sound_open = Some(path); }
+    }
     }
 }
 
 /// Inspect: the open sound. Every Sound part playing it, and everything that plays it later, changes with it.
 pub(super) fn inspect(ui: &mut Ui, ed: &mut Editor, sounds: &Sounds) {
     let Some(path) = ed.sound_open.clone().filter(|p| ed.level.sounds.contains_key(p)) else {
-        identity(ui, theme::CAT_ACTIONS, "wave", Err("No sound open"), "Pick one in Sounds, or make one", None);
+        identity(ui, theme::CAT_ACTIONS, "wave", Err("No sound open"), "Pick one in Sounds, or make one", &mut []);
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Drop .wav, .ogg, .mp3 or .flac files on the window to bring recordings in.").color(MUTED));
         if theme::main_button(ui, "New sound").clicked() { ed.sound_open = Some(ed.level.new_sound("Sound", level::Sound::default())); }
@@ -53,15 +61,14 @@ pub(super) fn inspect(ui: &mut Ui, ed: &mut Editor, sounds: &Sounds) {
     let name = sound_name(&path);
     let recordings: Vec<String> = ed.assets.iter().find(|(f, _)| *f == "sounds").map(|(_, t)| t.iter().filter(|t| level::is_recording(t)).map(|t| format!("assets/sounds/{t}")).collect()).unwrap_or_default();
     let n = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
-    let mut copy = false;
-    identity(ui, theme::CAT_ACTIONS, "wave", Err(&name), &format!("Sound · {} · on {}", n(m.all_clips().count(), "recording"), n(users, "part")), None);
-    ui.horizontal(|ui| {
-        if !m.clips.is_empty() && theme::main_button(ui, "Play").tip("Hear it once, as the game would pick it (on the stage's surface when the walker is out)").clicked() {
-            ed.preview_sound = Some((path.clone(), ed.stage.ground.filter(|_| ed.stage.walker)));
-        }
-        if ui.button("Copy").tip("A new sound like this one, to change on its own").clicked() { copy = true; }
-    });
-    ui.add_space(4.0);
+    let (mut copy, mut play) = (false, false);
+    let sub = format!("Sound · {} · on {}", n(m.all_clips().count(), "recording"), n(users, "part"));
+    // Play it once only when it has something to play
+    let mut buttons: Vec<(&str, &str, &[&str], &mut bool)> = vec![];
+    if m.all_clips().next().is_some() { buttons.push(("play", "Play it once, as the game would pick it", &[], &mut play)); }
+    buttons.push(("copy", "Copy: a new sound like this one, to change on its own", &[], &mut copy));
+    identity(ui, theme::CAT_ACTIONS, "wave", Err(&name), &sub, &mut buttons);
+    if play { ed.preview_sound = Some((path.clone(), ed.stage.ground.filter(|_| ed.stage.walker))); }
     column(ui, 0.0, "RECORDINGS", |ui| {
         clip_list(ui, &mut m.clips, &recordings, sounds, "all-recordings");
         if m.clips.is_empty() { ui.label(egui::RichText::new("Add a recording for it to play").color(MUTED).size(11.5)); }
@@ -74,7 +81,7 @@ pub(super) fn inspect(ui: &mut Ui, ed: &mut Editor, sounds: &Sounds) {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(set.ground.label()).font(semi(12.5)).color(TEXT));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("✕").tip(format!("Plays its usual recordings on {} again", set.ground.label().to_lowercase())).clicked() { gone = Some(i); }
+                    if trash(ui, &format!("Plays its usual recordings on {} again", set.ground.label().to_lowercase())) { gone = Some(i); }
                 });
             });
             clip_list(ui, &mut set.clips, &recordings, sounds, set.ground.label());
@@ -91,6 +98,8 @@ pub(super) fn inspect(ui: &mut Ui, ed: &mut Editor, sounds: &Sounds) {
     });
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
     column(ui, 0.0, level::SOUND, |ui| { settings::section(ui, &mut m, level::SOUND, &mut ctx); });
+    column(ui, 0.0, level::REACH, |ui| { settings::section(ui, &mut m, level::REACH, &mut ctx); });
+    group(ui, "ADVANCED", Some(1), |ui| { settings::section(ui, &mut m, level::SOUND_MORE, &mut ctx); });
     let ranges_changed = ctx.ranges_changed;
     if m != before { ed.level.sounds.insert(path.clone(), m.clone()); }
     if ranges_changed { ed.level.ranges = ranges; }
@@ -109,7 +118,7 @@ fn clip_list(ui: &mut Ui, clips: &mut Vec<String>, recordings: &[String], sounds
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(c.rsplit('/').next().unwrap_or(c)).color(TEXT));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("✕").tip("Take this recording out").clicked() { remove = Some(i); }
+                if trash(ui, "Take this recording out") { remove = Some(i); }
                 if let Some(w) = wave { ui.label(egui::RichText::new(format!("{:.1} s", w.secs)).font(mono(11.0)).color(MUTED)); }
             });
         });
@@ -124,6 +133,25 @@ fn clip_list(ui: &mut Ui, clips: &mut Vec<String>, recordings: &[String], sounds
         if recordings.is_empty() { ui.label(egui::RichText::new("Drop recordings on the window first").color(MUTED)); }
     });
     if let Some(r) = add { clips.push(r); }
+}
+
+/// A warning chip: the danger ring and text, with the alert icon.
+fn warning(ui: &mut Ui, text: &str, tip: &str) {
+    let g = ui.painter().layout_no_wrap(text.to_owned(), body(12.0), theme::DANGER_TEXT);
+    let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 38.0, 28.0), Sense::hover());
+    let p = ui.painter();
+    p.rect_stroke(r, CornerRadius::same(14), Stroke::new(1.0, theme::DANGER.gamma_multiply(0.7)), StrokeKind::Inside);
+    frame::paint_icon(p, "alert", pos2(r.left() + 12.0 + 7.0, r.center().y), 14.0, theme::DANGER);
+    p.galley(pos2(r.left() + 32.0, r.center().y - g.size().y / 2.0), g, theme::DANGER_TEXT);
+    resp.tip(tip);
+}
+
+/// A small trash button (24 points): takes something out of the list it's in.
+fn trash(ui: &mut Ui, tip: &str) -> bool {
+    let (b, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
+    if resp.hovered() { ui.painter().rect_filled(b, CornerRadius::same(6), theme::FIELD_HOVER); }
+    frame::paint_icon(ui.painter(), "trash", b.center(), 14.0, if resp.hovered() { TEXT } else { TEXT_2 });
+    resp.tip(tip).clicked()
 }
 
 /// A recording's outline: a bar per slice, from its lowest to its highest, in the accent, across the panel.
@@ -174,10 +202,10 @@ pub(super) fn stage_bar(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layou
                         for g in Ground::ALL { ui.selectable_value(&mut ed.stage.ground, Some(g), g.label()); }
                     }).response.tip("What the walker walks on: a sound plays its recordings for that surface");
                 }
-                let label = if ed.stage.playing { "Stop" } else { "Play" };
+                let (icon, label) = if ed.stage.playing { ("square", "Stop") } else { ("play", "Play") };
                 let help = if ed.stage.walker { "The walker walks round, a step each time" } else if ed.level.sounds[&path].looped { "It loops from the speaker" } else { "It plays from the speaker again and again" };
-                if theme::main_button(ui, label).tip(help).clicked() { ed.stage.playing = !ed.stage.playing; }
-                if !sounds.on() { ui.label(egui::RichText::new("No sound device").color(theme::DANGER_TEXT)).tip("Beverly found nothing to play sound on"); }
+                if theme::main_button_keyed(ui, icon, label, "P").tip(help).clicked() { ed.stage.playing = !ed.stage.playing; }
+                if !sounds.on() { warning(ui, "No sound device", "Beverly found nothing to play sound on: plug in headphones or speakers, or pick one in Windows' sound settings"); }
             });
         });
     });

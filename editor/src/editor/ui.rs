@@ -79,6 +79,7 @@ pub fn ui(
 
     overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
     if ed.looking.is_none() && ed.tab == audio::LEVEL { selection_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
+    if ed.tab == audio::AUDIO { stage_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
     eyedropper(&ctx, &ed, &view, (cam.0, cam.1));
     if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
@@ -339,9 +340,10 @@ fn window_edges(ctx: &egui::Context, lay: &frame::Layout, window: &mut Window, m
 }
 
 /// What the mouse does in the view (the bottom notch's hints).
-fn hints(mode: Mode, brush: bool) -> &'static [(&'static str, &'static [&'static str])] {
+fn hints(mode: Mode, brush: bool, tab: usize) -> &'static [(&'static str, &'static [&'static str])] {
     if brush { return &[("Size", &["[", "]"]), ("Hardness", &["Shift", "[", "]"]), ("Erase", &["Alt"]), ("Done", &["Esc"])]; }
     match mode {
+        Mode::Editor if tab == audio::AUDIO => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Play", &["P"])],
         Mode::Editor => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Fly", &["Caps Lock"])],
         Mode::Builder => &[("Fly", &["W", "A", "S", "D"]), ("Speed", &["Mouse 4", "Mouse 5"]), ("Cursor", &["Alt"]), ("Edit", &["Caps Lock"])],
     }
@@ -377,13 +379,13 @@ fn notch_contents(ctx: &egui::Context, p: Option<(&egui::Painter, f32, f32)>, sa
 /// The bottom notch: Saved (click to save) and the hints.
 fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
     let saved = !ed.dirty();
-    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on));
+    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on, ed.tab));
     let n = lay.bottom_notch;
     let cy = n.top() + 4.0 + 13.0;
     let x0 = n.center().x - w / 2.0;
     egui::Area::new(Id::new("bottom-notch")).order(egui::Order::Middle).fixed_pos(n.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(n.size());
-        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on));
+        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on, ed.tab));
         let sr = ERect::from_min_size(pos2(x0 - 4.0, cy - 12.0), vec2(20.0 + text_w(ctx, if saved { "Saved" } else { "Not saved" }, semi(12.0)) + 8.0, 24.0));
         let resp = ui.interact(sr, Id::new("save-state"), if saved { Sense::hover() } else { Sense::click() }).tip_keys(if saved { "Everything is saved" } else { "Save" }, &["Ctrl", "S"]);
         if resp.clicked() { let _ = actions::run(ed, None, "file.save", exit); }
@@ -392,7 +394,7 @@ fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::
 
 /// The notch's width for these contents (shoulders and a little air).
 fn bottom_width(ctx: &egui::Context, ed: &Editor, view: &View) -> f32 {
-    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on)) + 2.0 * frame::SHOULDER + 16.0
+    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on, ed.tab)) + 2.0 * frame::SHOULDER + 16.0
 }
 
 /// The dock's three views: (name, icon); the middle one is the tab's list.
@@ -675,7 +677,7 @@ fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWr
         let inst = if p.unique { " · Unique".to_string() } else if ed.level.instanced(&p) && n > 0 { format!(" · {} alike", n + 1) } else { String::new() };
         let sub = format!("{} · {}{file}{inst}", kind(p.shape).0.trim_end_matches('s'), p.shape.label());
         let (mut dup, mut del) = (false, false);
-        identity(ui, colour, icon, Ok(&mut p.name), &sub, Some((&mut dup, &mut del)));
+        identity(ui, colour, icon, Ok(&mut p.name), &sub, &mut [("copy", "Duplicate", &["Ctrl", "D"], &mut dup), ("trash", "Delete", &["Del"], &mut del)]);
         if dup { ed.duplicate_selected(); }
         if del { delete = true; }
         // the rest is drawn from the part's setting descriptions (level.rs, settings.rs)
@@ -854,7 +856,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
         LevelMode::Cameras => ("Cameras".into(), "camera", theme::CAT_CAMERAS),
     };
     let sub = if ed.level_mode == LevelMode::Build { format!("Level · {parts} part{}", if parts == 1 { "" } else { "s" }) } else { format!("Level · {}", ed.level.name) };
-    identity(ui, colour, icon, Err(&name), &sub, None);
+    identity(ui, colour, icon, Err(&name), &sub, &mut []);
     match ed.level_mode {
         LevelMode::Build => {
             ui.label(egui::RichText::new("Click a part in the view to inspect it, or press Tab to place one.").color(TEXT_2));
@@ -933,7 +935,7 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
 fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let sub = if ed.brush.material.is_empty() { "Pick a material to paint with".to_string() } else { format!("Brush · painting {}", name(&ed.brush.material)) };
-    identity(ui, theme::VIOLET, "palette", Err("Brush"), &sub, None);
+    identity(ui, theme::VIOLET, "palette", Err("Brush"), &sub, &mut []);
     let mut b = ed.brush.clone();
     let mut ranges = ed.level.ranges.clone();
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
@@ -1088,7 +1090,7 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
     let textures: Vec<String> = ed.assets.iter().find(|(f, _)| *f == "textures").map(|(_, t)| t.iter().filter(|t| super::texture::is_texture(t)).cloned().collect()).unwrap_or_default();
     let (mut copy, mut close) = (false, false);
     let n = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
-    identity(ui, theme::VIOLET, "palette", Err(&name), &format!("Material · on {} of {}", n(surfaces, "surface"), n(parts, "part")), None);
+    identity(ui, theme::VIOLET, "palette", Err(&name), &format!("Material · on {} of {}", n(surfaces, "surface"), n(parts, "part")), &mut []);
     ui.horizontal(|ui| {
         if ui.button("Copy").tip("A new material like this one, to change on its own").clicked() { copy = true; }
         if ui.button("Close").tip_keys("Back to the selected part", &["Esc"]).clicked() { close = true; }
@@ -1158,6 +1160,7 @@ fn group_look(title: &str) -> (String, &'static str, Color32) {
         "RECORDINGS" => ("Recordings", "wave", theme::CAT_ACTIONS),
         "ON SURFACES" => ("On surfaces", "layers", theme::CAT_ACTIONS),
         level::SOUND => ("Sound", "sliders", theme::CAT_ACTIONS),
+        level::REACH => ("Reach", "target", theme::accent()),
         "SHORTCUTS" => ("Getting about", "keyboard", TEXT_2),
         other => return (other[..1].to_string() + &other[1..].to_lowercase(), "sliders", TEXT_2),
     };
@@ -1195,8 +1198,8 @@ fn group(ui: &mut Ui, title: &str, count: Option<usize>, add: impl FnOnce(&mut U
 }
 
 /// The identity at the top of the inspector: a tile with its icon in its colour, its name (`name` makes it
-/// editable), what it is, and Duplicate / Delete when given.
-fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, &str>, sub: &str, actions: Option<(&mut bool, &mut bool)>) {
+/// editable), what it is, and its icon buttons (icon, label, keys, clicked), e.g. Duplicate / Delete.
+fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, &str>, sub: &str, actions: &mut [(&str, &str, &[&str], &mut bool)]) {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 12.0;
@@ -1205,7 +1208,7 @@ fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, 
         p.rect_filled(tile, CornerRadius::same(11), colour.gamma_multiply(0.16));
         p.rect_stroke(tile, CornerRadius::same(11), Stroke::new(1.0, colour.gamma_multiply(0.35)), StrokeKind::Inside);
         frame::paint_icon(p, icon, tile.center(), 20.0, colour);
-        let room = ui.available_width() - if actions.is_some() { 2.0 * 28.0 + 8.0 } else { 0.0 };
+        let room = ui.available_width() - if actions.is_empty() { 0.0 } else { actions.len() as f32 * 28.0 + 8.0 };
         ui.allocate_ui_with_layout(vec2(room, 40.0), egui::Layout::top_down(egui::Align::Min), |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
             match name {
@@ -1214,14 +1217,14 @@ fn identity(ui: &mut Ui, colour: Color32, icon: &str, name: Result<&mut String, 
             }
             ui.label(egui::RichText::new(sub).size(12.0).color(Color32::from_rgb(0xA0, 0xA0, 0xA7)));
         });
-        if let Some((dup, del)) = actions {
+        if !actions.is_empty() {
             ui.spacing_mut().item_spacing.x = 4.0;
-            for (icon, label, keys, flag) in [("copy", "Duplicate", &["Ctrl", "D"][..], dup), ("trash", "Delete", &["Del"][..], del)] {
+            for (icon, label, keys, flag) in actions.iter_mut() {
                 let (b, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
                 let hot = theme::spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, theme::SNAPPY).clamp(0.0, 1.0);
                 if hot > 0.0 { ui.painter().rect_filled(b, CornerRadius::same(7), theme::FIELD_HOVER.gamma_multiply(hot)); }
-                frame::paint_icon(ui.painter(), icon, b.center(), 16.0, Color32::from_rgb(0xD2, 0xD2, 0xD6));
-                if resp.tip_keys(label, keys).clicked() { *flag = true; }
+                frame::paint_icon(ui.painter(), *icon, b.center(), 16.0, Color32::from_rgb(0xD2, 0xD2, 0xD6));
+                if resp.tip_keys(*label, keys).clicked() { **flag = true; }
             }
         }
     });
@@ -1292,16 +1295,29 @@ fn selection_tag(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Camera, &
     }).collect();
     if pts.len() < 8 { return; }
     let (x, y) = pts.iter().fold((f32::MAX, f32::MAX), |(x, y), q| (x.min(q.x), y.min(q.y)));
-    let (_, icon, _) = kind(p.shape);
-    let w = 7.0 + 13.0 + 6.0 + text_w(ctx, &p.name, theme::bold(12.0)) + 9.0;
+    paint_tag(ctx, view, Vec2::new(x, y), kind(p.shape).1, &p.name, Id::new(("tag-in", p.id)));
+}
+
+/// The open sound's tag in the Audio tab, over whatever plays it on the stage (the speaker, or the walker).
+fn stage_tag(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Camera, &GlobalTransform)) {
+    let Some(path) = ed.sound_open.as_ref().filter(|p| ed.level.sounds.contains_key(*p)) else { return };
+    let top = if ed.stage.walker { audio::walker_at(ed.stage.turn) + Vec3::Y * 1.8 } else { audio::SPEAKER_AT + Vec3::Y * 0.6 };
+    let Some(at) = view.to_screen(cam.0, cam.1, top) else { return };
+    paint_tag(ctx, view, at - Vec2::new(24.0, 0.0), "wave", &sound_name(path), Id::new(("tag-in", path)));
+}
+
+/// A tag: the small pill in the highlight with an icon and a name, its top left just above `at` (screen points),
+/// kept in the view; it springs in.
+fn paint_tag(ctx: &egui::Context, view: &View, at: Vec2, icon: &str, name: &str, id: Id) {
+    let w = 7.0 + 13.0 + 6.0 + text_w(ctx, name, theme::bold(12.0)) + 9.0;
     let v = view.rect;
-    let at = pos2(x.clamp(v.min.x + 8.0, (v.max.x - w - 8.0).max(v.min.x)), (y - 30.0).clamp(v.min.y + 48.0, v.max.y - 60.0));
+    let at = pos2(at.x.clamp(v.min.x + 8.0, (v.max.x - w - 8.0).max(v.min.x)), (at.y - 30.0).clamp(v.min.y + 48.0, v.max.y - 60.0));
     let r = ERect::from_min_size(at, vec2(w, 24.0));
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, Id::new("selection-tag")));
-    let t = theme::spring_from(ctx, Id::new(("tag-in", p.id)), 0.0, 1.0, theme::SNAPPY).clamp(0.0, 1.0);
+    let t = theme::spring_from(ctx, id, 0.0, 1.0, theme::SNAPPY).clamp(0.0, 1.0);
     painter.rect_filled(r, CornerRadius::same(7), highlight().gamma_multiply(t));
     frame::paint_icon(&painter, icon, pos2(r.left() + 7.0 + 6.5, r.center().y), 13.0, look().highlight_text.gamma_multiply(t));
-    painter.text(pos2(r.left() + 7.0 + 13.0 + 6.0, r.center().y), Align2::LEFT_CENTER, &p.name, theme::bold(12.0), look().highlight_text.gamma_multiply(t));
+    painter.text(pos2(r.left() + 7.0 + 13.0 + 6.0, r.center().y), Align2::LEFT_CENTER, name, theme::bold(12.0), look().highlight_text.gamma_multiply(t));
 }
 
 fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {

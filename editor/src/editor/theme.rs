@@ -331,6 +331,22 @@ pub fn main_button(ui: &mut Ui, label: &str) -> Response {
     resp
 }
 
+/// A panel's main button with its icon first and its key last (a keycap in ink): `Play  P`.
+pub fn main_button_keyed(ui: &mut Ui, icon: &str, label: &str, key: &str) -> Response {
+    let g = ui.painter().layout_no_wrap(label.to_owned(), semi(12.5), INK);
+    let k = frame_kbd_size(ui.ctx(), key);
+    let (r, resp) = ui.allocate_exact_size(vec2(11.0 + 14.0 + 7.0 + g.size().x + 7.0 + k.x + 6.0, 30.0), Sense::click());
+    let hot = spring(ui.ctx(), resp.id.with("hot"), if resp.hovered() { 1.0 } else { 0.0 }, SNAPPY).clamp(0.0, 1.0);
+    let fill = lerp_color(highlight(), Color32::WHITE, 0.18 * hot);
+    let p = ui.painter();
+    p.rect_filled(r, CornerRadius::same(8), fill);
+    super::frame::paint_icon(p, icon, pos2(r.left() + 11.0 + 7.0, r.center().y), 14.0, INK);
+    let tx = r.left() + 32.0;
+    p.galley(pos2(tx, r.center().y - g.size().y / 2.0), g.clone(), INK);
+    paint_frame_kbd(p, Rect::from_min_size(pos2(r.right() - 6.0 - k.x, r.center().y - k.y / 2.0), k), key, INK, highlight());
+    resp
+}
+
 /// A text input (30 px, the field's colour; a 1.5 px accent ring while typing; `lead`: an icon first) whose letters
 /// spring up as they're typed, as the kit's animated input does.
 /// A widget that draws its own focus (fields, inputs, sliders) says so, and `focus_ring` leaves it alone.

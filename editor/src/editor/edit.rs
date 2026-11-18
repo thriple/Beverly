@@ -784,6 +784,7 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::Enter) || jp(KeyCode::NumpadEnter) { act("edit.change_all"); }
     if jp(KeyCode::KeyU) { act("edit.make_unique"); }
     if jp(KeyCode::KeyB) { act("tool.brush"); }
+    if jp(KeyCode::KeyP) { act("audio.play"); }
 }
 
 /// Files dragged in from Explorer are copied into the project's assets; a single recording is then placed as a Sound part

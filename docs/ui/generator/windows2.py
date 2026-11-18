@@ -341,8 +341,8 @@ def audio():
              f'{ic("square", "currentColor", 14, 2.5)}Stop <span class="kf" style="background: {INK}; color: {a}">P</span></button></div>')
     head = ident(CAT['act'], 'wave', 'steps', 'Sound · 3 recordings · on 1 part', actions=False)
     head = head[:-len('</div>')] + (f'<button type="button" class="ib" aria-label="Play it once" title="Play it once">{ic("play", "currentColor", 16)}</button>'
-                                   f'<button type="button" class="ib" aria-label="Copy" title="Copy  Ctrl D">{ic("copy", "currentColor", 16)}</button></div>')
-    grass = (f'<div style="display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12.5px; font-weight: 500">{ic("leaf", CAT["flow"], 14)}Grass'
+                                   f'<button type="button" class="ib" aria-label="Copy" title="Copy: a new sound like this one">{ic("copy", "currentColor", 16)}</button></div>')
+    grass = (f'<div style="display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12.5px; font-weight: 500">Grass'
              f'<button type="button" class="ib" aria-label="Take grass out" title="Plays its usual recordings on grass again" style="margin-left: auto; height: 24px; min-width: 24px; padding: 0">{ic("trash", "currentColor", 14)}</button></div>')
     ins = (head
            + grp('Recordings', recording(t, 'step_1.wav', '0.4 s', 1, 3.2) + recording(t, 'step_2.wav', '0.3 s', 2, 4) + adder(t, 'Add a recording'), 'wave', CAT['act'])
