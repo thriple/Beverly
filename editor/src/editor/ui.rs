@@ -650,19 +650,21 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
             let (icon, colour) = if model { ("cube", theme::CAT_SHAPES) } else if material { ("palette", theme::VIOLET) } else if texture { ("grid", theme::VIOLET) } else if shader { ("spark", theme::VIOLET) } else { ("folder", MUTED) };
             let open = material && ed.material_open.as_deref() == Some(path.as_str());
             // a picture on the left: a texture's own, a material's texture (else its tint as a swatch)
-            let pic = if texture { Some(Some(path.clone())) } else if material { ed.level.materials.get(&path).map(|m| m.texture.clone()) } else { None };
+            let pic = if texture || model { Some(Some(path.clone())) } else if material { ed.level.materials.get(&path).map(|m| m.texture.clone()) } else { None };
             let mut text_x = 22.0;
             if let Some(tex) = pic {
-                let box_ = ERect::from_min_size(pos2(r.left() + 1.0, r.center().y - 11.0), vec2(22.0, 22.0));
+                let box_ = ERect::from_min_size(pos2(r.left() + 1.0, r.center().y - 12.5), vec2(25.0, 25.0));
                 match tex.and_then(|t| ed.thumbs.get(ui.ctx(), &ed.dir, &t, &ed.bakes)) {
                     Some(id) => { ui.painter().image(id, box_, ERect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE); }
+                    // a model's picture is still being taken: its icon meanwhile
+                    None if model => frame::paint_icon(ui.painter(), "cube", box_.center(), 14.0, theme::CAT_SHAPES),
                     None => {
                         let tint = ed.level.materials.get(&path).map_or([0.4; 3], |m| m.tint);
                         ui.painter().rect_filled(box_, CornerRadius::same(5), Color32::from_rgb((tint[0] * 255.0) as u8, (tint[1] * 255.0) as u8, (tint[2] * 255.0) as u8));
                     }
                 }
-                ui.painter().rect_stroke(box_, CornerRadius::same(5), Stroke::new(1.0, white(30)), StrokeKind::Inside);
-                text_x = 32.0;
+                if !model { ui.painter().rect_stroke(box_, CornerRadius::same(5), Stroke::new(1.0, white(30)), StrokeKind::Inside); }
+                text_x = 35.0;
             } else {
                 frame::paint_icon(ui.painter(), icon, pos2(r.left() + 7.0, r.center().y), 14.0, colour);
             }

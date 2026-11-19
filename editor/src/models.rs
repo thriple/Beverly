@@ -72,7 +72,7 @@ pub struct ModelFilled;
 
 /// The Colour a model part is placed with, which leaves the model as it is (parts made before Colour worked on
 /// models were grey).
-const UNTINTED: [f32; 3] = [0.62, 0.64, 0.70];
+pub const UNTINTED: [f32; 3] = [0.62, 0.64, 0.70];
 
 /// Loaded models by project-relative path.
 #[derive(Resource, Default)]

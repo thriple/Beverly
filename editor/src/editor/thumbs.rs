@@ -2,6 +2,7 @@
 //! bake cache (never in the project) and shown as a small picture beside the file's name. They are the user's own
 //! content, not part of the editor's drawn interface.
 use crate::bake::{self, Bakes};
+use super::preview::Asked;
 use bevy_egui::egui::{self, TextureHandle};
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,6 +14,9 @@ const SIZE: u32 = 64;
 pub struct Thumbs {
     /// By project path: the picture once it is ready (None: the file isn't a picture that could be read).
     ready: HashMap<String, Option<TextureHandle>>,
+    /// Models asked of the preview stage (`preview.rs`), by path.
+    pub asked: Asked,
+    waiting: std::collections::HashSet<String>,
 }
 
 impl Thumbs {
@@ -24,6 +28,11 @@ impl Thumbs {
         let meta = std::fs::metadata(&file).ok()?;
         let stamp = meta.modified().ok().and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
         let key = bake::key("thumb", &[path.as_bytes(), &meta.len().to_le_bytes(), &stamp.to_le_bytes(), &SIZE.to_le_bytes()]);
+        // a model is photographed by the preview stage; a picture is shrunk in the background
+        if crate::models::is_model(path) && bakes.get("thumb", &key).is_none() {
+            if self.waiting.insert(path.to_string()) { if let Ok(mut q) = self.asked.0.lock() { q.push((path.to_string(), key)); } }
+            return None;
+        }
         let Some(png) = bakes.get("thumb", &key) else {
             let name = path.rsplit('/').next().unwrap_or(path).to_string();
             bakes.request("thumb", &key, &name, move |_| make(&file));
@@ -36,7 +45,7 @@ impl Thumbs {
     }
 
     /// Forget what was made (a picture changed, or another project opened).
-    pub fn clear(&mut self) { self.ready.clear(); }
+    pub fn clear(&mut self) { self.ready.clear(); self.waiting.clear(); }
 }
 
 /// The thumbnail's PNG bytes, made from a picture file.

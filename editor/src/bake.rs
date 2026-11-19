@@ -84,6 +84,13 @@ impl Bakes {
         true
     }
 
+    /// Keeps bytes made another way (a picture taken of the 3D scene, say) as a finished bake.
+    pub fn put(&self, kind: &str, key: &str, bytes: &[u8]) -> std::io::Result<()> {
+        let root = self.inner().root.clone();
+        self.inner().used.insert((kind.into(), key.into()));
+        write_atomic(&root.join(kind), key, bytes)
+    }
+
     /// What is being built, with how far each has got (0 to 1).
     pub fn running(&self) -> Vec<(String, f32)> { self.inner().running.iter().map(|j| (j.label.clone(), j.progress.get())).collect() }
 

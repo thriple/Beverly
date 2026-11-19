@@ -4,6 +4,7 @@ mod actions;
 mod audio;
 mod brush;
 mod pen;
+mod preview;
 mod thumbs;
 mod bev_type;
 mod caps;
@@ -353,6 +354,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
     extra(&mut app);
     app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, view::grid_plugin))
         .init_resource::<models::ModelLib>()
+        .insert_resource(preview::Previews::new(ed.thumbs.asked.clone()))
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
         .init_resource::<caps::CapsLock>()
@@ -363,7 +365,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .add_systems(Startup, (shapes::setup, view::setup, view::spawn_grid, edit::setup, caps::startup))
         .init_resource::<mcp::host::Injected>()
         .add_systems(PreUpdate, mcp::host::inject.after(bevy::input::InputSystems))
-        .add_systems(Update, (window_icon, mcp::host::serve, models::fill_models, shader_sync))
+        .add_systems(Update, (window_icon, mcp::host::serve, models::fill_models, shader_sync, preview::run))
         .add_systems(
             Update,
             (
