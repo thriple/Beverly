@@ -1116,7 +1116,7 @@ pub fn list_assets(dir: &Path, folder: &str) -> Vec<String> {
 
 /// Write a playable Windows game: `<name>/<name>.exe` (a copy of the game player) and the project's files beside
 /// it, zipped. Returns how many files went in.
-pub fn export_zip(dir: &Path, name: &str, player: &Path, out: &Path) -> std::io::Result<usize> {
+pub fn export_zip(dir: &Path, name: &str, player: &Path, bakes: &[(String, Vec<u8>)], out: &Path) -> std::io::Result<usize> {
     use std::io::Write;
     let mut z = zip::ZipWriter::new(std::fs::File::create(out)?);
     let opt = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -1135,6 +1135,12 @@ pub fn export_zip(dir: &Path, name: &str, player: &Path, out: &Path) -> std::io:
             n += 1;
         }
     }
+    // the bakes the level used (bake.rs), so the game doesn't build them again
+    for (rel, bytes) in bakes {
+        z.start_file(format!("{name}/{rel}"), opt).map_err(std::io::Error::other)?;
+        z.write_all(bytes)?;
+        n += 1;
+    }
     z.finish().map_err(std::io::Error::other)?;
     Ok(n)
 }
@@ -1152,13 +1158,14 @@ mod tests {
         let player = base.join("player.bin");
         std::fs::write(&player, b"exe").unwrap();
         let out = base.join("out.zip");
-        let n = export_zip(&dir, "My Game", &player, &out).unwrap();
-        assert_eq!(n, 4); // player, project.bev, levels/main.bev, the texture
+        let n = export_zip(&dir, "My Game", &player, &[("bakes/k/a".into(), b"baked".to_vec())], &out).unwrap();
+        assert_eq!(n, 5); // player, project.bev, levels/main.bev, the texture, the bake
         let mut z = zip::ZipArchive::new(std::fs::File::open(&out).unwrap()).unwrap();
         let ext = if cfg!(windows) { ".exe" } else { "" };
         assert!(z.by_name(&format!("My Game/My Game{ext}")).is_ok());
         assert!(z.by_name("My Game/levels/main.bev").is_ok());
         assert!(z.by_name("My Game/assets/textures/a.png").is_ok());
+        assert!(z.by_name("My Game/bakes/k/a").is_ok());
         let _ = std::fs::remove_dir_all(&base);
     }
 

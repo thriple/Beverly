@@ -97,8 +97,8 @@ impl Jobs {
     }
 
     /// Export the Windows game zip to `out`.
-    pub fn export(&mut self, player: PathBuf, dir: PathBuf, name: String, out: PathBuf) -> u32 {
-        self.start(format!("export {}", out.display()), move |say| match crate::level::export_zip(&dir, &name, &player, &out) {
+    pub fn export(&mut self, player: PathBuf, dir: PathBuf, name: String, bakes: Vec<(String, Vec<u8>)>, out: PathBuf) -> u32 {
+        self.start(format!("export {}", out.display()), move |say| match crate::level::export_zip(&dir, &name, &player, &bakes, &out) {
             Ok(n) => {
                 say(format!("Wrote {} ({n} files): unzip and run {name}.exe", out.display()));
                 true

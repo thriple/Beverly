@@ -116,6 +116,8 @@ pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWr
         if c.name == "get_project" && let Ok(v) = &mut r {
             v["graphics_card"] = json!({"name": gpu.name, "backend": gpu.backend, "kind": gpu.kind, "virtual_geometry": gpu.virtual_geometry()});
             v["performance"] = perf.json();
+            let (entries, bytes) = ed.bakes.size();
+            v["bake_cache"] = json!({"entries": entries, "megabytes": bytes as f64 / 1e6, "building": ed.bakes.running().iter().map(|(l, p)| json!({"what": l, "percent": (p * 100.0).round()})).collect::<Vec<_>>()});
         }
         let line = match &r {
             Ok(_) => c.name.clone(),
@@ -571,7 +573,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 Some("export") => {
                     let out = ed.dir.join("exports").join(format!("{}.zip", ed.name));
                     std::fs::create_dir_all(out.parent().expect("has one")).map_err(|e| e.to_string())?;
-                    ed.mcp.jobs.export(player, ed.dir.clone(), ed.name.clone(), out)
+                    ed.mcp.jobs.export(player, ed.dir.clone(), ed.name.clone(), ed.bakes.pack(), out)
                 }
                 _ => return Err("kind is \"test\" or \"export\"".into()),
             };

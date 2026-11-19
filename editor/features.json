@@ -630,7 +630,7 @@
     "projects"
    ],
    "what": "One local cache for everything Beverly works out from the user’s files (impostor atlases, virtual-geometry meshes, baked light): kept outside the project, rebuilt when missing, baked into exported games.",
-   "note": "Planned 2026-11-18. Keyed by a content hash of the source and its bake settings (sha2 is already a dependency); a background job queue with progress in the island; export runs the bakes and packs the results.",
+   "note": "Built 2026-11-19: bake.rs. key(kind, parts) hashes a bake's source bytes and settings (SHA-256, 32 hex); Bakes::get reads an entry, request builds a missing one on a background thread (once, with a progress fraction and a label) and saves it when it finishes; the island says 'Baking X · 40%' while it runs and 'Baked X' (or why not) after, and a BakeDone message tells whoever asked. The cache is the user's settings folder, cache/KIND/KEY, never the project. File > Clear baked data empties it. Export packs the entries the run used into the game's bakes/ folder (the player reads them first, and builds any that are missing); get_project returns the entries, size and what is building. Nothing uses it yet: impostors, Tessera and baked light call request/get. Planned 2026-11-18.",
    "chunks": [],
    "status": "planned",
    "first_game": true,

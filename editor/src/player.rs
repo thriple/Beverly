@@ -56,7 +56,7 @@ pub fn run(extra: fn(&mut App)) {
     }));
     extra(&mut app);
     if let Some(t) = test { crate::scripted::add(&mut app, &dir, &t, &level, record); }
-    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin))
+    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()

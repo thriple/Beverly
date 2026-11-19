@@ -41,6 +41,7 @@ pub fn ui(
     cam: Single<(&Camera, &GlobalTransform), With<super::view::MainCamera>>,
     sounds: Res<crate::sound::Sounds>,
     perf: Res<crate::perf::Perf>,
+    mut baked: MessageReader<crate::bake::BakeDone>,
     mut tinted: Local<usize>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
@@ -52,6 +53,12 @@ pub fn ui(
         theme::setup(&ctx);
         *init = true;
         return Ok(());
+    }
+    for d in baked.read() {
+        match &d.error {
+            None => ed.island.show("✓", format!("Baked {}", d.label), "kept in the bake cache", Tone::Accent),
+            Some(e) => ed.island.show("!", format!("Couldn't bake {}", d.label), e.clone(), Tone::Danger),
+        }
     }
     // test mode: no editor panels, just the status island
     if ed.testing.is_some() {
@@ -202,7 +209,7 @@ fn top_bar(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, window: &m
             ui.label(egui::RichText::new(if ed.dirty() { format!("{} · not saved", ed.name) } else { ed.name.clone() }).font(semi(12.5)).color(TEXT_2));
             ui.separator();
             let menus: [(&str, &[&str]); 5] = [
-                ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"]),
+                ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "file.clear_bakes", "", "file.quit"]),
                 ("Edit", &["edit.undo", "edit.redo", "", "edit.duplicate", "edit.delete", "edit.make_unique", "edit.deselect", "", "edit.snap"]),
                 ("View", &["view.parts", "view.frame", "view.look_through", "", "view.stats"]),
                 ("Play", &["play.test", "", "file.export"]),
@@ -1394,6 +1401,12 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, perf: &crate::per
     let rest = match view.mode {
         Mode::Editor => "Editor movement".to_string(),
         Mode::Builder => format!("Builder movement · fly {}", speed_text(view.speed)),
+    };
+    // while something bakes in the background the island says how far it has got
+    let baking = ed.bakes.running();
+    let rest = match baking.first() {
+        Some((what, done)) => format!("Baking {what} · {:.0}%{}", done * 100.0, if baking.len() > 1 { format!(" · {} more", baking.len() - 1) } else { String::new() }),
+        None => rest,
     };
     let island = ed.island.draw(ctx, pos2(r.min.x + 14.0, r.min.y + 14.0), "move", &rest);
 

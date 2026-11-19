@@ -29,6 +29,7 @@ pub const ACTIONS: &[Action] = &[
     d("file.save_as", "Save as…", "File", "Ctrl+Shift+S"),
     d("file.export", "Export Windows game…", "File", ""),
     a("file.show_folder", "Show project folder", "File", ""),
+    a("file.clear_bakes", "Clear baked data", "File", ""),
     a("file.quit", "Quit", "File", "Ctrl+Q"),
     a("edit.undo", "Undo", "Top bar", "Ctrl+Z"),
     a("edit.redo", "Redo", "Top bar", "Ctrl+Y"),
@@ -98,6 +99,10 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "file.export" => ed.export_zip(),
         "file.show_folder" => {
             if let Err(e) = super::ui::open_folder(&ed.dir) { ed.island.show("!", "Couldn't open the folder", e.to_string(), Tone::Danger); }
+        }
+        "file.clear_bakes" => {
+            let n = ed.bakes.clear();
+            ed.island.show("✕", "Cleared baked data", format!("{n} entr{} · built again when needed", if n == 1 { "y" } else { "ies" }), Tone::Plain);
         }
         "file.quit" => ed.request(Pending::Quit, exit),
         "edit.undo" => ed.undo(),

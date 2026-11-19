@@ -28,7 +28,7 @@ impl Editor {
             return;
         };
         let Some(out) = rfd::FileDialog::new().set_title("Export Windows game").set_file_name(format!("{}.zip", self.name)).save_file() else { return };
-        match level::export_zip(&self.dir, &self.name, &player, &out) {
+        match level::export_zip(&self.dir, &self.name, &player, &self.bakes.pack(), &out) {
             Ok(n) => self.island.show("⇪", format!("Exported {}", out.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default()), format!("{n} files · unzip and run {}.exe", self.name), Tone::Accent),
             Err(e) => self.island.show("!", "Couldn't export", e.to_string(), Tone::Danger),
         }
