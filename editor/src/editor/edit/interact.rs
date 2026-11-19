@@ -60,112 +60,14 @@ pub fn interact(
     }
 
     // ---- placing a shape from the parts pop-up
-    if let Some(shape) = ed.placing {
-        let (ref mut gt, ref mut vis, ref mut mesh) = *ghost;
-        // a model's box comes from its file once loaded; until then a 1 m stand-in
-        // (for a Sound part, the file is its sound's)
-        let sound = ed.placing_model.clone().filter(|_| shape == Shape::Sound);
-        let model = ed.placing_model.clone().filter(|_| shape == Shape::Model);
-        let (lo, hi) = match &model {
-            Some(m) => ed.geo.models.get(m).map(|t| t.bounds()).unwrap_or((vec3(-0.5, 0.0, -0.5), vec3(0.5, 1.0, 0.5))),
-            None => (Vec3::splat(-0.5), Vec3::splat(0.5)),
-        };
-        if shape != Shape::Model { mesh.0 = lib.mesh(shape); }
-        // the wheel turns it about the surface's normal (15 degrees a notch), Shift + wheel sizes it
-        if view.wheel != 0.0 {
-            if shift { ed.place_scale = (ed.place_scale * 1.1f32.powf(view.wheel)).clamp(0.05, 50.0); } else { ed.place_turn += view.wheel * 15f32.to_radians(); }
-        }
-        let (turn, scale) = if shape.is_camera() { (0.0, 1.0) } else { (ed.place_turn, ed.place_scale) };
-        match ray.and_then(|r| ed.hit(r)) {
-            Some(h) => {
-                let size = Vec3::from(shape.default_size()) * scale;
-                let n = if shift || shape == Shape::PlayerStart || shape.is_camera() { Vec3::Y } else { h.normal };
-                let rot = Quat::from_rotation_arc(Vec3::Y, n) * Quat::from_rotation_y(turn);
-                let mut p = h.point;
-                if ed.snap && n.y > 0.999 {
-                    p.x = snapf(p.x, 0.25);
-                    p.z = snapf(p.z, 0.25);
-                }
-                // the bottom of the part sits on the surface
-                let pos = p - n * lo.y * size.y;
-                **gt = match shape {
-                    // a camera stands at eye height, looking the way the view does
-                    s if s.is_camera() => Transform { translation: p + Vec3::Y * camera::EYE, rotation: Quat::from_rotation_y(view.yaw), scale: size },
-                    Shape::Model => Transform { translation: pos + rot * ((lo + hi) * 0.5 * size), rotation: rot, scale: (hi - lo).max(Vec3::splat(0.05)) * size },
-                    _ => Transform { translation: pos, rotation: rot, scale: size },
-                };
-                **vis = Visibility::Visible;
-                if mouse.just_pressed(MouseButton::Left) {
-                    let base = match model.as_ref().or(sound.as_ref()) {
-                        Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| shape.label().into()),
-                        None => shape.label().to_string(),
-                    };
-                    let name = ed.level.fresh_name(&base);
-                    let mut part = Part::placed(shape, model.clone(), name.clone(), pos.to_array(), rot.to_array(), size.to_array());
-                    if shape.is_camera() { camera::place(&mut part, p, view.yaw); }
-                    if let (Some(sp), Some(path)) = (part.sound.as_mut(), sound.clone()) { sp.sound = path; }
-                    ed.selected = Some(ed.level.add(part));
-                    ed.last_placed = Some((shape, model.clone().or(sound.clone())));
-                    ed.placing = None;
-                    ed.island.show(shape.glyph(), format!("Placed {name}"), "Drag the arrows to move it · Tab for more", Tone::Plain);
-                    press.at = None;
-                }
-            }
-            None => **vis = Visibility::Hidden,
-        }
-        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
-            ed.placing = None;
-            (ed.place_turn, ed.place_scale) = (0.0, 1.0);
-        }
-        if ed.placing.is_none() { *ghost.1 = Visibility::Hidden; }
-        return;
-    }
+    if place_step(&mut ed, &mut ghost, &lib, &view, ray, &mouse, &keys, &mut press, shift) { return; }
     *ghost.1 = Visibility::Hidden;
 
     // ---- wiring: click the part the wire goes to
-    if let Some((from, out)) = ed.wiring {
-        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
-            ed.wiring = None;
-        } else if mouse.just_pressed(MouseButton::Left) {
-            if let (Some(ptr), Some(to)) = (pointer, ray.and_then(|r| ed.hit(r)).and_then(|h| h.part)) {
-                let p = ed.level.get(to).unwrap();
-                if to == from {
-                } else if p.inputs().is_empty() {
-                    let name = p.name.clone();
-                    ed.island.show("!", format!("{name} can't take wires yet"), "Turn on Moves to give it Go, Back and Toggle", Tone::Danger);
-                } else {
-                    ed.wire_pick = Some((from, out, to, ptr));
-                    ed.wiring = None;
-                }
-            }
-        }
-        press.at = None;
-        return;
-    }
-    if ed.wire_pick.is_some() {
-        press.at = None;
-        return;
-    }
+    if wire_step(&mut ed, pointer, ray, &mouse, &keys, &mut press) { return; }
 
     // ---- trying a path: click its start, then its end (a third click starts again)
-    if ed.path_try.is_some() {
-        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
-            ed.path_try = None;
-        } else if mouse.just_pressed(MouseButton::Left) {
-            if let Some(at) = ray.and_then(|r| ed.hit(r)).map(|h| h.point) {
-                let t = ed.path_try.as_mut().expect("checked above");
-                if t.from.is_none() || t.to.is_some() { *t = PathTry { from: Some(at), ..default() }; } else { t.to = Some(at); }
-                ed.find_path();
-                match ed.path_try.as_ref().and_then(|t| t.found.clone()) {
-                    Some(Ok(p)) => ed.island.show("⬡", format!("A {:.1} m walk", crate::nav::length(&p)), "Click to try another · Esc stops", Tone::Accent),
-                    Some(Err(e)) => ed.island.show("!", "No path", e, Tone::Danger),
-                    None => {}
-                }
-            }
-        }
-        press.at = None;
-        return;
-    }
+    if path_step(&mut ed, ray, &mouse, &keys, &mut press) { return; }
 
     // ---- the selected part's texture handles (they win over the widget when the pointer is on one)
     if !mouse.pressed(MouseButton::Left) { ed.drag = None; }
@@ -191,10 +93,135 @@ pub fn interact(
 
     // ---- the widget on the selected part
     let sel = ed.selected.and_then(|id| ed.level.get(id)).cloned();
+    if drag_step(&mut ed, ray, pointer, ctrl, shift, &mut typed, &sel) { return; }
+
+    // hover a handle, or start a drag
+    if hover_step(&mut ed, &view, cam, gtf, ray, pointer, &mouse, shift, &mut typed, &mut press, &sel) { return; }
+
+    // ---- click to select (a press and release without moving much)
+    select_step(&mut ed, &view, ray, pointer, &mouse, &mut press);
+}
+
+/// Placing a shape from the parts pop-up: the ghost follows the pointer and a click puts it down. True while placing.
+fn place_step(ed: &mut Editor, ghost: &mut (Mut<Transform>, Mut<Visibility>, Mut<Mesh3d>), lib: &ShapeLib, view: &View, ray: Option<Ray3d>, mouse: &ButtonInput<MouseButton>, keys: &ButtonInput<KeyCode>, press: &mut Press, shift: bool) -> bool {
+    let Some(shape) = ed.placing else { return false };
+    let (ref mut gt, ref mut vis, ref mut mesh) = *ghost;
+    // a model's box comes from its file once loaded; until then a 1 m stand-in
+    // (for a Sound part, the file is its sound's)
+    let sound = ed.placing_model.clone().filter(|_| shape == Shape::Sound);
+    let model = ed.placing_model.clone().filter(|_| shape == Shape::Model);
+    let (lo, hi) = match &model {
+        Some(m) => ed.geo.models.get(m).map(|t| t.bounds()).unwrap_or((vec3(-0.5, 0.0, -0.5), vec3(0.5, 1.0, 0.5))),
+        None => (Vec3::splat(-0.5), Vec3::splat(0.5)),
+    };
+    if shape != Shape::Model { mesh.0 = lib.mesh(shape); }
+    // the wheel turns it about the surface's normal (15 degrees a notch), Shift + wheel sizes it
+    if view.wheel != 0.0 {
+        if shift { ed.place_scale = (ed.place_scale * 1.1f32.powf(view.wheel)).clamp(0.05, 50.0); } else { ed.place_turn += view.wheel * 15f32.to_radians(); }
+    }
+    let (turn, scale) = if shape.is_camera() { (0.0, 1.0) } else { (ed.place_turn, ed.place_scale) };
+    match ray.and_then(|r| ed.hit(r)) {
+        Some(h) => {
+            let size = Vec3::from(shape.default_size()) * scale;
+            let n = if shift || shape == Shape::PlayerStart || shape.is_camera() { Vec3::Y } else { h.normal };
+            let rot = Quat::from_rotation_arc(Vec3::Y, n) * Quat::from_rotation_y(turn);
+            let mut p = h.point;
+            if ed.snap && n.y > 0.999 {
+                p.x = snapf(p.x, 0.25);
+                p.z = snapf(p.z, 0.25);
+            }
+            // the bottom of the part sits on the surface
+            let pos = p - n * lo.y * size.y;
+            **gt = match shape {
+                // a camera stands at eye height, looking the way the view does
+                s if s.is_camera() => Transform { translation: p + Vec3::Y * camera::EYE, rotation: Quat::from_rotation_y(view.yaw), scale: size },
+                Shape::Model => Transform { translation: pos + rot * ((lo + hi) * 0.5 * size), rotation: rot, scale: (hi - lo).max(Vec3::splat(0.05)) * size },
+                _ => Transform { translation: pos, rotation: rot, scale: size },
+            };
+            **vis = Visibility::Visible;
+            if mouse.just_pressed(MouseButton::Left) {
+                let base = match model.as_ref().or(sound.as_ref()) {
+                    Some(m) => std::path::Path::new(m).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| shape.label().into()),
+                    None => shape.label().to_string(),
+                };
+                let name = ed.level.fresh_name(&base);
+                let mut part = Part::placed(shape, model.clone(), name.clone(), pos.to_array(), rot.to_array(), size.to_array());
+                if shape.is_camera() { camera::place(&mut part, p, view.yaw); }
+                if let (Some(sp), Some(path)) = (part.sound.as_mut(), sound.clone()) { sp.sound = path; }
+                ed.selected = Some(ed.level.add(part));
+                ed.last_placed = Some((shape, model.clone().or(sound.clone())));
+                ed.placing = None;
+                ed.island.show(shape.glyph(), format!("Placed {name}"), "Drag the arrows to move it · Tab for more", Tone::Plain);
+                press.at = None;
+            }
+        }
+        None => **vis = Visibility::Hidden,
+    }
+    if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
+        ed.placing = None;
+        (ed.place_turn, ed.place_scale) = (0.0, 1.0);
+    }
+    if ed.placing.is_none() { *ghost.1 = Visibility::Hidden; }
+    true
+}
+
+/// Wiring: click the part the wire goes to. True while a wire is being made or chosen.
+fn wire_step(ed: &mut Editor, pointer: Option<Vec2>, ray: Option<Ray3d>, mouse: &ButtonInput<MouseButton>, keys: &ButtonInput<KeyCode>, press: &mut Press) -> bool {
+    if let Some((from, out)) = ed.wiring {
+        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
+            ed.wiring = None;
+        } else if mouse.just_pressed(MouseButton::Left) {
+            if let (Some(ptr), Some(to)) = (pointer, ray.and_then(|r| ed.hit(r)).and_then(|h| h.part)) {
+                let p = ed.level.get(to).unwrap();
+                if to == from {
+                } else if p.inputs().is_empty() {
+                    let name = p.name.clone();
+                    ed.island.show("!", format!("{name} can't take wires yet"), "Turn on Moves to give it Go, Back and Toggle", Tone::Danger);
+                } else {
+                    ed.wire_pick = Some((from, out, to, ptr));
+                    ed.wiring = None;
+                }
+            }
+        }
+        press.at = None;
+        return true;
+    }
+    if ed.wire_pick.is_some() {
+        press.at = None;
+        return true;
+    }
+    false
+}
+
+/// Trying a path: click its start, then its end (a third click starts again). True while it is on.
+fn path_step(ed: &mut Editor, ray: Option<Ray3d>, mouse: &ButtonInput<MouseButton>, keys: &ButtonInput<KeyCode>, press: &mut Press) -> bool {
+    if ed.path_try.is_some() {
+        if mouse.just_pressed(MouseButton::Right) || keys.just_pressed(KeyCode::Escape) {
+            ed.path_try = None;
+        } else if mouse.just_pressed(MouseButton::Left) {
+            if let Some(at) = ray.and_then(|r| ed.hit(r)).map(|h| h.point) {
+                let t = ed.path_try.as_mut().expect("checked above");
+                if t.from.is_none() || t.to.is_some() { *t = PathTry { from: Some(at), ..default() }; } else { t.to = Some(at); }
+                ed.find_path();
+                match ed.path_try.as_ref().and_then(|t| t.found.clone()) {
+                    Some(Ok(p)) => ed.island.show("⬡", format!("A {:.1} m walk", crate::nav::length(&p)), "Click to try another · Esc stops", Tone::Accent),
+                    Some(Err(e)) => ed.island.show("!", "No path", e, Tone::Danger),
+                    None => {}
+                }
+            }
+        }
+        press.at = None;
+        return true;
+    }
+    false
+}
+
+/// A widget drag in progress: its handle moves the selected part, a typed number sets it exactly. True while dragging.
+fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: bool, shift: bool, typed: &mut MessageReader<KeyboardInput>, sel: &Option<Part>) -> bool {
     if let (Some(drag_h), Some(p)) = (ed.drag.as_ref().map(|d| d.handle), sel.as_ref()) {
         let bx = ed.geo.local_box(p);
         let d = ed.drag.as_mut().unwrap();
-        if d.done { return; }
+        if d.done { return true; }
         // a number typed during the drag: Enter sets it exactly, Esc puts the part back
         let (mut enter, mut esc) = (false, false);
         for k in typed.read().filter(|k| k.state.is_pressed()) {
@@ -214,7 +241,7 @@ pub fn interact(
             d.done = true;
             if let Some(m) = ed.level.get_mut(p.id) { *m = orig; }
             ed.island.show("✕", "Cancelled", "", Tone::Plain);
-            return;
+            return true;
         }
         let snap = ed.snap && !ctrl;
         let at = pointer.unwrap_or_default() + vec2(18.0, 14.0);
@@ -297,13 +324,17 @@ pub fn interact(
         if enter {
             if let Some(d) = ed.drag.as_mut() { d.done = true; }
             if typed_val.is_none() { ed.island.show("!", "Not a number", typed_text, Tone::Danger); }
-            return;
+            return true;
         }
         let shift_hint = if matches!(drag_h, Grip::Corner(_) | Grip::Face(..)) && !shift { " · Shift: from the middle" } else { "" };
         ed.label = Some((at, format!("{text}  {keys_hint}{shift_hint}"), color));
-        return;
+        return true;
     }
+    false
+}
 
+/// The widget's handle under the pointer (its label), and the press that starts a drag. True when a drag starts.
+fn hover_step(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform, ray: Option<Ray3d>, pointer: Option<Vec2>, mouse: &ButtonInput<MouseButton>, shift: bool, typed: &mut MessageReader<KeyboardInput>, press: &mut Press, sel: &Option<Part>) -> bool {
     // hover a handle?
     ed.hover_handle = None;
     if let (Some(p), Some(ptr)) = (sel.as_ref(), pointer) {
@@ -366,13 +397,17 @@ pub fn interact(
                         typed.clear();
                         ed.drag = Some(Drag { handle: h, start_pos: c, start_rot: Quat::from_array(p.rot), s0, orig: p.clone(), typed: String::new(), done: false });
                         press.at = None;
-                        return;
+                        return true;
                     }
                 }
             }
         }
     }
+    false
+}
 
+/// A click without a drag selects the part under the pointer.
+fn select_step(ed: &mut Editor, view: &View, ray: Option<Ray3d>, pointer: Option<Vec2>, mouse: &ButtonInput<MouseButton>, press: &mut Press) {
     // ---- click to select (a press and release without moving much)
     if mouse.just_pressed(MouseButton::Left) && pointer.is_some() {
         press.at = pointer;
