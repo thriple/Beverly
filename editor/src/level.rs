@@ -938,6 +938,9 @@ pub struct Level {
     pub next_id: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wires: Vec<Wire>,
+    /// Pen curves (see `curve.rs`); their ids come from the same count as the parts'.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub curves: Vec<crate::curve::Curve>,
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
     pub ranges: Ranges,
@@ -997,6 +1000,15 @@ impl Level {
         self.parts.push(part);
         self.next_id
     }
+    /// A new curve through these points (named like "Curve 2"); its id.
+    pub fn add_curve(&mut self, points: Vec<crate::curve::PenPoint>, closed: bool) -> u64 {
+        self.next_id += 1;
+        let name = (1..).map(|n| format!("Curve {n}")).find(|n| !self.curves.iter().any(|c| &c.name == n)).expect("a free name");
+        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed });
+        self.next_id
+    }
+    pub fn curve(&self, id: u64) -> Option<&crate::curve::Curve> { self.curves.iter().find(|c| c.id == id) }
+    pub fn curve_mut(&mut self, id: u64) -> Option<&mut crate::curve::Curve> { self.curves.iter_mut().find(|c| c.id == id) }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

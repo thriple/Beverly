@@ -47,6 +47,7 @@ pub const ACTIONS: &[Action] = &[
     a("level.build_navigation", "Build navigation", "Level panel", ""),
     a("tool.place", "Place (the last thing placed or picked)", "Tools", "V"),
     a("tool.brush", "Brush", "Tools", "B"),
+    a("tool.pen", "Pen", "Tools", "P"),
     a("tool.pick", "Pick what is under the pointer", "Tools", "I"),
     a("audio.play", "Play or stop the stage", "Stage bar", "P"),
     a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
@@ -125,6 +126,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         }
         "view.parts" => {
             ed.brush_on = false;
+            ed.pen_on = false;
             ed.parts_open = true;
             ed.parts_fresh = true;
             ed.parts_query.clear();
@@ -147,16 +149,27 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "tool.place" => match ed.last_placed.clone() {
             Some((shape, model)) => {
                 ed.brush_on = false;
+                ed.pen_on = false;
                 ed.placing = Some(shape);
                 ed.placing_model = model;
             }
             None => return run(ed, None, "view.parts", exit),
         },
         "tool.pick" => ed.pick = true,
+        "tool.pen" => {
+            ed.pen_on = !ed.pen_on;
+            ed.pen = Default::default();
+            if ed.pen_on {
+                ed.brush_on = false;
+                ed.placing = None;
+                ed.island.show("✎", "Pen", "Click for corners · drag for curves · click the first point to close · Enter finishes · Esc puts it away", Tone::Accent);
+            }
+        }
         "tool.brush" => {
             ed.brush_on = !ed.brush_on;
             ed.painting = Default::default();
             if ed.brush_on {
+                ed.pen_on = false;
                 ed.placing = None;
                 if !ed.level.materials.contains_key(&ed.brush.material) { ed.brush.material = ed.level.materials.keys().next().cloned().unwrap_or_default(); }
                 ed.island.show("◍", "Brush", "[ ] size · Shift + [ ] hardness · Alt erases · Esc puts it away", Tone::Accent);

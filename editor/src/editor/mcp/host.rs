@@ -497,6 +497,62 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
         }
+        "list_shapes" => Ok(Value::Array(ed.level.curves.iter().map(describe_curve).collect())),
+        "draw_shape" => {
+            editable(ed)?;
+            let existing = match args.get("shape") {
+                None | Some(Value::Null) => None,
+                Some(v) => Some(ed.level.curves.iter().find(|c| v.as_u64() == Some(c.id) || v.as_str() == Some(c.name.as_str())).map(|c| c.id).ok_or_else(|| format!("No curve {v} (list_shapes shows them)"))?),
+            };
+            if args.get("delete").and_then(Value::as_bool) == Some(true) {
+                let id = existing.ok_or("Give the shape to delete")?;
+                ed.level.curves.retain(|c| c.id != id);
+                if ed.pen.curve == Some(id) { ed.pen.curve = None; ed.pen.drawing = false; }
+                ed.commit();
+                return Ok(json!({"deleted": id}));
+            }
+            let given = args.get("points").and_then(Value::as_array);
+            if given.is_none() && existing.is_none() { return Err("Give points: [[x, y, z], ...] (or {at, handle_in, handle_out} for a smooth point)".into()); }
+            let points: Option<Vec<crate::curve::PenPoint>> = match given {
+                None => None,
+                Some(a) => {
+                    let mut v = vec![];
+                    for (i, p) in a.iter().enumerate() {
+                        let v3 = |k: &str| p.get(k).map(|h| vec3_of(h).ok_or_else(|| format!("point {i}: {k} is [x, y, z]"))).transpose();
+                        v.push(match vec3_of(p) {
+                            Some(at) => crate::curve::PenPoint::corner(at),
+                            None if p.is_object() => crate::curve::PenPoint {
+                                at: v3("at")?.ok_or_else(|| format!("point {i}: give at: [x, y, z]"))?.to_array(),
+                                into: v3("handle_in")?.unwrap_or_default().to_array(),
+                                out: v3("handle_out")?.unwrap_or_default().to_array(),
+                            },
+                            None => return Err(format!("point {i} is [x, y, z] or {{at, handle_in, handle_out}}")),
+                        });
+                    }
+                    if v.len() < 2 { return Err("A curve needs at least two points".into()); }
+                    Some(v)
+                }
+            };
+            let closed = args.get("closed").and_then(Value::as_bool);
+            let id = match existing {
+                Some(id) => {
+                    let c = ed.level.curve_mut(id).expect("found above");
+                    if let Some(p) = points { c.points = p; }
+                    if let Some(k) = closed { c.closed = k; }
+                    if c.points.len() < 3 { c.closed = false; }
+                    id
+                }
+                None => {
+                    let id = ed.level.add_curve(points.unwrap_or_default(), closed.unwrap_or(false));
+                    let c = ed.level.curve_mut(id).expect("just added");
+                    if c.points.len() < 3 { c.closed = false; }
+                    if let Some(n) = args.get("name").and_then(Value::as_str).filter(|n| !n.is_empty()) { c.name = n.to_string(); }
+                    id
+                }
+            };
+            ed.commit();
+            Ok(describe_curve(ed.level.curve(id).expect("found")))
+        }
         "get_material" => {
             let path = material_ref(ed, args.get("material").and_then(Value::as_str).ok_or("Give the material")?)?;
             Ok(describe_material(ed, &path))
@@ -1037,6 +1093,14 @@ fn settle_instances(ed: &mut Editor, args: &Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn describe_curve(c: &crate::curve::Curve) -> Value {
+    let round = |v: Vec3| settings::nums(&v.to_array());
+    json!({
+        "id": c.id, "name": c.name, "closed": c.closed, "length": settings::num((c.length() * 100.0).round() / 100.0),
+        "points": c.points.iter().map(|p| json!({"at": round(p.pos()), "handle_in": round(p.into_handle()), "handle_out": round(p.out_handle())})).collect::<Vec<_>>(),
+    })
 }
 
 fn describe_level(ed: &Editor) -> Value {

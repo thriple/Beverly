@@ -283,6 +283,30 @@ pub fn tools() -> Value {
             },
         },
         {
+            "name": "list_shapes",
+            "title": "List the pen's curves",
+            "description": "Every curve drawn with the pen (P): its id, name, whether it is closed, its length in metres and its points. A point is its place in the world and its two handles as offsets from it (handle_out leads on toward the next point, handle_in back toward the one before; [0, 0, 0] makes a corner).",
+            "inputSchema": none,
+        },
+        {
+            "name": "draw_shape",
+            "title": "Draw a curve with the pen",
+            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. One undo step.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "shape": {"type": ["integer", "string"], "description": "An existing curve's id or name, to redraw or delete."},
+                    "name": {"type": "string", "description": "A new curve's name."},
+                    "points": {"type": "array", "items": {"anyOf": [
+                        {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                        {"type": "object", "properties": {"at": {"type": "array", "items": {"type": "number"}}, "handle_in": {"type": "array", "items": {"type": "number"}}, "handle_out": {"type": "array", "items": {"type": "number"}}}, "required": ["at"]},
+                    ]}},
+                    "closed": {"type": "boolean"},
+                    "delete": {"type": "boolean"},
+                },
+            },
+        },
+        {
             "name": "get_sound",
             "title": "Describe a sound",
             "description": "A sound file (list_assets lists them under sounds, beside the recordings): its recordings, those it plays on particular surfaces instead (on_surfaces), how many Sound parts play it, and its settings as its panel shows them (Pick, Volume, Pitch, Vary, Near, Range, Loop, At once, with ranges).",
@@ -755,6 +779,8 @@ mod tests {
                 "wire",
                 "lay_texture",
                 "paint_stroke",
+                "list_shapes",
+                "draw_shape",
                 "get_sound",
                 "change_sound",
                 "new_sound",

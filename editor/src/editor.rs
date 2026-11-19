@@ -3,6 +3,7 @@
 mod actions;
 mod audio;
 mod brush;
+mod pen;
 mod bev_type;
 mod caps;
 mod edit;
@@ -116,6 +117,9 @@ pub struct Editor {
     pub brush_on: bool,
     pub brush: brush::Brush,
     pub painting: brush::Painting,
+    /// The pen (P): out or not, and what it is doing.
+    pub pen_on: bool,
+    pub pen: pen::Pen,
     /// The open tab (an index into `theme::TABS`; see `audio::built`).
     pub tab: usize,
     /// The Audio tab's stage.
@@ -235,6 +239,8 @@ impl Editor {
             brush_on: false,
             brush: brush::Brush::default(),
             painting: brush::Painting::default(),
+            pen_on: false,
+            pen: pen::Pen::default(),
             tab: 0,
             stage: audio::Stage::default(),
             hover_handle: None,

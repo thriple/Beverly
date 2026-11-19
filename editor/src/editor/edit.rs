@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, brush, camera, light, texture, Editor, PathTry, Pending, Saved, TestRequest};
+use super::{actions, brush, camera, light, pen, texture, Editor, PathTry, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -420,6 +420,13 @@ pub fn interact(
         return;
     }
 
+    // ---- the pen (P)
+    if pen::input(&mut ed, &view, ray, &mouse, &keys) {
+        *ghost.1 = Visibility::Hidden;
+        press.at = None;
+        return;
+    }
+
     // ---- a texture dragged from the Assets panel
     let cancel = keys.just_pressed(KeyCode::Escape) || mouse.just_pressed(MouseButton::Right);
     if texture::dropping(&mut ed, ray, pointer, mouse.just_released(MouseButton::Left), cancel, shift) {
@@ -796,7 +803,7 @@ pub fn shortcuts(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mut vi
     if jp(KeyCode::KeyB) { act("tool.brush"); }
     if jp(KeyCode::KeyV) { act("tool.place"); }
     if jp(KeyCode::KeyI) { act("tool.pick"); }
-    if jp(KeyCode::KeyP) { act("audio.play"); }
+    if jp(KeyCode::KeyP) { act("tool.pen"); act("audio.play"); }
 }
 
 /// Pick (I): with the brush out, the material showing most under the pointer (a painted one, else the surface's own)
@@ -977,6 +984,7 @@ pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<Widge
     }
     texture::draw(&ed, &view, &mut w);
     brush::draw(&ed, &mut w);
+    pen::draw(&ed, &view, &mut w);
     light::draw(&ed, &view, &mut w);
     camera::draw(&ed, &view, &mut g, &mut w);
     // a selected Sound part: where it is heard at full volume, and how far it carries (as seen, and level)

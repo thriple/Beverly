@@ -348,7 +348,8 @@ fn window_edges(ctx: &egui::Context, lay: &frame::Layout, window: &mut Window, m
 }
 
 /// What the mouse does in the view (the bottom notch's hints).
-fn hints(mode: Mode, brush: bool, tab: usize) -> &'static [(&'static str, &'static [&'static str])] {
+fn hints(mode: Mode, brush: bool, pen: bool, tab: usize) -> &'static [(&'static str, &'static [&'static str])] {
+    if pen { return &[("Point", &["Click"]), ("Curve", &["Drag"]), ("Break handle", &["Alt"]), ("Finish", &["Enter"]), ("Done", &["Esc"])]; }
     if brush { return &[("Size", &["[", "]"]), ("Hardness", &["Shift", "[", "]"]), ("Erase", &["Alt"]), ("Done", &["Esc"])]; }
     match mode {
         Mode::Editor if tab == audio::AUDIO => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Play", &["P"])],
@@ -387,13 +388,13 @@ fn notch_contents(ctx: &egui::Context, p: Option<(&egui::Painter, f32, f32)>, sa
 /// The bottom notch: Saved (click to save) and the hints.
 fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
     let saved = !ed.dirty();
-    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on, ed.tab));
+    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on, ed.pen_on, ed.tab));
     let n = lay.bottom_notch;
     let cy = n.top() + 4.0 + 13.0;
     let x0 = n.center().x - w / 2.0;
     egui::Area::new(Id::new("bottom-notch")).order(egui::Order::Middle).fixed_pos(n.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(n.size());
-        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on, ed.tab));
+        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on, ed.pen_on, ed.tab));
         let sr = ERect::from_min_size(pos2(x0 - 4.0, cy - 12.0), vec2(20.0 + text_w(ctx, if saved { "Saved" } else { "Not saved" }, semi(12.0)) + 8.0, 24.0));
         let resp = ui.interact(sr, Id::new("save-state"), if saved { Sense::hover() } else { Sense::click() }).tip_keys(if saved { "Everything is saved" } else { "Save" }, &["Ctrl", "S"]);
         if resp.clicked() { let _ = actions::run(ed, None, "file.save", exit); }
@@ -402,7 +403,7 @@ fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::
 
 /// The notch's width for these contents (shoulders and a little air).
 fn bottom_width(ctx: &egui::Context, ed: &Editor, view: &View) -> f32 {
-    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on, ed.tab)) + 2.0 * frame::SHOULDER + 16.0
+    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on, ed.pen_on, ed.tab)) + 2.0 * frame::SHOULDER + 16.0
 }
 
 /// The dock's three views: (name, icon); the middle one is the tab's list.
