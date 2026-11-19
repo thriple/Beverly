@@ -40,6 +40,7 @@ pub const ACTIONS: &[Action] = &[
     a("edit.make_unique", "Make Unique", "Part panel", "U"),
     a("view.parts", "Parts pop-up", "Top bar", "Tab"),
     a("view.frame", "Frame the selection", "Keys", "F"),
+    a("view.stats", "Performance meter", "View", ""),
     a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
@@ -63,8 +64,10 @@ pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
     // what works on the level's parts, only in the Level tab
     let parts = id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tool.")
         || matches!(id, "edit.duplicate" | "edit.delete" | "edit.change_all" | "edit.make_unique" | "edit.snap");
+    let parts = parts && id != "view.stats";
     if parts && ed.tab != super::audio::LEVEL { return Some("Only in the Level tab"); }
     if id.starts_with("audio.") && ed.tab != super::audio::AUDIO { return Some("Only in the Audio tab"); }
+    let editing = editing && id != "view.stats";
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
     if editing && ed.looking.is_some() && id != "view.look_through" { return Some("Not while looking through a camera (Esc goes back)"); }
     if ed.pending.is_some() && id.starts_with("file.") { return Some("The unsaved-changes question is open"); }
@@ -100,6 +103,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "edit.undo" => ed.undo(),
         "edit.redo" => ed.redo(),
         "edit.snap" => ed.snap = !ed.snap,
+        "view.stats" => ed.stats = !ed.stats,
         "edit.duplicate" => ed.duplicate_selected(),
         "edit.delete" => ed.delete_selected(),
         "edit.change_all" => ed.settle(true),

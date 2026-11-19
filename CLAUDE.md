@@ -52,7 +52,7 @@ Windows build: `.github/workflows/windows.yml` (release per push) or `tools/make
 
 Scripted tests: `beverly-player PROJECT --test tests/NAME.ron` plays a level on a fixed clock, presses keys on a
 timeline, saves screenshots and checks positions (file format in `editor/src/scripted.rs`); `tools/run-tests.sh`
-runs every test project under `tests/`. Give each finished feature a test project there. The MCP server's check is
+runs every test project under `tests/`. Each test's report ends with a `perf:` line (the performance meter's numbers, `editor/src/perf.rs`); compare it between runs. Give each finished feature a test project there. The MCP server's check is
 `tests/mcp/check.py` (open tests/lift in Beverly with the server on, then run it).
 
 A game with its own code (e.g. its player character) depends on this crate and builds its own copy of the editor

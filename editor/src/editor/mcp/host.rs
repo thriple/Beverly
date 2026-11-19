@@ -68,7 +68,7 @@ pub struct Playing<'w, 's> {
 
 /// Answer the calls that arrived since the last frame.
 #[allow(clippy::too_many_arguments)]
-pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWriter<AppExit>, mut commands: Commands, mut images: ResMut<Assets<Image>>, mut shots: Local<Vec<Shot>>, mut waiting: Local<Vec<Waiting>>, mut pl: Playing, gpu: Res<crate::gpu::GpuCaps>) {
+pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWriter<AppExit>, mut commands: Commands, mut images: ResMut<Assets<Image>>, mut shots: Local<Vec<Shot>>, mut waiting: Local<Vec<Waiting>>, mut pl: Playing, gpu: Res<crate::gpu::GpuCaps>, perf: Res<crate::perf::Perf>) {
     take_shots(&mut commands, &mut shots);
     let now = pl.time.elapsed_secs_f64();
     for w in waiting.iter_mut() { w.frames = w.frames.saturating_sub(1); }
@@ -115,6 +115,7 @@ pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWr
         let mut r = call(&mut ed, &mut view, &c.name, &c.args, &mut exit);
         if c.name == "get_project" && let Ok(v) = &mut r {
             v["graphics_card"] = json!({"name": gpu.name, "backend": gpu.backend, "kind": gpu.kind, "virtual_geometry": gpu.virtual_geometry()});
+            v["performance"] = perf.json();
         }
         let line = match &r {
             Ok(_) => c.name.clone(),

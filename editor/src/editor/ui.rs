@@ -40,6 +40,7 @@ pub fn ui(
     mut window: Single<&mut Window, With<bevy::window::PrimaryWindow>>,
     cam: Single<(&Camera, &GlobalTransform), With<super::view::MainCamera>>,
     sounds: Res<crate::sound::Sounds>,
+    perf: Res<crate::perf::Perf>,
     mut tinted: Local<usize>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?.clone();
@@ -77,7 +78,7 @@ pub fn ui(
     let max = ed.maximized;
     window_edges(&ctx, &lay, &mut window, max);
 
-    overlays(&ctx, &mut ed, &view, time.elapsed_secs_f64());
+    overlays(&ctx, &mut ed, &view, &perf, time.elapsed_secs_f64());
     if ed.looking.is_none() && ed.tab == audio::LEVEL { selection_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
     if ed.tab == audio::AUDIO { stage_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
     eyedropper(&ctx, &ed, &view, (cam.0, cam.1));
@@ -203,7 +204,7 @@ fn top_bar(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout, window: &m
             let menus: [(&str, &[&str]); 5] = [
                 ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "", "file.quit"]),
                 ("Edit", &["edit.undo", "edit.redo", "", "edit.duplicate", "edit.delete", "edit.make_unique", "edit.deselect", "", "edit.snap"]),
-                ("View", &["view.parts", "view.frame", "view.look_through"]),
+                ("View", &["view.parts", "view.frame", "view.look_through", "", "view.stats"]),
                 ("Play", &["play.test", "", "file.export"]),
                 ("Help", &["help.about", "help.updates", "help.features", "help.mcp"]),
             ];
@@ -1360,7 +1361,7 @@ fn paint_tag(ctx: &egui::Context, view: &View, at: Vec2, icon: &str, name: &str,
     painter.text(pos2(r.left() + 7.0 + 13.0 + 6.0, r.center().y), Align2::LEFT_CENTER, name, theme::bold(12.0), look().highlight_text.gamma_multiply(t));
 }
 
-fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
+fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, perf: &crate::perf::Perf, now: f64) {
     let r = view.rect;
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, Id::new("hud")));
     let c = pos2(r.center().x, r.center().y);
@@ -1425,6 +1426,7 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
     }
 
     light_budget(ctx, ed, pos2(island.right() + 8.0, island.top()));
+    if ed.stats { stats_pill(ctx, perf, pos2(island.left(), island.bottom() + 8.0)); }
 
     // a texture or material being dragged out: a grabbing hand and its name under the pointer, all the way
     if let Some(tex) = ed.texturing.as_deref() {
@@ -1441,6 +1443,39 @@ fn overlays(ctx: &egui::Context, ed: &mut Editor, view: &View, now: f64) {
         let keys: &[&str] = if ed.drag.is_some() || ed.texturing.is_some() { &[] } else { &["drag"] };
         theme::float_label(ctx, "widget", pos2(at.x, at.y), &text, color, keys);
     }
+}
+
+/// The performance meter (View > Performance meter), under the island: what the last frames cost, each number green,
+/// amber or red against what a 60 fps game can spare (perf.rs). A number the card can't give is left out.
+fn stats_pill(ctx: &egui::Context, perf: &crate::perf::Perf, at: egui::Pos2) {
+    use crate::perf::Grade;
+    let tone = |g: Grade| match g { Grade::Green => theme::OK, Grade::Amber => theme::CAT_LIGHTS, Grade::Red => theme::DANGER_TEXT };
+    let big = |n: f64| if n >= 1e6 { format!("{:.1}M", n / 1e6) } else if n >= 1e3 { format!("{:.0}k", n / 1e3) } else { format!("{n:.0}") };
+    let mut items: Vec<(&str, String, Option<Grade>)> = vec![("fps", format!("{:.0}", perf.fps), Some(perf.frame_grade())), ("frame", format!("{:.1} ms", perf.frame_ms), Some(perf.frame_grade()))];
+    if let Some(ms) = perf.gpu_ms { items.push(("card", format!("{ms:.1} ms"), perf.gpu_grade())); }
+    if let Some(t) = perf.triangles { items.push(("triangles", big(t), perf.triangles_grade())); }
+    items.push(("meshes", big(perf.meshes as f64), Some(perf.meshes_grade())));
+    items.push(("lights", format!("{}", perf.lights), Some(perf.lights_grade())));
+    items.push(("entities", big(perf.entities as f64), None));
+    if let Some(gb) = perf.ram_gb { items.push(("memory", format!("{gb:.1} GB"), perf.ram_grade())); }
+    let worst = items.iter().filter_map(|i| i.2).max_by_key(|g| *g as u8);
+    let (lab, val) = (body(11.0), mono(12.0));
+    let w = 12.0 + 14.0 + 10.0 + items.iter().map(|(l, v, _)| text_w(ctx, v, val.clone()) + 4.0 + text_w(ctx, l, lab.clone()) + 12.0).sum::<f32>();
+    let rect = ERect::from_min_size(at, vec2(w, 28.0));
+    egui::Area::new(Id::new("stats")).order(egui::Order::Foreground).fixed_pos(at).show(ctx, |ui| {
+        let p = ui.painter();
+        p.rect_filled(rect, CornerRadius::same(14), Color32::from_rgba_unmultiplied_const(14, 14, 16, 184));
+        p.rect_stroke(rect, CornerRadius::same(14), Stroke::new(1.0, if worst == Some(Grade::Red) { theme::DANGER.gamma_multiply(0.7) } else { theme::EDGE }), StrokeKind::Inside);
+        let cy = rect.center().y;
+        frame::paint_icon(p, "gauge", pos2(rect.left() + 12.0 + 7.0, cy), 14.0, theme::accent());
+        let mut x = rect.left() + 12.0 + 14.0 + 10.0;
+        for (l, v, g) in &items {
+            let r = p.text(pos2(x, cy), Align2::LEFT_CENTER, v, val.clone(), g.map_or(TEXT, tone));
+            let r = p.text(pos2(r.right() + 4.0, cy), Align2::LEFT_CENTER, l, lab.clone(), MUTED);
+            x = r.right() + 12.0;
+        }
+        ui.interact(rect, Id::new("stats-tip"), Sense::hover()).tip("The last frames: frames a second and their time, the card's own time and the triangles it drew (shadows too; only where the card can count them), meshes in view, lights, everything in the level, and this program's memory.");
+    });
 }
 
 /// The light budget meter (under the menus, while the level has shadowed lights): the most shadowed lights reaching one

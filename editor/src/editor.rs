@@ -72,6 +72,8 @@ pub struct Editor {
     /// Pick (I) was pressed: take what is under the pointer (the brush's material, or a part to place).
     pub pick: bool,
     pub snap: bool,
+    /// The performance meter's pill is showing (View > Performance meter).
+    pub stats: bool,
     pub parts_open: bool,
     pub parts_query: String,
     /// The pop-up opened this frame (so the Tab that opened it doesn't also close it).
@@ -196,6 +198,7 @@ impl Editor {
             selected: None,
             placing: None,
             snap: true,
+            stats: false,
             parts_open: false,
             parts_query: String::new(),
             parts_fresh: false,
@@ -314,7 +317,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, view::grid_plugin))
+    app.add_plugins((EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, view::grid_plugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })

@@ -615,9 +615,9 @@
    "needs": [
     "shell"
    ],
-   "what": "A small toggle-able overlay: FPS, frame time, RAM, entities, draw calls, triangles and lights, coloured green, amber or red.",
+   "what": "A toggle-able status pill (View > Performance meter): frames a second, frame time, the card's time, triangles, meshes in view, lights, entities and memory, coloured green, amber or red.",
    "chunks": [],
-   "note": "Bevy's diagnostics give FPS, frame time and the process's memory. Moved up 2026-11-18: virtual geometry, cached shadows and baked light are all judged by its numbers (GPU frame time, triangles, draw calls).",
+   "note": "Built 2026-11-19: perf.rs keeps Perf (fps, frame time, the card's time summed over Bevy's render passes, triangles drawn shadows included, meshes in view, lights, entities, memory), each graded green, amber or red; View > Performance meter shows it as a status pill under the island. The scripted tests end their report with the same numbers and get_project returns them with their grades. A card or driver that can't time passes or count triangles leaves that number out. Draw calls aren't counted: Bevy batches them inside its passes, so meshes in view stands in until Tessera's fork can count them. Moved up 2026-11-18: virtual geometry, cached shadows and baked light are all judged by its numbers.",
    "order": 34,
    "first_game": true
   },

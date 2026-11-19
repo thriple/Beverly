@@ -316,7 +316,7 @@ fn record_step(mut run: ResMut<Run>, play: Res<Play>) {
 }
 
 /// Once the last step has played and the screenshots are saved: write the report and quit.
-fn finish(mut run: ResMut<Run>, mut exit: MessageWriter<AppExit>) {
+fn finish(mut run: ResMut<Run>, mut exit: MessageWriter<AppExit>, perf: Res<crate::perf::Perf>) {
     let run = &mut *run;
     if !run.begun {
         run.waited += 1;
@@ -366,6 +366,8 @@ fn finish(mut run: ResMut<Run>, mut exit: MessageWriter<AppExit>) {
             }
         }
     }
+    // numbers, not a check: the meter's reading at the end (a game's tests compare these between runs)
+    run.lines.push(perf.line());
     let summary = if run.failed == 0 { format!("PASS {}: {} checks", run.name, run.checks) } else { format!("FAIL {}: {} of {} checks failed", run.name, run.failed, run.checks) };
     run.lines.push(summary);
     let report = run.lines.join("\n") + "\n";

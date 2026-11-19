@@ -90,7 +90,7 @@ pub fn tools() -> Value {
         {
             "name": "get_project",
             "title": "Describe the project",
-            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry).",
+            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry), and the performance meter's numbers (frames a second, frame time, the card's time, triangles, meshes in view, lights, entities, memory), each with a green, amber or red grade; a number the card can't give is null.",
             "inputSchema": none,
         },
         {
