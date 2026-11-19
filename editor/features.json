@@ -2137,6 +2137,21 @@
    "first_game": false
   },
   {
+   "id": "asset-marks",
+   "name": "Asset colours and change marks",
+   "area": "Editor basics",
+   "effort": "S",
+   "needs": [
+    "projects"
+   ],
+   "what": "Every asset in the Assets panel can carry a colour label for quick recognition, and a mark that says whether it is new or changed since a starting point, in colours of their own.",
+   "chunks": [],
+   "note": "Planned 2026-11-19 (user: a way to colour-code assets for quick visual recognition, and a way to tell which have been modified or added). Proposal, to confirm: the label is a coloured pip (dot) after the icon, picked from the row's right-click menu from about eight colours (and a filter by colour above the list); the change mark is a thin bar at the row's left edge, green for new and amber for changed, the same bar language as the settings' changed-from-default bar, with a tooltip saying what changed; a count of each in the folder heading when it is closed. Open: what changed is measured against (since the project was opened, since the last save, or since the last git commit), and where the labels live (a plain-text file in the project, so they go with git).",
+   "status": "planned",
+   "first_game": false,
+   "order": 119
+  },
+  {
    "id": "autosave",
    "name": "Autosave and recovery",
    "area": "Editor basics",
@@ -2148,7 +2163,7 @@
    "what": "Saves a recovery copy every few minutes; offers it after a crash.",
    "chunks": [],
    "note": "",
-   "order": 119,
+   "order": 120,
    "first_game": false
   },
   {
@@ -2163,7 +2178,7 @@
    "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
    "chunks": [],
    "note": "",
-   "order": 120,
+   "order": 121,
    "first_game": false
   },
   {
@@ -2178,7 +2193,7 @@
    "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
    "chunks": [],
    "note": "",
-   "order": 121,
+   "order": 122,
    "first_game": false
   },
   {
@@ -2193,7 +2208,7 @@
    "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
    "chunks": [],
    "note": "",
-   "order": 122,
+   "order": 123,
    "first_game": false
   },
   {
@@ -2209,7 +2224,7 @@
    "chunks": [],
    "note": "Planned 2026-11-17. Buses are kira sub-tracks; reverb spaces are send tracks with kira's reverb; muffling is a ray from the listener to the sound and a low-pass filter. The Settings screen's volume sliders are these buses. MCP: get_mix, change_mix, set_mood.",
    "first_game": false,
-   "order": 123
+   "order": 124
   },
   {
    "id": "triggers",
@@ -2224,7 +2239,7 @@
    "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
    "chunks": [],
    "note": "",
-   "order": 124,
+   "order": 125,
    "first_game": false
   },
   {
@@ -2239,7 +2254,7 @@
    "what": "Timer, Relay, Counter, Random.",
    "chunks": [],
    "note": "",
-   "order": 125,
+   "order": 126,
    "first_game": false
   },
   {
@@ -2254,7 +2269,7 @@
    "what": "AND, OR, NOR, XOR, NOT.",
    "chunks": [],
    "note": "",
-   "order": 126,
+   "order": 127,
    "first_game": false
   },
   {
@@ -2269,7 +2284,7 @@
    "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
    "chunks": [],
    "note": "",
-   "order": 127,
+   "order": 128,
    "first_game": false
   },
   {
@@ -2285,7 +2300,7 @@
    "what": "The pointer tour for each card the first time it opens.",
    "chunks": [],
    "note": "",
-   "order": 128,
+   "order": 129,
    "first_game": false
   },
   {
@@ -2300,7 +2315,7 @@
    "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
    "chunks": [],
    "note": "",
-   "order": 129,
+   "order": 130,
    "first_game": false
   },
   {
@@ -2317,7 +2332,7 @@
    "chunks": [],
    "note": "Planned 2026-11-17. The stage is a patch of world with time of day, wind and rain sliders (shared with the Effects tab's World stage); scattered sounds show as dots popping up around you. Weather sounds (rain, wind) are ambience layers that follow the weather. MCP: ambience through the sound tools, zones through the part tools.",
    "first_game": false,
-   "order": 130
+   "order": 131
   },
   {
    "id": "music",
@@ -2337,7 +2352,7 @@
    ],
    "note": "Planned 2026-11-17. Works like FMOD's and Wwise's adaptive music: vertical (stems in and out) and horizontal (sections on the beat). MCP: list_music, change_music, set_music_state.",
    "first_game": false,
-   "order": 131
+   "order": 132
   },
   {
    "id": "kits",
@@ -2352,7 +2367,7 @@
    "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
    "chunks": [],
    "note": "",
-   "order": 132,
+   "order": 133,
    "first_game": false
   },
   {
@@ -2371,7 +2386,7 @@
     "Exposed ports and settings, nested prefabs"
    ],
    "note": "",
-   "order": 133,
+   "order": 134,
    "first_game": false
   },
   {
@@ -2392,7 +2407,7 @@
     "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
    ],
    "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent.",
-   "order": 134,
+   "order": 135,
    "first_game": false
   },
   {
@@ -2411,7 +2426,7 @@
     "Grind rails, zero-g, burrow, ride, perch"
    ],
    "note": "",
-   "order": 135,
+   "order": 136,
    "first_game": false
   },
   {
@@ -2426,7 +2441,7 @@
    "what": "Gamepad controls for games and the input map. Last, as asked.",
    "chunks": [],
    "note": "",
-   "order": 136,
+   "order": 137,
    "first_game": false
   },
   {
@@ -2441,7 +2456,7 @@
    "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
    "chunks": [],
    "note": "",
-   "order": 137,
+   "order": 138,
    "first_game": false
   },
   {
@@ -2456,7 +2471,7 @@
    "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
-   "order": 138,
+   "order": 139,
    "first_game": false
   },
   {
@@ -2475,7 +2490,7 @@
     "Placing kit pieces, doors, keys and spawns along it"
    ],
    "note": "",
-   "order": 139,
+   "order": 140,
    "first_game": false
   },
   {
@@ -2490,7 +2505,7 @@
    "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
    "chunks": [],
    "note": "",
-   "order": 140,
+   "order": 141,
    "first_game": false
   },
   {
@@ -2505,7 +2520,7 @@
    "what": "A generic humanoid and a small cartoon character, skinned and animated, with walk, run, jump and idle clips, so any project can test from day one.",
    "chunks": [],
    "note": "Made by the user, not asset packs (2026-11-15), and skinned in another tool: Prism once it can skin (user, 2026-11-15). They arrive as GLB with their skeleton and clips.",
-   "order": 141,
+   "order": 142,
    "first_game": false
   },
   {
@@ -2520,7 +2535,7 @@
    "what": "Hide in shadow or grass, noise enemies hear, distract.",
    "chunks": [],
    "note": "",
-   "order": 142,
+   "order": 143,
    "first_game": false
   },
   {
@@ -2539,7 +2554,7 @@
     "Quest log, markers on the map and compass"
    ],
    "note": "",
-   "order": 143,
+   "order": 144,
    "first_game": false
   },
   {
@@ -2554,7 +2569,7 @@
    "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
    "chunks": [],
    "note": "",
-   "order": 144,
+   "order": 145,
    "first_game": false
   },
   {
@@ -2574,7 +2589,7 @@
     "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
    ],
    "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
-   "order": 145,
+   "order": 146,
    "first_game": false
   },
   {
@@ -2594,7 +2609,7 @@
     "Cave dressing: drips, rubble and lights along the walls"
    ],
    "note": "fast-surface-nets does the meshing (no Bevy dependency). The open ground is drawn without meshes (terrain); whether caves are meshed with surface nets or drawn from their shapes in a shader is decided when they are planned (user prefers no meshes for the ground).",
-   "order": 146,
+   "order": 147,
    "first_game": false
   },
   {
@@ -2610,7 +2625,7 @@
    "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
    "chunks": [],
    "note": "",
-   "order": 147,
+   "order": 148,
    "first_game": false
   },
   {
@@ -2626,7 +2641,7 @@
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
    "note": "",
-   "order": 148,
+   "order": 149,
    "first_game": false
   },
   {
@@ -2642,7 +2657,7 @@
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 149,
+   "order": 150,
    "first_game": false
   },
   {
@@ -2659,7 +2674,7 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 150,
+   "order": 151,
    "first_game": false
   },
   {
@@ -2678,7 +2693,7 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 151,
+   "order": 152,
    "first_game": false
   },
   {
@@ -2697,7 +2712,7 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "",
-   "order": 152,
+   "order": 153,
    "first_game": false
   },
   {
@@ -2713,7 +2728,7 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 153,
+   "order": 154,
    "first_game": false
   },
   {
@@ -2736,7 +2751,7 @@
     "Multiplayer test mode in the editor (several windows) with fake lag and packet loss"
    ],
    "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction.",
-   "order": 154,
+   "order": 155,
    "first_game": false
   },
   {
@@ -2752,7 +2767,7 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 155,
+   "order": 156,
    "first_game": false
   },
   {
@@ -2784,7 +2799,7 @@
    ],
    "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): the demo sets its characters to switch between first and third person while in control, and its rocket animatics to blend in and back out to the player's mode; these are the creator's choices in the character camera and animatics settings, not built in.",
    "first_game": false,
-   "order": 156
+   "order": 157
   },
   {
    "id": "polish-2",
@@ -2801,7 +2816,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 157,
+   "order": 158,
    "first_game": false
   },
   {
@@ -2816,7 +2831,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 158,
+   "order": 159,
    "first_game": false
   }
  ],
