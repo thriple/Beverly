@@ -90,7 +90,7 @@ pub fn tools() -> Value {
         {
             "name": "get_project",
             "title": "Describe the project",
-            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry).",
+            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry), and the performance meter's numbers (frames a second, frame time, the card's time, triangles, meshes in view, lights, entities, memory), each with a green, amber or red grade (a number the card can't give is null), and the bake cache (entries, size, and what is being built with its percent).",
             "inputSchema": none,
         },
         {
@@ -168,7 +168,7 @@ pub fn tools() -> Value {
         {
             "name": "list_assets",
             "title": "List assets",
-            "description": "The project's asset files by folder (textures, materials, models, sounds, other), as the Assets panel shows them.",
+            "description": "The project's asset files by folder (textures, materials, models, sounds, shaders, other), as the Assets panel shows them.",
             "inputSchema": none,
         },
         {
@@ -283,6 +283,31 @@ pub fn tools() -> Value {
             },
         },
         {
+            "name": "list_shapes",
+            "title": "List the pen's curves",
+            "description": "Every curve drawn with the pen (P): its id, name, whether it is closed, its length in metres and its points. A point is its place in the world and its two handles as offsets from it (handle_out leads on toward the next point, handle_in back toward the one before; [0, 0, 0] makes a corner).",
+            "inputSchema": none,
+        },
+        {
+            "name": "draw_shape",
+            "title": "Draw a curve with the pen",
+            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). A point can also say stretch: how the line leaving it treats what it meets: ground (default: lies on walkable surfaces, passing over props), over (follows any geometry), air (ignores geometry) or fall (leaves along its handle and drops until it hits a surface). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. strip paints a material along the line, as the brush would, kept in step with the curve: {material, width (m), edge (0 soft to 1 hard), strength}; null takes it away. One undo step.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "strip": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "width": {"type": "number"}, "edge": {"type": "number"}, "strength": {"type": "number"}}},
+                    "shape": {"type": ["integer", "string"], "description": "An existing curve's id or name, to redraw or delete."},
+                    "name": {"type": "string", "description": "A new curve's name."},
+                    "points": {"type": "array", "items": {"anyOf": [
+                        {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                        {"type": "object", "properties": {"at": {"type": "array", "items": {"type": "number"}}, "handle_in": {"type": "array", "items": {"type": "number"}}, "handle_out": {"type": "array", "items": {"type": "number"}}, "stretch": {"type": "string", "enum": ["ground", "over", "air", "fall"]}}, "required": ["at"]},
+                    ]}},
+                    "closed": {"type": "boolean"},
+                    "delete": {"type": "boolean"},
+                },
+            },
+        },
+        {
             "name": "get_sound",
             "title": "Describe a sound",
             "description": "A sound file (list_assets lists them under sounds, beside the recordings): its recordings, those it plays on particular surfaces instead (on_surfaces), how many Sound parts play it, and its settings as its panel shows them (Pick, Volume, Pitch, Vary, Near, Range, Loop, At once, with ranges).",
@@ -341,9 +366,23 @@ pub fn tools() -> Value {
                     "settings": {"type": "object", "description": "Setting label or field → new value, such as {\"Glow\": 3, \"Tint\": \"#ff8000\"}."},
                     "texture": {"type": ["string", "null"]},
                     "sounds_like": {"type": ["string", "null"], "description": "What it sounds like underfoot wherever it's laid (Stone, Wood, Metal, Grass…), over what the part says; null: nothing special."},
+                    "shader": {"type": ["string", "null"], "description": "A shader in assets/shaders (list_assets) that draws the material, such as stripes or stripes.wesl; null: the standard look. Choosing one clears the old one's values."},
+                    "shader_values": {"type": "object", "description": "The shader's settings (get_shader lists them) → value: a number, true/false for a toggle, or [r, g, b] (0 to 1) for a colour. A setting not given keeps the shader's default."},
                 },
                 "required": ["material"],
             },
+        },
+        {
+            "name": "get_shader",
+            "title": "Read a shader",
+            "description": "A custom shader (list_assets lists them under shaders): its source, the settings its header declares (name, label, kind, range, default), the materials using it, and any problem (`problem`). A shader is a WESL fragment shader for Bevy's standard material, like the paint layers' (copy an existing one: its imports and `fragment` are only for the main pass, so they sit under `@if(!PREPASS_PIPELINE)`, which lets the depth and shadow passes use just its raster hooks). Header comment lines tell Beverly what it asks for: `// @setting speed \"Speed\" 0..5 = 1` (a slider), `// @setting glow colour \"Glow\" = 1 0.5 0.2`, `// @setting waves toggle \"Waves\" = on`, `// @see-through`, `// @raster vertex_offset 0.5` (the most it moves a vertex, in metres), `// @raster alpha_mask`. The hooks are functions the shader defines: `fn vertex_offset(world: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>) -> vec3<f32>` (how far to move a vertex, in world space) and `fn alpha_mask(world: vec3<f32>, uv: vec2<f32>) -> f32` (below 0.5 the pixel is cut away; the shader's own fragment calls it and discards too). They also run in the depth and shadow passes, so shadows follow. `@see-through` makes an opaque material blend, and `alpha_mask` makes it cut out. Beverly adds a function for each setting after the code: setting_speed() is an f32, setting_glow() a vec3<f32>, setting_waves() a bool.",
+            "inputSchema": {"type": "object", "properties": {"shader": {"type": "string", "description": "Such as stripes, stripes.wesl or assets/shaders/stripes.wesl."}}, "required": ["shader"]},
+        },
+        {
+            "name": "write_shader",
+            "title": "Write a shader",
+            "description": "Make or replace assets/shaders/NAME.wesl with this source (see get_shader for what a shader is and its header). The header is checked first (a bad line is refused with its line number). The file is read again at once: materials using it change as it is saved, and a shader that doesn't parse keeps its last good version on screen. Mistakes in the shader's code show in the editor's island with the line, and get_shader's `problem` says what is wrong once a material uses it. Assign it with change_material.",
+            "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "The shader's name, such as stripes (letters, digits, - and _)."}, "source": {"type": "string"}}, "required": ["name", "source"]},
         },
         {
             "name": "new_material",
@@ -741,12 +780,16 @@ mod tests {
                 "wire",
                 "lay_texture",
                 "paint_stroke",
+                "list_shapes",
+                "draw_shape",
                 "get_sound",
                 "change_sound",
                 "new_sound",
                 "play_sound",
                 "get_material",
                 "change_material",
+                "get_shader",
+                "write_shader",
                 "new_material",
                 "screenshot",
                 "get_camera",

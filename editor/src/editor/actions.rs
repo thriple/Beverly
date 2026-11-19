@@ -29,6 +29,7 @@ pub const ACTIONS: &[Action] = &[
     d("file.save_as", "Save as…", "File", "Ctrl+Shift+S"),
     d("file.export", "Export Windows game…", "File", ""),
     a("file.show_folder", "Show project folder", "File", ""),
+    a("file.clear_bakes", "Clear baked data", "File", ""),
     a("file.quit", "Quit", "File", "Ctrl+Q"),
     a("edit.undo", "Undo", "Top bar", "Ctrl+Z"),
     a("edit.redo", "Redo", "Top bar", "Ctrl+Y"),
@@ -40,11 +41,13 @@ pub const ACTIONS: &[Action] = &[
     a("edit.make_unique", "Make Unique", "Part panel", "U"),
     a("view.parts", "Parts pop-up", "Top bar", "Tab"),
     a("view.frame", "Frame the selection", "Keys", "F"),
+    a("view.stats", "Performance meter", "View", ""),
     a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
     a("tool.place", "Place (the last thing placed or picked)", "Tools", "V"),
     a("tool.brush", "Brush", "Tools", "B"),
+    a("tool.pen", "Pen", "Tools", "P"),
     a("tool.pick", "Pick what is under the pointer", "Tools", "I"),
     a("audio.play", "Play or stop the stage", "Stage bar", "P"),
     a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
@@ -63,8 +66,10 @@ pub fn why_not(ed: &Editor, id: &str) -> Option<&'static str> {
     // what works on the level's parts, only in the Level tab
     let parts = id.starts_with("view.") || id.starts_with("level.") || id.starts_with("play.") || id.starts_with("tool.")
         || matches!(id, "edit.duplicate" | "edit.delete" | "edit.change_all" | "edit.make_unique" | "edit.snap");
+    let parts = parts && id != "view.stats";
     if parts && ed.tab != super::audio::LEVEL { return Some("Only in the Level tab"); }
     if id.starts_with("audio.") && ed.tab != super::audio::AUDIO { return Some("Only in the Audio tab"); }
+    let editing = editing && id != "view.stats";
     if editing && ed.testing.is_some() { return Some("Not while testing (` goes back to editing)"); }
     if editing && ed.looking.is_some() && id != "view.look_through" { return Some("Not while looking through a camera (Esc goes back)"); }
     if ed.pending.is_some() && id.starts_with("file.") { return Some("The unsaved-changes question is open"); }
@@ -96,10 +101,15 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "file.show_folder" => {
             if let Err(e) = super::ui::open_folder(&ed.dir) { ed.island.show("!", "Couldn't open the folder", e.to_string(), Tone::Danger); }
         }
+        "file.clear_bakes" => {
+            let n = ed.bakes.clear();
+            ed.island.show("✕", "Cleared baked data", format!("{n} entr{} · built again when needed", if n == 1 { "y" } else { "ies" }), Tone::Plain);
+        }
         "file.quit" => ed.request(Pending::Quit, exit),
         "edit.undo" => ed.undo(),
         "edit.redo" => ed.redo(),
         "edit.snap" => ed.snap = !ed.snap,
+        "view.stats" => ed.stats = !ed.stats,
         "edit.duplicate" => ed.duplicate_selected(),
         "edit.delete" => ed.delete_selected(),
         "edit.change_all" => ed.settle(true),
@@ -116,6 +126,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         }
         "view.parts" => {
             ed.brush_on = false;
+            ed.pen_on = false;
             ed.parts_open = true;
             ed.parts_fresh = true;
             ed.parts_query.clear();
@@ -138,16 +149,27 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "tool.place" => match ed.last_placed.clone() {
             Some((shape, model)) => {
                 ed.brush_on = false;
+                ed.pen_on = false;
                 ed.placing = Some(shape);
                 ed.placing_model = model;
             }
             None => return run(ed, None, "view.parts", exit),
         },
         "tool.pick" => ed.pick = true,
+        "tool.pen" => {
+            ed.pen_on = !ed.pen_on;
+            ed.pen.reset();
+            if ed.pen_on {
+                ed.brush_on = false;
+                ed.placing = None;
+                ed.island.show("✎", "Pen", "Click for corners · drag for curves · click the first point to close · Enter finishes · Esc puts it away", Tone::Accent);
+            }
+        }
         "tool.brush" => {
             ed.brush_on = !ed.brush_on;
             ed.painting = Default::default();
             if ed.brush_on {
+                ed.pen_on = false;
                 ed.placing = None;
                 if !ed.level.materials.contains_key(&ed.brush.material) { ed.brush.material = ed.level.materials.keys().next().cloned().unwrap_or_default(); }
                 ed.island.show("◍", "Brush", "[ ] size · Shift + [ ] hardness · Alt erases · Esc puts it away", Tone::Accent);

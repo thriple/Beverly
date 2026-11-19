@@ -1,0 +1,11 @@
+(
+    format: 1,
+    name: "main",
+    parts: [
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (1.2, 0.9, 8.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 2, name: "Pair as made", shape: Model, model: Some("assets/models/pair.glb"), pos: (-6.0, 0.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.62, 0.64, 0.70), visible: true, collision: Solid),
+        (id: 3, name: "Pair white", shape: Model, model: Some("assets/models/pair.glb"), pos: (0.0, 0.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (1.0, 1.0, 1.0), visible: true, collision: Solid),
+        (id: 4, name: "Pair green", shape: Model, model: Some("assets/models/pair.glb"), pos: (6.0, 0.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.4, 1.0, 0.4), visible: true, collision: Solid),
+    ],
+    next_id: 4,
+)

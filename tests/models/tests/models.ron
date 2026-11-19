@@ -1,0 +1,10 @@
+// A model is spawned as its own meshes and materials (not a scene) and its Colour tints them: three placements of
+// one model (as made, white, green) load, are drawn and stop the walker.
+(
+    steps: [
+        (at: 1.0, shot: "start", expect: [Feet((1.2, 0, 8), 0.1)]),
+        (at: 1.1, press: ["W"]),
+        (at: 4.0, release: ["W"]),
+        (at: 4.2, shot: "stopped", expect: [Feet((1.2, 0, 1.2), 0.5)]),
+    ],
+)

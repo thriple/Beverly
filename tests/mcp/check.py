@@ -81,6 +81,21 @@ check("undo brings the sun back", setting(tool("get_level"), "interior") is Fals
 p = tool("get_project")
 check("eight undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
 
+sh = tool("draw_shape", name="Path", points=[[0, 0, 6], {"at": [4, 0, 6], "handle_in": [-1, 0, 1], "handle_out": [1, 0, -1]}, [8, 0, 2]])
+check("draw_shape draws a curve through its points, handles bending it", sh.get("name") == "Path" and len(sh.get("points", [])) == 3 and sh["length"] > 8.5 and not sh["closed"], sh)
+check("list_shapes lists it", [c["name"] for c in tool("list_shapes")] == ["Path"])
+check("a curve can be closed and redrawn by its name", tool("draw_shape", shape="Path", closed=True).get("closed") is True)
+check("and deleted", tool("draw_shape", shape="Path", delete=True).get("deleted") and tool("list_shapes") == [])
+st = tool("draw_shape", name="Rope", points=[{"at": [0, 3, 0], "stretch": "air"}, [6, 3, 0]])
+check("a point says how its stretch treats geometry (ground by default)", [p.get("stretch") for p in st.get("points", [])] == ["air", "ground"], st)
+check("a stretch is ground, over, air or fall", "error" in tool("draw_shape", points=[{"at": [0, 0, 0], "stretch": "sideways"}, [1, 0, 0]]))
+tool("draw_shape", shape="Rope", delete=True)
+check("a strip needs a material to paint (the lift has none)", "error" in tool("draw_shape", points=[[0, 0, 0], [3, 0, 0]], strip={"width": 1}))
+check("a curve needs two points", "error" in tool("draw_shape", points=[[0, 0, 0]]))
+for _ in range(5): tool("run_action", id="edit.undo")
+p = tool("get_project")
+check("five undos take the curve edits back", tool("list_shapes") == [] and p["undo_steps"] == undo0, p)
+
 img = tool("screenshot", **{"from": [8, 6, 6], "look_at": [0, 2, -4], "width": 640})
 check("a screenshot from elsewhere is a PNG", img.get("type") == "image" and base64.b64decode(img["data"])[:8] == b"\x89PNG\r\n\x1a\n", str(img)[:200])
 

@@ -141,7 +141,7 @@ pub fn input(ed: &mut Editor, view: &View, ray: Option<Ray3d>, mouse: &ButtonInp
         // a new stroke (or onto another part: a stroke of its own there)
         _ => {
             let lays = if alt { Lays::Add } else { b.lays };
-            p.strokes.push(Stroke { material, size: b.size, hardness: b.hardness, strength: b.strength, points: vec![local], lays, rules: b.rules });
+            p.strokes.push(Stroke { material, size: b.size, hardness: b.hardness, strength: b.strength, points: vec![local], lays, rules: b.rules, curve: None });
             ed.painting.stroke = Some((id, p.strokes.len() - 1));
         }
     }
