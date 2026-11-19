@@ -32,6 +32,8 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    1. Add an entry to *Run log*: the date (Guam time), the job, what changed, tests run and their results, numbers measured, and anything that only the user's RTX card can check.
    2. Commit with a plain message (no `[release]`) and the usual co-author lines, then push the branch.
 10. Follow `CLAUDE.md`, except that this branch is the agreed exception to "main only". Never put model names or ids in files.
+11. **Bevy's files keep Bevy's shape (user, 2026-11-20).** Don't split or reorganise files in `crates/bevy_pbr`, even past
+    CLAUDE.md's size limits, so they stay easy to compare with upstream. The size rule applies to `crates/tessera` and the editor.
 
 ## Layout
 - `editor/Cargo.toml` gets `[patch.crates-io] bevy_pbr = { path = "../crates/bevy_pbr" }`.
