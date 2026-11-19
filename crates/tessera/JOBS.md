@@ -107,8 +107,8 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 ## Wiring main needs
 (Unattended runs add entries here.)
 - **Container set-up (job 1, 2026-11-20):** winit on X11 needs `libxkbcommon-x11-0`, which this container didn't have
-  (`vg-render` panicked in `xkbcommon-dl`). The run installed it with `apt-get install -y libxkbcommon-x11-0`. Adding
-  that line to the environment's setup script saves each night doing it.
+  (`vg-render` panicked in `xkbcommon-dl`). The run installed it by hand; since 2026-11-20 the environment's setup
+  script installs it (with clang and cmake for METIS).
 - **Merging job 1 into main:** `editor/Cargo.toml` gains the `[patch.crates-io] bevy_pbr` (path `../crates/bevy_pbr`),
   the off-by-default `tessera` feature, the optional `tessera` dependency (`../crates/tessera`) and the `vg-render`
   binary (`required-features = ["tessera"]`, so default builds and the release zip don't contain it). Main's
