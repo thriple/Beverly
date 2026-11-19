@@ -976,12 +976,14 @@ pub fn stage(ed: Res<Editor>, mut applied: Local<Option<level::Lighting>>, mut s
 }
 
 /// Outlines (selection, hidden colliders) and the widget.
-pub fn draw(ed: Res<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
+pub fn draw(mut ed: ResMut<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmos<WidgetGizmos>, mut o: Gizmos<OutlineGizmos>) {
     if ed.testing.is_some() { return; }
     if ed.tab != super::audio::LEVEL {
         super::audio::draw(&ed, &view, &mut w);
         return;
     }
+    // the curves are laid on the geometry again when it or they changed (not a change that sync or the undo log should see)
+    pen::lay(ed.bypass_change_detection());
     texture::draw(&ed, &view, &mut w);
     brush::draw(&ed, &mut w);
     pen::draw(&ed, &view, &mut w);

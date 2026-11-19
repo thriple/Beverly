@@ -780,10 +780,15 @@ pub enum Tag {
     #[reflect(@Label("Perch spot"))]
     PerchSpot,
     Slippery,
+    /// Pen paths lie on it, whatever its slope or height.
+    Ground,
+    /// Pen paths pass over it as if it weren't there (unless a stretch says Over everything).
+    #[reflect(@Label("Paths ignore"))]
+    PathsIgnore,
 }
 
 impl Tag {
-    pub const ALL: [Tag; 6] = [Tag::Climbable, Tag::Diggable, Tag::Water, Tag::GrindRail, Tag::PerchSpot, Tag::Slippery];
+    pub const ALL: [Tag; 8] = [Tag::Climbable, Tag::Diggable, Tag::Water, Tag::GrindRail, Tag::PerchSpot, Tag::Slippery, Tag::Ground, Tag::PathsIgnore];
 }
 
 /// A loose part: it falls and tumbles when played (a crate, a barrel), is pushed by characters and blasts.

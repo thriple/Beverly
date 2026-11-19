@@ -3,11 +3,17 @@
 //! an open curve. Alt while dragging breaks a handle off from the other. Once drawn a curve stays editable: drag its
 //! points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) to take it out,
 //! Delete elsewhere to take the whole curve away. Click another curve to edit that one. Esc or a right-click lets go
-//! (a curve being drawn is finished first, then the pen is put away).
+//! (a curve being drawn is finished first, then the pen is put away). A stretch of a curve (the line leaving a point)
+//! is laid on the geometry it meets as its point's stretch says (`curve::Stretch`); a small button by the selected
+//! point switches it (`ui::stretch_button`).
 use super::view::View;
 use super::{theme, Editor};
-use crate::curve::{self, Curve, PenPoint};
+use crate::curve::{self, Curve, PenPoint, Stretch, Vert};
+use crate::level::{Part, Tag};
+use crate::world::{self, Geometry};
 use bevy::prelude::*;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 /// What the pen is holding or pointing at: a point, or one of its two handles.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -30,7 +36,74 @@ pub struct Pen {
     pub hover: Option<Spot>,
     /// A surface under the pointer: the point and its normal.
     pub over: Option<(Vec3, Vec3)>,
+    /// The point last picked or put down (its stretch is what the button switches).
+    pub point: Option<usize>,
+    /// Each curve's line as it is seen (laid on the geometry), with what it was worked out from.
+    pub lines: HashMap<u64, (u64, Vec<Vert>)>,
 }
+
+/// How far (m) a path steps up onto the next surface (a half metre, and a little over so a step of exactly that is met), how far it drops down onto one, and how far over props an
+/// Over everything stretch looks.
+const STEP: f32 = 0.52;
+const DROP: f32 = 2.0;
+const OVER: f32 = 1.5;
+
+/// Where a line's point `p` goes onto the surface it meets, given the last point laid (`from`): a Ground stretch takes
+/// the walkable surface just under `from` (a part's top face or anything tagged Ground or Water, not one tagged Paths
+/// ignore, invisible colliders never); Over everything takes anything visible within reach; Fall takes the first
+/// surface it reaches. No surface within reach: None, and the line goes on straight over the gap.
+fn surface(parts: &[Part], geo: &Geometry, p: Vec3, from: Vec3, s: Stretch) -> Option<Vec3> {
+    let mut y = match s { Stretch::Ground => from.y + STEP, Stretch::Over => from.y + OVER, _ => p.y + STEP };
+    for _ in 0..4 {
+        let ray = Ray3d::new(Vec3::new(p.x, y, p.z), Dir3::NEG_Y);
+        let h = world::raycast(parts, geo, ray, None, |q| q.visible && (s != Stretch::Ground || !q.tags.contains(&Tag::PathsIgnore)))?;
+        let walkable = s != Stretch::Ground || h.normal.y >= 0.5 || h.part.and_then(|id| parts.iter().find(|q| q.id == id)).is_some_and(|q| q.tags.iter().any(|t| matches!(t, Tag::Ground | Tag::Water)));
+        if walkable { return (s == Stretch::Fall || h.point.y >= from.y - DROP).then_some(h.point); }
+        y = h.point.y - 0.01;
+    }
+    None
+}
+
+fn stamp<T: Hash>(h: &mut impl Hasher, v: &[T]) { for x in v { x.hash(h); } }
+
+/// What the geometry is now, as one number (a change in it lays every curve again).
+fn world_stamp(ed: &Editor) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    ed.geo.models.len().hash(&mut h);
+    for p in &ed.level.parts {
+        (p.id, p.visible, std::mem::discriminant(&p.shape), &p.model).hash(&mut h);
+        for v in p.pos.iter().chain(&p.rot).chain(&p.size) { v.to_bits().hash(&mut h); }
+        stamp(&mut h, &p.tags.iter().map(|t| *t as u8).collect::<Vec<_>>());
+    }
+    h.finish()
+}
+
+fn curve_stamp(c: &Curve, world: u64) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (world, c.closed).hash(&mut h);
+    for p in &c.points {
+        (p.stretch as u8).hash(&mut h);
+        for v in p.at.iter().chain(&p.into).chain(&p.out) { v.to_bits().hash(&mut h); }
+    }
+    h.finish()
+}
+
+/// Lay each curve on the geometry again where it or the geometry changed (every frame; a curve that hasn't changed
+/// costs a hash).
+pub fn lay(ed: &mut Editor) {
+    if ed.level.curves.is_empty() { ed.pen.lines.clear(); return; }
+    let world = world_stamp(ed);
+    let Editor { level, geo, pen, .. } = ed;
+    pen.lines.retain(|id, _| level.curves.iter().any(|c| c.id == *id));
+    for c in &level.curves {
+        let now = curve_stamp(c, world);
+        if pen.lines.get(&c.id).is_some_and(|(then, _)| *then == now) { continue; }
+        pen.lines.insert(c.id, (now, c.laid(|p, from, s| surface(&level.parts, geo, p, from, s))));
+    }
+}
+
+/// The line of curve `c` as it is seen.
+fn line<'a>(ed: &'a Editor, c: &Curve) -> Option<&'a [Vert]> { ed.pen.lines.get(&c.id).map(|(_, l)| l.as_slice()) }
 
 /// How near (m) a point or handle must be to the pointer to be picked, at this distance from the eye.
 fn reach(view: &View, p: Vec3) -> f32 { (view.pos.distance(p) * 0.022).max(0.02) }
@@ -99,6 +172,7 @@ fn click(ed: &mut Editor, view: &View, ray: Option<Ray3d>, alt: bool) {
             Spot::Point(i) if alt && !ed.pen.drawing => remove_point(ed, id, i),
             Spot::Point(i) if !ed.pen.drawing => {
                 let p = c.points[i].pos();
+                ed.pen.point = Some(i);
                 ed.pen.grab = Some(Grab { spot, plane: (p, normal), mirror: false, fresh: false });
             }
             Spot::Into(i) | Spot::Out(i) => {
@@ -115,11 +189,12 @@ fn click(ed: &mut Editor, view: &View, ray: Option<Ray3d>, alt: bool) {
     if !ed.pen.drawing {
         // the line of the curve being edited: a point goes onto it
         if let Some((id, c)) = active.and_then(|id| Some((id, ed.level.curve(id)?))) {
-            if let Some((seg, t, d)) = c.nearest(ray) {
-                if d < reach(view, curve::at(&c.bezier(seg), t)) {
+            if let Some((seg, t, d, at)) = line(ed, c).and_then(|l| curve::nearest(l, ray)) {
+                if d < reach(view, at) {
                     let c = ed.level.curve_mut(id).expect("found");
                     let i = c.split(seg, t);
                     let p = c.points[i].pos();
+                    ed.pen.point = Some(i);
                     ed.pen.grab = Some(Grab { spot: Spot::Point(i), plane: (p, normal), mirror: false, fresh: false });
                     return;
                 }
@@ -127,11 +202,12 @@ fn click(ed: &mut Editor, view: &View, ray: Option<Ray3d>, alt: bool) {
         }
         // another curve: edit that one
         let other = ed.level.curves.iter().filter(|c| Some(c.id) != active).find_map(|c| {
-            let (seg, t, d) = c.nearest(ray)?;
-            (d < reach(view, curve::at(&c.bezier(seg), t))).then_some(c.id)
+            let (_, _, d, at) = curve::nearest(line(ed, c)?, ray)?;
+            (d < reach(view, at)).then_some(c.id)
         });
         if let Some(id) = other {
             ed.pen.curve = Some(id);
+            ed.pen.point = None;
             return;
         }
     }
@@ -140,7 +216,9 @@ fn click(ed: &mut Editor, view: &View, ray: Option<Ray3d>, alt: bool) {
     let i = match (ed.pen.drawing, active) {
         (true, Some(id)) if ed.level.curve(id).is_some() => {
             let c = ed.level.curve_mut(id).expect("checked");
-            c.points.push(PenPoint::corner(at));
+            // a new point goes on as the last one went
+            let stretch = c.points.last().map_or(Stretch::Ground, |p| p.stretch);
+            c.points.push(PenPoint { stretch, ..PenPoint::corner(at) });
             c.points.len() - 1
         }
         _ => {
@@ -150,6 +228,7 @@ fn click(ed: &mut Editor, view: &View, ray: Option<Ray3d>, alt: bool) {
             0
         }
     };
+    ed.pen.point = Some(i);
     // holding on drags the point's handles out of it (a click and no drag leaves a corner)
     ed.pen.grab = Some(Grab { spot: Spot::Out(i), plane: (at, n), mirror: !alt, fresh: true });
 }
@@ -185,11 +264,12 @@ fn remove_point(ed: &mut Editor, id: u64, i: usize) {
     c.remove(i);
     if c.points.len() < 2 { drop_curve(ed, id); }
     ed.pen.hover = None;
+    ed.pen.point = None;
 }
 
 fn drop_curve(ed: &mut Editor, id: u64) {
     ed.level.curves.retain(|c| c.id != id);
-    if ed.pen.curve == Some(id) { ed.pen.curve = None; ed.pen.drawing = false; }
+    if ed.pen.curve == Some(id) { ed.pen.curve = None; ed.pen.drawing = false; ed.pen.point = None; }
 }
 
 /// Delete: the point under the pointer, else the whole curve being edited.
@@ -222,8 +302,11 @@ pub fn draw(ed: &Editor, view: &View, g: &mut Gizmos<super::edit::WidgetGizmos>)
     let line = Color::srgba(0.35, 0.85, 0.7, 0.7);
     let hot = Color::srgb(0.62, 1.0, 0.88);
     for c in &ed.level.curves {
-        let on = ed.pen.curve == Some(c.id);
-        g.linestrip(c.sample(), if on { hot } else { line });
+        let col = if ed.pen.curve == Some(c.id) { hot } else { line };
+        match self::line(ed, c) {
+            Some(l) => stretches(g, l, col),
+            None => g.linestrip(c.sample(), col),
+        }
     }
     if !ed.pen_on { return; }
     if let Some((at, n)) = ed.pen.over.filter(|_| ed.pen.grab.is_none()) {
@@ -234,7 +317,8 @@ pub fn draw(ed: &Editor, view: &View, g: &mut Gizmos<super::edit::WidgetGizmos>)
     let cube = |g: &mut Gizmos<super::edit::WidgetGizmos>, at: Vec3, s: f32, col: Color| { g.cube(Transform { translation: at, rotation: Quat::IDENTITY, scale: Vec3::splat(s) }, col); };
     for (i, p) in c.points.iter().enumerate() {
         let r = reach(view, p.pos());
-        cube(g, p.pos(), r * 0.9, if lit(Spot::Point(i)) { Color::WHITE } else { hot });
+        let (size, col) = if ed.pen.point == Some(i) { (1.25, Color::WHITE) } else { (0.9, if lit(Spot::Point(i)) { Color::WHITE } else { hot }) };
+        cube(g, p.pos(), r * size, col);
         for (h, spot) in [(p.out_handle(), Spot::Out(i)), (p.into_handle(), Spot::Into(i))] {
             if h == Vec3::ZERO { continue; }
             let end = p.pos() + h;
@@ -253,5 +337,23 @@ pub fn draw(ed: &Editor, view: &View, g: &mut Gizmos<super::edit::WidgetGizmos>)
             let b = [last.pos(), last.pos() + last.out_handle(), at, at];
             g.linestrip((0..=curve::PIECES).map(|k| curve::at(&b, k as f32 / curve::PIECES as f32)), hot.with_alpha(0.45));
         }
+    }
+}
+
+/// A laid line: ground stretches solid, air and fall ones dashed.
+fn stretches(g: &mut Gizmos<super::edit::WidgetGizmos>, line: &[Vert], col: Color) {
+    let mut on = 0.0f32;
+    for w in line.windows(2) {
+        let (a, b) = (w[0].at, w[1].at);
+        if !matches!(w[1].stretch, Stretch::Air | Stretch::Fall) { g.line(a, b, col); on = 0.0; continue; }
+        // dashes 0.3 m long with 0.2 m between, carried on from piece to piece (`on` is how far the dashes have run)
+        let len = a.distance(b);
+        let mut k = (on / 0.5).floor();
+        while k * 0.5 - on < len {
+            let (from, to) = ((k * 0.5 - on).max(0.0), (k * 0.5 + 0.3 - on).min(len));
+            if to > from { g.line(a.lerp(b, from / len), a.lerp(b, to / len), col); }
+            k += 1.0;
+        }
+        on += len;
     }
 }

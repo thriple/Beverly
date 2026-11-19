@@ -12,7 +12,26 @@ pub struct PenPoint {
     pub into: [f32; 3],
     #[serde(default, skip_serializing_if = "is_zero")]
     pub out: [f32; 3],
+    /// How the stretch leaving this point (toward the next) treats what it meets.
+    #[serde(default, skip_serializing_if = "is_ground")]
+    pub stretch: Stretch,
 }
+
+/// How a stretch of a curve treats what it meets. Ground lies on the walkable surfaces (ground, road, steps, a
+/// floor indoors) and passes over props; Over follows any geometry it meets; Air ignores geometry (a rope hangs
+/// in it); Fall leaves along its handle and drops until it hits a surface (a faucet's stream).
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Stretch { #[default] Ground, Over, Air, Fall }
+
+impl Stretch {
+    pub const ALL: [Stretch; 4] = [Stretch::Ground, Stretch::Over, Stretch::Air, Stretch::Fall];
+    pub fn name(self) -> &'static str {
+        match self { Stretch::Ground => "Ground", Stretch::Over => "Over everything", Stretch::Air => "Air", Stretch::Fall => "Fall" }
+    }
+    pub fn next(self) -> Stretch { Stretch::ALL[(Stretch::ALL.iter().position(|s| *s == self).unwrap_or(0) + 1) % 4] }
+}
+
+fn is_ground(s: &Stretch) -> bool { *s == Stretch::Ground }
 
 fn is_zero(v: &[f32; 3]) -> bool { *v == [0.0; 3] }
 
@@ -73,20 +92,44 @@ impl Curve {
     /// How long the line is (m).
     pub fn length(&self) -> f32 { self.sample().windows(2).map(|w| w[0].distance(w[1])).sum() }
 
-    /// The place on the curve nearest to a ray: (segment, how far along it, how far the ray passes from it).
-    pub fn nearest(&self, ray: Ray3d) -> Option<(usize, f32, f32)> {
-        let mut best: Option<(usize, f32, f32)> = None;
+    /// How many straight pieces segment `i` is laid in: a stretch in the air is cut as little as it can be, one on
+    /// surfaces about every 0.75 m (a curve at least [`PIECES`]).
+    fn pieces(&self, i: usize) -> usize {
+        let [a, b, c, d] = self.bezier(i);
+        let min = if self.straight(i) { 1 } else { PIECES };
+        if self.points[i].stretch == Stretch::Air { return min; }
+        (((a.distance(b) + b.distance(c) + c.distance(d)) / 0.75).ceil() as usize).clamp(min, 64.max(min))
+    }
+
+    /// The line as it is seen: the curve with each stretch laid on what it meets. `lay(p, from, stretch)` says where
+    /// the line's point `p` goes, given the last point laid (`from`): onto a surface, or None to leave it where it is
+    /// (gaps are bridged). A Fall stretch ends where it first reaches a surface.
+    pub fn laid(&self, mut lay: impl FnMut(Vec3, Vec3, Stretch) -> Option<Vec3>) -> Vec<Vert> {
+        let mut v: Vec<Vert> = vec![];
         for i in 0..self.segments() {
             let b = self.bezier(i);
-            let n = if self.straight(i) { 1 } else { PIECES };
-            for k in 0..n {
-                let (t0, t1) = (k as f32 / n as f32, (k + 1) as f32 / n as f32);
-                let (p, q) = (at(&b, t0), at(&b, t1));
-                let (along, d) = ray_to_segment(ray, p, q);
-                if best.is_none_or(|(_, _, bd)| d < bd) { best = Some((i, t0 + (t1 - t0) * along, d)); }
+            let stretch = self.points[i].stretch;
+            if i == 0 { v.push(Vert { at: b[0], stretch, seg: 0, t: 0.0 }); }
+            let n = self.pieces(i);
+            for k in 1..=n {
+                let t = k as f32 / n as f32;
+                let mut p = at(&b, t);
+                let mut landed = false;
+                if k < n && stretch != Stretch::Air {
+                    let from = v.last().expect("a start").at;
+                    if let Some(s) = lay(p, from, stretch) {
+                        // a fall is over once the line is below the surface
+                        if stretch != Stretch::Fall { p = s } else if s.y >= p.y - 0.01 { p = s; landed = true; }
+                    }
+                }
+                v.push(Vert { at: p, stretch, seg: i, t });
+                if landed {
+                    v.push(Vert { at: b[3], stretch: Stretch::Ground, seg: i, t: 1.0 });
+                    break;
+                }
             }
         }
-        best
+        v
     }
 
     /// Put a new point on segment `i`, `t` of the way along it, without changing the line: the segment's Bezier is
@@ -99,7 +142,7 @@ impl Curve {
         let j = (i + 1) % self.points.len();
         self.points[i].out = (q0 - p0).to_array();
         self.points[j].into = (q2 - p3).to_array();
-        let new = PenPoint { at: s.to_array(), into: (r0 - s).to_array(), out: (r1 - s).to_array() };
+        let new = PenPoint { at: s.to_array(), into: (r0 - s).to_array(), out: (r1 - s).to_array(), stretch: self.points[i].stretch };
         // a segment from the last point back to the first goes on the end
         self.points.insert(i + 1, new);
         i + 1
@@ -110,6 +153,24 @@ impl Curve {
         self.points.remove(i);
         if self.points.len() < 3 { self.closed = false; }
     }
+}
+
+/// A point of the laid line: where it is, how its stretch treats geometry, and which segment of the curve it belongs to
+/// and how far along it (0 to 1).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Vert { pub at: Vec3, pub stretch: Stretch, pub seg: usize, pub t: f32 }
+
+/// The place on a laid line nearest to a ray: (segment, how far along it, how far the ray passes, the place).
+pub fn nearest(line: &[Vert], ray: Ray3d) -> Option<(usize, f32, f32, Vec3)> {
+    let mut best: Option<(usize, f32, f32, Vec3)> = None;
+    for w in line.windows(2) {
+        let (along, d) = ray_to_segment(ray, w[0].at, w[1].at);
+        if best.is_none_or(|(.., bd, _)| d < bd) {
+            let t0 = if w[0].seg == w[1].seg { w[0].t } else { 0.0 };
+            best = Some((w[1].seg, t0 + (w[1].t - t0) * along, d, w[0].at.lerp(w[1].at, along)));
+        }
+    }
+    best
 }
 
 /// The point `t` (0 to 1) along a cubic Bezier.
@@ -140,7 +201,7 @@ mod tests {
     use bevy::prelude::Dir3;
 
     fn two() -> Curve {
-        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0] }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3] }], closed: false }
+        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: Stretch::Ground }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: Stretch::Ground }], closed: false }
     }
 
     #[test]
@@ -198,12 +259,50 @@ mod tests {
         let c = two();
         // a ray from above straight down at the curve's middle
         let ray = Ray3d::new(Vec3::new(2.0, 5.0, 0.75), Dir3::NEG_Y);
-        let (seg, t, d) = c.nearest(ray).unwrap();
+        let line = c.laid(|_, _, _| None);
+        let (seg, t, d, _) = nearest(&line, ray).unwrap();
         assert_eq!(seg, 0);
         assert!((t - 0.5).abs() < 0.06, "{t}");
         assert!(d < 0.1, "{d}");
         let far = Ray3d::new(Vec3::new(2.0, 5.0, 9.0), Dir3::NEG_Y);
-        assert!(c.nearest(far).unwrap().2 > 5.0);
+        assert!(nearest(&line, far).unwrap().2 > 5.0);
         assert!((ray_to_point(ray, Vec3::new(2.0, 0.0, 1.75)) - 1.0).abs() < 1e-4);
+    }
+
+    fn flat(stretch: Stretch) -> Curve {
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false };
+        c.points[0].stretch = stretch;
+        c
+    }
+
+    #[test]
+    fn ground_stretches_lie_on_the_surface_and_air_ones_do_not() {
+        // a surface 1 m up, between x = 2 and x = 4
+        let lay = |p: Vec3, _: Vec3, _: Stretch| (p.x > 2.0 && p.x < 4.0).then(|| Vec3::new(p.x, 1.0, p.z));
+        let ground = flat(Stretch::Ground).laid(lay);
+        assert!(ground.len() > 8, "cut to follow the surface: {}", ground.len());
+        assert!(ground.iter().any(|v| v.at.y == 1.0) && ground.first().unwrap().at.y == 0.0 && ground.last().unwrap().at.y == 0.0);
+        assert!(flat(Stretch::Air).laid(lay).iter().all(|v| v.at.y == 0.0));
+        assert_eq!(flat(Stretch::Air).laid(lay).len(), 2);
+    }
+
+    #[test]
+    fn a_fall_ends_where_it_lands() {
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false };
+        c.points[0].stretch = Stretch::Fall;
+        // the floor is 1 m up: the line comes down to it and stops there, then rests on the second point
+        let line = c.laid(|p, _, _| (p.y <= 1.0).then(|| Vec3::new(p.x, 1.0, p.z)));
+        let land = line.iter().position(|v| v.at.y == 1.0).expect("lands");
+        assert_eq!(line[land + 1].at, Vec3::ZERO);
+        assert_eq!(land + 2, line.len());
+    }
+
+    #[test]
+    fn a_cut_keeps_the_stretch_and_stretches_go_round() {
+        let mut c = flat(Stretch::Air);
+        let i = c.split(0, 0.5);
+        assert_eq!(c.points[i].stretch, Stretch::Air);
+        assert_eq!(Stretch::Fall.next(), Stretch::Ground);
+        assert_eq!(Stretch::Ground.next(), Stretch::Over);
     }
 }

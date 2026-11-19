@@ -983,7 +983,7 @@ mod tests {
         let t = d.as_array().unwrap().iter().find(|x| x["field"] == "tags").unwrap().clone();
         assert_eq!(t["value"], serde_json::json!(["Grind rail", "Slippery"]));
         assert_eq!(t["kind"], "tags");
-        assert_eq!(t["choices"].as_array().unwrap().len(), 6);
+        assert_eq!(t["choices"].as_array().unwrap().len(), 8);
         assert!(apply(&mut p, &serde_json::json!({"Tags": ["Bouncy"]})).unwrap_err().contains("Perch spot"));
         apply(&mut p, &serde_json::json!({"Tags": []})).unwrap();
         assert!(p.tags.is_empty());

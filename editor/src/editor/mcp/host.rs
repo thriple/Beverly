@@ -482,7 +482,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                     Some(Value::Null) => rules.on = None,
                     Some(v) => {
                         let want = v.as_str().unwrap_or_default().to_lowercase().replace([' ', '_'], "");
-                        rules.on = Some(crate::level::Tag::ALL.into_iter().find(|t| format!("{t:?}").to_lowercase() == want).ok_or_else(|| format!("No surface tag called {v} (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery)"))?);
+                        rules.on = Some(crate::level::Tag::ALL.into_iter().find(|t| format!("{t:?}").to_lowercase() == want).ok_or_else(|| format!("No surface tag called {v} (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery, Ground, Paths ignore)"))?);
                     }
                     None => {}
                 }
@@ -525,6 +525,10 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                                 at: v3("at")?.ok_or_else(|| format!("point {i}: give at: [x, y, z]"))?.to_array(),
                                 into: v3("handle_in")?.unwrap_or_default().to_array(),
                                 out: v3("handle_out")?.unwrap_or_default().to_array(),
+                                stretch: match p.get("stretch") {
+                                    None | Some(Value::Null) => crate::curve::Stretch::Ground,
+                                    Some(w) => crate::curve::Stretch::ALL.into_iter().find(|s| w.as_str().is_some_and(|w| stretch_word(*s) == w.to_lowercase())).ok_or_else(|| format!("point {i}: stretch is ground, over, air or fall"))?,
+                                },
                             },
                             None => return Err(format!("point {i} is [x, y, z] or {{at, handle_in, handle_out}}")),
                         });
@@ -1095,11 +1099,16 @@ fn settle_instances(ed: &mut Editor, args: &Value) -> Result<(), String> {
     Ok(())
 }
 
+/// A stretch as the MCP server says it.
+fn stretch_word(s: crate::curve::Stretch) -> &'static str {
+    match s { crate::curve::Stretch::Ground => "ground", crate::curve::Stretch::Over => "over", crate::curve::Stretch::Air => "air", crate::curve::Stretch::Fall => "fall" }
+}
+
 fn describe_curve(c: &crate::curve::Curve) -> Value {
     let round = |v: Vec3| settings::nums(&v.to_array());
     json!({
         "id": c.id, "name": c.name, "closed": c.closed, "length": settings::num((c.length() * 100.0).round() / 100.0),
-        "points": c.points.iter().map(|p| json!({"at": round(p.pos()), "handle_in": round(p.into_handle()), "handle_out": round(p.out_handle())})).collect::<Vec<_>>(),
+        "points": c.points.iter().map(|p| json!({"at": round(p.pos()), "handle_in": round(p.into_handle()), "handle_out": round(p.out_handle()), "stretch": stretch_word(p.stretch)})).collect::<Vec<_>>(),
     })
 }
 

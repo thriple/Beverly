@@ -291,7 +291,7 @@ pub fn tools() -> Value {
         {
             "name": "draw_shape",
             "title": "Draw a curve with the pen",
-            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. One undo step.",
+            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). A point can also say stretch: how the line leaving it treats what it meets: ground (default: lies on walkable surfaces, passing over props), over (follows any geometry), air (ignores geometry) or fall (leaves along its handle and drops until it hits a surface). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. One undo step.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -299,7 +299,7 @@ pub fn tools() -> Value {
                     "name": {"type": "string", "description": "A new curve's name."},
                     "points": {"type": "array", "items": {"anyOf": [
                         {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                        {"type": "object", "properties": {"at": {"type": "array", "items": {"type": "number"}}, "handle_in": {"type": "array", "items": {"type": "number"}}, "handle_out": {"type": "array", "items": {"type": "number"}}}, "required": ["at"]},
+                        {"type": "object", "properties": {"at": {"type": "array", "items": {"type": "number"}}, "handle_in": {"type": "array", "items": {"type": "number"}}, "handle_out": {"type": "array", "items": {"type": "number"}}, "stretch": {"type": "string", "enum": ["ground", "over", "air", "fall"]}}, "required": ["at"]},
                     ]}},
                     "closed": {"type": "boolean"},
                     "delete": {"type": "boolean"},

@@ -90,6 +90,7 @@ pub fn ui(
     overlays(&ctx, &mut ed, &view, &perf, time.elapsed_secs_f64());
     if ed.looking.is_none() && ed.tab == audio::LEVEL { selection_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
     if ed.tab == audio::AUDIO { stage_tag(&ctx, &ed, &view, (cam.0, cam.1)); }
+    if ed.tab == audio::LEVEL { stretch_button(&ctx, &mut ed, &view, (cam.0, cam.1)); }
     eyedropper(&ctx, &ed, &view, (cam.0, cam.1));
     if ed.ask.as_ref().is_some_and(|(id, _)| ed.level.get(*id).is_some()) { ask_card(&ctx, &mut ed, &view); } else { theme::spring_reset(&ctx, Id::new("ask")); }
     if ed.parts_open { parts_popup(&ctx, &mut ed); } else { theme::spring_reset(&ctx, Id::new("parts-pop")); }
@@ -1427,6 +1428,34 @@ fn stage_tag(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Camera, &Glob
     let top = if ed.stage.walker { audio::walker_at(ed.stage.turn) + Vec3::Y * 1.8 } else { audio::SPEAKER_AT + Vec3::Y * 0.6 };
     let Some(at) = view.to_screen(cam.0, cam.1, top) else { return };
     paint_tag(ctx, view, at - Vec2::new(24.0, 0.0), "wave", &sound_name(path), Id::new(("tag-in", path)));
+}
+
+/// The pen's stretch button: a small pill by the selected point with how the line leaving it treats what it meets
+/// (Ground, Over everything, Air, Fall); a click goes on to the next.
+fn stretch_button(ctx: &egui::Context, ed: &mut Editor, view: &View, cam: (&Camera, &GlobalTransform)) {
+    if !ed.pen_on { return; }
+    let (Some(id), Some(i)) = (ed.pen.curve, ed.pen.point) else { return };
+    let Some(c) = ed.level.curve(id) else { return };
+    let Some(point) = c.points.get(i) else { return };
+    // the last point of an open curve has no stretch yet, unless the next point is about to go on
+    if i + 1 == c.points.len() && !c.closed && !ed.pen.drawing { return; }
+    let Some(at) = view.to_screen(cam.0, cam.1, point.pos()) else { return };
+    let name = point.stretch.name();
+    let w = 12.0 + text_w(ctx, name, theme::bold(12.0)) + 12.0;
+    let v = view.rect;
+    let pos = pos2((at.x + 16.0).clamp(v.min.x + 8.0, (v.max.x - w - 8.0).max(v.min.x)), (at.y - 38.0).clamp(v.min.y + 48.0, v.max.y - 60.0));
+    let mut next = None;
+    egui::Area::new(Id::new("stretch-button")).order(egui::Order::Middle).fixed_pos(pos).show(ctx, |ui| {
+        let (r, resp) = ui.allocate_exact_size(vec2(w, 24.0), Sense::click());
+        let fill = if resp.hovered() { highlight() } else { highlight().gamma_multiply(0.85) };
+        ui.painter().rect_filled(r, CornerRadius::same(7), fill);
+        ui.painter().text(r.center(), Align2::CENTER_CENTER, name, theme::bold(12.0), look().highlight_text);
+        let resp = resp.tip_keys("How the line leaving this point treats what it meets: Ground, Over everything, Air or Fall", &["Click"]);
+        if resp.clicked() { next = Some(point.stretch.next()); }
+    });
+    if let Some(s) = next {
+        if let Some(p) = ed.level.curve_mut(id).and_then(|c| c.points.get_mut(i)) { p.stretch = s; }
+    }
 }
 
 /// A tag: the small pill in the highlight with an icon and a name, its top left just above `at` (screen points),
