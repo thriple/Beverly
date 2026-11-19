@@ -1,5 +1,6 @@
 // A material with a shader (assets/shaders/stripes.wesl, its header's settings given values by the material file)
-// draws with it beside a plain material: both load and the level plays.
+// draws with it beside a plain material: both load and the level plays. lean.wesl moves vertices and cuts holes (its
+// raster hooks); look at the shot.
 (
     steps: [
         (at: 1.0, shot: "start", expect: [Feet((0, 0, 8), 0.1)]),

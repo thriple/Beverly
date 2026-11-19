@@ -158,9 +158,11 @@ impl Mats {
         if let Some(h) = self.shaded.get(&key) { return Some(h.clone()); }
         let shader = shaders.request(path);
         let values = shaders.header(path).map(|h| shader::values(h, &m.shader_values)).unwrap_or([Vec4::ZERO; shader::SLOTS]);
+        let base = self.surface_material(server, m, s);
+        let alpha = base.alpha_mode;
         let h = assets.add(ShaderMaterial {
-            base: self.surface_material(server, m, s),
-            extension: ShaderLayer { values: shader::Values { v: values }, path: path.to_string(), set: m.shader_values.clone(), shader },
+            base,
+            extension: ShaderLayer { values: shader::Values { v: values }, path: path.to_string(), set: m.shader_values.clone(), shader, vertex: false, mask: false, alpha },
         });
         self.shaded.insert(key, h.clone());
         Some(h)

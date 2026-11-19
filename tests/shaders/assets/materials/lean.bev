@@ -1,0 +1,1 @@
+(format: 1, tint: (0.3, 0.8, 0.5), shader: Some("assets/shaders/lean.wesl"))

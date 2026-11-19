@@ -537,6 +537,8 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             v["shader"] = json!(path);
             v["source"] = json!(src);
             v["used_by"] = json!(users);
+            // what is wrong with it now (known once a material uses it): its header, or code the graphics card refused
+            v["problem"] = json!(ed.shader_info.get(&path).and_then(|i| i.1.clone()));
             Ok(v)
         }
         "write_shader" => {

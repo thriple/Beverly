@@ -316,7 +316,7 @@ fn record_step(mut run: ResMut<Run>, play: Res<Play>) {
 }
 
 /// Once the last step has played and the screenshots are saved: write the report and quit.
-fn finish(mut run: ResMut<Run>, mut exit: MessageWriter<AppExit>, perf: Res<crate::perf::Perf>) {
+fn finish(mut run: ResMut<Run>, mut exit: MessageWriter<AppExit>, perf: Res<crate::perf::Perf>, shaders: Res<crate::shader::Shaders>) {
     let run = &mut *run;
     if !run.begun {
         run.waited += 1;
@@ -364,6 +364,16 @@ fn finish(mut run: ResMut<Run>, mut exit: MessageWriter<AppExit>, perf: Res<crat
                     Err(e) => { run.failed += 1; run.lines.push(format!("✗ FAIL couldn't write the trace: {e}")); }
                 }
             }
+        }
+    }
+    // every shader the level uses must have built (a header that doesn't parse, or code the graphics card refused)
+    let mut paths: Vec<&String> = shaders.paths().collect();
+    paths.sort();
+    for path in &paths {
+        run.checks += 1;
+        match shaders.error(path) {
+            Some(e) => { run.failed += 1; run.lines.push(format!("✗ FAIL shader {e}")); }
+            None => run.lines.push(format!("✓ shader {path} built")),
         }
     }
     // numbers, not a check: the meter's reading at the end (a game's tests compare these between runs)

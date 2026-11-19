@@ -7,17 +7,14 @@ import bevy_pbr::render::{
     pbr_functions::alpha_discard,
 };
 
-@if(PREPASS_PIPELINE)
-import bevy_pbr::{
-    prepass::io::{VertexOutput, FragmentOutput},
-    deferred::functions::deferred_output,
-};
-@else
+// the main pass's own: the depth and shadow passes use only the hooks (see shader.rs)
+@if(!PREPASS_PIPELINE)
 import bevy_pbr::render::{
     forward_io::{VertexOutput, FragmentOutput},
     pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
 };
 
+@if(!PREPASS_PIPELINE)
 @fragment
 fn fragment(
     in: VertexOutput,
@@ -29,11 +26,7 @@ fn fragment(
     if setting_glow() { pbr_input.material.emissive = vec4<f32>(setting_stripe() * band * 4.0, 1.0); }
 
     var out: FragmentOutput;
-@if(PREPASS_PIPELINE) {
-    out = deferred_output(in, pbr_input);
-} @else {
     out.color = apply_pbr_lighting(pbr_input);
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
-}
     return out;
 }

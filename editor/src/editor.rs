@@ -308,7 +308,7 @@ impl Editor {
 /// file stops parsing. Writes to the editor only when something changed.
 fn shader_sync(mut ed: ResMut<Editor>, mut shaders: ResMut<crate::shader::Shaders>) {
     if let Some(path) = ed.material_open.as_ref().and_then(|m| ed.level.materials.get(m)).and_then(|m| m.shader.clone()) { shaders.request(&path); }
-    let info: std::collections::BTreeMap<_, _> = shaders.paths().map(|p| (p.clone(), (shaders.header(p).cloned(), shaders.error(p).map(str::to_string)))).collect();
+    let info: std::collections::BTreeMap<_, _> = shaders.paths().map(|p| (p.clone(), (shaders.header(p).cloned(), shaders.error(p)))).collect();
     if info == ed.shader_info { return; }
     for (p, (_, err)) in &info {
         if let (Some(e), true) = (err, ed.shader_info.get(p).is_none_or(|old| old.1.as_ref() != err.as_ref())) {

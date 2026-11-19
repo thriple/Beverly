@@ -5,6 +5,8 @@
         (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 0.9, 8.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
         (id: 2, name: "Striped", shape: Box, pos: (-2.0, 1.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (3.0, 2.0, 3.0), color: (1.0, 1.0, 1.0), visible: true, collision: Solid, surfaces: [(material: "assets/materials/stripes.bev", tile: (1.0, 1.0))]),
         (id: 3, name: "Plain", shape: Box, pos: (2.5, 1.0, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (3.0, 2.0, 3.0), color: (1.0, 1.0, 1.0), visible: true, collision: Solid, surfaces: [(material: "assets/materials/plain.bev", tile: (1.0, 1.0))]),
+        (id: 4, name: "Leaning", shape: Box, pos: (0.25, 2.0, -5.0), rot: (0.0, 0.0, 0.0, 1.0), size: (3.0, 4.0, 3.0), color: (1.0, 1.0, 1.0), visible: true, collision: Solid, surfaces: [(material: "assets/materials/lean.bev", tile: (1.0, 1.0))]),
+        (id: 5, name: "Floor", shape: Box, pos: (0.0, -0.25, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (30.0, 0.5, 30.0), color: (0.6, 0.6, 0.6), visible: true, collision: Solid),
     ],
-    next_id: 3,
+    next_id: 5,
 )
