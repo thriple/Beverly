@@ -160,9 +160,9 @@ pub(super) fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
 }
 
 /// A search field (the dock's): a drawn magnifier and a line of text.
-pub(super) fn search_field(ui: &mut Ui, text: &mut String, hint: &str) {
+pub(super) fn search_field(ui: &mut Ui, text: &mut String, hint: &str) -> egui::Response {
     let focused = ui.memory(|m| m.focused()).is_some_and(|f| f == ui.next_auto_id());
-    egui::Frame::new()
+    let out = egui::Frame::new()
         .fill(white(10))
         .stroke(Stroke::new(1.0, if focused { Color32::from_rgba_unmultiplied(0xf5, 0xdc, 0x4a, 150) } else { LINE }))
         .corner_radius(CornerRadius::same(10))
@@ -173,8 +173,10 @@ pub(super) fn search_field(ui: &mut Ui, text: &mut String, hint: &str) {
                 let c = ir.center() - vec2(1.0, 1.0);
                 ui.painter().circle_stroke(c, 4.5, Stroke::new(1.4, MUTED));
                 ui.painter().line_segment([c + vec2(3.3, 3.3), c + vec2(6.5, 6.5)], Stroke::new(1.6, MUTED));
-                ui.add(egui::TextEdit::singleline(text).hint_text(hint).frame(egui::Frame::NONE).font(body(13.0)).desired_width(ui.available_width()));
-            });
+                ui.add(egui::TextEdit::singleline(text).hint_text(hint).frame(egui::Frame::NONE).font(body(13.0)).desired_width(ui.available_width()))
+            })
+            .inner
         });
     ui.add_space(4.0);
+    out.inner
 }
