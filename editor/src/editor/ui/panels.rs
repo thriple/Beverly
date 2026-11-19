@@ -36,143 +36,11 @@ pub(super) fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mu
         let model = p.shape == Shape::Model;
         let scale = [("size", Setting::number("Scale", "×", 0.01, 0.001, 100000.0).section(level::LOOK).bare())];
         let mut ctx = settings::Ctx { replace: if model { &scale } else { &[] }, ranges: &mut ranges, ranges_changed: false, palette: project_palette(&ed.level) };
-        for sec in settings::sections(&p) {
-            if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
-            // the player start, lights and cameras have no surface to tag
-            if sec == level::TAGS { continue; }
-            // a light or a camera: its settings in place of size and look (the cone for spots only)
-            if sec == level::LOOK && p.shape.is_marker() { continue; }
-            if sec == level::CAMERA {
-                let orbit = p.shape == Shape::OrbitCamera;
-                if let Some(c) = p.camera.as_mut() {
-                    column(ui, 250.0, "CAMERA", |ui| {
-                        settings::section(ui, c, level::CAMERA, &mut ctx);
-                        if ui.button("Look through").tip_keys("Fly it to aim it", &["L"]).clicked() { look = true; }
-                    });
-                    if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, &mut ctx); }); }
-                }
-                continue;
-            }
-            if sec == level::SPEAKER {
-                let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
-                if let Some(s) = p.sound.as_mut() {
-                    column(ui, 260.0, "SOUND", |ui| {
-                        let shown = if s.sound.is_empty() { "None yet".to_string() } else { sound_name(&s.sound) };
-                        egui::ComboBox::from_id_salt("part sound").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
-                            for f in &files { ui.selectable_value(&mut s.sound, f.clone(), sound_name(f)); }
-                        }).response.tip("The sound file it plays (Assets > Sounds)");
-                        settings::section(ui, s, level::SPEAKER, &mut ctx);
-                        if !s.sound.is_empty() && ui.button("Edit in the Audio tab").tip("Its recordings, volume, pitch and range (every part playing it changes)").clicked() {
-                            ed.sound_open = Some(s.sound.clone());
-                            ed.tab = audio::AUDIO;
-                            ed.dock_view = 0;
-                        }
-                    });
-                }
-                continue;
-            }
-            if sec == level::LIGHT {
-                let spot = p.shape == Shape::SpotLight;
-                if let Some(l) = p.light.as_mut() {
-                    column(ui, 260.0, "LIGHT", |ui| { settings::section(ui, l, level::LIGHT, &mut ctx); });
-                    if spot { column(ui, 250.0, "CONE", |ui| { settings::section(ui, l, level::CONE, &mut ctx); }); }
-                }
-                continue;
-            }
-            let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
-            column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, &mut p, sec, &mut ctx); });
-        }
-        if !p.surfaces.is_empty() {
-            column(ui, 250.0, "TEXTURES", |ui| {
-                let names = ed.geo.shapes[&p.shape].face_names();
-                let mut remove = None;
-                for (i, s) in p.surfaces.iter_mut().enumerate() {
-                    ui.horizontal(|ui| {
-                        let face = s.face.map_or("All over".to_string(), |f| names.get(f as usize).cloned().unwrap_or_default());
-                        let mat = std::path::Path::new(&s.material).file_stem().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default();
-                        ui.label(egui::RichText::new(format!("{face} · {mat}")).color(TEXT));
-                        if ui.small_button("✕").tip("Take this texture off").clicked() { remove = Some(i); }
-                    });
-                    for (label, v, help) in [("Size", &mut s.tile, "How big one copy of the texture is (across, down)"), ("Slide", &mut s.offset, "How far the texture is slid along the surface")] {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(label).color(MUTED)).tip(help);
-                            let lo = if label == "Size" { 0.05 } else { -1000.0 };
-                            for x in v.iter_mut() { ui.add(egui::DragValue::new(x).speed(0.01).range(lo..=1000.0).max_decimals(2).suffix(" m")); }
-                        });
-                    }
-                }
-                if let Some(i) = remove { p.surfaces.remove(i); }
-            });
-        }
-        // what it plays when things happen to it
-        let events = p.events();
-        if !events.is_empty() {
-            let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
-            column(ui, 0.0, "SOUNDS", |ui| {
-                for e in events {
-                    let mut chosen = p.sound_on(e).unwrap_or_default().to_string();
-                    if sound_row(ui, e, &mut chosen, &files, &format!("What it plays when it's {}", event_words(e))) {
-                        p.sounds.retain(|h| h.on != e);
-                        if !chosen.is_empty() { p.sounds.push(level::Hook { on: e.into(), sound: chosen }); }
-                    }
-                }
-            });
-        }
-        let outs = p.outputs();
-        let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
-        if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
-            column(ui, 260.0, "WIRES", |ui| {
-                let name_of = |pid: u64| ed.level.get(pid).map(|q| q.name.clone()).unwrap_or_default();
-                for out in &outs {
-                    ui.horizontal(|ui| {
-                        port(ui, &format!("{out} ▸"), theme::CAT_TRIGGERS);
-                        let wiring = ed.wiring == Some((id, out));
-                        if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).tip("Then click the part it goes to").clicked() {
-                            ed.wiring = if wiring { None } else { Some((id, out)) };
-                        }
-                    });
-                }
-                for (i, w) in ed.level.wires.iter().enumerate() {
-                    let text = if w.from == id {
-                        format!("{} → {} · {}", w.out, name_of(w.to), w.input)
-                    } else if w.to == id {
-                        format!("{} ← {} · {}", w.input, name_of(w.from), w.out)
-                    } else {
-                        continue;
-                    };
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new(text).color(MUTED));
-                        if ui.small_button("✕").tip("Remove this wire").clicked() { unwire = Some(i); }
-                    });
-                }
-                if !p.inputs().is_empty() && !ed.level.wires.iter().any(|w| w.to == id) {
-                    ui.horizontal(|ui| {
-                        for i in p.inputs() { port(ui, &format!("▸ {i}"), theme::CAT_ACTIONS); }
-                    });
-                }
-            });
-        }
-        // rarely used: Unique, and its surface's tags (the player start, lights and cameras have no surface to tag)
-        let tags = !(p.shape == Shape::PlayerStart || p.shape.is_marker());
-        group(ui, "ADVANCED", Some(1 + 2 * tags as usize), |ui| {
-            ui.horizontal(|ui| {
-                let help = if p.unique {
-                    "Its contents are its own"
-                } else if !ed.level.instanced(&p) {
-                    "Lights, cameras, moving and wired parts are always individual"
-                } else {
-                    "Parts with the same shape, colour and textures are instances; changing one asks first"
-                };
-                ui.label(egui::RichText::new("Unique").color(TEXT_2)).tip(help);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    theme::toggle(ui, &mut p.unique).tip("On: changing its look never changes the parts just like it");
-                });
-            });
-            if tags {
-                settings::section(ui, &mut p, level::TAGS, &mut ctx);
-                ground_row(ui, "part sounds like", &mut p.sounds_like, "What its surface sounds like underfoot: steps play their recordings for it");
-            }
-        });
+        part_sections(ui, ed, &mut p, model, &mut ctx, &mut look);
+        texture_group(ui, ed, &mut p);
+        sound_group(ui, ed, &mut p);
+        wire_group(ui, ed, &p, id, &mut unwire);
+        advanced_group(ui, ed, &mut p, &mut ctx);
         ranges_changed = ctx.ranges_changed;
     });
     }
@@ -190,6 +58,164 @@ pub(super) fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mu
         }
         if let Some(m) = ed.level.get_mut(id) { *m = p; }
     }
+}
+
+/// The part's settings, a group for each section its setting descriptions name (a light, a camera or a speaker
+/// gets its own in place of size and look).
+fn part_sections(ui: &mut Ui, ed: &mut Editor, p: &mut level::Part, model: bool, ctx: &mut settings::Ctx, look: &mut bool) {
+    for sec in settings::sections(&*p) {
+        if sec == level::PART || (sec == level::MOVES && p.shape == Shape::PlayerStart) { continue; }
+        // the player start, lights and cameras have no surface to tag
+        if sec == level::TAGS { continue; }
+        // a light or a camera: its settings in place of size and look (the cone for spots only)
+        if sec == level::LOOK && p.shape.is_marker() { continue; }
+        if sec == level::CAMERA {
+            let orbit = p.shape == Shape::OrbitCamera;
+            if let Some(c) = p.camera.as_mut() {
+                column(ui, 250.0, "CAMERA", |ui| {
+                    settings::section(ui, c, level::CAMERA, ctx);
+                    if ui.button("Look through").tip_keys("Fly it to aim it", &["L"]).clicked() { *look = true; }
+                });
+                if orbit { column(ui, 260.0, "ORBIT", |ui| { settings::section(ui, c, level::ORBIT, ctx); }); }
+            }
+            continue;
+        }
+        if sec == level::SPEAKER {
+            let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
+            if let Some(s) = p.sound.as_mut() {
+                column(ui, 260.0, "SOUND", |ui| {
+                    let shown = if s.sound.is_empty() { "None yet".to_string() } else { sound_name(&s.sound) };
+                    egui::ComboBox::from_id_salt("part sound").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                        for f in &files { ui.selectable_value(&mut s.sound, f.clone(), sound_name(f)); }
+                    }).response.tip("The sound file it plays (Assets > Sounds)");
+                    settings::section(ui, s, level::SPEAKER, ctx);
+                    if !s.sound.is_empty() && ui.button("Edit in the Audio tab").tip("Its recordings, volume, pitch and range (every part playing it changes)").clicked() {
+                        ed.sound_open = Some(s.sound.clone());
+                        ed.tab = audio::AUDIO;
+                        ed.dock_view = 0;
+                    }
+                });
+            }
+            continue;
+        }
+        if sec == level::LIGHT {
+            let spot = p.shape == Shape::SpotLight;
+            if let Some(l) = p.light.as_mut() {
+                column(ui, 260.0, "LIGHT", |ui| { settings::section(ui, l, level::LIGHT, ctx); });
+                if spot { column(ui, 250.0, "CONE", |ui| { settings::section(ui, l, level::CONE, ctx); }); }
+            }
+            continue;
+        }
+        let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
+        column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, p, sec, ctx); });
+    }
+}
+
+/// The textures laid on the part: each with its size and slide, and a button to take it off.
+fn texture_group(ui: &mut Ui, ed: &Editor, p: &mut level::Part) {
+    if !p.surfaces.is_empty() {
+        column(ui, 250.0, "TEXTURES", |ui| {
+            let names = ed.geo.shapes[&p.shape].face_names();
+            let mut remove = None;
+            for (i, s) in p.surfaces.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    let face = s.face.map_or("All over".to_string(), |f| names.get(f as usize).cloned().unwrap_or_default());
+                    let mat = std::path::Path::new(&s.material).file_stem().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default();
+                    ui.label(egui::RichText::new(format!("{face} · {mat}")).color(TEXT));
+                    if ui.small_button("✕").tip("Take this texture off").clicked() { remove = Some(i); }
+                });
+                for (label, v, help) in [("Size", &mut s.tile, "How big one copy of the texture is (across, down)"), ("Slide", &mut s.offset, "How far the texture is slid along the surface")] {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(label).color(MUTED)).tip(help);
+                        let lo = if label == "Size" { 0.05 } else { -1000.0 };
+                        for x in v.iter_mut() { ui.add(egui::DragValue::new(x).speed(0.01).range(lo..=1000.0).max_decimals(2).suffix(" m")); }
+                    });
+                }
+            }
+            if let Some(i) = remove { p.surfaces.remove(i); }
+        });
+    }
+}
+
+/// What the part plays when things happen to it.
+fn sound_group(ui: &mut Ui, ed: &Editor, p: &mut level::Part) {
+    // what it plays when things happen to it
+    let events = p.events();
+    if !events.is_empty() {
+        let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
+        column(ui, 0.0, "SOUNDS", |ui| {
+            for e in events {
+                let mut chosen = p.sound_on(e).unwrap_or_default().to_string();
+                if sound_row(ui, e, &mut chosen, &files, &format!("What it plays when it's {}", event_words(e))) {
+                    p.sounds.retain(|h| h.on != e);
+                    if !chosen.is_empty() { p.sounds.push(level::Hook { on: e.into(), sound: chosen }); }
+                }
+            }
+        });
+    }
+}
+
+/// The part's wires: its outputs to wire from, the wires that touch it (with a button to remove each).
+fn wire_group(ui: &mut Ui, ed: &mut Editor, p: &level::Part, id: u64, unwire: &mut Option<usize>) {
+    let outs = p.outputs();
+    let has_wires = ed.level.wires.iter().any(|w| w.from == id || w.to == id);
+    if !outs.is_empty() || !p.inputs().is_empty() || has_wires {
+        column(ui, 260.0, "WIRES", |ui| {
+            let name_of = |pid: u64| ed.level.get(pid).map(|q| q.name.clone()).unwrap_or_default();
+            for out in &outs {
+                ui.horizontal(|ui| {
+                    port(ui, &format!("{out} ▸"), theme::CAT_TRIGGERS);
+                    let wiring = ed.wiring == Some((id, out));
+                    if ui.small_button(if wiring { "click a part…" } else { "+ wire" }).tip("Then click the part it goes to").clicked() {
+                        ed.wiring = if wiring { None } else { Some((id, out)) };
+                    }
+                });
+            }
+            for (i, w) in ed.level.wires.iter().enumerate() {
+                let text = if w.from == id {
+                    format!("{} → {} · {}", w.out, name_of(w.to), w.input)
+                } else if w.to == id {
+                    format!("{} ← {} · {}", w.input, name_of(w.from), w.out)
+                } else {
+                    continue;
+                };
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(text).color(MUTED));
+                    if ui.small_button("✕").tip("Remove this wire").clicked() { *unwire = Some(i); }
+                });
+            }
+            if !p.inputs().is_empty() && !ed.level.wires.iter().any(|w| w.to == id) {
+                ui.horizontal(|ui| {
+                    for i in p.inputs() { port(ui, &format!("▸ {i}"), theme::CAT_ACTIONS); }
+                });
+            }
+        });
+    }
+}
+
+/// Rarely used: Unique, and the surface's tags.
+fn advanced_group(ui: &mut Ui, ed: &Editor, p: &mut level::Part, ctx: &mut settings::Ctx) {
+    // rarely used: Unique, and its surface's tags (the player start, lights and cameras have no surface to tag)
+    let tags = !(p.shape == Shape::PlayerStart || p.shape.is_marker());
+    group(ui, "ADVANCED", Some(1 + 2 * tags as usize), |ui| {
+        ui.horizontal(|ui| {
+            let help = if p.unique {
+                "Its contents are its own"
+            } else if !ed.level.instanced(&p) {
+                "Lights, cameras, moving and wired parts are always individual"
+            } else {
+                "Parts with the same shape, colour and textures are instances; changing one asks first"
+            };
+            ui.label(egui::RichText::new("Unique").color(TEXT_2)).tip(help);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                theme::toggle(ui, &mut p.unique).tip("On: changing its look never changes the parts just like it");
+            });
+        });
+        if tags {
+            settings::section(ui, p, level::TAGS, ctx);
+            ground_row(ui, "part sounds like", &mut p.sounds_like, "What its surface sounds like underfoot: steps play their recordings for it");
+        }
+    });
 }
 
 /// The bottom-left panel: what the Level tab's topic (its menu) sets, or the level and its topics.
