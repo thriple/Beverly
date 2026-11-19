@@ -37,6 +37,10 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 - Every feature says what the MCP server gets from it (most comes free from setting descriptions and named
   editor actions; anything else is part of the feature).
 - Keep it simple: minimum code for what was asked, surgical changes, ask when unclear.
+- **Say when something is getting too big (user, 2026-11-19):** when a file passes about 1,200 lines, a function
+  about 150, or a screen, panel or system starts mixing jobs, tell the user at the end of that piece of work (what it
+  is, why it is hard to change now, and what the split would be) and ask before reorganising; never let it grow
+  silently. A reorganisation moves code without changing how anything looks or behaves, and gets its own commit.
 - Never put model names or ids in repository files. Never ask for keys in chat or write them into files.
 - **Built to spec for virtual geometry (user, 2026-11-18; docs/tessera.md):** every material or shader goes
   through Beverly's shader pipeline (`shaders`), with vertex movement and cut-out edges declared as raster hooks and
