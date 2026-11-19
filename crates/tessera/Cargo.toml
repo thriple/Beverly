@@ -1,0 +1,12 @@
+[package]
+name = "tessera"
+version = "0.1.0"
+edition = "2024"
+description = "Beverly's virtual geometry: the parts beside Bevy's meshlet renderer (crates/bevy_pbr)"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+# pinned with Beverly's bevy (editor/Cargo.toml)
+bevy_asset = { version = "=0.20.1", default-features = false }
+bevy_mesh = { version = "=0.20.1", default-features = false }

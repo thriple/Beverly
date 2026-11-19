@@ -48,6 +48,17 @@ mint = "0.5"
 # Help > Check for updates (update.rs)
 serde_json = "1"
 sha2 = "0.10"
+# virtual geometry (crates/tessera, docs/tessera.md); only with the `tessera` feature
+tessera = { path = "../crates/tessera", optional = true }
+
+[features]
+# Tessera, virtual geometry: Bevy's meshlet renderer (forked in crates/bevy_pbr) and Beverly's side. Off by default.
+tessera = ["bevy/meshlet", "bevy/meshlet_processor", "dep:tessera"]
+
+# Tessera's render check: draws the test mesh with virtual geometry and saves a screenshot
+[[bin]]
+name = "vg-render"
+required-features = ["tessera"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "=0.20.1", default-features = false, features = ["multi_threaded", "x11", "wayland"] }
@@ -68,3 +79,7 @@ strip = "debuginfo"   # debug binaries are ~1.7 GB otherwise
 
 [profile.dev.package."*"]
 opt-level = 3
+
+# the fork of Bevy's meshlet renderer (docs/tessera.md); its first commit is the untouched 0.20.1 copy
+[patch.crates-io]
+bevy_pbr = { path = "../crates/bevy_pbr" }
