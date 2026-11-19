@@ -514,9 +514,45 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 m.texture = match t.as_str() { Some(t) => Some(texture_ref(ed, t)?), None => None };
                 changed.push("texture");
             }
+            if let Some(s) = args.get("shader") {
+                m.shader = match s.as_str() { Some(s) => Some(shader_ref(ed, s)?), None => None };
+                m.shader_values.clear();
+                changed.push("shader");
+            }
+            if let Some(given) = args.get("shader_values") {
+                let shader = m.shader.clone().ok_or("The material has no shader to give values to (set shader first)")?;
+                let src = std::fs::read_to_string(ed.dir.join(&shader)).map_err(|e| format!("{shader}: {e}"))?;
+                m.shader_values = shader_values(&crate::shader::parse(&src)?, given)?;
+                changed.push("shader_values");
+            }
             ed.level.materials.insert(path.clone(), m);
             ed.commit();
             Ok(json!({"changed": changed, "material": describe_material(ed, &path)}))
+        }
+        "get_shader" => {
+            let path = shader_ref(ed, args.get("shader").and_then(Value::as_str).ok_or("Give the shader")?)?;
+            let src = std::fs::read_to_string(ed.dir.join(&path)).map_err(|e| format!("{path}: {e}"))?;
+            let users: Vec<&str> = ed.level.materials.iter().filter(|(_, m)| m.shader.as_deref() == Some(path.as_str())).map(|(k, _)| k.trim_start_matches("assets/materials/")).collect();
+            let mut v = shader_json(&src, &std::collections::BTreeMap::new());
+            v["shader"] = json!(path);
+            v["source"] = json!(src);
+            v["used_by"] = json!(users);
+            Ok(v)
+        }
+        "write_shader" => {
+            editable(ed)?;
+            let name = args.get("name").and_then(Value::as_str).ok_or("Give the name")?;
+            let name = name.trim_end_matches(".wesl");
+            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') { return Err(format!("{name:?} can't be a shader name (letters, digits, - and _)")); }
+            let src = args.get("source").and_then(Value::as_str).ok_or("Give the source")?;
+            crate::shader::parse(src)?;
+            let path = format!("assets/shaders/{name}.wesl");
+            let existed = ed.dir.join(&path).is_file();
+            std::fs::create_dir_all(ed.dir.join("assets/shaders")).map_err(|e| e.to_string())?;
+            std::fs::write(ed.dir.join(&path), src).map_err(|e| format!("{path}: {e}"))?;
+            ed.refresh_assets();
+            ed.island.show("✦", format!("{} {name}.wesl", if existed { "Rewrote" } else { "Wrote" }), "a shader", crate::editor::theme::Tone::Accent);
+            Ok(json!({"shader": path, "written": !existed, "replaced": existed}))
         }
         "new_material" => {
             editable(ed)?;
@@ -916,7 +952,57 @@ fn texture_ref(ed: &Editor, t: &str) -> Result<String, String> {
 fn describe_material(ed: &Editor, path: &str) -> Value {
     let m = &ed.level.materials[path];
     let (surfaces, parts) = ed.level.material_users(path);
-    json!({"material": path, "texture": m.texture, "sounds_like": m.sounds_like.map(|g| g.label()), "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)})
+    let mut v = json!({"material": path, "texture": m.texture, "sounds_like": m.sounds_like.map(|g| g.label()), "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)});
+    if let Some(s) = &m.shader {
+        v["shader"] = json!(s);
+        v["shader_settings"] = std::fs::read_to_string(ed.dir.join(s)).map_or(Value::Null, |src| shader_json(&src, &m.shader_values)["settings"].clone());
+    }
+    v
+}
+
+/// A shader by name, file name or path.
+fn shader_ref(ed: &Editor, s: &str) -> Result<String, String> {
+    let s = s.replace('\\', "/");
+    let name = s.trim_start_matches("assets/shaders/").trim_end_matches(".wesl");
+    let path = format!("assets/shaders/{name}.wesl");
+    if ed.dir.join(&path).is_file() { return Ok(path); }
+    let have: Vec<String> = crate::shader::list(&ed.dir).iter().map(|p| p.trim_start_matches("assets/shaders/").trim_end_matches(".wesl").to_string()).collect();
+    Err(format!("No shader {name} (there are: {}; write_shader makes one)", list_or_none(&have.iter().map(String::as_str).collect::<Vec<_>>())))
+}
+
+/// A shader file's header for the MCP server: its settings with their kinds, ranges, defaults and the values given.
+fn shader_json(src: &str, given: &std::collections::BTreeMap<String, Vec<f32>>) -> Value {
+    use crate::shader::Kind;
+    let h = match crate::shader::parse(src) { Ok(h) => h, Err(e) => return json!({"error": e, "settings": []}) };
+    let values = crate::shader::values(&h, given);
+    let settings: Vec<Value> = h.settings.iter().enumerate().map(|(i, s)| {
+        let (kind, extra, value) = match s.kind {
+            Kind::Number { min, max } => ("number", json!({"min": min, "max": max, "default": s.default[0]}), settings::num(values[i].x)),
+            Kind::Colour => ("colour", json!({"default": settings::nums(&s.default)}), settings::nums(&[values[i].x, values[i].y, values[i].z])),
+            Kind::Toggle => ("toggle", json!({"default": s.default[0] > 0.5}), json!(values[i].x > 0.5)),
+        };
+        let mut o = json!({"name": s.name, "label": s.label, "kind": kind, "value": value});
+        o.as_object_mut().expect("an object").extend(extra.as_object().cloned().unwrap_or_default());
+        o
+    }).collect();
+    json!({"settings": settings, "see_through": h.see_through, "vertex_offset": h.vertex_offset, "alpha_mask": h.alpha_mask})
+}
+
+/// The values a call gives a shader's settings, by name (a number, true/false or [r, g, b]), checked against its header.
+fn shader_values(h: &crate::shader::Header, given: &Value) -> Result<std::collections::BTreeMap<String, Vec<f32>>, String> {
+    use crate::shader::Kind;
+    let obj = given.as_object().ok_or("shader_values is an object of setting name → value")?;
+    let mut out = std::collections::BTreeMap::new();
+    for (name, v) in obj {
+        let s = h.settings.iter().find(|s| s.name == *name).ok_or_else(|| format!("The shader has no setting {name} (it has: {})", list_or_none(&h.settings.iter().map(|s| s.name.as_str()).collect::<Vec<_>>())))?;
+        let own: Vec<f32> = match (&s.kind, v) {
+            (Kind::Number { .. }, v) => vec![v.as_f64().ok_or_else(|| format!("{name} is a number"))? as f32],
+            (Kind::Toggle, v) => vec![v.as_bool().ok_or_else(|| format!("{name} is true or false"))? as u8 as f32],
+            (Kind::Colour, v) => vec3_of(v).map(|c| c.to_array().to_vec()).ok_or_else(|| format!("{name} is [r, g, b] from 0 to 1"))?,
+        };
+        out.insert(name.clone(), own);
+    }
+    Ok(out)
 }
 
 /// Point a spot light at `aim` [x, y, z]: it turns to it and reaches it. Returns whether there was one.

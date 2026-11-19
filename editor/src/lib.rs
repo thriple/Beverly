@@ -17,6 +17,7 @@ pub mod player;
 pub mod script;
 pub mod scripted;
 pub mod settings;
+pub mod shader;
 pub mod shapes;
 pub mod sound;
 pub mod update;

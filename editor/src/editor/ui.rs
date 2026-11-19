@@ -630,7 +630,8 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
             let material = *folder == "materials";
             let sense = if model { Sense::click() } else if material || texture { Sense::click_and_drag() } else { Sense::hover() };
             let (r, resp) = row(ui, 30.0, sense);
-            let (icon, colour) = if model { ("cube", theme::CAT_SHAPES) } else if material { ("palette", theme::VIOLET) } else if texture { ("grid", theme::VIOLET) } else { ("folder", MUTED) };
+            let shader = *folder == "shaders";
+            let (icon, colour) = if model { ("cube", theme::CAT_SHAPES) } else if material { ("palette", theme::VIOLET) } else if texture { ("grid", theme::VIOLET) } else if shader { ("spark", theme::VIOLET) } else { ("folder", MUTED) };
             let open = material && ed.material_open.as_deref() == Some(path.as_str());
             frame::paint_icon(ui.painter(), icon, pos2(r.left() + 7.0, r.center().y), 14.0, colour);
             ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, f.trim_end_matches(".bev"), body(12.5), if open { theme::VIOLET } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
@@ -646,6 +647,8 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
                 let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip(if ed.brush_on { "Click to paint with it" } else { "Click to change it (every surface using it changes) · drag onto a face" });
                 if resp.clicked() && ed.brush_on { ed.brush.material = path; ed.dock_view = 0; }
                 else if resp.clicked() { ed.material_open = Some(path); } else if resp.drag_started() { ed.texturing = Some(path); }
+            } else if shader {
+                resp.tip("A shader: choose it on a material");
             } else if texture {
                 // textures: drag onto a face (or click, then click a face)
                 let resp = resp.on_hover_cursor(egui::CursorIcon::Grab).tip("Drag onto a face of a part (Shift: the whole part)");
@@ -1143,6 +1146,24 @@ fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
         ui.label(egui::RichText::new("Drag the material from Assets onto faces").color(MUTED).size(11.0));
     });
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: project_palette(&ed.level) };
+    column(ui, 0.0, "SHADER", |ui| {
+        let files = crate::shader::list(&ed.dir);
+        let shown = m.shader.as_deref().and_then(|s| s.rsplit('/').next()).unwrap_or("None (standard)").to_string();
+        egui::ComboBox::from_id_salt("material shader").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            if ui.selectable_value(&mut m.shader, None, "None (standard)").clicked() { m.shader_values.clear(); }
+            for f in &files { if ui.selectable_value(&mut m.shader, Some(f.clone()), f.trim_start_matches("assets/shaders/")).clicked() { m.shader_values.clear(); } }
+        });
+        if let Some(path) = m.shader.clone() {
+            match ed.shader_info.get(&path) {
+                Some((Some(h), _)) => { settings::shader_settings(ui, h, &mut m.shader_values, &ctx.palette); }
+                Some((None, None)) | None => { ui.label(egui::RichText::new("Reading the shader…").color(MUTED).size(11.0)); }
+                Some((None, Some(_))) => {}
+            }
+            if let Some((_, Some(e))) = ed.shader_info.get(&path) { ui.label(egui::RichText::new(e).color(theme::DANGER_TEXT).size(11.0)); }
+        } else {
+            ui.label(egui::RichText::new("A shader draws the material its own way: write one in assets/shaders").color(MUTED).size(11.0));
+        }
+    });
     column(ui, 0.0, "LOOK", |ui| {
         settings::section(ui, &mut m, level::MATERIAL, &mut ctx);
         ground_row(ui, "material sounds like", &mut m.sounds_like, "What it sounds like underfoot, wherever it's laid (else what the part says)");

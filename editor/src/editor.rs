@@ -76,6 +76,9 @@ pub struct Editor {
     pub stats: bool,
     /// The bake cache (bake.rs), shared with the app as a resource.
     pub bakes: crate::bake::Bakes,
+    /// The shaders in use as shader.rs reads them: their headers and any error in their files (kept up to date by
+    /// `shader_sync`, for the material panel).
+    pub shader_info: std::collections::BTreeMap<String, (Option<crate::shader::Header>, Option<String>)>,
     pub parts_open: bool,
     pub parts_query: String,
     /// The pop-up opened this frame (so the Tab that opened it doesn't also close it).
@@ -202,6 +205,7 @@ impl Editor {
             snap: true,
             stats: false,
             bakes: crate::bake::Bakes::new(crate::bake::Bakes::default_root(), None),
+            shader_info: default(),
             parts_open: false,
             parts_query: String::new(),
             parts_fresh: false,
@@ -300,6 +304,20 @@ impl Editor {
     }
 }
 
+/// Keeps `ed.shader_info` current, asks for the open material's shader (so its settings show) and says when a shader
+/// file stops parsing. Writes to the editor only when something changed.
+fn shader_sync(mut ed: ResMut<Editor>, mut shaders: ResMut<crate::shader::Shaders>) {
+    if let Some(path) = ed.material_open.as_ref().and_then(|m| ed.level.materials.get(m)).and_then(|m| m.shader.clone()) { shaders.request(&path); }
+    let info: std::collections::BTreeMap<_, _> = shaders.paths().map(|p| (p.clone(), (shaders.header(p).cloned(), shaders.error(p).map(str::to_string)))).collect();
+    if info == ed.shader_info { return; }
+    for (p, (_, err)) in &info {
+        if let (Some(e), true) = (err, ed.shader_info.get(p).is_none_or(|old| old.1.as_ref() != err.as_ref())) {
+            ed.island.show("!", format!("Shader {} has a problem", p.trim_start_matches("assets/shaders/")), e.clone(), theme::Tone::Danger);
+        }
+    }
+    ed.shader_info = info;
+}
+
 /// Run the editor. A game with its own code builds its own copy of the editor with this: `title` for the window,
 /// `player` the file name of its game player (without .exe), and `extra` adds its plugins (e.g. its player
 /// character, see [`play::Play::custom`]).
@@ -320,7 +338,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, view::grid_plugin))
+    app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, view::grid_plugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
         .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
@@ -332,7 +350,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .add_systems(Startup, (shapes::setup, view::setup, view::spawn_grid, edit::setup, caps::startup))
         .init_resource::<mcp::host::Injected>()
         .add_systems(PreUpdate, mcp::host::inject.after(bevy::input::InputSystems))
-        .add_systems(Update, (window_icon, mcp::host::serve, models::fill_models))
+        .add_systems(Update, (window_icon, mcp::host::serve, models::fill_models, shader_sync))
         .add_systems(
             Update,
             (

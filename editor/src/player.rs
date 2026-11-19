@@ -56,7 +56,7 @@ pub fn run(extra: fn(&mut App)) {
     }));
     extra(&mut app);
     if let Some(t) = test { crate::scripted::add(&mut app, &dir, &t, &level, record); }
-    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
+    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()
@@ -77,10 +77,12 @@ fn setup(
     server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut assets: ResMut<Assets<StandardMaterial>>,
+    mut shaded: ResMut<Assets<crate::shader::ShaderMaterial>>,
+    mut shaders: ResMut<crate::shader::Shaders>,
 ) {
     commands.spawn((Camera3d::default(), PlayCamera, Msaa::Off, bevy::anti_alias::smaa::Smaa::default(), Transform::from_xyz(0.0, 3.0, 8.0)));
     let mut mats = world::setup_stage(&mut commands, &mut meshes, &mut assets, true);
-    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &game.level.materials, shadows: true };
+    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, shaded: &mut shaded, shaders: &mut shaders, meshes: &mut meshes, materials: &game.level.materials, shadows: true };
     for p in &game.level.parts {
         world::spawn_visual(&mut commands, p, &mut looks, false);
     }

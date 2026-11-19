@@ -909,6 +909,8 @@ pub fn sync(
     server: Res<AssetServer>,
     mut mats: ResMut<Mats>,
     mut assets: ResMut<Assets<StandardMaterial>>,
+    mut shaded: ResMut<Assets<crate::shader::ShaderMaterial>>,
+    mut shaders: ResMut<crate::shader::Shaders>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut views: Query<(Entity, &mut PartView, &mut Transform)>,
     mut materials: Local<std::collections::BTreeMap<String, level::Material>>,
@@ -933,7 +935,7 @@ pub fn sync(
         }
     }
     for p in ed.level.parts.iter().filter(|p| !seen.contains(&p.id)) {
-        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, meshes: &mut meshes, materials: &ed.level.materials, shadows: std::env::var_os("BEVERLY_LITE").is_none() };
+        let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, shaded: &mut shaded, shaders: &mut shaders, meshes: &mut meshes, materials: &ed.level.materials, shadows: std::env::var_os("BEVERLY_LITE").is_none() };
         if let Some(e) = world::spawn_visual(&mut commands, p, &mut looks, true) {
             commands.entity(e).insert(PartView { id: p.id, applied: p.clone() });
         }

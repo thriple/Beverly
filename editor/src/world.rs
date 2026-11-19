@@ -2,6 +2,7 @@
 //! against it, and the stage (ground, sun).
 use crate::level::{self, Part, Shape, Surface};
 use crate::models::ModelLib;
+use crate::shader::{self, ShaderLayer, ShaderMaterial, Shaders};
 use crate::shapes::{self, ShapeLib, Tris};
 use bevy::math::Affine3A;
 use bevy::prelude::*;
@@ -86,6 +87,7 @@ pub struct Mats {
     pub collider: Handle<StandardMaterial>,
     pub ghost: Handle<StandardMaterial>,
     laid: HashMap<(String, [u32; 4]), Handle<StandardMaterial>>,
+    shaded: HashMap<(String, [u32; 4]), Handle<ShaderMaterial>>,
     images: HashMap<String, Handle<Image>>,
     /// Weak, so a mesh goes once no part uses it (a textured part being resized makes one per size).
     faces: HashMap<(Shape, [u32; 3], Vec<u8>), AssetId<Mesh>>,
@@ -144,11 +146,32 @@ impl Mats {
     pub fn surface(&mut self, assets: &mut Assets<StandardMaterial>, server: &AssetServer, m: &level::Material, s: &Surface) -> Handle<StandardMaterial> {
         let key = (format!("{m:?}"), [s.tile[0], s.tile[1], s.offset[0], s.offset[1]].map(f32::to_bits));
         if let Some(h) = self.laid.get(&key) { return h.clone(); }
+        let h = assets.add(self.surface_material(server, m, s));
+        self.laid.insert(key, h.clone());
+        h
+    }
+
+    /// A surface whose material has a shader (shader.rs): the same look with the shader's fragment code and values.
+    pub fn shaded(&mut self, assets: &mut Assets<ShaderMaterial>, shaders: &mut Shaders, server: &AssetServer, m: &level::Material, s: &Surface) -> Option<Handle<ShaderMaterial>> {
+        let path = m.shader.as_deref()?;
+        let key = (format!("{m:?}"), [s.tile[0], s.tile[1], s.offset[0], s.offset[1]].map(f32::to_bits));
+        if let Some(h) = self.shaded.get(&key) { return Some(h.clone()); }
+        let shader = shaders.request(path);
+        let values = shaders.header(path).map(|h| shader::values(h, &m.shader_values)).unwrap_or([Vec4::ZERO; shader::SLOTS]);
+        let h = assets.add(ShaderMaterial {
+            base: self.surface_material(server, m, s),
+            extension: ShaderLayer { values: shader::Values { v: values }, path: path.to_string(), set: m.shader_values.clone(), shader },
+        });
+        self.shaded.insert(key, h.clone());
+        Some(h)
+    }
+
+    fn surface_material(&mut self, server: &AssetServer, m: &level::Material, s: &Surface) -> StandardMaterial {
         let texture = m.texture.as_ref().map(|t| self.image(server, t));
         let tile = Vec2::from(s.tile).max(Vec2::splat(0.01));
         let tint = Color::srgb(m.tint[0], m.tint[1], m.tint[2]);
         let see_through = m.opacity < 0.999;
-        let h = assets.add(StandardMaterial {
+        StandardMaterial {
             base_color: tint.with_alpha(m.opacity.clamp(0.0, 1.0)),
             base_color_texture: texture.clone(),
             // Glow 1: its own colour at full brightness, whatever the light (alpha stays 1)
@@ -159,9 +182,7 @@ impl Mats {
             perceptual_roughness: m.roughness.clamp(0.0, 1.0),
             alpha_mode: if see_through { AlphaMode::Blend } else { AlphaMode::Opaque },
             ..default()
-        });
-        self.laid.insert(key, h.clone());
-        h
+        }
     }
 }
 
@@ -171,7 +192,7 @@ pub fn setup_stage(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mu
     let see_through = |c: Color| StandardMaterial { base_color: c, alpha_mode: AlphaMode::Blend, unlit: true, cull_mode: None, double_sided: true, ..default() };
     let collider = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.10)));
     let ghost = mats.add(see_through(Color::srgba(0.96, 0.86, 0.29, 0.28)));
-    let shared = Mats { cache: HashMap::new(), collider, ghost, laid: HashMap::new(), images: HashMap::new(), faces: HashMap::new() };
+    let shared = Mats { cache: HashMap::new(), collider, ghost, laid: HashMap::new(), shaded: HashMap::new(), images: HashMap::new(), faces: HashMap::new() };
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(4000.0, 4000.0))),
         MeshMaterial3d(mats.add(StandardMaterial { base_color: Color::srgb(0.075, 0.068, 0.085), perceptual_roughness: 1.0, ..default() })),
@@ -212,6 +233,8 @@ pub struct Looks<'a> {
     pub server: &'a AssetServer,
     pub mats: &'a mut Mats,
     pub assets: &'a mut Assets<StandardMaterial>,
+    pub shaded: &'a mut Assets<ShaderMaterial>,
+    pub shaders: &'a mut Shaders,
     pub meshes: &'a mut Assets<Mesh>,
     pub materials: &'a std::collections::BTreeMap<String, level::Material>,
     /// Lights may cast shadows (off for slow software renderers).
@@ -222,7 +245,7 @@ pub struct Looks<'a> {
 /// bulbs, cameras as small bodies and sounds as speakers, all on the editor's own layer (only its view shows them, not pictures through
 /// a camera); in the game they are not drawn. A textured shape is an entity with a child per material it shows.
 pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bool) -> Option<Entity> {
-    let Looks { lib, models, server, mats, assets, meshes, materials, shadows } = k;
+    let Looks { lib, models, server, mats, assets, shaded, shaders, meshes, materials, shadows } = k;
     let tf = (part_transform(p), PartId(p.id));
     match p.shape {
         s if s.is_light() => {
@@ -269,8 +292,13 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
                 }
                 let parent = commands.spawn((tf, Visibility::default())).id();
                 for (laid, faces) in groups {
-                    let mat = laid.and_then(|s| Some(mats.surface(assets, server, materials.get(&s.material)?, s))).unwrap_or_else(|| mats.color(assets, p.color));
                     let mesh = mats.faces_mesh(meshes, s, p.size, &faces);
+                    // a material with a shader is drawn by it
+                    if let Some(sh) = laid.and_then(|s| mats.shaded(shaded, shaders, server, materials.get(&s.material)?, s)) {
+                        commands.spawn((Mesh3d(mesh), MeshMaterial3d(sh), Transform::default(), ChildOf(parent)));
+                        continue;
+                    }
+                    let mat = laid.and_then(|s| Some(mats.surface(assets, server, materials.get(&s.material)?, s))).unwrap_or_else(|| mats.color(assets, p.color));
                     commands.spawn((Mesh3d(mesh), MeshMaterial3d(mat), Transform::default(), ChildOf(parent)));
                 }
                 return Some(parent);

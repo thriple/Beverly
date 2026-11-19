@@ -242,6 +242,32 @@ pub(crate) fn toggle_row(ui: &mut Ui, icon: &str, label: &str, on: &mut bool, he
     }).inner
 }
 
+/// A shader's settings (its header, shader.rs) as rows: the values this material set, else the shader's defaults. A value
+/// put back to the default is forgotten. True when something changed.
+pub fn shader_settings(ui: &mut Ui, header: &crate::shader::Header, set: &mut BTreeMap<String, Vec<f32>>, palette: &[[f32; 3]]) -> bool {
+    use crate::shader::Kind as K;
+    let mut changed = false;
+    for s in &header.settings {
+        let own = set.get(&s.name);
+        let mut v = [s.default[0], s.default[1], s.default[2]];
+        if let Some(o) = own { for (i, x) in o.iter().take(3).enumerate() { v[i] = *x; } }
+        let before = v;
+        let differs = v != s.default;
+        let mut reset = false;
+        match s.kind {
+            K::Number { min, max } => { row(ui, "", &s.label, "", differs, &mut reset, |ui| number(ui, &mut v[0], (max - min) / 200.0, min, max, "", None, ui.available_width())); }
+            K::Colour => { row(ui, "", &s.label, "", differs, &mut reset, |ui| colour(ui, &mut v, None, &s.name, palette)); }
+            K::Toggle => { let mut on = v[0] > 0.5; toggle_row(ui, "", &s.label, &mut on, "", differs, &mut reset); v[0] = on as u8 as f32; }
+        }
+        if reset { v = s.default; }
+        if v != before {
+            if v == s.default { set.remove(&s.name); } else { set.insert(s.name.clone(), if s.kind == K::Colour { v.to_vec() } else { vec![v[0]] }); }
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// One setting that isn't a slider.
 #[allow(clippy::too_many_arguments)]
 fn one(ui: &mut Ui, f: &mut dyn PartialReflect, s: &Setting, key: &str, differs: bool, reset: &mut bool, alpha: Option<&mut f32>, ctx: &mut Ctx) -> bool {
@@ -565,7 +591,7 @@ pub fn word_slider(ui: &mut Ui, t: &mut f32, words: &[&str]) -> egui::Response {
 
 /// A colour: its swatch and a friendly name; click for the picker (saturation and brightness, hue, hex), with the
 /// project's colours first so a game keeps one palette.
-fn colour(ui: &mut Ui, c: &mut [f32; 3], mut alpha: Option<&mut f32>, key: &str, palette: &[[f32; 3]]) -> bool {
+pub(crate) fn colour(ui: &mut Ui, c: &mut [f32; 3], mut alpha: Option<&mut f32>, key: &str, palette: &[[f32; 3]]) -> bool {
     let col = |c: [f32; 3]| Color32::from_rgb((c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8);
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
     let p = ui.painter();

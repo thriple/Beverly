@@ -677,10 +677,16 @@ pub struct Material {
     /// What it sounds like underfoot (None: what the part says).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sounds_like: Option<Ground>,
+    /// A custom shader that draws it (shader.rs), e.g. "assets/shaders/waves.wesl", and the values it was given by
+    /// the shader's setting names (a setting not here has the shader's default).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shader: Option<String>,
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub shader_values: std::collections::BTreeMap<String, Vec<f32>>,
 }
 
 impl Default for Material {
-    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0, sounds_like: None } }
+    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0, sounds_like: None, shader: None, shader_values: Default::default() } }
 }
 
 pub fn load_material(dir: &Path, path: &str) -> Result<Material, String> {
@@ -1001,7 +1007,7 @@ pub struct ProjectFile {
     pub levels: Vec<String>,
 }
 
-pub const ASSET_FOLDERS: [&str; 5] = ["textures", "materials", "models", "sounds", "other"];
+pub const ASSET_FOLDERS: [&str; 6] = ["textures", "materials", "models", "sounds", "shaders", "other"];
 
 /// Which assets folder a dropped file goes into, by its extension.
 pub fn folder_for(path: &Path) -> &'static str {
@@ -1011,6 +1017,7 @@ pub fn folder_for(path: &Path) -> &'static str {
         "glb" | "gltf" | "obj" | "fbx" | "dae" => "models",
         "wav" | "ogg" | "mp3" | "flac" => "sounds",
         "bev" => "materials",
+        "wesl" => "shaders",
         _ => "other",
     }
 }

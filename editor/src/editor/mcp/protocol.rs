@@ -168,7 +168,7 @@ pub fn tools() -> Value {
         {
             "name": "list_assets",
             "title": "List assets",
-            "description": "The project's asset files by folder (textures, materials, models, sounds, other), as the Assets panel shows them.",
+            "description": "The project's asset files by folder (textures, materials, models, sounds, shaders, other), as the Assets panel shows them.",
             "inputSchema": none,
         },
         {
@@ -341,9 +341,23 @@ pub fn tools() -> Value {
                     "settings": {"type": "object", "description": "Setting label or field → new value, such as {\"Glow\": 3, \"Tint\": \"#ff8000\"}."},
                     "texture": {"type": ["string", "null"]},
                     "sounds_like": {"type": ["string", "null"], "description": "What it sounds like underfoot wherever it's laid (Stone, Wood, Metal, Grass…), over what the part says; null: nothing special."},
+                    "shader": {"type": ["string", "null"], "description": "A shader in assets/shaders (list_assets) that draws the material, such as stripes or stripes.wesl; null: the standard look. Choosing one clears the old one's values."},
+                    "shader_values": {"type": "object", "description": "The shader's settings (get_shader lists them) → value: a number, true/false for a toggle, or [r, g, b] (0 to 1) for a colour. A setting not given keeps the shader's default."},
                 },
                 "required": ["material"],
             },
+        },
+        {
+            "name": "get_shader",
+            "title": "Read a shader",
+            "description": "A custom shader (list_assets lists them under shaders): its source, the settings its header declares (name, label, kind, range, default), the materials using it, and any problem with its file. A shader is a WESL fragment shader for Bevy's standard material, like the paint layers' (see an existing one for the imports and the fragment function). Header comment lines tell Beverly what it asks for: `// @setting speed \"Speed\" 0..5 = 1` (a slider), `// @setting glow colour \"Glow\" = 1 0.5 0.2`, `// @setting waves toggle \"Waves\" = on`, `// @see-through`, `// @raster vertex_offset 0.5`, `// @raster alpha_mask`. Beverly adds a function for each setting after the code: setting_speed() is an f32, setting_glow() a vec3<f32>, setting_waves() a bool.",
+            "inputSchema": {"type": "object", "properties": {"shader": {"type": "string", "description": "Such as stripes, stripes.wesl or assets/shaders/stripes.wesl."}}, "required": ["shader"]},
+        },
+        {
+            "name": "write_shader",
+            "title": "Write a shader",
+            "description": "Make or replace assets/shaders/NAME.wesl with this source (see get_shader for what a shader is and its header). The header is checked first (a bad line is refused with its line number). The file is read again at once: materials using it change as it is saved, and a shader that doesn't parse keeps its last good version on screen. Mistakes in the shader's code itself show in the editor's console, not in the reply. Assign it with change_material.",
+            "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "The shader's name, such as stripes (letters, digits, - and _)."}, "source": {"type": "string"}}, "required": ["name", "source"]},
         },
         {
             "name": "new_material",
@@ -747,6 +761,8 @@ mod tests {
                 "play_sound",
                 "get_material",
                 "change_material",
+                "get_shader",
+                "write_shader",
                 "new_material",
                 "screenshot",
                 "get_camera",
