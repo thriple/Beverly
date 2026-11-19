@@ -1096,6 +1096,7 @@ impl Editor {
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     // (looking through a camera is one step, made when it ends)
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
+    pen::strips(&mut ed);
     ed.commit();
 }
 

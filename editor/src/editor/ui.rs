@@ -498,6 +498,7 @@ fn dock(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &frame::Layo
                     0 if ed.tab == audio::AUDIO => audio_ui::inspect(ui, ed, sounds),
                     1 if ed.tab == audio::AUDIO => audio_ui::list(ui, ed),
                     0 if ed.brush_on => brush_panel(ui, ed),
+                    0 if ed.pen_on => pen_panel(ui, ed),
                     0 => {
                         if ed.selected.is_some() || ed.material_open.is_some() { inspector(ui, ed, view, exit); } else { mode_panel(ui, ed); }
                     }
@@ -997,6 +998,58 @@ fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     if build { ed.build_navigation(); }
 }
 
+/// The pen's panel (in Inspect while the pen is out): the curve being edited, and what it paints along itself.
+fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
+    let cur = ed.pen.curve.and_then(|id| ed.level.curve(id)).cloned();
+    let sub = match &cur {
+        Some(c) => format!("Pen · {} point{}{}", c.points.len(), if c.points.len() == 1 { "" } else { "s" }, if c.closed { " · closed" } else { "" }),
+        None => "Click a surface to start a curve".to_string(),
+    };
+    let mut name = cur.as_ref().map_or_else(|| "Pen".to_string(), |c| c.name.clone());
+    let named = cur.is_some();
+    identity(ui, theme::VIOLET, "route", if named { Ok(&mut name) } else { Err("Pen") }, &sub, &mut []);
+    if let Some(c) = &cur {
+        let mut strip = c.strip.clone();
+        let mut ranges = ed.level.ranges.clone();
+        let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
+        let file = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        column(ui, 0.0, crate::curve::STRIP, |ui| {
+            let mut on = strip.is_some();
+            let mut none = false;
+            if settings::toggle_row(ui, "", "Paint a strip", &mut on, "Paints a material along the line as a brush would, kept in step with the curve", false, &mut none) {
+                strip = on.then(|| crate::curve::Strip { material: if ed.brush.material.is_empty() { ed.level.materials.keys().next().cloned().unwrap_or_default() } else { ed.brush.material.clone() }, ..Default::default() });
+            }
+            if let Some(st) = strip.as_mut() {
+                ui.horizontal(|ui| {
+                    ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Paints").color(TEXT_2)); });
+                    let shown = if st.material.is_empty() { "No material".to_string() } else { file(&st.material) };
+                    egui::ComboBox::from_id_salt("strip material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                        for m in ed.level.materials.keys() { ui.selectable_value(&mut st.material, m.clone(), file(m)); }
+                        if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
+                    });
+                });
+                ui.add_space(8.0);
+                settings::section(ui, st, crate::curve::STRIP, &mut ctx);
+            }
+        });
+        if ctx.ranges_changed { ed.level.ranges = ranges; }
+        if let Some(cm) = ed.level.curve_mut(c.id) {
+            if strip != c.strip { cm.strip = strip; }
+            if name != c.name && !name.is_empty() { cm.name = name; }
+        }
+    }
+    column(ui, 0.0, "SHORTCUTS", |ui| {
+        theme::hint(ui, "Corner point", &["Click"]);
+        theme::hint(ui, "Smooth point", &["Drag"]);
+        theme::hint(ui, "Break a handle", &["Alt", "Drag"]);
+        theme::hint(ui, "Close the curve", &["Click", "First point"]);
+        theme::hint(ui, "Finish", &["Enter"]);
+        theme::hint(ui, "Delete a point or the curve", &["Del"]);
+        theme::hint(ui, "Put it away", &["Esc"]);
+    });
+    if theme::main_button(ui, "Done").clicked() { ed.pen_on = false; ed.pen.reset(); }
+}
+
 /// The brush's panel (in Inspect while the brush is out): what it paints and how.
 fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
@@ -1271,6 +1324,7 @@ fn group_look(title: &str) -> (String, &'static str, Color32) {
         "SOUNDS" => ("Sounds", "wave", theme::CAT_ACTIONS),
         "WALKER SOUNDS" => ("Walker sounds", "person", theme::CAT_GAME),
         "BRUSH" => ("Brush", "palette", theme::VIOLET),
+        crate::curve::STRIP => ("Strip", "route", theme::VIOLET),
         level::RULES => ("Where it lands", "pin", theme::VIOLET),
         "RECORDINGS" => ("Recordings", "wave", theme::CAT_ACTIONS),
         "ON SURFACES" => ("On surfaces", "layers", theme::CAT_ACTIONS),

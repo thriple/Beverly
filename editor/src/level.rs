@@ -582,6 +582,9 @@ pub struct Stroke {
     /// Where it may land (slope, height), worked out where it shows, so it holds wherever the part goes.
     #[serde(default, skip_serializing_if = "is_default")]
     pub rules: Rules,
+    /// The pen curve whose strip made this stroke (`curve.rs`): it is made again when that curve changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub curve: Option<u64>,
 }
 
 /// How a stroke lays its layer.
@@ -1009,7 +1012,7 @@ impl Level {
     pub fn add_curve(&mut self, points: Vec<crate::curve::PenPoint>, closed: bool) -> u64 {
         self.next_id += 1;
         let name = (1..).map(|n| format!("Curve {n}")).find(|n| !self.curves.iter().any(|c| &c.name == n)).expect("a free name");
-        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed });
+        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None });
         self.next_id
     }
     pub fn curve(&self, id: u64) -> Option<&crate::curve::Curve> { self.curves.iter().find(|c| c.id == id) }

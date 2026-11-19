@@ -158,7 +158,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "tool.pick" => ed.pick = true,
         "tool.pen" => {
             ed.pen_on = !ed.pen_on;
-            ed.pen = Default::default();
+            ed.pen.reset();
             if ed.pen_on {
                 ed.brush_on = false;
                 ed.placing = None;

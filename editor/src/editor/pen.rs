@@ -40,6 +40,15 @@ pub struct Pen {
     pub point: Option<usize>,
     /// Each curve's line as it is seen (laid on the geometry), with what it was worked out from.
     pub lines: HashMap<u64, (u64, Vec<Vert>)>,
+    /// What each curve's strip strokes were last made from.
+    pub stripped: HashMap<u64, u64>,
+}
+
+impl Pen {
+    /// Put the pen away (what it is holding goes; the curves' lines and strips are kept).
+    pub fn reset(&mut self) {
+        *self = Pen { lines: std::mem::take(&mut self.lines), stripped: std::mem::take(&mut self.stripped), ..Pen::default() };
+    }
 }
 
 /// How far (m) a path steps up onto the next surface (a half metre, and a little over so a step of exactly that is met), how far it drops down onto one, and how far over props an
@@ -102,6 +111,72 @@ pub fn lay(ed: &mut Editor) {
     }
 }
 
+/// Make the strokes of each curve's strip again where the curve, its strip or the geometry changed, and take away
+/// those of a curve or strip that is gone. Not while something is being dragged (the strokes would be made every
+/// frame); `edit::commit` calls it as the change becomes an undo step.
+pub fn strips(ed: &mut Editor) {
+    if ed.level.curves.is_empty() && ed.pen.stripped.is_empty() { return; }
+    let world = world_stamp(ed);
+    let Editor { level, geo, pen, .. } = ed;
+    let live: Vec<u64> = level.curves.iter().filter(|c| c.strip.is_some()).map(|c| c.id).collect();
+    pen.stripped.retain(|id, _| live.contains(id));
+    for p in level.parts.iter_mut().filter(|p| p.strokes.iter().any(|s| s.curve.is_some_and(|id| !live.contains(&id)))) {
+        p.strokes.retain(|s| s.curve.is_none_or(|id| live.contains(&id)));
+    }
+    for c in &level.curves {
+        let Some(strip) = &c.strip else { continue };
+        let Some((_, line)) = pen.lines.get(&c.id) else { continue };
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (curve_stamp(c, world), &strip.material, strip.size.to_bits(), strip.hardness.to_bits(), strip.strength.to_bits()).hash(&mut h);
+        let now = h.finish();
+        if pen.stripped.get(&c.id) == Some(&now) { continue; }
+        pen.stripped.insert(c.id, now);
+        let made = if level.materials.contains_key(&strip.material) { strip_strokes(c.id, strip, line, &level.parts, geo) } else { vec![] };
+        // each part gets the new strokes where its old ones were (so what was painted over or under them stays so)
+        for p in &mut level.parts {
+            let new: Vec<_> = made.iter().filter(|(id, _)| *id == p.id).map(|(_, s)| s.clone()).collect();
+            let old: Vec<_> = p.strokes.iter().filter(|s| s.curve == Some(c.id)).collect();
+            if old.len() == new.len() && old.iter().zip(&new).all(|(a, b)| *a == b) { continue; }
+            let at = p.strokes.iter().position(|s| s.curve == Some(c.id)).unwrap_or(p.strokes.len());
+            p.strokes.retain(|s| s.curve != Some(c.id));
+            for (k, st) in new.into_iter().enumerate() { p.strokes.insert((at + k).min(p.strokes.len()), st); }
+        }
+    }
+}
+
+/// A strip's strokes: the laid line walked in steps of a tenth of the strip's width, each step put on the part under
+/// it (a stretch in the air paints nothing), a stroke for each run along one part. (part id, stroke)
+fn strip_strokes(curve: u64, strip: &curve::Strip, line: &[Vert], parts: &[Part], geo: &Geometry) -> Vec<(u64, crate::level::Stroke)> {
+    let mut out = vec![];
+    let mut run: Option<(u64, Vec<[f32; 3]>)> = None;
+    let flush = |run: &mut Option<(u64, Vec<[f32; 3]>)>, out: &mut Vec<(u64, crate::level::Stroke)>| {
+        if let Some((id, points)) = run.take() {
+            out.push((id, crate::level::Stroke { material: strip.material.clone(), size: strip.size, hardness: strip.hardness, strength: strip.strength, points, lays: crate::level::Lays::Add, rules: Default::default(), curve: Some(curve) }));
+        }
+    };
+    let step = (strip.size * 0.1).max(0.05);
+    for w in line.windows(2) {
+        let (a, b) = (w[0].at, w[1].at);
+        let on_ground = !matches!(w[1].stretch, Stretch::Air | Stretch::Fall);
+        let n = if on_ground { (a.distance(b) / step).ceil().max(1.0) as usize } else { 0 };
+        for k in 0..=n {
+            let p = a.lerp(b, k as f32 / n.max(1) as f32);
+            // the part whose top face the point is on (a point inside a part, as under a prop, is on none)
+            let ray = Ray3d::new(p + Vec3::Y * 0.05, Dir3::NEG_Y);
+            let part = parts.iter().filter(|q| on_ground && crate::paint::paintable(q))
+                .filter_map(|q| world::raycast(std::slice::from_ref(q), geo, ray, None, |_| true).filter(|h| h.part.is_some() && h.normal.y > 0.0).map(|h| (q, h.point.distance(p))))
+                .filter(|(_, d)| *d < 0.15).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(q, _)| q);
+            match (part, &mut run) {
+                (Some(q), Some((id, points))) if q.id == *id => if k > 0 || points.is_empty() { points.push(q.to_local(p).to_array()) },
+                (Some(q), _) => { flush(&mut run, &mut out); run = Some((q.id, vec![q.to_local(p).to_array()])); }
+                (None, _) => flush(&mut run, &mut out),
+            }
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
 /// The line of curve `c` as it is seen.
 fn line<'a>(ed: &'a Editor, c: &Curve) -> Option<&'a [Vert]> { ed.pen.lines.get(&c.id).map(|(_, l)| l.as_slice()) }
 
@@ -135,7 +210,7 @@ pub fn input(ed: &mut Editor, view: &View, ray: Option<Ray3d>, mouse: &ButtonInp
     }
     if keys.just_pressed(KeyCode::Escape) || mouse.just_pressed(MouseButton::Right) {
         ed.pen.grab = None;
-        if ed.pen.drawing { finish(ed); } else if ed.pen.curve.take().is_none() { ed.pen_on = false; ed.pen = Pen::default(); }
+        if ed.pen.drawing { finish(ed); } else if ed.pen.curve.take().is_none() { ed.pen_on = false; ed.pen.reset(); }
         return true;
     }
     let hit = if view.over_ui { None } else { ray.and_then(|r| ed.hit(r)) };
@@ -355,5 +430,35 @@ fn stretches(g: &mut Gizmos<super::edit::WidgetGizmos>, line: &[Vert], col: Colo
             k += 1.0;
         }
         on += len;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::level::Shape;
+
+    fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
+        let mut p = Part::placed(shape, None, format!("P{id}"), pos, [0.0, 0.0, 0.0, 1.0], size);
+        p.id = id;
+        p
+    }
+
+    #[test]
+    fn a_strip_paints_the_part_under_the_line_and_not_one_the_line_passes_through() {
+        // a floor 0.1 thick (top at 0.1), a big box standing on it, and a line along the floor through the box
+        let parts = vec![part(1, Shape::Plane, [0.0, 0.05, 0.0], [20.0, 0.1, 20.0]), part(2, Shape::Box, [0.0, 1.1, 0.0], [2.0, 2.0, 2.0])];
+        let geo = Geometry::default();
+        let c = Curve { id: 9, name: "T".into(), points: vec![PenPoint::corner(Vec3::new(-6.0, 0.1, 0.0)), PenPoint::corner(Vec3::new(6.0, 0.1, 0.0))], closed: false, strip: None };
+        let line = c.laid(|_, _, _| None);
+        let strip = curve::Strip { material: "assets/materials/moss.bev".into(), size: 1.0, hardness: 0.5, strength: 1.0 };
+        let made = strip_strokes(9, &strip, &line, &parts, &geo);
+        // the box stands on the line: the floor under it is painted all the way along, the box (the line is inside it) not at all
+        assert_eq!(made.iter().map(|m| m.0).collect::<Vec<_>>(), vec![1]);
+        assert!(made.iter().all(|(_, s)| s.curve == Some(9) && s.size == 1.0 && s.points.len() > 100));
+        // a line in the air paints nothing
+        let mut air = c.clone();
+        air.points[0].stretch = Stretch::Air;
+        assert!(strip_strokes(9, &strip, &air.laid(|_, _, _| None), &parts, &geo).is_empty());
     }
 }

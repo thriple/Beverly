@@ -492,7 +492,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
             }
             let p = ed.level.get_mut(id).expect("found above");
             let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
-            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules });
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None });
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
@@ -508,6 +508,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 let id = existing.ok_or("Give the shape to delete")?;
                 ed.level.curves.retain(|c| c.id != id);
                 if ed.pen.curve == Some(id) { ed.pen.curve = None; ed.pen.drawing = false; }
+                super::super::pen::strips(ed);
                 ed.commit();
                 return Ok(json!({"deleted": id}));
             }
@@ -538,12 +539,27 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                 }
             };
             let closed = args.get("closed").and_then(Value::as_bool);
+            // a strip: {material, width, edge, strength}, or null to take it away
+            let strip: Option<Option<crate::curve::Strip>> = match args.get("strip") {
+                None => None,
+                Some(Value::Null) => Some(None),
+                Some(v) => {
+                    let old = existing.and_then(|id| ed.level.curve(id)).and_then(|c| c.strip.clone());
+                    let mut st = old.unwrap_or_default();
+                    let num = |k: &str, lo: f32, hi: f32, cur: f32| v.get(k).map_or(Ok(cur), |n| n.as_f64().map(|n| (n as f32).clamp(lo, hi)).ok_or_else(|| format!("strip {k} is a number")));
+                    if let Some(m) = v.get("material").and_then(Value::as_str) { st.material = material_ref(ed, m)?; }
+                    if st.material.is_empty() { st.material = ed.level.materials.keys().next().cloned().ok_or("No materials yet: new_material makes one")?; }
+                    (st.size, st.hardness, st.strength) = (num("width", 0.1, 50.0, st.size)?, num("edge", 0.0, 1.0, st.hardness)?, num("strength", 0.05, 1.0, st.strength)?);
+                    Some(Some(st))
+                }
+            };
             let id = match existing {
                 Some(id) => {
                     let c = ed.level.curve_mut(id).expect("found above");
                     if let Some(p) = points { c.points = p; }
                     if let Some(k) = closed { c.closed = k; }
                     if c.points.len() < 3 { c.closed = false; }
+                    if let Some(st) = strip { c.strip = st; }
                     id
                 }
                 None => {
@@ -551,9 +567,13 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
                     let c = ed.level.curve_mut(id).expect("just added");
                     if c.points.len() < 3 { c.closed = false; }
                     if let Some(n) = args.get("name").and_then(Value::as_str).filter(|n| !n.is_empty()) { c.name = n.to_string(); }
+                    if let Some(st) = strip { c.strip = st; }
                     id
                 }
             };
+            // the strip's strokes are made now, so the curve and they are one undo step
+            super::super::pen::lay(ed);
+            super::super::pen::strips(ed);
             ed.commit();
             Ok(describe_curve(ed.level.curve(id).expect("found")))
         }
@@ -1107,7 +1127,7 @@ fn stretch_word(s: crate::curve::Stretch) -> &'static str {
 fn describe_curve(c: &crate::curve::Curve) -> Value {
     let round = |v: Vec3| settings::nums(&v.to_array());
     json!({
-        "id": c.id, "name": c.name, "closed": c.closed, "length": settings::num((c.length() * 100.0).round() / 100.0),
+        "id": c.id, "name": c.name, "closed": c.closed, "strip": c.strip.as_ref().map(|s| json!({"material": s.material, "width": settings::num(s.size), "edge": settings::num(s.hardness), "strength": settings::num(s.strength)})), "length": settings::num((c.length() * 100.0).round() / 100.0),
         "points": c.points.iter().map(|p| json!({"at": round(p.pos()), "handle_in": round(p.into_handle()), "handle_out": round(p.out_handle()), "stretch": stretch_word(p.stretch)})).collect::<Vec<_>>(),
     })
 }

@@ -1,6 +1,8 @@
 //! Pen curves: a curve is points with Bezier handles (what the pen tool draws, `editor/pen.rs`). It is kept as the
 //! points and handles only; the line through them is worked out when needed, so it stays editable and exact.
-use bevy::prelude::{Ray3d, Vec3};
+use crate::settings::Setting;
+use bevy::prelude::{Ray3d, Reflect, Vec3};
+use bevy::reflect::std_traits::ReflectDefault;
 use serde::{Deserialize, Serialize};
 
 /// A point on a curve and the handles that bend the curve through it, as offsets from the point: `out` leads on
@@ -44,6 +46,28 @@ impl PenPoint {
 
 fn default<T: Default>() -> T { T::default() }
 
+/// The strip's section in the pen's panel.
+pub const STRIP: &str = "STRIP";
+
+/// A strip along a curve: a material painted along the line, as a brush stroke would be, kept in step with the curve
+/// (the strokes it makes are the parts' own, marked with the curve they came from, and made again when it changes).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+pub struct Strip {
+    /// The material painted (a file in assets/materials).
+    pub material: String,
+    #[reflect(@Setting::feel("Width", &["Thin", "Narrow", "Wide", "Road"], 0.1, 50.0, "m").log().section(STRIP).help("How wide the strip is"))]
+    pub size: f32,
+    #[reflect(@Setting::feel("Edge", &["Soft", "Medium", "Hard"], 0.0, 1.0, "").section(STRIP).help("Soft fades out to its edge; hard stops sharply"))]
+    pub hardness: f32,
+    #[reflect(@Setting::feel("Strength", &["Faint", "Half", "Full"], 0.05, 1.0, "").section(STRIP).help("How much of the material it lays"))]
+    pub strength: f32,
+}
+
+impl Default for Strip {
+    fn default() -> Self { Strip { material: String::new(), size: 1.0, hardness: 0.6, strength: 1.0 } }
+}
+
 /// A pen curve: open, or closed back on its first point.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub struct Curve {
@@ -52,6 +76,9 @@ pub struct Curve {
     pub points: Vec<PenPoint>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub closed: bool,
+    /// What it paints along itself, if anything.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strip: Option<Strip>,
 }
 
 /// How many straight pieces a curved segment is drawn with.
@@ -201,7 +228,7 @@ mod tests {
     use bevy::prelude::Dir3;
 
     fn two() -> Curve {
-        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: Stretch::Ground }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: Stretch::Ground }], closed: false }
+        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: Stretch::Ground }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: Stretch::Ground }], closed: false, strip: None }
     }
 
     #[test]
@@ -241,14 +268,14 @@ mod tests {
 
     #[test]
     fn a_closed_curve_has_one_more_segment_and_points_come_out() {
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None };
         assert_eq!(c.segments(), 3);
         assert_eq!(*c.sample().last().unwrap(), Vec3::ZERO);
         c.remove(2);
         assert!(!c.closed, "two points can't be a loop");
         assert_eq!(c.segments(), 1);
         // splitting the segment that closes the loop puts the new point at the end
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None };
         let i = c.split(2, 0.5);
         assert_eq!(i, 3);
         assert_eq!(c.points[3].pos(), Vec3::new(0.0, 0.0, 0.5));
@@ -270,7 +297,7 @@ mod tests {
     }
 
     fn flat(stretch: Stretch) -> Curve {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false };
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None };
         c.points[0].stretch = stretch;
         c
     }
@@ -288,7 +315,7 @@ mod tests {
 
     #[test]
     fn a_fall_ends_where_it_lands() {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false };
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None };
         c.points[0].stretch = Stretch::Fall;
         // the floor is 1 m up: the line comes down to it and stops there, then rests on the second point
         let line = c.laid(|p, _, _| (p.y <= 1.0).then(|| Vec3::new(p.x, 1.0, p.z)));
