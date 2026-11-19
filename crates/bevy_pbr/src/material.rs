@@ -654,9 +654,23 @@ pub struct RenderMaterialInstances {
     /// [`RenderMaterialInstances::instances`] when the entities and/or required
     /// components are removed.
     pub current_change_tick: Tick,
+    /// Tessera: entities whose entry was inserted or removed since the meshlet instance manager last read them.
+    /// `None` until it starts reading, so nothing piles up when no meshlets are drawn.
+    #[cfg(feature = "meshlet")]
+    pub(crate) meshlet_changes: Option<Vec<MainEntity>>,
 }
 
 impl RenderMaterialInstances {
+    /// Tessera: notes a changed entry for the meshlet instance manager.
+    #[cfg(feature = "meshlet")]
+    fn note_meshlet_change(&mut self, entity: MainEntity) {
+        if let Some(changes) = &mut self.meshlet_changes {
+            changes.push(entity);
+        }
+    }
+    #[cfg(not(feature = "meshlet"))]
+    fn note_meshlet_change(&mut self, _entity: MainEntity) {}
+
     /// Returns the mesh material ID for the entity with the given mesh, or
     /// `None` if the mesh has no material ID.
     ///
@@ -772,6 +786,7 @@ fn extract_mesh_materials<M: Material>(
                 .instances
                 .remove(&MainEntity::from(entity));
         }
+        material_instances.note_meshlet_change(entity.into());
     }
 }
 
@@ -802,6 +817,7 @@ fn early_sweep_material_instances<M>(
             // Only sweep the entry if it wasn't updated this frame.
             if occupied_entry.get().last_change_tick != last_change_tick {
                 occupied_entry.remove();
+                material_instances.note_meshlet_change(entity.into());
             }
         }
     }
@@ -826,6 +842,7 @@ pub fn late_sweep_material_instances(
             // re-added in the same frame.
             if occupied_entry.get().last_change_tick != last_change_tick {
                 occupied_entry.remove();
+                material_instances.note_meshlet_change(entity.into());
             }
         }
     }

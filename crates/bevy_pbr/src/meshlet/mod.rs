@@ -168,6 +168,7 @@ impl Plugin for MeshletPlugin {
 
         render_app
             .insert_resource(InstanceManager::new())
+            .init_resource::<MeshletCpuTimes>()
             .add_systems(
                 RenderStartup,
                 (
@@ -211,6 +212,35 @@ impl Plugin for MeshletPlugin {
                         .in_set(Core3dSystems::MainPass),
                 ),
             );
+    }
+}
+
+/// Tessera: the CPU time the meshlet systems took in the last frame, in the render world (for Beverly's performance
+/// meter and the instance benchmark).
+#[derive(bevy_ecs::resource::Resource, Clone, Debug, Default)]
+pub struct MeshletCpuTimes {
+    /// `extract_meshlet_mesh_entities`
+    pub extract: core::time::Duration,
+    /// `queue_material_meshlet_meshes`
+    pub queue: core::time::Duration,
+    /// `prepare_meshlet_per_frame_resources`
+    pub prepare_resources: core::time::Duration,
+    /// `prepare_meshlet_view_bind_groups`
+    pub prepare_bind_groups: core::time::Duration,
+}
+
+/// Writes the time since it was made into its slot when dropped, so early returns are timed too.
+pub(crate) struct CpuTimer<'a>(&'a mut core::time::Duration, bevy_platform::time::Instant);
+
+impl<'a> CpuTimer<'a> {
+    pub(crate) fn start(slot: &'a mut core::time::Duration) -> Self {
+        Self(slot, bevy_platform::time::Instant::now())
+    }
+}
+
+impl Drop for CpuTimer<'_> {
+    fn drop(&mut self) {
+        *self.0 = self.1.elapsed();
     }
 }
 

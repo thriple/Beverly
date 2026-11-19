@@ -90,6 +90,11 @@ impl<T: PersistentGpuBufferable> PersistentGpuBuffer<T> {
         self.buffer.as_entire_binding()
     }
 
+    /// Tessera: which GPU buffer this is now (it's replaced when it grows).
+    pub fn buffer_id(&self) -> bevy_render::render_resource::BufferId {
+        self.buffer.id()
+    }
+
     /// Expand the buffer by creating a new buffer and copying old data over.
     fn expand_buffer(&mut self, render_device: &RenderDevice, render_queue: &RenderQueue) {
         let size = self.allocation_planner.initial_range();

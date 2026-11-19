@@ -60,6 +60,11 @@ tessera = ["bevy/meshlet", "bevy/meshlet_processor", "dep:tessera"]
 name = "vg-render"
 required-features = ["tessera"]
 
+# Tessera's instance benchmark: the meshlet systems' CPU time per frame with 10k / 100k copies
+[[bin]]
+name = "vg-bench"
+required-features = ["tessera"]
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bevy = { version = "=0.20.1", default-features = false, features = ["multi_threaded", "x11", "wayland"] }
 ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default"] }

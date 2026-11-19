@@ -1,10 +1,11 @@
-use super::{instance_manager::InstanceManager, meshlet_mesh_manager::MeshletMeshManager};
+use super::{instance_manager::InstanceManager, meshlet_mesh_manager::MeshletMeshManager, CpuTimer, MeshletCpuTimes};
 use crate::ShadowView;
 use bevy_camera::{visibility::RenderLayers, Camera3d};
 use bevy_core_pipeline::{
     mip_generation::experimental::depth::{self, ViewDepthPyramid},
     prepass::{PreviousViewData, PreviousViewUniforms},
 };
+use alloc::sync::Arc;
 use bevy_ecs::{
     component::Component,
     entity::{Entity, EntityHashMap},
@@ -21,7 +22,6 @@ use bevy_render::{
     view::{ExtractedView, ViewUniform, ViewUniforms},
 };
 use binding_types::*;
-use core::iter;
 
 /// Manages per-view and per-cluster GPU resources for [`MeshletPlugin`](`super::MeshletPlugin`).
 #[derive(Resource)]
@@ -48,6 +48,12 @@ pub struct ResourceManager {
 
     // TODO
     previous_depth_pyramids: EntityHashMap<TextureView>,
+    /// Tessera: each view's counter and indirect-argument buffers (`VIEW_BUFFERS`)
+    view_buffers: EntityHashMap<[Buffer; 16]>,
+    /// Tessera: each view's depth pyramid, with the size it was made for
+    view_depth_pyramids: EntityHashMap<(UVec2, Arc<ViewDepthPyramid>)>,
+    /// Tessera: each view's bind groups, with the resources they were made from
+    view_bind_groups: EntityHashMap<(Vec<BindKey>, MeshletViewBindGroups)>,
 
     // Bind group layouts
     pub clear_visibility_buffer_bind_group_layout: BindGroupLayoutDescriptor,
@@ -132,6 +138,9 @@ impl ResourceManager {
             ),
 
             previous_depth_pyramids: EntityHashMap::default(),
+            view_buffers: EntityHashMap::default(),
+            view_depth_pyramids: EntityHashMap::default(),
+            view_bind_groups: EntityHashMap::default(),
 
             // TODO: Buffer min sizes
             clear_visibility_buffer_bind_group_layout: BindGroupLayoutDescriptor::new(
@@ -449,6 +458,111 @@ impl ResourceManager {
 
 // ------------ TODO: Everything under here needs to be rewritten and cached ------------
 
+/// Tessera: what a view's counter or indirect-argument buffer holds at the start of each frame.
+#[derive(Clone, Copy)]
+enum ViewBufferStart {
+    Count,
+    Dispatch,
+    Draw,
+}
+
+impl ViewBufferStart {
+    fn bytes(self) -> Vec<u8> {
+        match self {
+            Self::Count => bytemuck::bytes_of(&0u32).to_vec(),
+            Self::Dispatch => DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes().to_vec(),
+            Self::Draw => DrawIndirectArgs {
+                vertex_count: 128 * 3,
+                instance_count: 0,
+                first_vertex: 0,
+                first_instance: 0,
+            }
+            .as_bytes()
+            .to_vec(),
+        }
+    }
+}
+
+const STORAGE: BufferUsages = BufferUsages::STORAGE;
+const STORAGE_INDIRECT: BufferUsages = BufferUsages::STORAGE.union(BufferUsages::INDIRECT);
+
+/// Tessera: a view's counter and indirect-argument buffers, in the order `prepare_meshlet_per_frame_resources`
+/// takes them (Bevy made these anew each frame; they're kept and reset with a write instead, hence COPY_DST).
+const VIEW_BUFFERS: [(&str, ViewBufferStart, BufferUsages); 16] = [
+    ("meshlet_second_pass_count", ViewBufferStart::Count, STORAGE),
+    ("meshlet_second_pass_dispatch", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_first_bvh_cull_count_front", ViewBufferStart::Count, STORAGE),
+    ("meshlet_first_bvh_cull_dispatch_front", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_first_bvh_cull_count_back", ViewBufferStart::Count, STORAGE),
+    ("meshlet_first_bvh_cull_dispatch_back", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_second_bvh_cull_count_front", ViewBufferStart::Count, STORAGE),
+    ("meshlet_second_bvh_cull_dispatch_front", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_second_bvh_cull_count_back", ViewBufferStart::Count, STORAGE),
+    ("meshlet_second_bvh_cull_dispatch_back", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_front_meshlet_cull_count", ViewBufferStart::Count, STORAGE),
+    ("meshlet_front_meshlet_cull_dispatch", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_back_meshlet_cull_count", ViewBufferStart::Count, STORAGE),
+    ("meshlet_back_meshlet_cull_dispatch", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_visibility_buffer_software_raster_indirect_args", ViewBufferStart::Dispatch, STORAGE_INDIRECT),
+    ("meshlet_visibility_buffer_hardware_raster_indirect_args", ViewBufferStart::Draw, STORAGE_INDIRECT),
+];
+
+fn view_buffers(render_device: &RenderDevice) -> [Buffer; 16] {
+    VIEW_BUFFERS.map(|(label, start, usage)| {
+        render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some(label),
+            contents: &start.bytes(),
+            usage: usage | BufferUsages::COPY_DST,
+        })
+    })
+}
+
+/// Tessera: one GPU resource a view's bind groups were made from; they're made again only when one changes.
+#[derive(Clone, PartialEq, Eq)]
+enum BindKey {
+    Buffer(Option<BufferId>),
+    View(TextureViewId),
+    ShadowView(bool),
+}
+
+impl MeshletViewResources {
+    /// Tessera: everything of the view's that its bind groups use.
+    fn bind_key(&self, key: &mut Vec<BindKey>) {
+        for buffer in [
+            &self.instance_visibility,
+            &self.second_pass_count,
+            &self.second_pass_dispatch,
+            &self.second_pass_candidates,
+            &self.first_bvh_cull_count_front,
+            &self.first_bvh_cull_dispatch_front,
+            &self.first_bvh_cull_count_back,
+            &self.first_bvh_cull_dispatch_back,
+            &self.first_bvh_cull_queue,
+            &self.second_bvh_cull_count_front,
+            &self.second_bvh_cull_dispatch_front,
+            &self.second_bvh_cull_count_back,
+            &self.second_bvh_cull_dispatch_back,
+            &self.second_bvh_cull_queue,
+            &self.front_meshlet_cull_count,
+            &self.front_meshlet_cull_dispatch,
+            &self.back_meshlet_cull_count,
+            &self.back_meshlet_cull_dispatch,
+            &self.meshlet_cull_queue,
+            &self.visibility_buffer_software_raster_indirect_args,
+            &self.visibility_buffer_hardware_raster_indirect_args,
+        ] {
+            key.push(BindKey::Buffer(Some(buffer.id())));
+        }
+        key.push(BindKey::View(self.visibility_buffer.default_view.id()));
+        key.push(BindKey::View(self.depth_pyramid.all_mips.id()));
+        key.push(BindKey::View(self.previous_depth_pyramid.id()));
+        if let Some(material_depth) = &self.material_depth {
+            key.push(BindKey::View(material_depth.default_view.id()));
+        }
+        key.push(BindKey::ShadowView(self.not_shadow_view));
+    }
+}
+
 #[derive(Component)]
 pub struct MeshletViewResources {
     pub scene_instance_count: u32,
@@ -477,14 +591,14 @@ pub struct MeshletViewResources {
     pub meshlet_cull_queue: Buffer,
     pub visibility_buffer_software_raster_indirect_args: Buffer,
     pub visibility_buffer_hardware_raster_indirect_args: Buffer,
-    pub depth_pyramid: ViewDepthPyramid,
+    pub depth_pyramid: Arc<ViewDepthPyramid>,
     previous_depth_pyramid: TextureView,
     pub material_depth: Option<CachedTexture>,
     pub view_size: UVec2,
     not_shadow_view: bool,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct MeshletViewBindGroups {
     pub clear_visibility_buffer: BindGroup,
     pub first_instance_cull: BindGroup,
@@ -518,7 +632,9 @@ pub fn prepare_meshlet_per_frame_resources(
     render_queue: Res<RenderQueue>,
     render_device: Res<RenderDevice>,
     mut commands: Commands,
+    mut times: ResMut<MeshletCpuTimes>,
 ) {
+    let _timer = CpuTimer::start(&mut times.prepare_resources);
     if instance_manager.scene_instance_count == 0 {
         return;
     }
@@ -526,18 +642,19 @@ pub fn prepare_meshlet_per_frame_resources(
     let instance_manager = instance_manager.as_mut();
 
     // TODO: Move this and the submit to a separate system and remove pub from the fields
+    // Tessera: only what changed is uploaded
     instance_manager
         .instance_uniforms
-        .write_buffer(&render_device, &render_queue);
+        .upload(&render_device, &render_queue);
     instance_manager
         .instance_aabbs
-        .write_buffer(&render_device, &render_queue);
+        .upload(&render_device, &render_queue);
     instance_manager
         .instance_material_ids
-        .write_buffer(&render_device, &render_queue);
+        .upload(&render_device, &render_queue);
     instance_manager
         .instance_bvh_root_nodes
-        .write_buffer(&render_device, &render_queue);
+        .upload(&render_device, &render_queue);
 
     let needed_buffer_size = 4 * instance_manager.scene_instance_count as u64;
     let second_pass_candidates = match &mut resource_manager.second_pass_candidates {
@@ -554,37 +671,69 @@ pub fn prepare_meshlet_per_frame_resources(
         }
     };
 
+    // Tessera: drop what was kept for views that are gone
+    instance_manager
+        .view_instance_visibility
+        .retain(|view_entity, _| views.contains(*view_entity));
+    resource_manager
+        .previous_depth_pyramids
+        .retain(|view_entity, _| views.contains(*view_entity));
+    resource_manager
+        .view_buffers
+        .retain(|view_entity, _| views.contains(*view_entity));
+    resource_manager
+        .view_depth_pyramids
+        .retain(|view_entity, _| views.contains(*view_entity));
+
     for (view_entity, view, render_layers, (_, shadow_view)) in &views {
         let not_shadow_view = shadow_view.is_none();
 
-        let instance_visibility = instance_manager
+        // Tessera: built in full for a new view or when the view's layers changed; otherwise only the
+        // instances in `visibility_changes` are looked at again
+        let view_layers = render_layers.cloned().unwrap_or_default();
+        let mut new_view = false;
+        let (built_layers, built_shadow, instance_visibility) = instance_manager
             .view_instance_visibility
             .entry(view_entity)
             .or_insert_with(|| {
+                new_view = true;
                 let mut buffer = StorageBuffer::default();
                 buffer.set_label(Some("meshlet_view_instance_visibility"));
-                buffer
+                (RenderLayers::default(), false, buffer)
             });
-        for (instance_index, (_, layers, not_shadow_caster)) in
-            instance_manager.instances.iter().enumerate()
-        {
+        let full = new_view || (&*built_layers, *built_shadow) != (&view_layers, shadow_view.is_some());
+        if full || !instance_manager.visibility_changes.is_empty() {
+            let instances = &instance_manager.instances;
+            let vec = instance_visibility.get_mut();
+            if full {
+                vec.clear();
+            }
+            vec.resize(instances.len().div_ceil(32).max(1), 0);
             // If either the layers don't match the view's layers or this is a shadow view
             // and the instance is not a shadow caster, hide the instance for this view
-            if !render_layers
-                .unwrap_or(&RenderLayers::default())
-                .intersects(layers)
-                || (shadow_view.is_some() && *not_shadow_caster)
-            {
-                let vec = instance_visibility.get_mut();
-                let index = instance_index / 32;
-                let bit = instance_index - index * 32;
-                if vec.len() <= index {
-                    vec.extend(iter::repeat_n(0, index - vec.len() + 1));
+            let mut update = |instance_index: usize| {
+                let (_, layers, not_shadow_caster) = &instances[instance_index];
+                let hidden = !view_layers.intersects(layers)
+                    || (shadow_view.is_some() && *not_shadow_caster);
+                let bit = 1 << (instance_index % 32);
+                if hidden {
+                    vec[instance_index / 32] |= bit;
+                } else {
+                    vec[instance_index / 32] &= !bit;
                 }
-                vec[index] |= 1 << bit;
+            };
+            if full {
+                (0..instances.len()).for_each(&mut update);
+            } else {
+                for &i in &instance_manager.visibility_changes {
+                    if (i as usize) < instances.len() {
+                        update(i as usize);
+                    }
+                }
             }
+            instance_visibility.write_buffer(&render_device, &render_queue);
+            (*built_layers, *built_shadow) = (view_layers, shadow_view.is_some());
         }
-        instance_visibility.write_buffer(&render_device, &render_queue);
         let instance_visibility = instance_visibility.buffer().unwrap().clone();
 
         // TODO: Remove this once wgpu allows render passes with no attachments
@@ -620,120 +769,54 @@ pub fn prepare_meshlet_per_frame_resources(
             },
         );
 
-        let second_pass_count = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("meshlet_second_pass_count"),
-            contents: bytemuck::bytes_of(&0u32),
-            usage: BufferUsages::STORAGE,
-        });
-        let second_pass_dispatch = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            label: Some("meshlet_second_pass_dispatch"),
-            contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-            usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
-        });
+        // Tessera: the view's counters and indirect arguments are made once, and reset here each frame
+        let [second_pass_count, second_pass_dispatch, first_bvh_cull_count_front, first_bvh_cull_dispatch_front, first_bvh_cull_count_back, first_bvh_cull_dispatch_back, second_bvh_cull_count_front, second_bvh_cull_dispatch_front, second_bvh_cull_count_back, second_bvh_cull_dispatch_back, front_meshlet_cull_count, front_meshlet_cull_dispatch, back_meshlet_cull_count, back_meshlet_cull_dispatch, visibility_buffer_software_raster_indirect_args, visibility_buffer_hardware_raster_indirect_args] =
+            resource_manager
+                .view_buffers
+                .entry(view_entity)
+                .or_insert_with(|| view_buffers(&render_device))
+                .clone();
+        for ((_, start, _), buffer) in VIEW_BUFFERS.iter().zip([
+            &second_pass_count,
+            &second_pass_dispatch,
+            &first_bvh_cull_count_front,
+            &first_bvh_cull_dispatch_front,
+            &first_bvh_cull_count_back,
+            &first_bvh_cull_dispatch_back,
+            &second_bvh_cull_count_front,
+            &second_bvh_cull_dispatch_front,
+            &second_bvh_cull_count_back,
+            &second_bvh_cull_dispatch_back,
+            &front_meshlet_cull_count,
+            &front_meshlet_cull_dispatch,
+            &back_meshlet_cull_count,
+            &back_meshlet_cull_dispatch,
+            &visibility_buffer_software_raster_indirect_args,
+            &visibility_buffer_hardware_raster_indirect_args,
+        ]) {
+            render_queue.write_buffer(buffer, 0, &start.bytes());
+        }
 
-        let first_bvh_cull_count_front =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_first_bvh_cull_count_front"),
-                contents: bytemuck::bytes_of(&0u32),
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            });
-        let first_bvh_cull_dispatch_front =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_first_bvh_cull_dispatch_front"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
-            });
-        let first_bvh_cull_count_back =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_first_bvh_cull_count_back"),
-                contents: bytemuck::bytes_of(&0u32),
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            });
-        let first_bvh_cull_dispatch_back =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_first_bvh_cull_dispatch_back"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
-            });
-
-        let second_bvh_cull_count_front =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_second_bvh_cull_count_front"),
-                contents: bytemuck::bytes_of(&0u32),
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            });
-        let second_bvh_cull_dispatch_front =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_second_bvh_cull_dispatch_front"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
-            });
-        let second_bvh_cull_count_back =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_second_bvh_cull_count_back"),
-                contents: bytemuck::bytes_of(&0u32),
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            });
-        let second_bvh_cull_dispatch_back =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_second_bvh_cull_dispatch_back"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
-            });
-
-        let front_meshlet_cull_count =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_front_meshlet_cull_count"),
-                contents: bytemuck::bytes_of(&0u32),
-                usage: BufferUsages::STORAGE,
-            });
-        let front_meshlet_cull_dispatch =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_front_meshlet_cull_dispatch"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
-            });
-        let back_meshlet_cull_count =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_back_meshlet_cull_count"),
-                contents: bytemuck::bytes_of(&0u32),
-                usage: BufferUsages::STORAGE,
-            });
-        let back_meshlet_cull_dispatch =
-            render_device.create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_back_meshlet_cull_dispatch"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
-            });
-
-        let visibility_buffer_software_raster_indirect_args = render_device
-            .create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_visibility_buffer_software_raster_indirect_args"),
-                contents: DispatchIndirectArgs { x: 0, y: 1, z: 1 }.as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
-            });
-
-        let visibility_buffer_hardware_raster_indirect_args = render_device
-            .create_buffer_with_data(&BufferInitDescriptor {
-                label: Some("meshlet_visibility_buffer_hardware_raster_indirect_args"),
-                contents: DrawIndirectArgs {
-                    vertex_count: 128 * 3,
-                    instance_count: 0,
-                    first_vertex: 0,
-                    first_instance: 0,
-                }
-                .as_bytes(),
-                usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
-            });
-
-        let depth_pyramid = ViewDepthPyramid::new(
-            &render_device,
-            &mut texture_cache,
-            &resource_manager.depth_pyramid_dummy_texture,
-            view.viewport.zw(),
-            "meshlet_depth_pyramid",
-            "meshlet_depth_pyramid_texture_view",
-        );
+        // Tessera: the depth pyramid and its mip views are made once per view size, from a texture cache of
+        // their own so a kept pyramid's texture is never handed to another view
+        let size = view.viewport.zw();
+        let depth_pyramid = match resource_manager.view_depth_pyramids.get(&view_entity) {
+            Some((built_size, pyramid)) if *built_size == size => pyramid.clone(),
+            _ => {
+                let pyramid = Arc::new(ViewDepthPyramid::new(
+                    &render_device,
+                    &mut TextureCache::default(),
+                    &resource_manager.depth_pyramid_dummy_texture,
+                    size,
+                    "meshlet_depth_pyramid",
+                    "meshlet_depth_pyramid_texture_view",
+                ));
+                resource_manager
+                    .view_depth_pyramids
+                    .insert(view_entity, (size, pyramid.clone()));
+                pyramid
+            }
+        };
 
         let previous_depth_pyramid =
             match resource_manager.previous_depth_pyramids.get(&view_entity) {
@@ -790,11 +873,13 @@ pub fn prepare_meshlet_per_frame_resources(
             not_shadow_view,
         });
     }
+    // Tessera: every view is up to date with them now
+    instance_manager.visibility_changes.clear();
 }
 
 pub fn prepare_meshlet_view_bind_groups(
     meshlet_mesh_manager: Res<MeshletMeshManager>,
-    resource_manager: Res<ResourceManager>,
+    mut resource_manager: ResMut<ResourceManager>,
     instance_manager: Res<InstanceManager>,
     views: Query<(Entity, &MeshletViewResources)>,
     view_uniforms: Res<ViewUniforms>,
@@ -802,7 +887,40 @@ pub fn prepare_meshlet_view_bind_groups(
     render_device: Res<RenderDevice>,
     pipeline_cache: Res<PipelineCache>,
     mut commands: Commands,
+    mut times: ResMut<MeshletCpuTimes>,
 ) {
+    let _timer = CpuTimer::start(&mut times.prepare_bind_groups);
+    // Tessera: the resources every view's bind groups share
+    let mut shared_key = vec![];
+    for buffer in [
+        view_uniforms.uniforms.buffer(),
+        previous_view_uniforms.uniforms.buffer(),
+        instance_manager.instance_uniforms.buffer(),
+        instance_manager.instance_aabbs.buffer(),
+        instance_manager.instance_material_ids.buffer(),
+        instance_manager.instance_bvh_root_nodes.buffer(),
+        Some(&resource_manager.software_raster_cluster_count),
+        Some(&resource_manager.visibility_buffer_raster_cluster_prev_counts),
+    ] {
+        shared_key.push(BindKey::Buffer(buffer.map(Buffer::id)));
+    }
+    shared_key.extend(
+        [
+            meshlet_mesh_manager.bvh_nodes.buffer_id(),
+            meshlet_mesh_manager.meshlet_cull_data.buffer_id(),
+            meshlet_mesh_manager.meshlets.buffer_id(),
+            meshlet_mesh_manager.indices.buffer_id(),
+            meshlet_mesh_manager.vertex_positions.buffer_id(),
+            meshlet_mesh_manager.vertex_normals.buffer_id(),
+            meshlet_mesh_manager.vertex_uvs.buffer_id(),
+        ]
+        .map(|id| BindKey::Buffer(Some(id))),
+    );
+    resource_manager
+        .view_bind_groups
+        .retain(|view_entity, _| views.contains(*view_entity));
+    let resource_manager = resource_manager.into_inner();
+
     let (Some(view_uniforms), Some(previous_view_uniforms)) = (
         view_uniforms.uniforms.binding(),
         previous_view_uniforms.uniforms.binding(),
@@ -812,6 +930,16 @@ pub fn prepare_meshlet_view_bind_groups(
 
     // TODO: Some of these bind groups can be reused across multiple views
     for (view_entity, view_resources) in &views {
+        // Tessera: made again only when a resource they use changed
+        let mut key = shared_key.clone();
+        view_resources.bind_key(&mut key);
+        if let Some((built, bind_groups)) = resource_manager.view_bind_groups.get(&view_entity)
+            && *built == key
+        {
+            commands.entity(view_entity).insert(bind_groups.clone());
+            continue;
+        }
+
         let clear_visibility_buffer = render_device.create_bind_group(
             "meshlet_clear_visibility_buffer_bind_group",
             &pipeline_cache.get_bind_group_layout(if view_resources.not_shadow_view {
@@ -1211,7 +1339,7 @@ pub fn prepare_meshlet_view_bind_groups(
             )
         };
 
-        commands.entity(view_entity).insert(MeshletViewBindGroups {
+        let bind_groups = MeshletViewBindGroups {
             clear_visibility_buffer,
             first_instance_cull,
             second_instance_cull,
@@ -1228,6 +1356,10 @@ pub fn prepare_meshlet_view_bind_groups(
             material_shade,
             remap_1d_to_2d_dispatch,
             fill_counts,
-        });
+        };
+        resource_manager
+            .view_bind_groups
+            .insert(view_entity, (key, bind_groups.clone()));
+        commands.entity(view_entity).insert(bind_groups);
     }
 }
