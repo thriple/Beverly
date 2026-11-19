@@ -91,6 +91,7 @@ check("a point says how its stretch treats geometry (ground by default)", [p.get
 check("a stretch is ground, over, air or fall", "error" in tool("draw_shape", points=[{"at": [0, 0, 0], "stretch": "sideways"}, [1, 0, 0]]))
 tool("draw_shape", shape="Rope", delete=True)
 check("a strip needs a material to paint (the lift has none)", "error" in tool("draw_shape", points=[[0, 0, 0], [3, 0, 0]], strip={"width": 1}))
+check("a fill needs a material to paint too, and says when it has none", "error" in tool("draw_shape", points=[[0, 0, 0], [3, 0, 0], [3, 0, 3]], closed=True, fill={"feather": 1}) and sh.get("fill", 1) is None, sh)
 check("a curve needs two points", "error" in tool("draw_shape", points=[[0, 0, 0]]))
 for _ in range(5): tool("run_action", id="edit.undo")
 p = tool("get_project")

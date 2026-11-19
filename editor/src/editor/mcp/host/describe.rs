@@ -61,7 +61,7 @@ pub(super) fn stretch_word(s: crate::curve::Stretch) -> &'static str {
 pub(super) fn describe_curve(c: &crate::curve::Curve) -> Value {
     let round = |v: Vec3| settings::nums(&v.to_array());
     json!({
-        "id": c.id, "name": c.name, "closed": c.closed, "strip": c.strip.as_ref().map(|s| json!({"material": s.material, "width": settings::num(s.size), "edge": settings::num(s.hardness), "strength": settings::num(s.strength)})), "length": settings::num((c.length() * 100.0).round() / 100.0),
+        "id": c.id, "name": c.name, "closed": c.closed, "strip": c.strip.as_ref().map(|s| json!({"material": s.material, "width": settings::num(s.size), "edge": settings::num(s.hardness), "strength": settings::num(s.strength)})), "fill": c.fill.as_ref().map(|f| json!({"material": f.material, "feather": settings::num(f.feather), "strength": settings::num(f.strength)})), "length": settings::num((c.length() * 100.0).round() / 100.0),
         "points": c.points.iter().map(|p| json!({"at": round(p.pos()), "handle_in": round(p.into_handle()), "handle_out": round(p.out_handle()), "stretch": stretch_word(p.stretch)})).collect::<Vec<_>>(),
     })
 }

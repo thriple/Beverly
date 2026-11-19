@@ -218,6 +218,19 @@ fn advanced_group(ui: &mut Ui, ed: &Editor, p: &mut level::Part, ctx: &mut setti
     });
 }
 
+/// The pen panel's "Paints" row: the material a strip or fill lays, chosen from the project's.
+fn material_row(ui: &mut Ui, salt: &str, ed: &Editor, chosen: &mut String) {
+    let file = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Paints").color(TEXT_2)); });
+        let shown = if chosen.is_empty() { "No material".to_string() } else { file(chosen) };
+        egui::ComboBox::from_id_salt(salt).selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            for m in ed.level.materials.keys() { ui.selectable_value(chosen, m.clone(), file(m)); }
+            if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
+        });
+    });
+}
+
 /// The bottom-left panel: what the Level tab's topic (its menu) sets, or the level and its topics.
 pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut l = ed.level.lighting.clone();
@@ -321,9 +334,9 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
     identity(ui, theme::VIOLET, "route", if named { Ok(&mut name) } else { Err("Pen") }, &sub, &mut []);
     if let Some(c) = &cur {
         let mut strip = c.strip.clone();
+        let mut fill = c.fill.clone();
         let mut ranges = ed.level.ranges.clone();
         let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
-        let file = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         column(ui, 0.0, crate::curve::STRIP, |ui| {
             let mut on = strip.is_some();
             let mut none = false;
@@ -331,21 +344,27 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
                 strip = on.then(|| crate::curve::Strip { material: if ed.brush.material.is_empty() { ed.level.materials.keys().next().cloned().unwrap_or_default() } else { ed.brush.material.clone() }, ..Default::default() });
             }
             if let Some(st) = strip.as_mut() {
-                ui.horizontal(|ui| {
-                    ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Paints").color(TEXT_2)); });
-                    let shown = if st.material.is_empty() { "No material".to_string() } else { file(&st.material) };
-                    egui::ComboBox::from_id_salt("strip material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
-                        for m in ed.level.materials.keys() { ui.selectable_value(&mut st.material, m.clone(), file(m)); }
-                        if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
-                    });
-                });
+                material_row(ui, "strip material", ed, &mut st.material);
                 ui.add_space(8.0);
                 settings::section(ui, st, crate::curve::STRIP, &mut ctx);
+            }
+        });
+        column(ui, 0.0, crate::curve::FILL, |ui| {
+            let mut on = fill.is_some();
+            let mut none = false;
+            if settings::toggle_row(ui, "", "Fill the inside", &mut on, "Paints a material over the ground the curve encloses, with a feathered edge, kept in step with the curve (an open curve is closed by a straight line)", false, &mut none) {
+                fill = on.then(|| crate::curve::Fill { material: if ed.brush.material.is_empty() { ed.level.materials.keys().next().cloned().unwrap_or_default() } else { ed.brush.material.clone() }, ..Default::default() });
+            }
+            if let Some(f) = fill.as_mut() {
+                material_row(ui, "fill material", ed, &mut f.material);
+                ui.add_space(8.0);
+                settings::section(ui, f, crate::curve::FILL, &mut ctx);
             }
         });
         if ctx.ranges_changed { ed.level.ranges = ranges; }
         if let Some(cm) = ed.level.curve_mut(c.id) {
             if strip != c.strip { cm.strip = strip; }
+            if fill != c.fill { cm.fill = fill; }
             if name != c.name && !name.is_empty() { cm.name = name; }
         }
     }

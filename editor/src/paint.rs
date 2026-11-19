@@ -40,7 +40,8 @@ pub struct Frame {
 
 /// A piece of a stroke: from `a` to `b` (w: its radius, its hardness), `c`: strength, layer (-1 erases), stroke, how
 /// it lays (0 add, 1 subtract, 2 set); `d`: its rules (the cosine of the steepest slope, below -1 any; lowest and
-/// highest world height).
+/// highest world height). A fill's outline is made of pieces too: each an edge from `a` to `b` in the world (`a.w`: the
+/// width of the feathered edge), marked by `d.w` of 1.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Piece {
     pub a: Vec4,
@@ -75,6 +76,15 @@ pub fn pieces(p: &Part) -> Vec<Piece> {
         let c = Vec4::new(s.strength.clamp(0.0, 1.0), layer, k as f32, lays);
         let (cos, lo, hi) = s.rules.shader();
         let d = Vec4::new(cos, lo, hi, 0.0);
+        if s.fill {
+            // the outline, edge by edge, closed (the shader works out which side is inside)
+            let n = s.points.len();
+            if n < 3 { continue; }
+            for k in 0..n {
+                v.push(Piece { a: Vec3::from(s.points[k]).extend(s.size.max(0.0)), b: Vec3::from(s.points[(k + 1) % n]).extend(0.0), c, d: Vec4::new(cos, lo, hi, 1.0) });
+            }
+            continue;
+        }
         let r = (s.size * 0.5).max(0.005);
         let pts: Vec<Vec3> = s.points.iter().map(|q| Vec3::from(*q)).collect();
         let pairs: Vec<(Vec3, Vec3)> = match pts.len() {
@@ -98,9 +108,18 @@ fn upload(pieces: Vec<Piece>) -> ShaderBuffer {
     ShaderBuffer::from(flat)
 }
 
-/// How much of layer `layer` shows at `at` (in the part's frame), on a surface whose normal points `up` this much
-/// (1: flat) at height `y` in the world: the shader's sum, for tests and the MCP.
-pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, up: f32, y: f32) -> f32 {
+/// Whether a fill outline's edge from `a` to `b` crosses the line going on from `p` in +x (seen from above), and how
+/// near the edge is to `p`: as in paint.wesl.
+fn edge(a: Vec3, b: Vec3, p: Vec3) -> (bool, f32) {
+    let crosses = (a.z > p.z) != (b.z > p.z) && p.x < a.x + (p.z - a.z) * (b.x - a.x) / (b.z - a.z);
+    let (ab, ap) = (Vec2::new(b.x - a.x, b.z - a.z), Vec2::new(p.x - a.x, p.z - a.z));
+    let t = (ap.dot(ab) / ab.dot(ab).max(1e-8)).clamp(0.0, 1.0);
+    (crosses, (ap - ab * t).length())
+}
+
+/// How much of layer `layer` shows at `at` (in the part's frame, `world` in the world), on a surface whose normal
+/// points `up` this much (1: flat) at height `y` in the world: the shader's sum, for tests and the MCP.
+pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, world: Vec3, up: f32, y: f32) -> f32 {
     let dab = |p: &Piece| {
         let (a, b) = (p.a.truncate(), p.b.truncate());
         let ab = b - a;
@@ -114,7 +133,21 @@ pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, up: f32, y
     while i < count {
         let (stroke, l, strength, lays, d) = (pieces[i].c.z, pieces[i].c.y as i32, pieces[i].c.x, pieces[i].c.w, pieces[i].d);
         let mut m: f32 = 0.0;
-        while i < count && pieces[i].c.z == stroke { m = m.max(dab(&pieces[i])); i += 1; }
+        let (mut fill, mut inside, mut near, mut feather) = (false, false, f32::MAX, 0.0f32);
+        while i < count && pieces[i].c.z == stroke {
+            let p = &pieces[i];
+            if p.d.w > 0.5 {
+                let (crossed, d) = edge(p.a.truncate(), p.b.truncate(), world);
+                (fill, inside, near, feather) = (true, inside ^ crossed, near.min(d), p.a.w);
+            } else {
+                m = m.max(dab(p));
+            }
+            i += 1;
+        }
+        if fill {
+            let x = (near / feather.max(1e-3)).clamp(0.0, 1.0);
+            m = if inside { x * x * (3.0 - 2.0 * x) } else { 0.0 };
+        }
         let rules = crate::level::Rules { slope: if d.x < -1.0 { 90.0 } else { d.x.clamp(-1.0, 1.0).acos().to_degrees() }, band: (d.y > -1e8).then_some([d.y, d.z]), on: None };
         m *= rules.allows(up, y);
         let f = m * strength;
@@ -233,10 +266,10 @@ mod tests {
     #[test]
     fn later_strokes_cover_earlier_ones_and_erasing_uncovers() {
         let mut p = Part::placed(Shape::Plane, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [10.0, 0.1, 10.0]);
-        let s = |m: &str, x: f32, hard: f32| Stroke { material: m.into(), size: 2.0, hardness: hard, strength: 1.0, points: vec![[x - 1.0, 0.05, 0.0], [x, 0.05, 0.0], [x + 1.0, 0.05, 0.0]], lays: Default::default(), rules: Default::default(), curve: None };
+        let s = |m: &str, x: f32, hard: f32| Stroke { material: m.into(), size: 2.0, hardness: hard, strength: 1.0, points: vec![[x - 1.0, 0.05, 0.0], [x, 0.05, 0.0], [x + 1.0, 0.05, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false };
         p.strokes = vec![s("moss", 0.0, 1.0), s("sand", 3.0, 1.0), s("", -3.0, 1.0)];
         let pc = pieces(&p);
-        let at = |x: f32, layer: i32| coverage(&pc, pc.len(), layer, Vec3::new(x, 0.05, 0.0), 1.0, 0.0);
+        let at = |x: f32, layer: i32| coverage(&pc, pc.len(), layer, Vec3::new(x, 0.05, 0.0), Vec3::new(x, 0.05, 0.0), 1.0, 0.0);
         assert_eq!(p.painted(), ["moss", "sand"]);
         // moss shows where only it went, sand covers it where sand went after, erasing took moss away on the left
         assert!((at(0.0, 0) - 1.0).abs() < 1e-4, "{}", at(0.0, 0));
@@ -247,10 +280,10 @@ mod tests {
         // overlapping pieces of one stroke count once; a soft edge fades out
         p.strokes = vec![Stroke { strength: 0.5, ..s("moss", 0.0, 1.0) }];
         let pc = pieces(&p);
-        assert!((coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.0), 1.0, 0.0) - 0.5).abs() < 1e-4);
+        assert!((coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.0), Vec3::new(0.0, 0.05, 0.0), 1.0, 0.0) - 0.5).abs() < 1e-4);
         p.strokes = vec![s("moss", 0.0, 0.0)];
         let pc = pieces(&p);
-        let mid = coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.5), 1.0, 0.0);
+        let mid = coverage(&pc, pc.len(), 0, Vec3::new(0.0, 0.05, 0.5), Vec3::new(0.0, 0.05, 0.5), 1.0, 0.0);
         assert!(mid > 0.2 && mid < 0.8, "{mid}");
     }
 
@@ -258,8 +291,8 @@ mod tests {
     fn subtract_takes_only_its_own_and_set_holds_its_strength() {
         use crate::level::{Lays, Rules};
         let mut p = Part::placed(Shape::Plane, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [10.0, 0.1, 10.0]);
-        let s = |m: &str, strength: f32, lays: Lays| Stroke { material: m.into(), size: 2.0, hardness: 1.0, strength, points: vec![[0.0, 0.05, 0.0]], lays, rules: Rules::default(), curve: None };
-        let at = |p: &Part, layer: i32, up: f32, y: f32| { let pc = pieces(p); coverage(&pc, pc.len(), layer, Vec3::new(0.0, 0.05, 0.0), up, y) };
+        let s = |m: &str, strength: f32, lays: Lays| Stroke { material: m.into(), size: 2.0, hardness: 1.0, strength, points: vec![[0.0, 0.05, 0.0]], lays, rules: Rules::default(), curve: None, fill: false };
+        let at = |p: &Part, layer: i32, up: f32, y: f32| { let pc = pieces(p); coverage(&pc, pc.len(), layer, Vec3::new(0.0, 0.05, 0.0), Vec3::new(0.0, 0.05, 0.0), up, y) };
         // moss, then sand half over it, then half the moss taken away: the sand stays
         p.strokes = vec![s("moss", 1.0, Lays::Add), s("sand", 0.5, Lays::Add), s("moss", 0.5, Lays::Subtract)];
         assert!((at(&p, 0, 1.0, 0.0) - 0.25).abs() < 1e-4, "{}", at(&p, 0, 1.0, 0.0));

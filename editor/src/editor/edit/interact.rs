@@ -477,7 +477,7 @@ pub(super) fn pick(ed: &mut Editor, ray: Option<Ray3d>) {
         let local = p.to_local(h.point);
         let pc = crate::paint::pieces(&p);
         let painted = p.painted().iter().enumerate()
-            .map(|(i, m)| (m.to_string(), crate::paint::coverage(&pc, pc.len(), i as i32, local, h.normal.y, h.point.y)))
+            .map(|(i, m)| (m.to_string(), crate::paint::coverage(&pc, pc.len(), i as i32, local, h.point, h.normal.y, h.point.y)))
             .filter(|(_, c)| *c > 0.3).max_by(|a, b| a.1.total_cmp(&b.1)).map(|(m, _)| m);
         let own = p.surfaces.iter().find(|s| s.face.is_some() && s.face == h.face).or_else(|| p.surfaces.iter().find(|s| s.face.is_none())).map(|s| s.material.clone());
         match painted.or(own).filter(|m| ed.level.materials.contains_key(m)) {
