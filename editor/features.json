@@ -1579,7 +1579,7 @@
     "Streaming: clusters in pages, loaded when the GPU asks for them",
     "Mesh shaders for the hardware raster path, where wgpu supports them"
    ],
-   "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with.",
+   "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with. Branch job 1 done 2026-11-20: bevy_pbr 0.20.1 vendored in crates/bevy_pbr behind the editor's tessera feature (off by default), a seeded 1.31 M-triangle test mesh, and vg-render draws it with the meshlet path on this container's software Vulkan (lavapipe), so later jobs can check rendering here.",
    "status": "planned",
    "first_game": true,
    "order": 88

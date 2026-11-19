@@ -47,7 +47,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 
 ## Jobs (in order; each depends only on the ones above it)
 
-1. ⬜ **Vendor and build.**
+1. ✅ **Vendor and build.** (2026-11-20)
    - Vendor `bevy_pbr-0.20.1` into `crates/bevy_pbr`, untouched, in its own commit. Add the patch and the `tessera` feature, and make both builds pass.
    - Fill in `crates/tessera` (a crate named `tessera`) with a procedural dense test mesh (a displaced, subdivided sphere; about 1 M triangles; seeded; no third-party assets).
    - **Check the GPU here:** can lavapipe (Mesa's software Vulkan, `/usr/share/vulkan/icd.d/lvp_icd.json`) provide the six features (`docs/tessera.md`)?
@@ -106,9 +106,54 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 
 ## Wiring main needs
 (Unattended runs add entries here.)
+- **Container set-up (job 1, 2026-11-20):** winit on X11 needs `libxkbcommon-x11-0`, which this container didn't have
+  (`vg-render` panicked in `xkbcommon-dl`). The run installed it with `apt-get install -y libxkbcommon-x11-0`. Adding
+  that line to the environment's setup script saves each night doing it.
+- **Merging job 1 into main:** `editor/Cargo.toml` gains the `[patch.crates-io] bevy_pbr` (path `../crates/bevy_pbr`),
+  the off-by-default `tessera` feature, the optional `tessera` dependency (`../crates/tessera`) and the `vg-render`
+  binary (`required-features = ["tessera"]`, so default builds and the release zip don't contain it). Main's
+  `.github/workflows/windows.yml` builds without the feature, so nothing there changes.
 
 ## Questions for the user
 (Unattended runs add questions here. Interactive sessions answer them and remove them.)
 
 ## Run log
 (Newest first.)
+
+**GPU-testable here: yes.** Lavapipe (`llvmpipe (LLVM 20.1.2, 256 bits)`, Vulkan, Cpu) has all six features
+(`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
+Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
+not a speed one.
+
+### 2026-11-20 (Guam): job 1, vendor and build ✅
+- **Vendored** `bevy_pbr-0.20.1` from the cargo registry into `crates/bevy_pbr`, untouched (only cargo's `.cargo-ok`
+  marker left out), in its own commit, `f12bb5f`. It keeps `LICENSE-MIT` and `LICENSE-APACHE`.
+- **Patch and feature:** `editor/Cargo.toml` patches `bevy_pbr` to the vendored path. The `tessera` feature (off by default)
+  turns on `bevy/meshlet`, `bevy/meshlet_processor` and the `tessera` crate. METIS builds with the clang and cmake
+  already in the container.
+- **`crates/tessera`:** `test_mesh::test_mesh(levels, seed)`. It is an icosphere subdivided `levels` times (20 × 4^levels
+  triangles, so 8 levels give 1,310,720) with shared edge midpoints, so it is welded and closed. Five octaves of
+  seeded value noise (SplitMix64 lattice hash, no `rand`) push it in and out by up to ±15%. It has smooth area-weighted
+  normals and zero UVs: exactly POSITION, NORMAL and UV_0, which `MeshletMesh::from_mesh` takes. Two tests: the counts
+  are right and the mesh is closed (V − E + F = 2); the same seed gives the same mesh and another seed a different one.
+- **`vg-render` (editor binary, `tessera` feature only):**
+  1. Probes with `beverly::gpu::render_plugin`, and exits 2 with the missing features if `GpuCaps::virtual_geometry()`
+     is false, so the plugin's `exit(1)` is never reached.
+  2. Bakes the test mesh in a Startup system (the bake runs on Bevy's task pools, which don't exist before the app).
+  3. Draws it with `MeshletPlugin { cluster_buffer_slots: 1 << 16 }`, a `Msaa::Off` camera and a shadowed sun.
+  4. Saves `test-output/tessera/test-mesh.png` after 300 frames. At 30 frames the window was still black: the
+     pipelines compile in the background, slowly on lavapipe.
+- **Numbers (lavapipe, 4 CPU cores):**
+  - test mesh 1,310,720 triangles, made in 0.23 s
+  - `MeshletMesh::from_mesh` in 34.4–35.0 s (debug profile, dependencies at opt-level 3)
+- **Checks:**
+  - feature off: `cargo build` ✅ (17 m 55 s from a clean cache), `cargo test` ✅ (66 passed)
+  - `--features tessera`: `cargo build` ✅ (9 m 16 s more), `cargo test` ✅ (66 passed)
+  - `tessera` crate tests ✅ (2 passed; run in `crates/tessera` with `CARGO_TARGET_DIR=../../editor/target`, since it
+    isn't a workspace member)
+  - `DISPLAY=:99 BEVERLY_LITE=1 tools/run-tests.sh` ✅, all 17 test projects pass (feature-off player)
+  - `vg-render` under Xvfb ✅ (picture checked by eye)
+- **Warnings:** the vendored `from_mesh.rs` uses the deprecated `std::f32::MAX` three times (lines 557, 709, 776).
+  Left untouched, as upstream has it.
+- **Only the RTX card can show:** real frame times, and whether the meshlet path picks the same features through
+  wgpu's Vulkan driver there. (gpu-setup says it should.)

@@ -10,8 +10,9 @@ use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use std::path::PathBuf;
 use std::time::Instant;
 
-/// Frames drawn before the screenshot: the culling needs last frame's depth.
-const SETTLE_FRAMES: u32 = 30;
+/// Frames drawn before the screenshot: the pipelines compile in the background first (on lavapipe 30 frames
+/// were still black), and the culling needs last frame's depth.
+const SETTLE_FRAMES: u32 = 300;
 
 #[derive(Resource)]
 struct Shot {
@@ -31,13 +32,6 @@ fn main() -> AppExit {
         return AppExit::from_code(2);
     }
 
-    let start = Instant::now();
-    let mesh = tessera::test_mesh::test_mesh(8, 1);
-    let triangles = mesh.indices().map_or(0, |i| i.len() / 3);
-    let made = start.elapsed();
-    let meshlet = MeshletMesh::from_mesh(&mesh, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR).expect("bake");
-    println!("test mesh: {triangles} triangles, made in {made:.2?}, baked in {:.2?}", start.elapsed() - made);
-
     app.add_plugins((
         DefaultPlugins.set(render).set(WindowPlugin {
             primary_window: Some(Window { title: "vg-render".into(), resolution: (800, 600).into(), ..default() }),
@@ -46,11 +40,18 @@ fn main() -> AppExit {
         MeshletPlugin { cluster_buffer_slots: 1 << 16 },
     ))
     .insert_resource(Shot { path, frame: 0, saved: None })
-    .add_systems(Startup, move |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
+    .add_systems(Startup, |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
+        // baked here, not before the app: the bake runs on Bevy's task pools
+        let start = Instant::now();
+        let mesh = tessera::test_mesh::test_mesh(8, 1);
+        let triangles = mesh.indices().map_or(0, |i| i.len() / 3);
+        let made = start.elapsed();
+        let meshlet = MeshletMesh::from_mesh(&mesh, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR).expect("bake");
+        println!("test mesh: {triangles} triangles, made in {made:.2?}, baked in {:.2?}", start.elapsed() - made);
         commands.spawn((Camera3d::default(), Msaa::Off, Transform::from_xyz(0.0, 0.6, 2.8).looking_at(Vec3::ZERO, Vec3::Y)));
         commands.spawn((DirectionalLight { illuminance: 8000.0, shadow_maps_enabled: true, ..default() }, Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y)));
         commands.spawn((
-            MeshletMesh3d(meshlets.add(meshlet.clone())),
+            MeshletMesh3d(meshlets.add(meshlet)),
             MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::srgb(0.8, 0.55, 0.35), perceptual_roughness: 0.7, ..default() })),
         ));
     })
