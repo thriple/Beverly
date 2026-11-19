@@ -498,6 +498,76 @@
    "build": 69
   },
   {
+   "id": "models-split",
+   "name": "Models taken apart into Beverly’s own meshes",
+   "area": "Level building",
+   "effort": "M",
+   "needs": [
+    "models",
+    "instancing"
+   ],
+   "what": "A glTF model is spawned as its own meshes and materials instead of one scene, so its Colour works and LOD, impostors and virtual geometry can each take its meshes.",
+   "note": "Built 2026-11-19: a model part is a root entity (ModelRoot) and, once its glTF has loaded, one child per mesh piece (models::fill_models) with the model's own mesh handle and a StandardMaterial made once from its glTF material, so every instance shares them and Bevy batches them; ModelLib keeps each model's pieces next to its triangles. Colour tints the model's materials (a white Colour leaves it as made; models placed before this, grey, stay as made; tinted copies are shared per colour). A model with a skeleton still spawns as a scene (skinned things stay on the classic path, docs/tessera.md). Picking, surface placement and collision still use the gathered triangles. MCP: Colour comes free through change_part. Test project tests/models (a model made by tools/make-test-model.py, three placements). Planned 2026-11-18: models.rs spawned Scene 0 as-is and Colour did nothing on models.",
+   "chunks": [],
+   "status": "done",
+   "first_game": true,
+   "order": 28,
+   "next": true,
+   "built": "2026-11-19",
+   "build": 70
+  },
+  {
+   "id": "gpu-setup",
+   "name": "GPU set-up: SMAA, capabilities, Vulkan",
+   "area": "Editor basics",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "Antialiasing by SMAA instead of 4x MSAA in the editor and games, a GpuCaps check of what the graphics card can do at start, and Vulkan on Windows when the card qualifies.",
+   "note": "Built 2026-11-18: gpu.rs probes the card before the app starts (a real card before a software one, a separate one before a built-in one), takes its Vulkan driver when that has every feature virtual geometry needs, pins Bevy's renderer to that adapter and keeps GpuCaps (name, backend, kind, features, virtual_geometry()) as a resource; the log and the MCP server's get_project say which card. SMAA instead of 4x MSAA on the editor's view and the player's camera, MSAA off on the panels' camera. The ground grid is now a shader (editor/grid.wesl) that smooths its own lines, since thin gizmo lines broke up without MSAA. The test machine's software Vulkan (lavapipe) has every virtual-geometry feature. Waiting for the user's eye on the look.",
+   "chunks": [],
+   "status": "done",
+   "first_game": true,
+   "order": 29,
+   "built": "2026-11-19",
+   "build": 70
+  },
+  {
+   "id": "perf-meter",
+   "name": "Editor stats",
+   "area": "Editor basics",
+   "status": "done",
+   "effort": "S",
+   "needs": [
+    "shell"
+   ],
+   "what": "A toggle-able status pill (View > Performance meter): frames a second, frame time, the card's time, triangles, meshes in view, lights, entities and memory, coloured green, amber or red.",
+   "chunks": [],
+   "note": "Built 2026-11-19: perf.rs keeps Perf (fps, frame time, the card's time summed over Bevy's render passes, triangles drawn shadows included, meshes in view, lights, entities, memory), each graded green, amber or red; View > Performance meter shows it as a status pill under the island. The scripted tests end their report with the same numbers and get_project returns them with their grades. A card or driver that can't time passes or count triangles leaves that number out. Draw calls aren't counted: Bevy batches them inside its passes, so meshes in view stands in until Tessera's fork can count them. Moved up 2026-11-18: virtual geometry, cached shadows and baked light are all judged by its numbers.",
+   "order": 30,
+   "first_game": true,
+   "built": "2026-11-19",
+   "build": 70
+  },
+  {
+   "id": "bake-cache",
+   "name": "Bake cache",
+   "area": "Editor basics",
+   "effort": "S",
+   "needs": [
+    "projects"
+   ],
+   "what": "One local cache for everything Beverly works out from the user’s files (impostor atlases, virtual-geometry meshes, baked light): kept outside the project, rebuilt when missing, baked into exported games.",
+   "note": "Built 2026-11-19: bake.rs. key(kind, parts) hashes a bake's source bytes and settings (SHA-256, 32 hex); Bakes::get reads an entry, request builds a missing one on a background thread (once, with a progress fraction and a label) and saves it when it finishes; the island says 'Baking X · 40%' while it runs and 'Baked X' (or why not) after, and a BakeDone message tells whoever asked. The cache is the user's settings folder, cache/KIND/KEY, never the project. File > Clear baked data empties it. Export packs the entries the run used into the game's bakes/ folder (the player reads them first, and builds any that are missing); get_project returns the entries, size and what is building. Nothing uses it yet: impostors, Tessera and baked light call request/get. Planned 2026-11-18.",
+   "chunks": [],
+   "status": "done",
+   "first_game": true,
+   "order": 31,
+   "built": "2026-11-19",
+   "build": 70
+  },
+  {
    "id": "shaders",
    "name": "Custom shaders",
    "area": "Look and effects",
@@ -513,7 +583,7 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "planned",
    "first_game": true,
-   "order": 28,
+   "order": 32,
    "next": true
   },
   {
@@ -532,7 +602,7 @@
    "note": "Part 1 built 2026-11-19 (the pen): P in the Level tab; click for a corner, drag for a smooth point, click the first point to close, Enter finishes; then drag points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) removes it, Delete elsewhere removes the curve, click another curve to edit it, Alt while dragging breaks a handle; points snap to the grid like parts do and land on whatever surface is under the pointer. Curves live in the level file (curves: id, name, points with handle offsets, closed), one undo step per change; the code is curve.rs (the Bezier maths, tested) and editor/pen.rs. MCP: draw_shape (points as [x, y, z] or {at, handle_in, handle_out}, closed, shape to redraw, delete) and list_shapes (tests/mcp/check.py). Still to do: part 2 (what a curve does), the curve hugging the surface between points, and picking a curve without the pen. Decided with the user 2026-11-19: a path has two modes, Ground only (default: drapes onto the ground and ignores props, scatter and other paths) and Over everything (follows any geometry it meets); the surface each point was clicked on decides which level it follows, the path stays on that level between points, ground means surfaces within a slope limit and objects below step height, gaps are bridged, Water counts as ground; where two ground paths cross, the later one wins (order keys Ctrl+[ and ], Ctrl+Shift for ends, with a list in the Inspect panel, see the order note on the brush). Refined 2026-11-19 (user: a path crosses many surfaces; tags as well as rules; scatter on the ground, deep select for manual adjustment): the mode is per stretch (stored on a point, for the segment leaving it) with a path-wide default: Ground (walkable surfaces: ground, road, steps, interior floor; the path takes the walkable surface nearest in height to the previous sample within the step height, starting from the clicked level; ceilings and invisible colliders never count), Over everything, Air (ignores geometry; Sag for a rope) and Fall (leaves along its handle and drops until it hits a surface; a faucet stream is Fall then Ground). Tags: Ground forces a part to count, Paths ignore forces it out, Water counts. Precedence: the stretch's own behaviour, tags, the path's default, the slope and step rules. Scatter sits on the surface the path is following and never on other scatter; deep select (gesture to choose: Ctrl+click or double-click in; Alt is taken by the pen and brush) picks one scatter instance to nudge, delete or detach, kept as overrides by position along the curve (they can drift if the curve is reshaped a lot; Turn into items freezes everything). Confirmed by the user 2026-11-19: ground stretches draw as a solid line and air stretches dashed, with a small button on the selected point to switch its stretch behaviour; deep select is a double-click into the shape. Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay).",
    "status": "planned",
    "first_game": true,
-   "order": 29,
+   "order": 33,
    "next": true
   },
   {
@@ -550,24 +620,7 @@
    "status": "planned",
    "first_game": true,
    "next": true,
-   "order": 30
-  },
-  {
-   "id": "models-split",
-   "name": "Models taken apart into Beverly’s own meshes",
-   "area": "Level building",
-   "effort": "M",
-   "needs": [
-    "models",
-    "instancing"
-   ],
-   "what": "A glTF model is spawned as its own meshes and materials instead of one scene, so its Colour works and LOD, impostors and virtual geometry can each take its meshes.",
-   "note": "Built 2026-11-19: a model part is a root entity (ModelRoot) and, once its glTF has loaded, one child per mesh piece (models::fill_models) with the model's own mesh handle and a StandardMaterial made once from its glTF material, so every instance shares them and Bevy batches them; ModelLib keeps each model's pieces next to its triangles. Colour tints the model's materials (a white Colour leaves it as made; models placed before this, grey, stay as made; tinted copies are shared per colour). A model with a skeleton still spawns as a scene (skinned things stay on the classic path, docs/tessera.md). Picking, surface placement and collision still use the gathered triangles. MCP: Colour comes free through change_part. Test project tests/models (a model made by tools/make-test-model.py, three placements). Planned 2026-11-18: models.rs spawned Scene 0 as-is and Colour did nothing on models.",
-   "chunks": [],
-   "status": "planned",
-   "first_game": true,
-   "order": 31,
-   "next": true
+   "order": 34
   },
   {
    "id": "grass",
@@ -589,51 +642,6 @@
    "status": "planned",
    "first_game": true,
    "next": true,
-   "order": 32
-  },
-  {
-   "id": "gpu-setup",
-   "name": "GPU set-up: SMAA, capabilities, Vulkan",
-   "area": "Editor basics",
-   "effort": "S",
-   "needs": [
-    "shell"
-   ],
-   "what": "Antialiasing by SMAA instead of 4x MSAA in the editor and games, a GpuCaps check of what the graphics card can do at start, and Vulkan on Windows when the card qualifies.",
-   "note": "Built 2026-11-18: gpu.rs probes the card before the app starts (a real card before a software one, a separate one before a built-in one), takes its Vulkan driver when that has every feature virtual geometry needs, pins Bevy's renderer to that adapter and keeps GpuCaps (name, backend, kind, features, virtual_geometry()) as a resource; the log and the MCP server's get_project say which card. SMAA instead of 4x MSAA on the editor's view and the player's camera, MSAA off on the panels' camera. The ground grid is now a shader (editor/grid.wesl) that smooths its own lines, since thin gizmo lines broke up without MSAA. The test machine's software Vulkan (lavapipe) has every virtual-geometry feature. Waiting for the user's eye on the look.",
-   "chunks": [],
-   "status": "planned",
-   "first_game": true,
-   "order": 33
-  },
-  {
-   "id": "perf-meter",
-   "name": "Editor stats",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "shell"
-   ],
-   "what": "A toggle-able status pill (View > Performance meter): frames a second, frame time, the card's time, triangles, meshes in view, lights, entities and memory, coloured green, amber or red.",
-   "chunks": [],
-   "note": "Built 2026-11-19: perf.rs keeps Perf (fps, frame time, the card's time summed over Bevy's render passes, triangles drawn shadows included, meshes in view, lights, entities, memory), each graded green, amber or red; View > Performance meter shows it as a status pill under the island. The scripted tests end their report with the same numbers and get_project returns them with their grades. A card or driver that can't time passes or count triangles leaves that number out. Draw calls aren't counted: Bevy batches them inside its passes, so meshes in view stands in until Tessera's fork can count them. Moved up 2026-11-18: virtual geometry, cached shadows and baked light are all judged by its numbers.",
-   "order": 34,
-   "first_game": true
-  },
-  {
-   "id": "bake-cache",
-   "name": "Bake cache",
-   "area": "Editor basics",
-   "effort": "S",
-   "needs": [
-    "projects"
-   ],
-   "what": "One local cache for everything Beverly works out from the user’s files (impostor atlases, virtual-geometry meshes, baked light): kept outside the project, rebuilt when missing, baked into exported games.",
-   "note": "Built 2026-11-19: bake.rs. key(kind, parts) hashes a bake's source bytes and settings (SHA-256, 32 hex); Bakes::get reads an entry, request builds a missing one on a background thread (once, with a progress fraction and a label) and saves it when it finishes; the island says 'Baking X · 40%' while it runs and 'Baked X' (or why not) after, and a BakeDone message tells whoever asked. The cache is the user's settings folder, cache/KIND/KEY, never the project. File > Clear baked data empties it. Export packs the entries the run used into the game's bakes/ folder (the player reads them first, and builds any that are missing); get_project returns the entries, size and what is building. Nothing uses it yet: impostors, Tessera and baked light call request/get. Planned 2026-11-18.",
-   "chunks": [],
-   "status": "planned",
-   "first_game": true,
    "order": 35
   },
   {
