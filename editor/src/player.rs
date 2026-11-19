@@ -63,7 +63,7 @@ pub fn run(extra: fn(&mut App)) {
     .init_resource::<crate::sound::Sounds>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, stage, start, cursor, hear, paint).chain());
+    .add_systems(Update, (models::build_geometry, stage, models::fill_models, start, cursor, hear, paint).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }

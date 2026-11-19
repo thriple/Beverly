@@ -252,9 +252,10 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
         Shape::Sound => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::Sound)), MeshMaterial3d(assets.add(StandardMaterial { base_color: Color::srgb_u8(0x3D, 0x7B, 0xFF), unlit: true, ..default() })), EDITOR_ONLY)).id()),
         Shape::Model => {
             let path = p.model.as_ref()?;
-            let scene = models.request(server, path);
+            models.request(server, path);
             if !p.visible && !editor { return None; }
-            Some(commands.spawn((tf, WorldAssetRoot(scene))).id())
+            // its meshes come under it once the model has loaded (models::fill_models)
+            Some(commands.spawn((tf, Visibility::default(), crate::models::ModelRoot { path: path.clone(), tint: p.color })).id())
         }
         s => {
             if !p.visible && !editor { return None; }

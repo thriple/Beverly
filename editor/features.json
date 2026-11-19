@@ -562,7 +562,7 @@
     "instancing"
    ],
    "what": "A glTF model is spawned as its own meshes and materials instead of one scene, so its Colour works and LOD, impostors and virtual geometry can each take its meshes.",
-   "note": "Planned 2026-11-18. Today models.rs spawns Scene 0 as-is (world.rs) and keeps only its triangles for picking and collision; Colour does nothing on models. Each primitive becomes a mesh handle with its material mapped to Beverly's; instances share them.",
+   "note": "Built 2026-11-19: a model part is a root entity (ModelRoot) and, once its glTF has loaded, one child per mesh piece (models::fill_models) with the model's own mesh handle and a StandardMaterial made once from its glTF material, so every instance shares them and Bevy batches them; ModelLib keeps each model's pieces next to its triangles. Colour tints the model's materials (a white Colour leaves it as made; models placed before this, grey, stay as made; tinted copies are shared per colour). A model with a skeleton still spawns as a scene (skinned things stay on the classic path, docs/tessera.md). Picking, surface placement and collision still use the gathered triangles. MCP: Colour comes free through change_part. Test project tests/models (a model made by tools/make-test-model.py, three placements). Planned 2026-11-18: models.rs spawned Scene 0 as-is and Colour did nothing on models.",
    "chunks": [],
    "status": "planned",
    "first_game": true,

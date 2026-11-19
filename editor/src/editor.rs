@@ -332,7 +332,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .add_systems(Startup, (shapes::setup, view::setup, view::spawn_grid, edit::setup, caps::startup))
         .init_resource::<mcp::host::Injected>()
         .add_systems(PreUpdate, mcp::host::inject.after(bevy::input::InputSystems))
-        .add_systems(Update, (window_icon, mcp::host::serve))
+        .add_systems(Update, (window_icon, mcp::host::serve, models::fill_models))
         .add_systems(
             Update,
             (
