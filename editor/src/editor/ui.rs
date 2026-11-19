@@ -56,6 +56,8 @@ pub fn ui(
     }
     for d in baked.read() {
         match &d.error {
+            // thumbnails come and go quietly
+            None if d.kind == "thumb" => {}
             None => ed.island.show("✓", format!("Baked {}", d.label), "kept in the bake cache", Tone::Accent),
             Some(e) => ed.island.show("!", format!("Couldn't bake {}", d.label), e.clone(), Tone::Danger),
         }
@@ -567,21 +569,34 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
         let recordings: Vec<String> = m.1.iter().filter(|f| level::is_recording(f)).cloned().collect();
         m.1 = ed.level.sounds.keys().map(|k| k.trim_start_matches("assets/sounds/").to_string()).chain(recordings).collect();
     }
+    // the search: every word must be in a file's name (later: its tags and pips); folders with no match drop out and the
+    // others open
+    search_field(ui, &mut ed.assets_query, "Search assets");
+    let words: Vec<String> = ed.assets_query.split_whitespace().map(str::to_lowercase).collect();
+    let searching = !words.is_empty();
+    for (_, files) in assets.iter_mut() {
+        files.retain(|f| { let n = f.to_lowercase(); words.iter().all(|w| n.contains(w.as_str())) });
+    }
+    if searching && assets.iter().all(|(_, f)| f.is_empty()) {
+        ui.add_space(14.0);
+        ui.vertical_centered(|ui| ui.label(egui::RichText::new(format!("No assets match “{}”", ed.assets_query.trim())).color(MUTED)));
+    }
     let row = |ui: &mut Ui, indent: f32, sense: Sense| -> (ERect, egui::Response) {
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), sense);
         if resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(7), theme::FIELD); }
         (r.with_min_x(r.left() + indent), resp)
     };
     for (folder, files) in &assets {
+        if searching && files.is_empty() { continue; }
         let id = Id::new(("asset-folder", *folder));
-        let open: bool = ui.data(|d| d.get_temp(id)).unwrap_or(*folder == "textures");
+        let open: bool = searching || ui.data(|d| d.get_temp(id)).unwrap_or(*folder == "textures");
         let (r, resp) = row(ui, 10.0, Sense::click());
         frame::paint_icon(ui.painter(), if open { "down" } else { "right" }, pos2(r.left() + 5.0, r.center().y), 12.0, if open { TEXT } else { MUTED });
         ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, format!("{}{}", folder[..1].to_uppercase(), &folder[1..]), body(12.5), if open { Color32::WHITE } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
         ui.painter().text(pos2(r.right() - 10.0, r.center().y), Align2::RIGHT_CENTER, files.len().to_string(), body(12.5), MUTED);
-        if resp.clicked() { ui.data_mut(|d| d.insert_temp(id, !open)); }
+        if resp.clicked() && !searching { ui.data_mut(|d| d.insert_temp(id, !open)); }
         if !open { continue; }
-        if *folder == "materials" {
+        if *folder == "materials" && !searching {
             let (r, resp) = row(ui, 30.0, Sense::click());
             frame::paint_icon(ui.painter(), "plus", pos2(r.left() + 7.0, r.center().y), 14.0, theme::accent());
             ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, "New material", body(12.5), theme::accent());
@@ -589,7 +604,7 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
                 ed.material_open = Some(ed.level.new_material("Material", level::Material::default()));
             }
         }
-        if *folder == "sounds" {
+        if *folder == "sounds" && !searching {
             let (r, resp) = row(ui, 30.0, Sense::click());
             frame::paint_icon(ui.painter(), "plus", pos2(r.left() + 7.0, r.center().y), 14.0, theme::accent());
             ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, "New sound", body(12.5), theme::accent());
@@ -634,8 +649,24 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
             let shader = *folder == "shaders";
             let (icon, colour) = if model { ("cube", theme::CAT_SHAPES) } else if material { ("palette", theme::VIOLET) } else if texture { ("grid", theme::VIOLET) } else if shader { ("spark", theme::VIOLET) } else { ("folder", MUTED) };
             let open = material && ed.material_open.as_deref() == Some(path.as_str());
-            frame::paint_icon(ui.painter(), icon, pos2(r.left() + 7.0, r.center().y), 14.0, colour);
-            ui.painter().text(pos2(r.left() + 22.0, r.center().y), Align2::LEFT_CENTER, f.trim_end_matches(".bev"), body(12.5), if open { theme::VIOLET } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
+            // a picture on the left: a texture's own, a material's texture (else its tint as a swatch)
+            let pic = if texture { Some(Some(path.clone())) } else if material { ed.level.materials.get(&path).map(|m| m.texture.clone()) } else { None };
+            let mut text_x = 22.0;
+            if let Some(tex) = pic {
+                let box_ = ERect::from_min_size(pos2(r.left() + 1.0, r.center().y - 11.0), vec2(22.0, 22.0));
+                match tex.and_then(|t| ed.thumbs.get(ui.ctx(), &ed.dir, &t, &ed.bakes)) {
+                    Some(id) => { ui.painter().image(id, box_, ERect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE); }
+                    None => {
+                        let tint = ed.level.materials.get(&path).map_or([0.4; 3], |m| m.tint);
+                        ui.painter().rect_filled(box_, CornerRadius::same(5), Color32::from_rgb((tint[0] * 255.0) as u8, (tint[1] * 255.0) as u8, (tint[2] * 255.0) as u8));
+                    }
+                }
+                ui.painter().rect_stroke(box_, CornerRadius::same(5), Stroke::new(1.0, white(30)), StrokeKind::Inside);
+                text_x = 32.0;
+            } else {
+                frame::paint_icon(ui.painter(), icon, pos2(r.left() + 7.0, r.center().y), 14.0, colour);
+            }
+            ui.painter().text(pos2(r.left() + text_x, r.center().y), Align2::LEFT_CENTER, f.trim_end_matches(".bev"), body(12.5), if open { theme::VIOLET } else { Color32::from_rgb(0xDC, 0xDC, 0xE0) });
             if model {
                 // models: click to place
                 if resp.tip("Click, then click a surface to place it").clicked() {
@@ -660,6 +691,26 @@ fn asset_tree(ui: &mut Ui, ed: &mut Editor) {
 }
 
 fn body(size: f32) -> egui::FontId { theme::body(size) }
+
+/// A search field (the dock's): a drawn magnifier and a line of text.
+fn search_field(ui: &mut Ui, text: &mut String, hint: &str) {
+    let focused = ui.memory(|m| m.focused()).is_some_and(|f| f == ui.next_auto_id());
+    egui::Frame::new()
+        .fill(white(10))
+        .stroke(Stroke::new(1.0, if focused { Color32::from_rgba_unmultiplied(0xf5, 0xdc, 0x4a, 150) } else { LINE }))
+        .corner_radius(CornerRadius::same(10))
+        .inner_margin(egui::Margin::symmetric(10, 5))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                let c = ir.center() - vec2(1.0, 1.0);
+                ui.painter().circle_stroke(c, 4.5, Stroke::new(1.4, MUTED));
+                ui.painter().line_segment([c + vec2(3.3, 3.3), c + vec2(6.5, 6.5)], Stroke::new(1.6, MUTED));
+                ui.add(egui::TextEdit::singleline(text).hint_text(hint).frame(egui::Frame::NONE).font(body(13.0)).desired_width(ui.available_width()));
+            });
+        });
+    ui.add_space(4.0);
+}
 
 /// The inspector (bottom middle): the selected part's settings, or the open material's.
 fn inspector(ui: &mut Ui, ed: &mut Editor, view: &mut View, exit: &mut MessageWriter<AppExit>) {

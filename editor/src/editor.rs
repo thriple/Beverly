@@ -4,6 +4,7 @@ mod actions;
 mod audio;
 mod brush;
 mod pen;
+mod thumbs;
 mod bev_type;
 mod caps;
 mod edit;
@@ -120,6 +121,9 @@ pub struct Editor {
     /// The pen (P): out or not, and what it is doing.
     pub pen_on: bool,
     pub pen: pen::Pen,
+    /// The Assets panel's search, and its pictures.
+    pub assets_query: String,
+    pub thumbs: thumbs::Thumbs,
     /// The open tab (an index into `theme::TABS`; see `audio::built`).
     pub tab: usize,
     /// The Audio tab's stage.
@@ -241,6 +245,8 @@ impl Editor {
             painting: brush::Painting::default(),
             pen_on: false,
             pen: pen::Pen::default(),
+            assets_query: String::new(),
+            thumbs: thumbs::Thumbs::default(),
             tab: 0,
             stage: audio::Stage::default(),
             hover_handle: None,
@@ -307,6 +313,7 @@ impl Editor {
 
     pub fn refresh_assets(&mut self) {
         self.assets = level::ASSET_FOLDERS.iter().map(|f| (*f, level::list_assets(&self.dir, f))).collect();
+        self.thumbs.clear();
     }
 }
 
