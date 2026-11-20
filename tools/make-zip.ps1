@@ -12,3 +12,9 @@ Copy-Item editor/target/release/beverly-player.exe dist/Beverly/beverly-player.e
 Copy-Item editor/README-windows.txt dist/Beverly/README.txt
 Compress-Archive -Force -Path dist/Beverly -DestinationPath Beverly-windows.zip
 Write-Host "Made Beverly-windows.zip"
+# the benchmark, its own small download
+New-Item -ItemType Directory -Force bench/Beverly-bench | Out-Null
+Copy-Item editor/target/release/beverly-bench.exe bench/Beverly-bench/beverly-bench.exe
+Copy-Item editor/README-bench.txt bench/Beverly-bench/README.txt
+Compress-Archive -Force -Path bench/Beverly-bench -DestinationPath Beverly-bench-windows.zip
+Write-Host "Made Beverly-bench-windows.zip"

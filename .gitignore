@@ -2,3 +2,5 @@ target/
 dist/
 Beverly-windows.zip
 test-output/
+bench/
+Beverly-bench-windows.zip

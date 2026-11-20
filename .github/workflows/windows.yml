@@ -37,6 +37,11 @@ jobs:
           Copy-Item editor/target/release/beverly-player.exe dist/Beverly/beverly-player.exe
           Copy-Item editor/README-windows.txt dist/Beverly/README.txt
           Compress-Archive -Path dist/Beverly -DestinationPath Beverly-windows.zip
+          # the benchmark is its own small download (beverly-bench: sent to people to measure their card)
+          New-Item -ItemType Directory -Force bench/Beverly-bench | Out-Null
+          Copy-Item editor/target/release/beverly-bench.exe bench/Beverly-bench/beverly-bench.exe
+          Copy-Item editor/README-bench.txt bench/Beverly-bench/README.txt
+          Compress-Archive -Path bench/Beverly-bench -DestinationPath Beverly-bench-windows.zip
           $sha = (Get-FileHash Beverly-windows.zip -Algorithm SHA256).Hash.ToLower()
           @{ build = ${{ github.run_number }}; commit = "${{ github.sha }}"; files = @{ "Beverly-windows.zip" = $sha } } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM update.json
           Get-Content update.json
@@ -44,6 +49,10 @@ jobs:
         with:
           name: Beverly-windows
           path: dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Beverly-bench-windows
+          path: Beverly-bench-windows.zip
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
         with:
@@ -54,4 +63,5 @@ jobs:
           body: "Unzip and run Beverly.exe (keep beverly-player.exe next to it: it is what exported games run on). Controls: README.txt."
           files: |
             Beverly-windows.zip
+            Beverly-bench-windows.zip
             update.json
