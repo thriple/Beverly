@@ -2,9 +2,9 @@
     format: 2,
     name: "main",
     parts: [
-        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (0.0, 1.6, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
+        (id: 1, name: "Player start 1", shape: PlayerStart, pos: (1.2, 1.6, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.8, 1.8, 0.8), color: (0.6, 0.6, 0.6), visible: true, collision: WalkThrough),
         (id: 2, name: "Deck", shape: Box, pos: (0.0, 0.5, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (4.0, 0.4, 4.0), color: (0.36, 0.61, 0.94), visible: true, collision: Solid, mover: Some((to: (0.0, 3.0, 0.0), turn: (0.0, 90.0, 0.0), secs: 2.0))),
-        (id: 3, name: "Crate", shape: Box, pos: (1.5, 0.4, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.8, 0.5, 0.2), visible: true, collision: Solid, parent: Some(2)),
+        (id: 3, name: "Crate", shape: Box, pos: (0.0, 0.4, 1.5), rot: (0.0, 0.0, 0.0, 1.0), size: (1.0, 1.0, 1.0), color: (0.8, 0.5, 0.2), visible: true, collision: Solid, parent: Some(2)),
         (id: 4, name: "Interact 1", shape: Interact, pos: (0.6, 0.5, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (0.5, 1.0, 0.5), color: (0.94, 0.55, 0.26), visible: true, collision: WalkThrough, parent: Some(2)),
         (id: 5, name: "Floor", shape: Plane, pos: (0.0, 0.05, 0.0), rot: (0.0, 0.0, 0.0, 1.0), size: (20.0, 0.1, 20.0), color: (0.4, 0.45, 0.4), visible: true, collision: Solid),
     ],

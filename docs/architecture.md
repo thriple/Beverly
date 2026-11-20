@@ -26,7 +26,7 @@ port names (modules can add ports); shader settings already work from a header p
 modules use); the test harness runs on a fixed clock (module tests can be deterministic); materials and sounds load
 from files and are not saved in the level.
 
-Foundation order (the fill outline is fixed): change tracking and undo as diffs; part hierarchy; sockets; open tags and the
+Foundation order (built: the fill outline fix, change tracking and undo as diffs, the part hierarchy): sockets; open tags and the
 module settings slot; named input actions then control handover; the runtime edits layer and the save system's scope;
 the region model (decided early, built later).
 

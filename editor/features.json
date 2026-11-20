@@ -587,6 +587,30 @@
    "build": 105
   },
   {
+   "id": "part-hierarchy",
+   "name": "Part hierarchy",
+   "area": "Editor foundations",
+   "status": "done",
+   "effort": "L",
+   "needs": [
+    "shapes",
+    "physics"
+   ],
+   "what": "Parts can be attached to parts: move or turn a parent and its children follow; movers carry what is on them and can turn as well as slide.",
+   "chunks": [
+    "Parent links and local offsets in the level file, the scene list and the move widget",
+    "Play follows the chain: entities, colliders and movers (a Mover gets a turn as well as a slide, for spinning debris, doors and rotors)",
+    "Frame-relative walking: what stands or walks on a moving, turning parent rides it smoothly, interpolated between physics steps"
+   ],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Parts are a flat list today (movers slide only; riding a mover is a special case in the walker). Sockets, prefabs, vehicle assemblies, mounts, ships with interiors, doors on buildings and the attachments that come with a model all need parts attached to parts. Subnautica's moving interior shows the failure to avoid: a walker clipped through the floor when the interior drifted. Chunk 1 built 2026-11-20: `Part.parent` (level/hierarchy.rs). In the editor every part keeps its world position and turn, so everything that reads them is unchanged; a parent that moves or turns takes its descendants along (`Level::follow` against the level as of the last undo step, run each frame and before every commit, so a drag is followed live and the whole thing is one undo step); the file keeps a child's position and turn as offsets from its parent (format 2, written only when parts have parents; older Beverlys refuse it instead of misreading it); a parent can't be attached to its own descendants; deleting a part hands its children to its parent, and duplicating copies the part with everything attached to it. The Inspect panel has an ATTACHED TO picker, the scene list nests children under their parents, and the MCP server takes `parent` (add_part, change_part) and reports parent and children. Size is not inherited. Tests: level::hierarchy, the parents round trip through the project files, tests/mcp/check.py. Chunk 2 built 2026-11-20: a Mover has `turn` (degrees about each axis, about its own middle, eased with the slide; the kinematic body is given a turning speed as well as a sliding one); a still part attached to a moving one is part of the moving body in play (its collider is a child of the moving body's, so the walker can stand on it and it carries loose parts) and is drawn where its carrier is (script::carry, after the drawn carrier is smoothed between steps); a moving part attached to a moving part is not carried yet (it moves by its own motion: nested movers are still to do, as are spin-forever rotors). Test project tests/hierarchy (a deck that rises and turns a quarter with a crate attached, the walker standing on it). Chunk 3 built 2026-11-20: the walker standing on a moving part, or on one attached to it, is carried round with it as it turns and looks round by the same turn (a kinematic body is put at its facing each step rather than given a turning speed, so contact friction doesn't drag the walker round a second time); the drawn parts are smoothed between steps. A Mover also `spin`s (degrees a second about each axis, all the time while playing) for rotors and slowly turning debris. Test project tests/hierarchy: the walker 1.2 m from the middle of a deck that rises and turns a quarter ends exactly where the turn puts it. Still to do, as they need their own features: a moving part attached to a moving part (nested movers; a hinged door on a swinging gate), attachments on loose or vehicle bodies (assemblies, mounts), and sounds following a carried part.",
+   "order": 33,
+   "first_game": true,
+   "next": true,
+   "stage": "Foundations",
+   "built": "2026-11-20",
+   "build": 108
+  },
+  {
    "id": "shaders",
    "name": "Custom shaders",
    "area": "Engine budgets",
@@ -602,29 +626,7 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "planned",
    "first_game": true,
-   "order": 33,
-   "next": true,
-   "stage": "Foundations"
-  },
-  {
-   "id": "part-hierarchy",
-   "name": "Part hierarchy",
-   "area": "Editor foundations",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "shapes",
-    "physics"
-   ],
-   "what": "Parts can be attached to parts: move or turn a parent and its children follow; movers carry what is on them and can turn as well as slide.",
-   "chunks": [
-    "Parent links and local offsets in the level file, the scene list and the move widget",
-    "Play follows the chain: entities, colliders and movers (a Mover gets a turn as well as a slide, for spinning debris, doors and rotors)",
-    "Frame-relative walking: what stands or walks on a moving, turning parent rides it smoothly, interpolated between physics steps"
-   ],
-   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Parts are a flat list today (movers slide only; riding a mover is a special case in the walker). Sockets, prefabs, vehicle assemblies, mounts, ships with interiors, doors on buildings and the attachments that come with a model all need parts attached to parts. Subnautica's moving interior shows the failure to avoid: a walker clipped through the floor when the interior drifted. Chunk 1 built 2026-11-20: `Part.parent` (level/hierarchy.rs). In the editor every part keeps its world position and turn, so everything that reads them is unchanged; a parent that moves or turns takes its descendants along (`Level::follow` against the level as of the last undo step, run each frame and before every commit, so a drag is followed live and the whole thing is one undo step); the file keeps a child's position and turn as offsets from its parent (format 2, written only when parts have parents; older Beverlys refuse it instead of misreading it); a parent can't be attached to its own descendants; deleting a part hands its children to its parent, and duplicating copies the part with everything attached to it. The Inspect panel has an ATTACHED TO picker, the scene list nests children under their parents, and the MCP server takes `parent` (add_part, change_part) and reports parent and children. Size is not inherited. Tests: level::hierarchy, the parents round trip through the project files, tests/mcp/check.py. Chunk 2 built 2026-11-20: a Mover has `turn` (degrees about each axis, about its own middle, eased with the slide; the kinematic body is given a turning speed as well as a sliding one); a still part attached to a moving one is part of the moving body in play (its collider is a child of the moving body's, so the walker can stand on it and it carries loose parts) and is drawn where its carrier is (script::carry, after the drawn carrier is smoothed between steps); a moving part attached to a moving part is not carried yet (it moves by its own motion: nested movers are still to do, as are spin-forever rotors). Test project tests/hierarchy (a deck that rises and turns a quarter with a crate attached, the walker standing on it). Chunk 3 (walking on a moving, turning parent exactly) is still to do.",
    "order": 34,
-   "first_game": true,
    "next": true,
    "stage": "Foundations"
   },

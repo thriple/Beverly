@@ -48,7 +48,7 @@ impl Walker {
 
 /// The walker's physics body.
 #[derive(Component)]
-struct WalkerBody;
+pub struct WalkerBody;
 
 /// How the walker moves on ordinary and on slippery ground.
 struct Feel { grip: Handle<MovesConfig>, slippery: Handle<MovesConfig> }

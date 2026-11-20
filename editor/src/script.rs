@@ -17,11 +17,16 @@ struct Moving {
     to: Vec3,
     /// How far it turns (radians about x, y, z) by the end.
     turn: Vec3,
+    /// How fast it turns all the time (radians a second about x, y, z), and for how long it has.
+    spin: Vec3,
+    age: f32,
     secs: f32,
     /// 0 at home, 1 at the end.
     t: f32,
     /// Where it is heading: 0 or 1.
     goal: f32,
+    /// Where it was and which way it faced at the last step (the walker standing on it is carried round by the change).
+    last: (Vec3, Quat),
 }
 
 impl Moving {
@@ -32,7 +37,8 @@ impl Moving {
     fn pose(&self) -> (Vec3, Quat) {
         let k = self.eased();
         let turn = Quat::from_euler(EulerRot::XYZ, self.turn.x * k, self.turn.y * k, self.turn.z * k);
-        (self.home.translation + self.to * k, turn * self.home.rotation)
+        let spin = Quat::from_euler(EulerRot::XYZ, self.spin.x * self.age, self.spin.y * self.age, self.spin.z * self.age);
+        (self.home.translation + self.to * k, spin * turn * self.home.rotation)
     }
 }
 
@@ -80,7 +86,7 @@ impl Script {
             .iter()
             .filter_map(|p| {
                 let m: &Mover = p.mover.as_ref()?;
-                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), turn: Vec3::from(m.turn) * std::f32::consts::PI / 180.0, secs: m.secs.max(0.05), t: 0.0, goal: 0.0 })
+                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), turn: Vec3::from(m.turn) * std::f32::consts::PI / 180.0, spin: Vec3::from(m.spin) * std::f32::consts::PI / 180.0, age: 0.0, secs: m.secs.max(0.05), t: 0.0, goal: 0.0, last: (part_transform(p).translation, part_transform(p).rotation) })
             })
             .collect();
         let carried = level.parts.iter().filter_map(|p| {
@@ -106,6 +112,8 @@ impl Script {
         for m in &mut self.movers {
             m.t = 0.0;
             m.goal = 0.0;
+            m.age = 0.0;
+            m.last = (m.home.translation, m.home.rotation);
         }
         self.fired.clear();
         self.inputs.clear();
@@ -122,6 +130,7 @@ impl Script {
     pub fn tick(&mut self, dt: f32) {
         let mut done = vec![];
         for m in &mut self.movers {
+            m.age += dt;
             if m.t != m.goal {
                 let step = dt / m.secs;
                 m.t = if m.goal > m.t { (m.t + step).min(m.goal) } else { (m.t - step).max(m.goal) };
@@ -154,7 +163,7 @@ impl Script {
 
 /// One fixed step of the script: buttons, then wires, then moving parts, whose bodies are given the speed that
 /// takes them where they should be by the end of the step (so what stands on them rides along).
-pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody, &Position, &Rotation, &mut LinearVelocity, &mut AngularVelocity)>) {
+pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody, &Position, &mut Rotation, &mut LinearVelocity, &mut AngularVelocity)>, mut walker: Query<&mut Position, (With<crate::play::WalkerBody>, Without<PartBody>)>) {
     let play = &mut *play;
     play.script.fired.clear();
     if std::mem::take(&mut play.press) {
@@ -163,14 +172,28 @@ pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody
     let dt = time.delta_secs();
     play.script.tick(dt);
     if dt <= 0.0 { return; }
-    for (b, at, rot, mut v, mut w) in &mut bodies {
+    // the walker on a part that turns is carried round with it (the slide the body's speed already gives it), and
+    // looks round by the same turn
+    let on = play.walker.standing_on().and_then(|id| if play.script.movers.iter().any(|m| m.id == id) { Some(id) } else { play.script.carried.get(&id).map(|c| c.carrier) });
+    for m in &mut play.script.movers {
+        let (to, facing) = m.pose();
+        let (was, turned) = (m.last, facing * m.last.1.inverse());
+        m.last = (to, facing);
+        if on != Some(m.id) || turned.dot(Quat::IDENTITY).abs() > 1.0 - 1e-9 { continue; }
+        if let Ok(mut at) = walker.single_mut() {
+            let r = at.0 - was.0;
+            at.0 += turned * r - r;
+            play.walker.yaw += turned.to_euler(EulerRot::YXZ).0;
+        }
+    }
+    for (b, at, mut rot, mut v, mut w) in &mut bodies {
         if let Some(m) = play.script.movers.iter().find(|m| m.id == b.0) {
             let (to, facing) = m.pose();
             v.0 = (to - at.0) / dt;
-            // the shortest turn from where it faces to where it should
-            let (axis, angle) = (facing * rot.0.inverse()).normalize().to_axis_angle();
-            let angle = if angle > std::f32::consts::PI { angle - std::f32::consts::TAU } else { angle };
-            w.0 = axis * angle / dt;
+            // it turns by being put at its facing, not by turning speed: what stands on it is carried round above, and
+            // the contact would drag it round a second time
+            rot.0 = facing;
+            w.0 = Vec3::ZERO;
         }
     }
 }
@@ -229,7 +252,7 @@ mod tests {
     #[test]
     fn a_mover_turns_as_well_as_slides_and_what_is_attached_to_it_is_carried() {
         let mut deck = part(1, Shape::Box, [0.0, 0.5, 0.0], [4.0, 0.4, 4.0]);
-        deck.mover = Some(Mover { to: [0.0, 3.0, 0.0], turn: [0.0, 90.0, 0.0], secs: 2.0 });
+        deck.mover = Some(Mover { to: [0.0, 3.0, 0.0], turn: [0.0, 90.0, 0.0], secs: 2.0, ..Default::default() });
         let mut crate_ = part(2, Shape::Box, [1.5, 0.9, 0.0], [1.0; 3]);
         crate_.parent = Some(1);
         // a moving part attached to a moving part is not carried (it moves by its own motion)
@@ -244,6 +267,14 @@ mod tests {
         let (pos, rot) = s.movers[0].pose();
         assert!((pos - Vec3::new(0.0, 3.5, 0.0)).length() < 1e-4);
         assert!((rot * Vec3::X - Vec3::NEG_Z).length() < 1e-4, "a quarter turn about Y takes x to -z");
+        // spinning goes on without being told: 90 degrees a second about Y for a second more is another quarter turn
+        s.movers[0].spin = Vec3::new(0.0, std::f32::consts::FRAC_PI_2, 0.0);
+        s.movers[0].age = 0.0;
+        for _ in 0..100 { s.tick(0.01); }
+        let (_, spun) = s.movers[0].pose();
+        assert!((spun * Vec3::X - Vec3::NEG_X).length() < 1e-3, "half a turn in all, {:?}", spun * Vec3::X);
+        s.movers[0].spin = Vec3::ZERO;
+        s.movers[0].age = 0.0;
         // the crate, where its carrier puts it
         let c = &s.carried[&2];
         let at = beyond((pos, rot), c.local);
