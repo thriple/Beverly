@@ -107,6 +107,20 @@ pub(super) fn plays(ed: &mut Editor, p: &mut Part, args: &Value) -> Result<bool,
     Ok(true)
 }
 
+/// A part's parent, from `parent` (a part's name or id, null to let go). Returns whether there was one.
+pub(super) fn parent_arg(ed: &Editor, p: &mut Part, args: &Value) -> Result<bool, String> {
+    let Some(v) = args.get("parent") else { return Ok(false) };
+    p.parent = match v {
+        Value::Null => None,
+        v => {
+            let id = part_ref(ed, Some(v))?;
+            if id == p.id || ed.level.descendants(p.id).contains(&id) { return Err(format!("{} can't be attached to a part that is attached to it", p.name)); }
+            Some(id)
+        }
+    };
+    Ok(true)
+}
+
 /// A texture file by path or file name.
 pub(super) fn texture_ref(ed: &Editor, t: &str) -> Result<String, String> {
     let t = t.replace('\\', "/");

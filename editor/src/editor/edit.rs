@@ -50,19 +50,17 @@ impl Editor {
     pub fn delete_selected(&mut self) {
         if let Some(id) = self.selected.take() {
             let name = self.level.get(id).map(|p| p.name.clone()).unwrap_or_default();
-            self.level.parts.retain(|p| p.id != id);
-            self.level.wires.retain(|w| w.from != id && w.to != id);
+            self.level.remove_part(id);
             self.island.show("✕", format!("Deleted {name}"), "Ctrl+Z to undo", Tone::Danger);
         }
     }
 
     pub fn duplicate_selected(&mut self) {
         let Some(p) = self.selected.and_then(|id| self.level.get(id)).cloned() else { return };
-        let mut c = p.clone();
-        c.pos[0] += p.size[0] + 0.5;
-        c.name = self.level.fresh_name(p.shape.label());
-        let name = c.name.clone();
-        self.selected = Some(self.level.add(c));
+        // with everything attached to it
+        let Some(copy) = self.level.copy_tree(p.id, [p.size[0] + 0.5, 0.0, 0.0]) else { return };
+        self.selected = Some(copy);
+        let name = self.level.get(copy).map(|c| c.name.clone()).unwrap_or_default();
         self.island.show("❐", format!("Duplicated as {name}"), "Ctrl+D", Tone::Plain);
     }
 
@@ -344,6 +342,12 @@ impl Editor {
     }
 }
 
+/// Parts attached to a part that moved or turned go with it (each frame the parts may have changed; the level as of
+/// the last undo step says where they were, so the change is one undo step and a drag can be followed live).
+pub fn follow_parents(mut ed: ResMut<Editor>) {
+    if ed.level.parts.stamp() != ed.followed { ed.follow(); }
+}
+
 /// One undo step per finished change: when the level differs from the last step and no drag is going on.
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     // (looking through a camera is one step, made when it ends)
@@ -357,6 +361,8 @@ impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
     /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
+        // what was moved takes what is attached to it along, in the same step
+        if self.level.parts.stamp() != self.followed { self.follow(); }
         // nothing was borrowed for change since the last look: nothing to compare
         let stamps = self.level.stamps();
         if stamps == self.checked && self.level.name == self.committed.name { return; }
@@ -369,6 +375,13 @@ impl Editor {
         self.undo.push(step);
         if self.undo.len() > 300 { self.undo.remove(0); }
         self.redo.clear();
+    }
+
+    /// Parts attached to a part that moved or turned since the last step go with it.
+    fn follow(&mut self) {
+        let Editor { level, committed, .. } = self;
+        level.follow(committed);
+        self.followed = self.level.parts.stamp();
     }
 
     /// Make the changes made since the last step part of it (the answer to the instances question).
@@ -394,7 +407,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![],
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -408,7 +421,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![],
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

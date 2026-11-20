@@ -63,6 +63,8 @@ pub struct Editor {
     pub committed: Level,
     /// The level's stamps when it was last compared with `committed`: while they are the same nothing needs comparing.
     pub checked: level::Stamps,
+    /// The parts' stamp when the children last followed their parents (`edit::follow_parents`).
+    pub followed: u64,
     /// Each undo and redo step holds what changed, not a copy of the level (`level::Delta`).
     pub undo: Vec<level::Delta>,
     pub redo: Vec<level::Delta>,
@@ -210,6 +212,7 @@ impl Editor {
             saved: level.clone(),
             committed: level.clone(),
             checked: level.stamps(),
+            followed: level.parts.stamp(),
             dirty_cache: (level.stamps(), false),
             level,
             undo: vec![],
@@ -405,7 +408,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::interact.run_if(audio::in_level),
                 edit::shortcuts,
                 edit::files,
-                (edit::sync, edit::paint).chain(),
+                (edit::follow_parents, edit::sync, edit::paint).chain(),
                 (audio::follow_tab, audio::stage).chain(),
                 edit::hear,
                 edit::stage,

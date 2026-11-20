@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod delta;
+mod hierarchy;
 mod material;
 mod paint;
 mod project;
@@ -175,6 +176,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
+    /// The part this one is attached to (see `hierarchy.rs`): when that one moves or turns, this one goes with it. The
+    /// position and turn here are still the world's; the file keeps them as offsets from the parent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<u64>,
 }
 
 impl Part {
@@ -189,7 +194,7 @@ impl Part {
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
-            sounds: vec![], sounds_like: None, strokes: vec![],
+            sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
         }
     }
 
@@ -369,6 +374,27 @@ mod tests {
         // a newer Beverly's files are refused, not misread
         std::fs::write(dir.join("project.bev"), format!(r#"(format: {}, name: "New", levels: ["main"])"#, FORMAT + 1)).unwrap();
         assert!(load(&dir).unwrap_err().contains("newer Beverly"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parts_with_parents_are_saved_as_offsets_in_format_2_and_load_back_to_the_world() {
+        let dir = std::env::temp_dir().join(format!("beverly-parent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut lvl = Level { name: "main".into(), ..Default::default() };
+        let a = lvl.add(Part::placed(Shape::Box, None, "Ship".into(), [100.0, 5.0, 40.0], Quat::from_rotation_y(0.5).to_array(), [4.0; 3]));
+        let b = lvl.add(Part::placed(Shape::Box, None, "Door".into(), [102.0, 5.0, 40.0], [0.0, 0.0, 0.0, 1.0], [1.0; 3]));
+        save(&dir, "T", &lvl).unwrap();
+        assert!(std::fs::read_to_string(dir.join("levels/main.bev")).unwrap().contains("format: 1,"), "no parents: still format 1");
+        lvl.set_parent(b, Some(a)).unwrap();
+        save(&dir, "T", &lvl).unwrap();
+        let text = std::fs::read_to_string(dir.join("levels/main.bev")).unwrap();
+        assert!(text.contains("format: 2,") && text.contains(&format!("parent: Some({a})")), "{text}");
+        // the file holds the door's offset from the ship, not its place in the world
+        assert!(!text.contains("102.0"), "{text}");
+        let (_, back) = load(&dir).unwrap();
+        for id in [a, b] { assert!(Vec3::from(back.get(id).unwrap().pos).distance(Vec3::from(lvl.get(id).unwrap().pos)) < 1e-3); }
+        assert_eq!(back.get(b).unwrap().parent, Some(a));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

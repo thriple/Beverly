@@ -51,6 +51,9 @@ pub fn make_folders(dir: &Path) -> std::io::Result<()> {
 /// The file format Beverly writes. Raise it when a saved field is renamed or changes meaning, and teach [`load`] to
 /// upgrade files from before (a new field with a default needs neither).
 pub const FORMAT: u32 = 1;
+/// The newest format a level file can be in: 2 when parts have parents (their positions are offsets from them), which
+/// a Beverly that doesn't know parents must not read as the world's. Levels without parents are still written as 1.
+pub const LEVEL_FORMAT: u32 = 2;
 
 /// The project file in `dir`: project.bev, or project.ron in projects from before .bev files.
 pub fn project_file(dir: &Path) -> Option<PathBuf> {
@@ -71,7 +74,8 @@ pub fn save(dir: &Path, name: &str, level: &Level) -> Result<(), String> {
     let cfg = ron::ser::PrettyConfig::default();
     let pf = ProjectFile { format: FORMAT, name: name.to_owned(), levels: vec!["main".into()] };
     let p = ron::ser::to_string_pretty(&pf, cfg.clone()).map_err(|e| e.to_string())?;
-    let l = ron::ser::to_string_pretty(&Level { format: FORMAT, ..level.clone() }, cfg).map_err(|e| e.to_string())?;
+    let format = if level.parts.iter().any(|p| p.parent.is_some()) { LEVEL_FORMAT } else { FORMAT };
+    let l = ron::ser::to_string_pretty(&Level { format, ..level.to_file() }, cfg).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("project.bev"), p).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("levels").join("main.bev"), l).map_err(|e| e.to_string())?;
     for (path, m) in &level.materials {
@@ -95,10 +99,11 @@ pub fn load(dir: &Path) -> Result<(String, Level), String> {
     let first = pf.levels.first().cloned().unwrap_or_else(|| "main".into());
     let l = std::fs::read_to_string(dir.join("levels").join(format!("{first}.{ext}"))).map_err(|e| e.to_string())?;
     let mut level: Level = ron::from_str(&l).map_err(|e| format!("levels/{first}.{ext}: {e}"))?;
-    if let Some(n) = [pf.format, level.format].into_iter().find(|&n| n > FORMAT) {
-        return Err(format!("It was saved by a newer Beverly (file format {n}; this one reads up to {FORMAT}): update Beverly to open it"));
+    if let Some(n) = [(pf.format, FORMAT), (level.format, LEVEL_FORMAT)].into_iter().find(|&(n, max)| n > max).map(|(n, _)| n) {
+        return Err(format!("It was saved by a newer Beverly (file format {n}; this one reads up to {LEVEL_FORMAT}): update Beverly to open it"));
     }
-    // format 0 (.ron) to 1 (.bev) changed nothing inside the files
+    // format 0 (.ron) to 1 (.bev) changed nothing inside the files; 2 keeps child parts as offsets from their parents
+    level.from_file();
     level.format = FORMAT;
     level.materials = load_materials(dir).into_iter().map(|(k, m)| (k, Material { format: 0, ..m })).collect();
     level.sounds = load_sounds(dir).into_iter().map(|(k, m)| (k, Sound { format: 0, ..m })).collect();

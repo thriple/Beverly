@@ -10,6 +10,7 @@ pub(super) fn summary(p: &Part) -> Value {
         v["size"] = settings::nums(&p.size);
     }
     if !p.tags.is_empty() { v["tags"] = tags_of(p); }
+    if let Some(parent) = p.parent { v["parent"] = json!(parent); }
     v
 }
 
@@ -101,6 +102,9 @@ pub(super) fn describe(ed: &Editor, p: &Part) -> Value {
     }
     if let Some(s) = p.sound.as_ref() { v["sound"] = json!(s.sound); }
     v["events"] = json!(p.events());
+    if let Some(par) = p.parent { v["parent_name"] = json!(name(par)); }
+    let kids = ed.level.children(p.id);
+    if !kids.is_empty() { v["children"] = json!(kids.iter().map(|k| json!({"id": k, "name": name(*k)})).collect::<Vec<_>>()); }
     if !p.strokes.is_empty() { v["painted"] = json!({"strokes": p.strokes.len(), "materials": p.painted()}); }
     v["sounds"] = Value::Object(p.sounds.iter().map(|h| (h.on.clone(), json!(h.sound))).collect());
     if let Some(g) = p.sounds_like { v["sounds_like"] = json!(g.label()); }

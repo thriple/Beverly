@@ -84,6 +84,25 @@ check("undo brings the sun back", setting(tool("get_level"), "interior") is Fals
 p = tool("get_project")
 check("eight undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
 
+# parts attached to parts: the child goes with the parent, and it is one undo step
+tool("add_part", kind="Box", position=[30, 1, 30], settings={"Name": "Ship"})
+tool("add_part", kind="Box", position=[32, 1, 30], settings={"Name": "Door"}, parent="Ship")
+check("a part says what it is attached to, and the parent lists its children", tool("get_part", name="Door").get("parent_name") == "Ship" and [c["name"] for c in tool("get_part", name="Ship").get("children", [])] == ["Door"])
+steps = tool("get_project")["undo_steps"]
+tool("change_part", name="Ship", settings={"Position": [40, 1, 30], "Turn": 90})
+time.sleep(0.5)
+door = tool("get_part", name="Door")
+check("moving and turning the parent takes the child with it (a quarter turn about its middle)", abs(door["position"][0] - 40) < 0.05 and abs(door["position"][2] - 28) < 0.05, door["position"])
+check("that was one undo step", tool("get_project")["undo_steps"] == steps + 1)
+bad = tool("change_part", name="Ship", parent="Door")
+check("a part can't be attached to what is attached to it", "error" in bad, bad)
+tool("run_action", id="edit.undo")
+check("undo takes both back", abs(tool("get_part", name="Door")["position"][0] - 32) < 0.05 and abs(tool("get_part", name="Ship")["position"][0] - 30) < 0.05)
+tool("delete_part", name="Ship")
+check("deleting the parent lets the child go where it was", tool("get_part", name="Door").get("parent") is None)
+for _ in range(4): tool("run_action", id="edit.undo")
+check("undo takes the whole parent business back", tool("get_project")["undo_steps"] == undo0 and not tool("get_project")["unsaved_changes"], tool("get_project"))
+
 sh = tool("draw_shape", name="Path", points=[[0, 0, 6], {"at": [4, 0, 6], "handle_in": [-1, 0, 1], "handle_out": [1, 0, -1]}, [8, 0, 2]])
 check("draw_shape draws a curve through its points, handles bending it", sh.get("name") == "Path" and len(sh.get("points", [])) == 3 and sh["length"] > 8.5 and not sh["closed"], sh)
 check("list_shapes lists it", [c["name"] for c in tool("list_shapes")] == ["Path"])
