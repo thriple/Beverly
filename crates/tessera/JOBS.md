@@ -76,7 +76,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    - Cache folder: `%LOCALAPPDATA%\Beverly\cache` / `~/.cache/beverly`, behind one function main's `bake-cache` can replace.
    - A `vg-bake` binary that bakes the test mesh and prints time, output bytes and bytes per triangle.
    - Tests: the result is the same every time (or say why not), a save/load round trip, a wrong-version file is rejected.
-5. ⬜ **Instances by change.**
+5. ✅ **Instances by change.** (2026-11-20, in an interactive session ahead of order, at the user's request)
    - Rewrite the fork's `InstanceManager` so it updates only what changed, and cache the per-view bind groups (both are Bevy TODOs).
    - Add a headless benchmark with 10k and 100k instances, and record the CPU time per frame before and after.
 6. ⬜ **More of the material.**
@@ -126,6 +126,49 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-20 (Guam, interactive session): job 5, instances by change ✅
+The user asked for this ahead of jobs 2–4: the meshlet systems' CPU cost per frame grew with the number of copies
+and, at 100k, took more than a whole 60 fps frame even with nothing moving.
+- **Measuring:** the fork records each meshlet system's CPU time in `MeshletCpuTimes` (render world; Beverly's
+  performance meter can show it later). `vg-bench COUNT` (editor binary, `tessera` feature) runs headless with COUNT
+  copies of a small baked mesh, a camera and a shadowed sun (5 views), and prints ms per frame over 60 frames in three
+  phases: static, 1% moving, 1% replaced each frame (despawned and spawned again with another material).
+- **`InstanceManager`** keeps instances from frame to frame (packed; a removed one is replaced by the last).
+  - Extract reads only changed entities (`Changed` on the mesh, transforms and layers; `Added` and
+    `RemovedComponents` for the markers), plus entities waiting for their mesh to load or reload.
+  - Material changes come from `RenderMaterialInstances`: `material.rs` now notes each inserted or removed entry
+    (`meshlet_changes`, only while the meshlet queue reads them). Material IDs stay stable, and are handed out
+    afresh past 60,000 (the material depth target is 16-bit).
+  - Uploads write only the changed elements, merged into runs (one full write past a quarter of the elements).
+  - Each view's visibility bits are built in full only for a new view or new view layers; otherwise only the
+    changed instances are redone.
+- **Per view, kept instead of made each frame:**
+  - the 16 counter and indirect-argument buffers (reset with a write each frame, so they gained `COPY_DST`)
+  - the depth pyramid (remade when the view's size changes; its own texture cache, so its texture is never handed
+    to another view)
+  - the bind groups (made again only when one of the buffers or texture views they use is a different one)
+- **Numbers** (lavapipe, 4 cores, ms of CPU per frame in the four meshlet systems; "frame" is lavapipe drawing and
+  doesn't count):
+
+  | copies, phase | before | after |
+  |---|---|---|
+  | 10k static | 5.82 | 0.77–1.01 |
+  | 10k 1% moving | 6.07 | 0.83–1.08 |
+  | 100k static | 27.19 | 1.05–1.45 |
+  | 100k 1% moving | 27.09 | 1.25–1.59 |
+  | 100k 1% replaced | (not measured before) | 3.83 |
+
+  Ranges are two runs on different workers. What's left at 100k: extract 0.3–0.5 ms (the change checks themselves
+  look at every entity), resources 0.7–0.9 ms (80 small resets and the texture cache for 5 views), bind groups
+  0.015 ms (were 1.2–1.3).
+- **Pictures:** `vg-render`'s picture after the change differs from before by about 700 pixels on the edge,
+  the same as two runs of the same code differ (the bake or the culling isn't identical run to run; job 4's
+  determinism test should look at this).
+- **Checks:** feature off: `cargo build` ✅, `cargo test` ✅ (66); `--features tessera`: `cargo test` ✅;
+  `tools/run-tests.sh` ✅ (all 17); `vg-render` ✅.
+- **Only the RTX card can show:** the same numbers on a real driver, where making buffers and bind groups costs less
+  than on lavapipe, so the saving there is mostly the per-copy work.
 
 ### 2026-11-20 (Guam): job 1, vendor and build ✅
 - **Vendored** `bevy_pbr-0.20.1` from the cargo registry into `crates/bevy_pbr`, untouched (only cargo's `.cargo-ok`
