@@ -45,7 +45,7 @@ fn main() -> AppExit {
             .disable::<WinitPlugin>()
             // the render world's resources are read straight after each update
             .disable::<PipelinedRenderingPlugin>(),
-        MeshletPlugin { cluster_buffer_slots: 1 << 22 },
+        MeshletPlugin { cluster_buffer_slots: 1 << 22, supported: caps.virtual_geometry() },
     ))
     .insert_resource(Phase(0))
     .add_systems(Startup, move |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>, mut images: ResMut<Assets<Image>>| {

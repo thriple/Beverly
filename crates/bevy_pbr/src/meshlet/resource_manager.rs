@@ -19,7 +19,7 @@ use bevy_render::{
     render_resource::*,
     renderer::{RenderDevice, RenderQueue},
     texture::{CachedTexture, TextureCache},
-    view::{ExtractedView, ViewUniform, ViewUniforms},
+    view::{ExtractedView, Msaa, ViewUniform, ViewUniforms},
 };
 use binding_types::*;
 
@@ -627,6 +627,7 @@ pub fn prepare_meshlet_per_frame_resources(
         &ExtractedView,
         Option<&RenderLayers>,
         AnyOf<(&Camera3d, &ShadowView)>,
+        Option<&Msaa>,
     )>,
     mut texture_cache: ResMut<TextureCache>,
     render_queue: Res<RenderQueue>,
@@ -685,7 +686,11 @@ pub fn prepare_meshlet_per_frame_resources(
         .view_depth_pyramids
         .retain(|view_entity, _| views.contains(*view_entity));
 
-    for (view_entity, view, render_layers, (_, shadow_view)) in &views {
+    for (view_entity, view, render_layers, (_, shadow_view), msaa) in &views {
+        // Tessera: views with MSAA draw no meshlet meshes (`configure_meshlet_views`)
+        if msaa.is_some_and(|msaa| *msaa != Msaa::Off) {
+            continue;
+        }
         let not_shadow_view = shadow_view.is_none();
 
         // Tessera: built in full for a new view or when the view's layers changed; otherwise only the

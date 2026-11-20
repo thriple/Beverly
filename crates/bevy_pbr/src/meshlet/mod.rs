@@ -39,7 +39,8 @@ use self::{
     meshlet_mesh_manager::perform_pending_meshlet_mesh_writes,
     pipelines::*,
     resource_manager::{
-        prepare_meshlet_per_frame_resources, prepare_meshlet_view_bind_groups, ResourceManager,
+        prepare_meshlet_per_frame_resources, prepare_meshlet_view_bind_groups, MeshletViewBindGroups,
+        MeshletViewResources, ResourceManager,
     },
     visibility_buffer_raster_node::meshlet_visibility_buffer_raster,
 };
@@ -56,11 +57,11 @@ use bevy_core_pipeline::{
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     component::Component,
-    entity::Entity,
+    entity::{Entity, EntityHashSet},
     query::Has,
     reflect::ReflectComponent,
     schedule::IntoScheduleConfigs,
-    system::{Commands, Query, Res},
+    system::{Commands, Local, Query, Res, ResMut},
     template::FromTemplate,
 };
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
@@ -73,7 +74,7 @@ use bevy_render::{
 use bevy_shader::load_shader_library;
 use bevy_transform::components::Transform;
 use derive_more::From;
-use tracing::error;
+use tracing::{error, info};
 
 /// Provides a plugin for rendering large amounts of high-poly 3d meshes using an efficient GPU-driven method. See also [`MeshletMesh`].
 ///
@@ -113,6 +114,11 @@ pub struct MeshletPlugin {
     ///
     /// Must not be greater than 2^25.
     pub cluster_buffer_slots: u32,
+    /// Tessera: whether the graphics card can draw virtual geometry, as the app found out before it started (Beverly:
+    /// `GpuCaps::virtual_geometry`). When false, or when the render device turns out to lack
+    /// [`MeshletPlugin::required_wgpu_features`], [`MeshletMesh`] assets and entities still load but nothing is drawn,
+    /// and the app keeps running (Bevy exited). [`MeshletAvailable`] says which it is.
+    pub supported: bool,
 }
 
 impl MeshletPlugin {
@@ -132,10 +138,13 @@ impl Plugin for MeshletPlugin {
         #[cfg(target_endian = "big")]
         compile_error!("MeshletPlugin is only supported on little-endian processors.");
 
-        if self.cluster_buffer_slots > 2_u32.pow(25) {
-            error!("MeshletPlugin::cluster_buffer_slots must not be greater than 2^25.");
-            std::process::exit(1);
-        }
+        // Tessera: clamped instead of exiting
+        let cluster_buffer_slots = if self.cluster_buffer_slots > 2_u32.pow(25) {
+            error!("MeshletPlugin::cluster_buffer_slots must not be greater than 2^25; using 2^25.");
+            2_u32.pow(25)
+        } else {
+            self.cluster_buffer_slots
+        };
 
         load_shader_library!(app, "bindings.wesl");
         load_shader_library!(app, "visibility_buffer_resolve.wesl");
@@ -158,8 +167,13 @@ impl Plugin for MeshletPlugin {
             return;
         };
 
-        // Create a variable here so we can move-capture it.
-        let cluster_buffer_slots = self.cluster_buffer_slots;
+        // Tessera: on a card that can't draw virtual geometry, nothing on the render side is added
+        render_app.insert_resource(MeshletAvailable(false));
+        if !self.supported {
+            info!("MeshletPlugin: the graphics card can't draw virtual geometry; meshlet meshes won't be drawn.");
+            return;
+        }
+
         let init_resource_manager_system =
             move |mut commands: Commands, render_device: Res<RenderDevice>| {
                 commands
@@ -176,11 +190,15 @@ impl Plugin for MeshletPlugin {
                     (
                         (init_resource_manager_system, init_meshlet_pipelines).chain(),
                         init_meshlet_mesh_manager,
-                    ),
+                    )
+                        .run_if(meshlet_available),
                 )
                     .chain(),
             )
-            .add_systems(ExtractSchedule, extract_meshlet_mesh_entities)
+            .add_systems(
+                ExtractSchedule,
+                extract_meshlet_mesh_entities.run_if(meshlet_available),
+            )
             .add_systems(
                 Render,
                 (
@@ -194,7 +212,8 @@ impl Plugin for MeshletPlugin {
                     prepare_material_meshlet_meshes_main_opaque_pass
                         .in_set(RenderSystems::QueueMeshes)
                         .before(queue_material_meshlet_meshes),
-                ),
+                )
+                    .run_if(meshlet_available),
             )
             .add_systems(
                 Core3d,
@@ -210,7 +229,8 @@ impl Plugin for MeshletPlugin {
                     meshlet_main_opaque_pass
                         .before(main_opaque_pass_3d)
                         .in_set(Core3dSystems::MainPass),
-                ),
+                )
+                    .run_if(meshlet_available),
             );
     }
 }
@@ -244,14 +264,28 @@ impl Drop for CpuTimer<'_> {
     }
 }
 
-fn check_meshlet_features(render_device: Res<RenderDevice>) {
+/// Tessera: whether meshlet meshes are being drawn (render world): the card was said to support virtual geometry
+/// ([`MeshletPlugin::supported`]) and the render device has the features.
+#[derive(bevy_ecs::resource::Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MeshletAvailable(pub bool);
+
+fn meshlet_available(available: Res<MeshletAvailable>) -> bool {
+    available.0
+}
+
+/// Tessera: turns the meshlet systems on when the render device has the features; logs and leaves them off
+/// (Bevy exited) when it doesn't.
+fn check_meshlet_features(
+    render_device: Res<RenderDevice>,
+    mut available: ResMut<MeshletAvailable>,
+) {
     let features = render_device.features();
-    if !features.contains(MeshletPlugin::required_wgpu_features()) {
+    available.0 = features.contains(MeshletPlugin::required_wgpu_features());
+    if !available.0 {
         error!(
-            "MeshletPlugin can't be used. GPU lacks support for required features: {:?}.",
+            "MeshletPlugin can't be used. GPU lacks support for required features: {:?}. Meshlet meshes won't be drawn.",
             MeshletPlugin::required_wgpu_features().difference(features)
         );
-        std::process::exit(1);
     }
 }
 
@@ -285,11 +319,25 @@ fn configure_meshlet_views(
         Has<DeferredPrepass>,
     )>,
     mut commands: Commands,
+    instance_manager: Res<InstanceManager>,
+    mut warned: Local<EntityHashSet>,
 ) {
+    warned.retain(|entity| views_3d.contains(*entity));
     for (entity, msaa, normal_prepass, motion_vector_prepass, deferred_prepass) in &mut views_3d {
+        // Tessera: a view with MSAA draws no meshlet meshes (Bevy exited); said once per view, and only when there
+        // are meshlet meshes to draw
         if *msaa != Msaa::Off {
-            error!("MeshletPlugin can't be used with MSAA. Add Msaa::Off to your camera to use this plugin.");
-            std::process::exit(1);
+            if instance_manager.scene_instance_count > 0 && warned.insert(entity) {
+                error!("MeshletPlugin can't be used with MSAA. Add Msaa::Off to your camera to draw meshlet meshes in it.");
+            }
+            commands.entity(entity).remove::<(
+                MeshletViewMaterialsMainOpaquePass,
+                MeshletViewMaterialsPrepass,
+                MeshletViewMaterialsDeferredGBufferPrepass,
+                MeshletViewResources,
+                MeshletViewBindGroups,
+            )>();
+            continue;
         }
 
         if !(normal_prepass || motion_vector_prepass || deferred_prepass) {

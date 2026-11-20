@@ -1,6 +1,9 @@
 //! Tessera's render check: bakes the test mesh (`tessera::test_mesh`) into a meshlet mesh, draws it with Bevy's
-//! virtual geometry and saves a screenshot. `vg-render [OUT.png]` (default `test-output/tessera/test-mesh.png`).
+//! virtual geometry and saves a screenshot. `vg-render [OUT.png] [CASE]` (default `test-output/tessera/test-mesh.png`).
 //! Exits with 2 when the card can't run virtual geometry (`GpuCaps::virtual_geometry`), 1 when the screenshot fails.
+//! CASE checks that the app keeps running, drawing no meshlet meshes, where Bevy exited: `unsupported` (the plugin is
+//! told the card can't), `msaa` (the camera has MSAA), `device` (the render device is made without 64-bit texture
+//! atomics).
 use beverly::gpu::GpuCaps;
 use bevy::pbr::experimental::meshlet::{
     MeshletMesh, MeshletMesh3d, MeshletPlugin, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR,
@@ -23,8 +26,14 @@ struct Shot {
 
 fn main() -> AppExit {
     let path = PathBuf::from(std::env::args().nth(1).unwrap_or("test-output/tessera/test-mesh.png".into()));
+    let case = std::env::args().nth(2).unwrap_or_default();
     let mut app = App::new();
-    let render = beverly::gpu::render_plugin(&mut app);
+    let mut render = beverly::gpu::render_plugin(&mut app);
+    if case == "device" {
+        if let bevy::render::settings::RenderCreation::Automatic(settings) = &mut render.render_creation {
+            settings.disabled_features = Some(bevy::render::settings::WgpuFeatures::TEXTURE_INT64_ATOMIC);
+        }
+    }
     let caps = app.world().resource::<GpuCaps>().clone();
     println!("Graphics card: {} ({}, {}), virtual geometry: {}", caps.name, caps.backend, caps.kind, caps.virtual_geometry());
     if !caps.virtual_geometry() {
@@ -37,10 +46,10 @@ fn main() -> AppExit {
             primary_window: Some(Window { title: "vg-render".into(), resolution: (800, 600).into(), ..default() }),
             ..default()
         }),
-        MeshletPlugin { cluster_buffer_slots: 1 << 16 },
+        MeshletPlugin { cluster_buffer_slots: 1 << 16, supported: caps.virtual_geometry() && case != "unsupported" },
     ))
     .insert_resource(Shot { path, frame: 0, saved: None })
-    .add_systems(Startup, |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
+    .add_systems(Startup, move |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
         // baked here, not before the app: the bake runs on Bevy's task pools
         let start = Instant::now();
         let mesh = tessera::test_mesh::test_mesh(8, 1);
@@ -48,7 +57,8 @@ fn main() -> AppExit {
         let made = start.elapsed();
         let meshlet = MeshletMesh::from_mesh(&mesh, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR).expect("bake");
         println!("test mesh: {triangles} triangles, made in {made:.2?}, baked in {:.2?}", start.elapsed() - made);
-        commands.spawn((Camera3d::default(), Msaa::Off, Transform::from_xyz(0.0, 0.6, 2.8).looking_at(Vec3::ZERO, Vec3::Y)));
+        let msaa = if case == "msaa" { Msaa::Sample4 } else { Msaa::Off };
+        commands.spawn((Camera3d::default(), msaa, Transform::from_xyz(0.0, 0.6, 2.8).looking_at(Vec3::ZERO, Vec3::Y)));
         commands.spawn((DirectionalLight { illuminance: 8000.0, shadow_maps_enabled: true, ..default() }, Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y)));
         commands.spawn((
             MeshletMesh3d(meshlets.add(meshlet)),
