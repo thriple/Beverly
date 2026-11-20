@@ -56,7 +56,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
      - Main's `gpu-setup` already found that lavapipe reports all six (`beverly::gpu::GpuCaps::virtual_geometry()` is true here; the editor logs `Graphics card: ...`). Confirm it with that, no separate check program.
      - Since they are there, render the test mesh with Bevy's meshlet path off-screen and save a screenshot.
      - Record the answer at the top of *Run log* as **GPU-testable here: yes/no**. Later jobs use it to decide what they can check themselves.
-2. ⬜ **No exit on a missing feature.**
+2. ✅ **No exit on a missing feature.** (2026-11-21)
    - In the fork, replace the `exit(1)`s (`mod.rs` feature check, MSAA check) with a disabled state that leaves the app running.
    - Limit the MSAA check to views that actually draw virtual geometry.
    - Use main's `beverly::gpu::GpuCaps` (`editor/src/gpu.rs`: probed before the app is built, Vulkan chosen when it can run virtual geometry, the renderer pinned to that adapter). Don't add a second probe.
@@ -111,6 +111,10 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 - **Container set-up (job 1, 2026-11-20):** winit on X11 needs `libxkbcommon-x11-0`, which this container didn't have
   (`vg-render` panicked in `xkbcommon-dl`). The run installed it by hand; since 2026-11-20 the environment's setup
   script installs it (with clang and cmake for METIS).
+- **Turning Tessera on in the editor and player (job 2):** add `MeshletPlugin { cluster_buffer_slots, supported:
+  caps.virtual_geometry() }`, with `caps` the `GpuCaps` that `gpu::render_plugin` put in the app (as `vg-render` does).
+  With `supported` false nothing is added on the render side and meshlet meshes aren't drawn (the fallback is
+  later work). No `GpuCaps` change was needed for this job.
 - **Merging job 1 into main:** `editor/Cargo.toml` gains the `[patch.crates-io] bevy_pbr` (path `../crates/bevy_pbr`),
   the off-by-default `tessera` feature, the optional `tessera` dependency (`../crates/tessera`) and the `vg-render`
   binary (`required-features = ["tessera"]`, so default builds and the release zip don't contain it). Main's
@@ -126,6 +130,33 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-21 (Guam): job 2, no exit on a missing feature ✅
+- **Merge:** main merged in; `editor/features.json` conflicted. Took main's version and put back the `tessera`
+  note, keeping main's new "Review 2026-11-20" sentence in it.
+- **`MeshletPlugin.supported`** (new field): the app's own check, passed in when it adds the plugin (the editor will
+  pass `GpuCaps::virtual_geometry()`; the fork can't see the editor). When false, the asset and loader are still
+  registered, so meshlet meshes and entities load, but nothing is added on the render side.
+- **`MeshletAvailable`** (render-world resource): the device check at `RenderStartup` now sets it instead of
+  calling `exit(1)`. Every meshlet render system runs only while it's true (`meshlet_available`), including
+  `prepare_material_meshlet_meshes_prepass`, which `prepass/mod.rs` registers and only gated on `InstanceManager`
+  (it panicked without `ResourceManager`; the new `device` case found it).
+- **MSAA:** a view with MSAA has the meshlet components taken off and is skipped in
+  `prepare_meshlet_per_frame_resources`, instead of exiting. The error is logged once per view, and only when there
+  are meshlet instances, so cameras that draw no virtual geometry (thumbnails, previews) are left alone. That camera's
+  shadow views draw no meshlet meshes either, since the raster pass runs per camera.
+- **`cluster_buffer_slots` over 2^25** is clamped with an error instead of exiting.
+- **Checks:**
+  - `vg-render OUT CASE`, all four exit 0 and save a screenshot:
+    - `draw`: mesh drawn (218k pixels differ from the background)
+    - `unsupported` (plugin told no): info line, nothing drawn
+    - `msaa` (camera `Msaa::Sample4`): error once, nothing drawn
+    - `device` (render device made without `TEXTURE_INT64_ATOMIC`): error naming the missing feature, nothing
+      drawn
+  - feature off: `cargo build` ✅, `cargo test` ✅ (79)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (79)
+  - `tools/run-tests.sh` ✅ (all 18)
+- **Only the RTX card can show:** nothing new; the real card has the features, so it takes the `draw` path.
 
 ### 2026-11-20 (Guam, interactive session): job 5, instances by change ✅
 The user asked for this ahead of jobs 2–4: the meshlet systems' CPU cost per frame grew with the number of copies
