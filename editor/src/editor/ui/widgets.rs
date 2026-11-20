@@ -33,6 +33,7 @@ pub(super) fn group_look(title: &str) -> (String, &'static str, Color32) {
         "WALKER SOUNDS" => ("Walker sounds", "person", theme::CAT_GAME),
         "BRUSH" => ("Brush", "palette", theme::VIOLET),
         crate::curve::STRIP => ("Strip", "route", theme::VIOLET),
+        crate::curve::FILL => ("Fill", "drop", theme::VIOLET),
         level::RULES => ("Where it lands", "pin", theme::VIOLET),
         "RECORDINGS" => ("Recordings", "wave", theme::CAT_ACTIONS),
         "ON SURFACES" => ("On surfaces", "layers", theme::CAT_ACTIONS),

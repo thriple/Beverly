@@ -15,9 +15,10 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   (frame, tab colours, type, panels, controls, icons, checklists for new tabs and controls), the boards in
   `docs/ui/design/boards` (live canvas linked in HANDOFF.md), `tokens/` and `icons/`. Every new window, panel, control
   or tab is built from its pieces; add new ones to it. (Replaces the earlier `docs/ui.svg` design.)
-- **No rasters in the GUI (user, 2026-11-16):** everything the editor's interface draws is vector, rendered at the
-  screen's resolution; no images, no scaled bitmaps. Previews of the user's content (asset thumbnails) don't count
-  as UI (user, 2026-11-17), but live 3D views are preferred.
+- **No rasters in the editor's GUI (user, 2026-11-16):** everything Beverly's own editor interface draws is vector,
+  rendered at the screen's resolution; no images, no scaled bitmaps. Previews of the user's content (asset
+  thumbnails) don't count as UI (user, 2026-11-17), but live 3D views are preferred. This is only for Beverly's own
+  editor UI: game files and the UI of games made with Beverly may use images (user, 2026-11-20).
 - **Motion kit (user, 2026-11-17):** the Motion kit (`kit/motion-kit.zip`, ported in `editor/src/editor/theme.rs`)
   gives the movement only: its springs (SPRING / SNAPPY / SOFT) and entrances, and how its tooltips spring up, its
   dock panel moves (sliding pill, content sliding the way you went, springing width), its dynamic island pops open
@@ -30,8 +31,12 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 - Build with multiplayer in mind (it comes late, but nothing should block it): game state lives in data (components,
   resources, the level and character files) that could be sent over a network, input goes through named actions,
   play runs on a fixed time step, and effects, sounds and the camera react to events instead of driving the game.
-- No raster where math does the job: no images, grids or baked meshes in files when a vector, table, curve or
-  stroke description works (shaders are fine; textures only the user's own). Keeps files small.
+- A guideline, not a rule (user, 2026-11-20): prefer a vector, table, curve or stroke description to images, grids
+  or baked meshes in game files when it does the job as well (shaders are fine; textures only the user's own). It
+  keeps files small; where raster data is clearly the better tool, use it.
+- **Logs and signing (user, 2026-11-20):** logs stay local, with no analytics or telemetry at all. Code signing is not
+  planned: the export window shows a static note that the exe is unsigned and why. The review of the built code,
+  the module system and the level-transition design are in `docs/architecture.md`.
 - No third-party asset packs: the user makes Beverly's built-in models and characters. Libraries are fine.
 - Build each feature to its full plan in the roadmap (its parts in order), not a cut-down first version.
 - Every feature says what the MCP server gets from it (most comes free from setting descriptions and named
@@ -69,7 +74,7 @@ Push work to the repository freely, but only cut a release (commit message conta
 run of the Windows build) for finished features, never half-done work.
 
 Every release updates the feature list, `editor/features.json`: what the release finished becomes `done` with `built`
-(the date) and `build` (its build number: the next run of the Windows build); new features get their needs, effort
+(the date) and `build` (its build number: the next run of the Windows build); new features get their needs, their stage (the build ladder in `tools/roadmap.py`, never earlier than the stage of anything they need), effort
 S / M / L / XL and, for L and XL, session-sized parts. Then `python3 tools/roadmap.py` checks it, renumbers the build
 order and writes `docs/roadmap.html`. Help > Features shows the same list.
 

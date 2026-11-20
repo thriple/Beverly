@@ -211,7 +211,7 @@ mod tests {
 
     fn part() -> Part {
         Part { id: 1, name: "Pad".into(), shape: Shape::Box, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], size: [1.0; 3], color: [0.5; 3],
-            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0 }), surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![] }
+            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0, ..Default::default() }), surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None }
     }
 
     #[test]
@@ -283,7 +283,7 @@ mod tests {
         assert!((bevy::math::Quat::from_array(p.rot).to_euler(bevy::math::EulerRot::YXZ).0.to_degrees() - 90.0).abs() < 1e-3);
         assert_eq!(p.size, [3.0, 0.02, 2.0], "kept in range");
         assert_eq!(p.collision, Collision::WalkThrough);
-        assert_eq!(p.mover, Some(Mover { to: [0.0, 3.0, 0.0], secs: 0.5 }));
+        assert_eq!(p.mover, Some(Mover { to: [0.0, 3.0, 0.0], secs: 0.5, ..Default::default() }));
         assert!(!p.visible);
         assert!(apply(&mut p, &serde_json::json!({"Moves": false})).is_ok() && p.mover.is_none());
         assert!(apply(&mut p, &serde_json::json!({"Wobble": 1})).unwrap_err().contains("Colour"));

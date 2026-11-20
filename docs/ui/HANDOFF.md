@@ -30,7 +30,7 @@
 
 Window 1600 × 960 reference, 10 px outer corner radius, 1 px hairline edge.
 
-- **Top bar, 44 px**: left — `BEVERLY ▾` menu (holds File, Edit, View, Play, Help). Centre — the eight tabs, each icon + label; the active tab is a solid pill inverted from the frame. Right — Parts button (with `Tab` keycap), Undo, Redo, Snap (grid icon + toggle; value in tooltip), divider, Windows controls (minimise, maximise, close; close hovers `#E81123`).
+- **Top bar, 44 px**: left — `BEVERLY ▾` menu (holds File, Edit, View, Play, Help). Centre — the tabs (eight today; see *Tab groups and the scrolling strip* below for what replaces the fixed eight), each icon + label; the active tab is a solid pill inverted from the frame. Right — Parts button (with `Tab` keycap), Undo, Redo, Snap (grid icon + toggle; value in tooltip), divider, Windows controls (minimise, maximise, close; close hovers `#E81123`).
 - **Side and bottom rims, 8 px.**
 - **View**: x 8, y 44, 1584 × 908, corner radius 14.
 - **Top notch** (dips into the view at top centre, depth 34): the current tab's **topics** as chips (icon + label). Active topic is an inverted pill; not-yet-built topics at 55% opacity with a "Coming soon" tooltip.
@@ -42,7 +42,7 @@ Window 1600 × 960 reference, 10 px outer corner radius, 1 px hairline edge.
 
 ### Tabs — two colours each, two jobs
 
-- **Frame colour = where you are**: frame, active tab, active topic, selected part outline and tag, active dock view, Play button.
+- **Frame colour = where you are** (proposed: the frame itself goes neutral, see *Tab groups* below; the colour stays on the bezel and the pill): frame, active tab, active topic, selected part outline and tag, active dock view, Play button.
 - **Accent = what you can change**: slider fills, toggles (on), playhead, focus ring, changed-value bar, More, status icon.
 
 | Tab | Frame | Frame text | Highlight | Accent | Icon |
@@ -64,6 +64,45 @@ Every frame colour was checked for **≥ 4.5:1** text contrast in the worst case
 - **Axes**: X `#FF3B4E`, Y `#39F26A`, Z `#3D7BFF`.
 - **Danger** `#FF2D46` (text on dark `#FF8A98`). Only for real problems.
 - **Neutrals** (panels never take the tab colour): ink `#0E0E10`, glass panel `rgba(18,18,21,.84)` + 1 px white 10% inset edge, popover `#1A1A1E`, field `#1F1F23`, field hover `#26262B`, selected row `#2A2A2F`, track `#34343A`, text `#F3F3F1` / `#B0B0B6` / `#8E8E95`.
+
+## Tab groups and the scrolling strip (proposed 2026-11-20; not built yet)
+
+Why: the roadmap adds many more workspaces, and module packs can bring their own. Eight fixed tabs, each tinting the whole frame, don't scale. This replaces the eight-tab bar and the per-tab frame colour above once built (roadmap entry `tab-strip`).
+
+**Decided by the user, 2026-11-20**
+
+- Colour coding by group stays: it is the shorthand for where you are.
+- The colour does **not** fill the frame. On every tab the frame is the neutral dark glass Level has today, so workspaces stay easy to read. The group colour shows as a thin bezel along the view outline, as the selected tab's pill, and as the group's marker in the strip. Frame text is always light, so the per-tab frame-text contrast check goes away; only the selected pill's text needs the 4.5:1 check.
+- The strip scrolls. The mouse wheel scrolls it while the pointer is over the tabs. Tabs squash toward the sides into slices (full label, then icon, then a thin coloured slice). The selected tab stays in the middle unless it is near either end of the list. No looping or wrapping, and the selected tab is never lost.
+
+**Proposed, to confirm**
+
+- Wheel scrolling moves the strip without changing the selected tab. A selected tab scrolled away from the centre stays visible as a pinned slice at the edge. A click selects a tab and brings it back to the centre. The ends are hard stops.
+- Slices keep their group colour, so runs of colour show the groups. Hovering a slice widens it with a tooltip (name and group).
+- A group's tabs share its colour pair (highlight and accent). A thin divider and the group's name in small caps sit between groups when there is room.
+- **Switcher:** Ctrl+K searches all tabs and actions; Ctrl+Tab goes through recent tabs. Right-click a tab to pin, hide or move it. Ctrl+1 to 8 jump to groups.
+- **Tabs are data, not a fixed array** (name, icon, group, topics, dock views, view kind 3D or 2D), so modules and packs can add tabs. A tab appears in the strip once its feature is built; there are no dead-end tabs.
+- **A tab or a topic?** A tab is a workspace with its own library list, its own view kind (3D, or the 2D tabs on the 90% ink backing) or its own file type. A topic is a filter or a mode of the same view (the Physics view of Level).
+- The view outline and notches stay one path (see the frame above); only its fill and the bezel line change.
+
+**First cut of the groups** (workflow order; the strip starts as today's eight)
+
+| Group | Tabs | Stays as topics |
+|---|---|---|
+| World | Level, Terrain, Water, Foliage, Light and sky, Levels, Modules | Level: All, Physics, Cameras, World settings. Light and sky: Lighting, Sky, Atmosphere, Post-processing |
+| Characters | Cast, Rigs, Moves, Brains | Cast: Body, Controls, Display (HUD skins). Rigs: Joints, Clips, Ragdolls |
+| Combat | Abilities, Arsenal | Abilities: Attributes, Effects, Status. Arsenal: Weapons, Tools, Defence |
+| Vehicles and building | Garage, Build kits | Garage: Assemblies, Seats and mounts. Build kits: Snap rules, Structure strength |
+| Interface | HUD, Screens | HUD: Layout, States, Fonts, Bindings. Screens: Flow, Results, Settings |
+| Story | Animatics, Dialog, Quests | Animatics: Camera cuts, Subtitles, Recordings |
+| Sound | Sounds, Mixer, Music | Sounds: Surfaces, Recordings |
+| Effects | Effects, Particles, Weather | Effects: Decals, Fire |
+| Systems | Variables, Inventory and economy, Game rules | Game rules: Saves, Packs, Achievements |
+| Ship | Export, Player settings | Player settings: Quality, Controls, Accessibility, Languages |
+
+Today's eight map to: Level to World/Level, Characters to Characters/Cast, Vehicles to Vehicles and building/Garage, UI/HUD to Interface/HUD, Audio to Sound/Sounds, Effects to Effects/Effects, Screens to Interface/Screens, Animatics to Story/Animatics. Group colours start from today's: World = Level's yellow on dark glass, Characters pink, Vehicles lime, Interface blue (Screens takes the group colour, giving up its purple), Sound cyan, Effects orange, Story the Animatics paper with red highlight. Combat, Systems and Ship need a colour pair from the palette (not the danger red), checked on the pill text.
+
+Build notes: a tab registry replaces the fixed `theme::TABS` array and the `audio::LEVEL` and `audio::AUDIO` tab numbers; the frame fill becomes neutral with the colour in a 2 px bezel along the outline.
 
 ## Type
 

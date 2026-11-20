@@ -57,7 +57,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
             }
             let p = ed.level.get_mut(id).expect("found above");
             let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
-            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None });
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false });
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
@@ -118,6 +118,20 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     Some(Some(st))
                 }
             };
+            // a fill: {material, feather, strength}, or null to take it away
+            let fill: Option<Option<crate::curve::Fill>> = match args.get("fill") {
+                None => None,
+                Some(Value::Null) => Some(None),
+                Some(v) => {
+                    let old = existing.and_then(|id| ed.level.curve(id)).and_then(|c| c.fill.clone());
+                    let mut f = old.unwrap_or_default();
+                    let num = |k: &str, lo: f32, hi: f32, cur: f32| v.get(k).map_or(Ok(cur), |n| n.as_f64().map(|n| (n as f32).clamp(lo, hi)).ok_or_else(|| format!("fill {k} is a number")));
+                    if let Some(m) = v.get("material").and_then(Value::as_str) { f.material = material_ref(ed, m)?; }
+                    if f.material.is_empty() { f.material = ed.level.materials.keys().next().cloned().ok_or("No materials yet: new_material makes one")?; }
+                    (f.feather, f.strength) = (num("feather", 0.0, 4.0, f.feather)?, num("strength", 0.05, 1.0, f.strength)?);
+                    Some(Some(f))
+                }
+            };
             let id = match existing {
                 Some(id) => {
                     let c = ed.level.curve_mut(id).expect("found above");
@@ -125,6 +139,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     if let Some(k) = closed { c.closed = k; }
                     if c.points.len() < 3 { c.closed = false; }
                     if let Some(st) = strip { c.strip = st; }
+                    if let Some(f) = fill { c.fill = f; }
                     id
                 }
                 None => {
@@ -133,10 +148,11 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     if c.points.len() < 3 { c.closed = false; }
                     if let Some(n) = args.get("name").and_then(Value::as_str).filter(|n| !n.is_empty()) { c.name = n.to_string(); }
                     if let Some(st) = strip { c.strip = st; }
+                    if let Some(f) = fill { c.fill = f; }
                     id
                 }
             };
-            // the strip's strokes are made now, so the curve and they are one undo step
+            // the strip's and fill's strokes are made now, so the curve and they are one undo step
             crate::editor::pen::lay(ed);
             crate::editor::pen::strips(ed);
             ed.commit();

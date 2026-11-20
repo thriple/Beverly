@@ -13,6 +13,7 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
             "unsaved_changes": ed.dirty(),
             "undo_steps": ed.undo.len(),
             "redo_steps": ed.redo.len(),
+            "change_stamp": ed.level.stamps().iter().max(),
             "testing": ed.testing.is_some(),
             "tests": crate::editor::mcp::jobs::tests_in(&ed.dir),
             "beverly": crate::update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")),
@@ -41,9 +42,9 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
                 }
             }
             let mut l = ed.level.lighting.clone();
-            let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut l, set)?, None => vec![] };
+            let mut changed = match args.get("settings") { Some(set) => settings::apply(&mut *l, set)?, None => vec![] };
             let mut n = ed.level.navigation.clone();
-            if let Some(set) = args.get("navigation") { changed.extend(settings::apply(&mut n, set)?); }
+            if let Some(set) = args.get("navigation") { changed.extend(settings::apply(&mut *n, set)?); }
             ed.level.lighting = l;
             ed.level.navigation = n;
             if w != ed.level.walker { changed.push("walker_sounds"); ed.level.walker = w; }

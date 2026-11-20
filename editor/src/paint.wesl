@@ -28,7 +28,8 @@ struct Frame {
 
 // one piece of a stroke: from a to b (w: radius, hardness), c: strength, layer (-1 erases), stroke number, how it
 // lays (0 add, 1 subtract, 2 set); d: its rules (the cosine of the steepest slope, below -1 any; lowest and highest
-// height in the world)
+// height in the world). A fill's outline is made of pieces too: each an edge from a to b in the part's frame (a.w: the
+// width of the feathered edge), marked by d.w of 1
 struct Piece {
     a: vec4<f32>,
     b: vec4<f32>,
@@ -52,6 +53,17 @@ fn dab(p: Piece, at: vec3<f32>) -> f32 {
     return 1.0 - smoothstep(r * min(p.b.w, 0.98), r, d);
 }
 
+// whether a fill outline's edge from a to b crosses the line going on from p in +x (seen from above): x, and how near
+// the edge is to p: y
+fn edge(a: vec3<f32>, b: vec3<f32>, p: vec3<f32>) -> vec2<f32> {
+    var crosses = 0.0;
+    if (a.z > p.z) != (b.z > p.z) && p.x < a.x + (p.z - a.z) * (b.x - a.x) / (b.z - a.z) { crosses = 1.0; }
+    let ab = vec2<f32>(b.x - a.x, b.z - a.z);
+    let ap = vec2<f32>(p.x - a.x, p.z - a.z);
+    let t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-8), 0.0, 1.0);
+    return vec2<f32>(crosses, length(ap - ab * t));
+}
+
 // how much a stroke's rules let through on a surface whose normal points up this much, at this height
 fn allows(d: vec4<f32>, up: f32, y: f32) -> f32 {
     var slope = 1.0;
@@ -71,10 +83,26 @@ fn coverage(at: vec3<f32>, up: f32, y: f32) -> f32 {
         let lays = i32(pieces[i].c.w);
         let d = pieces[i].d;
         var m = 0.0;
+        var fill = false;
+        var inside = false;
+        var near = 1e30;
+        var feather = 0.0;
         loop {
             if i >= n || pieces[i].c.z != stroke { break; }
-            m = max(m, dab(pieces[i], at));
+            if pieces[i].d.w > 0.5 {
+                let e = edge(pieces[i].a.xyz, pieces[i].b.xyz, at);
+                fill = true;
+                if e.x > 0.5 { inside = !inside; }
+                near = min(near, e.y);
+                feather = pieces[i].a.w;
+            } else {
+                m = max(m, dab(pieces[i], at));
+            }
             i = i + 1;
+        }
+        if fill {
+            m = 0.0;
+            if inside { m = smoothstep(0.0, max(feather, 0.001), near); }
         }
         m = m * allows(d, up, y);
         let f = m * strength;

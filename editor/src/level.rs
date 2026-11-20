@@ -19,17 +19,23 @@ use bevy::reflect::{std_traits::ReflectDefault, Reflect};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+mod delta;
+mod hierarchy;
 mod material;
 mod paint;
 mod project;
 mod shape;
 mod sound;
+mod track;
 mod world;
+pub use delta::Delta;
+pub use hierarchy::{beyond, frame, within};
 pub use material::*;
 pub use paint::*;
 pub use project::*;
 pub use shape::*;
 pub use sound::*;
+pub use track::{Stamps, Tracked};
 pub use world::*;
 
 
@@ -171,6 +177,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Moves", "Stays put", "Moves when told to").section(MOVES).help("Moves to an end position and back when wired to"))]
     pub mover: Option<Mover>,
+    /// The part this one is attached to (see `hierarchy.rs`): when that one moves or turns, this one goes with it. The
+    /// position and turn here are still the world's; the file keeps them as offsets from the parent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<u64>,
 }
 
 impl Part {
@@ -185,7 +195,7 @@ impl Part {
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
-            sounds: vec![], sounds_like: None, strokes: vec![],
+            sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
         }
     }
 
@@ -237,32 +247,37 @@ pub struct Level {
     #[serde(default)]
     pub format: u32,
     pub name: String,
-    pub parts: Vec<Part>,
+    pub parts: Tracked<Vec<Part>>,
     pub next_id: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub wires: Vec<Wire>,
+    pub wires: Tracked<Vec<Wire>>,
     /// Pen curves (see `curve.rs`); their ids come from the same count as the parts'.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub curves: Vec<crate::curve::Curve>,
+    pub curves: Tracked<Vec<crate::curve::Curve>>,
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
-    pub ranges: Ranges,
+    pub ranges: Tracked<Ranges>,
     #[serde(default, skip_serializing_if = "Lighting::is_default")]
-    pub lighting: Lighting,
+    pub lighting: Tracked<Lighting>,
     #[serde(default, skip_serializing_if = "Navigation::is_default")]
-    pub navigation: Navigation,
+    pub navigation: Tracked<Navigation>,
     #[serde(default, skip_serializing_if = "WalkerSounds::is_default")]
-    pub walker: WalkerSounds,
+    pub walker: Tracked<WalkerSounds>,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]
-    pub materials: std::collections::BTreeMap<String, Material>,
+    pub materials: Tracked<std::collections::BTreeMap<String, Material>>,
     /// The project's sound files, by path ("assets/sounds/birds.bev"), kept and saved as the materials are.
     #[serde(skip)]
-    pub sounds: std::collections::BTreeMap<String, Sound>,
+    pub sounds: Tracked<std::collections::BTreeMap<String, Sound>>,
 }
 
 impl Level {
+    /// What changed where: see [`Stamps`].
+    pub fn stamps(&self) -> Stamps {
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.materials.stamp(), self.sounds.stamp()]
+    }
+
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }
     pub fn get_mut(&mut self, id: u64) -> Option<&mut Part> { self.parts.iter_mut().find(|p| p.id == id) }
 
@@ -307,7 +322,7 @@ impl Level {
     pub fn add_curve(&mut self, points: Vec<crate::curve::PenPoint>, closed: bool) -> u64 {
         self.next_id += 1;
         let name = (1..).map(|n| format!("Curve {n}")).find(|n| !self.curves.iter().any(|c| &c.name == n)).expect("a free name");
-        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None });
+        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None });
         self.next_id
     }
     pub fn curve(&self, id: u64) -> Option<&crate::curve::Curve> { self.curves.iter().find(|c| c.id == id) }
@@ -360,6 +375,27 @@ mod tests {
         // a newer Beverly's files are refused, not misread
         std::fs::write(dir.join("project.bev"), format!(r#"(format: {}, name: "New", levels: ["main"])"#, FORMAT + 1)).unwrap();
         assert!(load(&dir).unwrap_err().contains("newer Beverly"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parts_with_parents_are_saved_as_offsets_in_format_2_and_load_back_to_the_world() {
+        let dir = std::env::temp_dir().join(format!("beverly-parent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut lvl = Level { name: "main".into(), ..Default::default() };
+        let a = lvl.add(Part::placed(Shape::Box, None, "Ship".into(), [100.0, 5.0, 40.0], Quat::from_rotation_y(0.5).to_array(), [4.0; 3]));
+        let b = lvl.add(Part::placed(Shape::Box, None, "Door".into(), [102.0, 5.0, 40.0], [0.0, 0.0, 0.0, 1.0], [1.0; 3]));
+        save(&dir, "T", &lvl).unwrap();
+        assert!(std::fs::read_to_string(dir.join("levels/main.bev")).unwrap().contains("format: 1,"), "no parents: still format 1");
+        lvl.set_parent(b, Some(a)).unwrap();
+        save(&dir, "T", &lvl).unwrap();
+        let text = std::fs::read_to_string(dir.join("levels/main.bev")).unwrap();
+        assert!(text.contains("format: 2,") && text.contains(&format!("parent: Some({a})")), "{text}");
+        // the file holds the door's offset from the ship, not its place in the world
+        assert!(!text.contains("102.0"), "{text}");
+        let (_, back) = load(&dir).unwrap();
+        for id in [a, b] { assert!(Vec3::from(back.get(id).unwrap().pos).distance(Vec3::from(lvl.get(id).unwrap().pos)) < 1e-3); }
+        assert_eq!(back.get(b).unwrap().parent, Some(a));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

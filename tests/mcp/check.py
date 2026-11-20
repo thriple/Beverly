@@ -42,6 +42,9 @@ undo0 = p["undo_steps"]
 
 a = tool("add_part", kind="Box", position=[5, 1, 0], settings={"Name": "Check box", "Turn": 30})
 check("add_part places a part with settings", a.get("name") == "Check box", a)
+# the level notes when it is borrowed for change, so an idle editor (here with a part selected) never has it compared
+s0 = tool("get_project")["change_stamp"]; time.sleep(1.5)
+check("an idle editor leaves the level alone (its change stamp holds still)", tool("get_project")["change_stamp"] == s0, s0)
 check("a plain box is an instance of the lift's ledge (same contents)", tool("get_part", name="Check box").get("instances") == 1)
 r = tool("change_part", name="Check box", settings={"Visible": False})
 check("changing an instance's contents asks for instances", "error" in r and "instances" in r["error"] and setting(tool("get_part", name="Check box"), "visible"), r)
@@ -81,6 +84,25 @@ check("undo brings the sun back", setting(tool("get_level"), "interior") is Fals
 p = tool("get_project")
 check("eight undos take every edit back", p["parts"] == 4 and p["undo_steps"] == undo0 and not p["unsaved_changes"], p)
 
+# parts attached to parts: the child goes with the parent, and it is one undo step
+tool("add_part", kind="Box", position=[30, 1, 30], settings={"Name": "Ship"})
+tool("add_part", kind="Box", position=[32, 1, 30], settings={"Name": "Door"}, parent="Ship")
+check("a part says what it is attached to, and the parent lists its children", tool("get_part", name="Door").get("parent_name") == "Ship" and [c["name"] for c in tool("get_part", name="Ship").get("children", [])] == ["Door"])
+steps = tool("get_project")["undo_steps"]
+tool("change_part", name="Ship", settings={"Position": [40, 1, 30], "Turn": 90})
+time.sleep(0.5)
+door = tool("get_part", name="Door")
+check("moving and turning the parent takes the child with it (a quarter turn about its middle)", abs(door["position"][0] - 40) < 0.05 and abs(door["position"][2] - 28) < 0.05, door["position"])
+check("that was one undo step", tool("get_project")["undo_steps"] == steps + 1)
+bad = tool("change_part", name="Ship", parent="Door")
+check("a part can't be attached to what is attached to it", "error" in bad, bad)
+tool("run_action", id="edit.undo")
+check("undo takes both back", abs(tool("get_part", name="Door")["position"][0] - 32) < 0.05 and abs(tool("get_part", name="Ship")["position"][0] - 30) < 0.05)
+tool("delete_part", name="Ship")
+check("deleting the parent lets the child go where it was", tool("get_part", name="Door").get("parent") is None)
+for _ in range(4): tool("run_action", id="edit.undo")
+check("undo takes the whole parent business back", tool("get_project")["undo_steps"] == undo0 and not tool("get_project")["unsaved_changes"], tool("get_project"))
+
 sh = tool("draw_shape", name="Path", points=[[0, 0, 6], {"at": [4, 0, 6], "handle_in": [-1, 0, 1], "handle_out": [1, 0, -1]}, [8, 0, 2]])
 check("draw_shape draws a curve through its points, handles bending it", sh.get("name") == "Path" and len(sh.get("points", [])) == 3 and sh["length"] > 8.5 and not sh["closed"], sh)
 check("list_shapes lists it", [c["name"] for c in tool("list_shapes")] == ["Path"])
@@ -91,6 +113,7 @@ check("a point says how its stretch treats geometry (ground by default)", [p.get
 check("a stretch is ground, over, air or fall", "error" in tool("draw_shape", points=[{"at": [0, 0, 0], "stretch": "sideways"}, [1, 0, 0]]))
 tool("draw_shape", shape="Rope", delete=True)
 check("a strip needs a material to paint (the lift has none)", "error" in tool("draw_shape", points=[[0, 0, 0], [3, 0, 0]], strip={"width": 1}))
+check("a fill needs a material to paint too, and says when it has none", "error" in tool("draw_shape", points=[[0, 0, 0], [3, 0, 0], [3, 0, 3]], closed=True, fill={"feather": 1}) and sh.get("fill", 1) is None, sh)
 check("a curve needs two points", "error" in tool("draw_shape", points=[[0, 0, 0]]))
 for _ in range(5): tool("run_action", id="edit.undo")
 p = tool("get_project")

@@ -140,12 +140,21 @@ pub struct Mover {
     /// The end position, relative to the start (metres).
     #[reflect(@Setting::number("By", "m", 0.05, -100000.0, 100000.0).section(MOVES).help("Where it moves to, from where it was placed"))]
     pub to: [f32; 3],
+    /// How far it turns about each axis (degrees) on the way, about its own middle (a door on a hinge hangs on a moving
+    /// part at the hinge).
+    #[serde(default)]
+    #[reflect(@Setting::number("Turn by", "°", 1.0, -3600.0, 3600.0).section(MOVES).help("How far it turns about each axis on the way, about its own middle"))]
+    pub turn: [f32; 3],
+    /// How fast it turns all the time while playing (degrees a second about each axis): rotors, slowly spinning debris.
+    #[serde(default)]
+    #[reflect(@Setting::number("Spins", "°/s", 1.0, -3600.0, 3600.0).section(MOVES).help("How fast it turns all the time while playing, about each axis"))]
+    pub spin: [f32; 3],
     #[reflect(@Setting::feel("Speed", &["Slow", "Steady", "Brisk", "Quick"], 20.0, 0.2, "s").log().section(MOVES).help("How long it takes to get there"))]
     pub secs: f32,
 }
 
 impl Default for Mover {
-    fn default() -> Self { Mover { to: [0.0, 3.0, 0.0], secs: 2.0 } }
+    fn default() -> Self { Mover { to: [0.0, 3.0, 0.0], turn: [0.0; 3], spin: [0.0; 3], secs: 2.0 } }
 }
 
 /// A light part's light: Point light and Spot light (the cone is a spot's only).

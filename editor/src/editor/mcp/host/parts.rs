@@ -51,6 +51,7 @@ pub(super) fn parts_tools(ed: &mut Editor, view: &mut View, name: &str, args: &V
             if let Some(set) = args.get("settings") { settings::apply(&mut p, set)?; }
             aim(&mut p, args)?;
             plays(ed, &mut p, args)?;
+            parent_arg(ed, &mut p, args)?;
             let id = ed.level.add(p);
             ed.selected = Some(id);
             ed.placing = None;
@@ -61,10 +62,11 @@ pub(super) fn parts_tools(ed: &mut Editor, view: &mut View, name: &str, args: &V
             editable(ed)?;
             let mut p = part_of(ed, args)?.clone();
             let set = args.get("settings");
-            if ["settings", "aim", "sound", "sounds", "sounds_like"].iter().all(|k| args.get(*k).is_none()) { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
+            if ["settings", "aim", "sound", "sounds", "sounds_like", "parent"].iter().all(|k| args.get(*k).is_none()) { return Err("Give settings, such as {\"Colour\": \"#ff8000\"}".into()); }
             let mut changed = match set { Some(set) => settings::apply(&mut p, set)?, None => vec![] };
             if aim(&mut p, args)? { changed.push("rot"); }
             if plays(ed, &mut p, args)? { changed.push("sound"); }
+            if parent_arg(ed, &mut p, args)? { changed.push("parent"); }
             if let Some(map) = args.get("sounds") {
                 let map = map.as_object().ok_or("sounds is an object of event → sound, such as {\"Pressed\": \"click\"} (null for none)")?;
                 let events = p.events();
@@ -93,8 +95,7 @@ pub(super) fn parts_tools(ed: &mut Editor, view: &mut View, name: &str, args: &V
         "delete_part" => {
             editable(ed)?;
             let (id, name) = part_of(ed, args).map(|p| (p.id, p.name.clone()))?;
-            ed.level.parts.retain(|p| p.id != id);
-            ed.level.wires.retain(|w| w.from != id && w.to != id);
+            ed.level.remove_part(id);
             if ed.selected == Some(id) { ed.selected = None; }
             ed.commit();
             Ok(json!({"deleted": {"id": id, "name": name}, "parts": ed.level.parts.len()}))

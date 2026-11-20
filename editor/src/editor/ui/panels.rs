@@ -109,6 +109,30 @@ fn part_sections(ui: &mut Ui, ed: &mut Editor, p: &mut level::Part, model: bool,
         let title = if model && sec == level::LOOK { "SCALE  ·  LOOK" } else { sec };
         column(ui, if sec == level::LOOK { 260.0 } else { 250.0 }, title, |ui| { settings::section(ui, p, sec, ctx); });
     }
+    // attached to another part: it goes where that one goes
+    column(ui, 250.0, "ATTACHED TO", |ui| {
+        let shown = p.parent.and_then(|id| ed.level.get(id)).map_or("Nothing".to_string(), |q| q.name.clone());
+        egui::ComboBox::from_id_salt("part parent").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            let below = ed.level.descendants(p.id);
+            ui.selectable_value(&mut p.parent, None, "Nothing");
+            for q in ed.level.parts.iter().filter(|q| q.id != p.id && !below.contains(&q.id)) { ui.selectable_value(&mut p.parent, Some(q.id), &q.name); }
+        }).response.tip("The part it is attached to: when that one moves or turns, this one goes with it");
+    });
+}
+
+/// Parts in the order of a tree: each followed by the parts attached to it (those that are in the list), with how far in
+/// each is. A part whose parent is not in the list starts a branch of its own.
+fn nested<'a>(rows: Vec<&'a level::Part>) -> Vec<(&'a level::Part, usize)> {
+    let ids: std::collections::HashSet<u64> = rows.iter().map(|p| p.id).collect();
+    let mut kids: std::collections::HashMap<u64, Vec<&level::Part>> = std::collections::HashMap::new();
+    for p in &rows { if let Some(par) = p.parent.filter(|q| ids.contains(q)) { kids.entry(par).or_default().push(p); } }
+    fn walk<'a>(p: &'a level::Part, depth: usize, kids: &std::collections::HashMap<u64, Vec<&'a level::Part>>, out: &mut Vec<(&'a level::Part, usize)>) {
+        out.push((p, depth));
+        for c in kids.get(&p.id).into_iter().flatten() { walk(c, depth + 1, kids, out); }
+    }
+    let mut out = vec![];
+    for p in rows.iter().filter(|p| p.parent.is_none_or(|q| !ids.contains(&q))) { walk(p, 0, &kids, &mut out); }
+    out
 }
 
 /// The textures laid on the part: each with its size and slide, and a button to take it off.
@@ -218,6 +242,19 @@ fn advanced_group(ui: &mut Ui, ed: &Editor, p: &mut level::Part, ctx: &mut setti
     });
 }
 
+/// The pen panel's "Paints" row: the material a strip or fill lays, chosen from the project's.
+fn material_row(ui: &mut Ui, salt: &str, ed: &Editor, chosen: &mut String) {
+    let file = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Paints").color(TEXT_2)); });
+        let shown = if chosen.is_empty() { "No material".to_string() } else { file(chosen) };
+        egui::ComboBox::from_id_salt(salt).selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            for m in ed.level.materials.keys() { ui.selectable_value(chosen, m.clone(), file(m)); }
+            if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
+        });
+    });
+}
+
 /// The bottom-left panel: what the Level tab's topic (its menu) sets, or the level and its topics.
 pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut l = ed.level.lighting.clone();
@@ -257,14 +294,14 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
             if w != ed.level.walker { ed.level.walker = w; }
         }
         LevelMode::Lighting => {
-            column(ui, 0.0, "LEVEL · LIGHTING", |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
+            column(ui, 0.0, "LEVEL · LIGHTING", |ui| { settings::section(ui, &mut *l, level::LIGHTING, &mut ctx); });
             // Interior: no sun
-            if !l.interior { column(ui, 0.0, level::SUN, |ui| { settings::section(ui, &mut l, level::SUN, &mut ctx); }); }
+            if !l.interior { column(ui, 0.0, level::SUN, |ui| { settings::section(ui, &mut *l, level::SUN, &mut ctx); }); }
         }
         LevelMode::Physics => {
             // where enemies can walk: who for, Build, and how it stands
             column(ui, 0.0, "LEVEL · PHYSICS · NAVIGATION", |ui| {
-                settings::section(ui, &mut n, level::NAVIGATION, &mut ctx);
+                settings::section(ui, &mut *n, level::NAVIGATION, &mut ctx);
                 ui.add_space(2.0);
                 let (status, colour) = match &ed.nav {
                     None => ("Not built yet".to_string(), MUTED),
@@ -321,9 +358,9 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
     identity(ui, theme::VIOLET, "route", if named { Ok(&mut name) } else { Err("Pen") }, &sub, &mut []);
     if let Some(c) = &cur {
         let mut strip = c.strip.clone();
+        let mut fill = c.fill.clone();
         let mut ranges = ed.level.ranges.clone();
         let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
-        let file = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         column(ui, 0.0, crate::curve::STRIP, |ui| {
             let mut on = strip.is_some();
             let mut none = false;
@@ -331,21 +368,27 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
                 strip = on.then(|| crate::curve::Strip { material: if ed.brush.material.is_empty() { ed.level.materials.keys().next().cloned().unwrap_or_default() } else { ed.brush.material.clone() }, ..Default::default() });
             }
             if let Some(st) = strip.as_mut() {
-                ui.horizontal(|ui| {
-                    ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Paints").color(TEXT_2)); });
-                    let shown = if st.material.is_empty() { "No material".to_string() } else { file(&st.material) };
-                    egui::ComboBox::from_id_salt("strip material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
-                        for m in ed.level.materials.keys() { ui.selectable_value(&mut st.material, m.clone(), file(m)); }
-                        if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
-                    });
-                });
+                material_row(ui, "strip material", ed, &mut st.material);
                 ui.add_space(8.0);
                 settings::section(ui, st, crate::curve::STRIP, &mut ctx);
+            }
+        });
+        column(ui, 0.0, crate::curve::FILL, |ui| {
+            let mut on = fill.is_some();
+            let mut none = false;
+            if settings::toggle_row(ui, "", "Fill the inside", &mut on, "Paints a material over the ground the curve encloses, with a feathered edge, kept in step with the curve (an open curve is closed by a straight line)", false, &mut none) {
+                fill = on.then(|| crate::curve::Fill { material: if ed.brush.material.is_empty() { ed.level.materials.keys().next().cloned().unwrap_or_default() } else { ed.brush.material.clone() }, ..Default::default() });
+            }
+            if let Some(f) = fill.as_mut() {
+                material_row(ui, "fill material", ed, &mut f.material);
+                ui.add_space(8.0);
+                settings::section(ui, f, crate::curve::FILL, &mut ctx);
             }
         });
         if ctx.ranges_changed { ed.level.ranges = ranges; }
         if let Some(cm) = ed.level.curve_mut(c.id) {
             if strip != c.strip { cm.strip = strip; }
+            if fill != c.fill { cm.fill = fill; }
             if name != c.name && !name.is_empty() { cm.name = name; }
         }
     }
@@ -477,14 +520,17 @@ pub(super) fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
         if rows.is_empty() { continue; }
         ui.add_space(4.0);
         ui.label(egui::RichText::new(sec).size(11.5).color(MUTED));
-        for p in rows {
+        for (p, depth) in nested(rows) {
             let (_, icon, colour) = kind(p.shape);
+            let indent = depth as f32 * 14.0;
+            // a branch of its own, though attached to a part of another kind: say which
+            let label = match p.parent.filter(|_| depth == 0).and_then(|id| ed.level.get(id)) { Some(par) => format!("{} · on {}", p.name, par.name), None => p.name.clone() };
             let on = ed.selected == Some(p.id);
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
             let painter = ui.painter();
             if on { painter.rect_filled(r, CornerRadius::same(7), theme::SELECTED_ROW); } else if resp.hovered() { painter.rect_filled(r, CornerRadius::same(7), theme::FIELD); }
-            frame::paint_icon(painter, icon, pos2(r.left() + 10.0 + 7.0, r.center().y), 14.0, if p.visible { colour } else { colour.gamma_multiply(0.45) });
-            painter.text(pos2(r.left() + 34.0, r.center().y), Align2::LEFT_CENTER, &p.name, body(12.5), if on { Color32::WHITE } else if p.visible { Color32::from_rgb(0xDC, 0xDC, 0xE0) } else { MUTED });
+            frame::paint_icon(painter, icon, pos2(r.left() + indent + 10.0 + 7.0, r.center().y), 14.0, if p.visible { colour } else { colour.gamma_multiply(0.45) });
+            painter.text(pos2(r.left() + indent + 34.0, r.center().y), Align2::LEFT_CENTER, &label, body(12.5), if on { Color32::WHITE } else if p.visible { Color32::from_rgb(0xDC, 0xDC, 0xE0) } else { MUTED });
             // on the right: a warning, or Hidden; the eye shows or hides it (hidden: a collider only)
             let eye = ERect::from_center_size(pos2(r.right() - 16.0, r.center().y), vec2(24.0, 24.0));
             let er = ui.interact(eye, Id::new(("eye", p.id)), Sense::click()).tip(if p.visible { "Hide it (it stays a collider)" } else { "Show it" });

@@ -199,6 +199,7 @@ pub fn tools() -> Value {
                     "sound": {"type": "string", "description": "For a Sound part: the sound file it plays, or a recording."},
                     "sounds": {"type": "object", "description": "Sounds it plays when things happen to it (its events, as get_part lists them: Pressed, Starts, Arrived, Returned, Hit), such as {\"Pressed\": \"click\"}; null for none."},
                     "sounds_like": {"type": ["string", "null"], "description": "What its surface sounds like underfoot (Stone, Wood, Metal, Grass, Dirt, Sand, Gravel, Water, Snow, Carpet; null: nothing special): steps play their recordings for it."},
+                    "parent": {"type": ["string", "integer", "null"], "description": "The part (name or id) this one is attached to: when that one moves or turns, this one goes with it, and it stays where it is now. null lets go. A part can't be attached to itself or to anything attached to it."},
                 },
                 "required": ["kind"],
             },
@@ -213,6 +214,7 @@ pub fn tools() -> Value {
                     "id": {"type": "integer"},
                     "name": {"type": "string"},
                     "settings": {"type": "object", "description": "Setting label or field → new value."},
+                    "parent": {"type": ["string", "integer", "null"], "description": "The part (name or id) this one is attached to: when that one moves or turns, this one goes with it, and it stays where it is now. null lets go. A part can't be attached to itself or to anything attached to it."},
                     "aim": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "For a Spot light: the point [x, y, z] it shines at (it reaches that far). For a camera: the point it looks at (an Orbit camera's target, which it circles)."},
                     "instances": {"type": "string", "enum": ["all", "this one"], "description": "Needed when the change is to what is inside the box (shape, colour, textures, Visible, Collision) of a part with instances (get_part's instances): \"all\" changes them all, \"this one\" makes this part Unique and changes only it."},
                 },
@@ -291,11 +293,12 @@ pub fn tools() -> Value {
         {
             "name": "draw_shape",
             "title": "Draw a curve with the pen",
-            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). A point can also say stretch: how the line leaving it treats what it meets: ground (default: lies on walkable surfaces, passing over props), over (follows any geometry), air (ignores geometry) or fall (leaves along its handle and drops until it hits a surface). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. strip paints a material along the line, as the brush would, kept in step with the curve: {material, width (m), edge (0 soft to 1 hard), strength}; null takes it away. One undo step.",
+            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). A point can also say stretch: how the line leaving it treats what it meets: ground (default: lies on walkable surfaces, passing over props), over (follows any geometry), air (ignores geometry) or fall (leaves along its handle and drops until it hits a surface). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. strip paints a material along the line, as the brush would, kept in step with the curve: {material, width (m), edge (0 soft to 1 hard), strength}; null takes it away. fill paints a material over the ground the curve encloses (an open curve is closed by a straight line), with a feathered edge, also kept in step with the curve and laid under a strip: {material, feather (m, how far in from the edge it fades), strength}; null takes it away. The fill goes on the walkable ground inside the outline, not on props standing on it. One undo step.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "strip": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "width": {"type": "number"}, "edge": {"type": "number"}, "strength": {"type": "number"}}},
+                    "fill": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "feather": {"type": "number"}, "strength": {"type": "number"}}},
                     "shape": {"type": ["integer", "string"], "description": "An existing curve's id or name, to redraw or delete."},
                     "name": {"type": "string", "description": "A new curve's name."},
                     "points": {"type": "array", "items": {"anyOf": [

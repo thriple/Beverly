@@ -1,0 +1,10 @@
+// A deck that rises and turns a quarter carries what is attached to it (a crate) and what stands on it: the walker,
+// 1.2 m from the deck's middle, is carried round with it (to 1.2 m the other way round).
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Part("Crate", (0, 0.9, 1.5), 0.05), Feet((1.2, 0.7, 0), 0.1)]),
+        (at: 0.5, press: ["E"]),
+        (at: 0.6, release: ["E"]),
+        (at: 4.0, shot: "up", expect: [Part("Deck", (0, 3.5, 0), 0.05), Part("Crate", (1.5, 3.9, 0), 0.05), Feet((0, 3.7, -1.2), 0.15)]),
+    ],
+)

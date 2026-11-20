@@ -68,6 +68,28 @@ impl Default for Strip {
     fn default() -> Self { Strip { material: String::new(), size: 1.0, hardness: 0.6, strength: 1.0 } }
 }
 
+/// The fill's section in the pen's panel.
+pub const FILL: &str = "FILL";
+
+/// A fill inside a curve: a material painted over the ground the curve encloses, with a feathered edge. Like a strip
+/// it is kept in step with the curve (its strokes are the parts' own, marked with the curve); the paint shader works
+/// out the inside from the curve's outline, so nothing is painted into an image. An open curve is closed by a straight
+/// line from its last point to its first.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+pub struct Fill {
+    /// The material painted (a file in assets/materials).
+    pub material: String,
+    #[reflect(@Setting::feel("Feather", &["Sharp", "Soft", "Wide"], 0.0, 4.0, "m").section(FILL).help("How far in from the edge it fades from nothing to full"))]
+    pub feather: f32,
+    #[reflect(@Setting::feel("Strength", &["Faint", "Half", "Full"], 0.05, 1.0, "").section(FILL).help("How much of the material it lays"))]
+    pub strength: f32,
+}
+
+impl Default for Fill {
+    fn default() -> Self { Fill { material: String::new(), feather: 0.5, strength: 1.0 } }
+}
+
 /// A pen curve: open, or closed back on its first point.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub struct Curve {
@@ -79,6 +101,9 @@ pub struct Curve {
     /// What it paints along itself, if anything.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strip: Option<Strip>,
+    /// What it paints inside itself, if anything.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<Fill>,
 }
 
 /// How many straight pieces a curved segment is drawn with.
@@ -228,7 +253,7 @@ mod tests {
     use bevy::prelude::Dir3;
 
     fn two() -> Curve {
-        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: Stretch::Ground }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: Stretch::Ground }], closed: false, strip: None }
+        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: Stretch::Ground }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: Stretch::Ground }], closed: false, strip: None, fill: None }
     }
 
     #[test]
@@ -268,14 +293,14 @@ mod tests {
 
     #[test]
     fn a_closed_curve_has_one_more_segment_and_points_come_out() {
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None };
         assert_eq!(c.segments(), 3);
         assert_eq!(*c.sample().last().unwrap(), Vec3::ZERO);
         c.remove(2);
         assert!(!c.closed, "two points can't be a loop");
         assert_eq!(c.segments(), 1);
         // splitting the segment that closes the loop puts the new point at the end
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None };
         let i = c.split(2, 0.5);
         assert_eq!(i, 3);
         assert_eq!(c.points[3].pos(), Vec3::new(0.0, 0.0, 0.5));
@@ -297,7 +322,7 @@ mod tests {
     }
 
     fn flat(stretch: Stretch) -> Curve {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None };
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None, fill: None };
         c.points[0].stretch = stretch;
         c
     }
@@ -315,7 +340,7 @@ mod tests {
 
     #[test]
     fn a_fall_ends_where_it_lands() {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None };
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None, fill: None };
         c.points[0].stretch = Stretch::Fall;
         // the floor is 1 m up: the line comes down to it and stops there, then rests on the second point
         let line = c.laid(|p, _, _| (p.y <= 1.0).then(|| Vec3::new(p.x, 1.0, p.z)));

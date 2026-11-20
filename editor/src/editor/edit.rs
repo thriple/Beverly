@@ -50,27 +50,27 @@ impl Editor {
     pub fn delete_selected(&mut self) {
         if let Some(id) = self.selected.take() {
             let name = self.level.get(id).map(|p| p.name.clone()).unwrap_or_default();
-            self.level.parts.retain(|p| p.id != id);
-            self.level.wires.retain(|w| w.from != id && w.to != id);
+            self.level.remove_part(id);
             self.island.show("✕", format!("Deleted {name}"), "Ctrl+Z to undo", Tone::Danger);
         }
     }
 
     pub fn duplicate_selected(&mut self) {
         let Some(p) = self.selected.and_then(|id| self.level.get(id)).cloned() else { return };
-        let mut c = p.clone();
-        c.pos[0] += p.size[0] + 0.5;
-        c.name = self.level.fresh_name(p.shape.label());
-        let name = c.name.clone();
-        self.selected = Some(self.level.add(c));
+        // with everything attached to it
+        let Some(copy) = self.level.copy_tree(p.id, [p.size[0] + 0.5, 0.0, 0.0]) else { return };
+        self.selected = Some(copy);
+        let name = self.level.get(copy).map(|c| c.name.clone()).unwrap_or_default();
         self.island.show("❐", format!("Duplicated as {name}"), "Ctrl+D", Tone::Plain);
     }
 
     pub fn undo(&mut self) {
         self.ask = None;
-        if let Some(prev) = self.undo.pop() {
-            self.redo.push(std::mem::replace(&mut self.level, prev.clone()));
-            self.committed = prev;
+        if let Some(step) = self.undo.pop() {
+            step.apply(&mut self.level, false);
+            step.apply(&mut self.committed, false);
+            self.checked = self.level.stamps();
+            self.redo.push(step);
             self.fix_selection();
             self.island.show("↶", "Undo", format!("{} more", self.undo.len()), Tone::Plain);
         } else {
@@ -80,9 +80,11 @@ impl Editor {
 
     pub fn redo(&mut self) {
         self.ask = None;
-        if let Some(next) = self.redo.pop() {
-            self.undo.push(std::mem::replace(&mut self.level, next.clone()));
-            self.committed = next;
+        if let Some(step) = self.redo.pop() {
+            step.apply(&mut self.level, true);
+            step.apply(&mut self.committed, true);
+            self.checked = self.level.stamps();
+            self.undo.push(step);
             self.fix_selection();
             self.island.show("↷", "Redo", format!("{} more", self.redo.len()), Tone::Plain);
         }
@@ -153,8 +155,8 @@ impl Editor {
         self.name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.dir = dir;
         self.saved = lvl.clone();
-        self.committed = lvl.clone();
         self.level = lvl;
+        self.sync_committed();
         self.undo.clear();
         self.redo.clear();
         self.ask = None;
@@ -336,14 +338,21 @@ impl Editor {
             self.island.show("◆", format!("{name} is Unique"), "Its changes stay on it", Tone::Accent);
         }
         // the answer to a question joins the change's step; Make Unique on its own is a step of its own
-        if !them.is_empty() { self.committed = self.level.clone(); }
+        if !them.is_empty() { self.amend(); }
     }
+}
+
+/// Parts attached to a part that moved or turned go with it (each frame the parts may have changed; the level as of
+/// the last undo step says where they were, so the change is one undo step and a drag can be followed live).
+pub fn follow_parents(mut ed: ResMut<Editor>) {
+    if ed.level.parts.stamp() != ed.followed { ed.follow(); }
 }
 
 /// One undo step per finished change: when the level differs from the last step and no drag is going on.
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     // (looking through a camera is one step, made when it ends)
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
+    ed.refresh_dirty();
     pen::strips(&mut ed);
     ed.commit();
 }
@@ -352,13 +361,36 @@ impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
     /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
-        if self.level == self.committed { return; }
+        // what was moved takes what is attached to it along, in the same step
+        if self.level.parts.stamp() != self.followed { self.follow(); }
+        // nothing was borrowed for change since the last look: nothing to compare
+        let stamps = self.level.stamps();
+        if stamps == self.checked && self.level.name == self.committed.name { return; }
+        self.checked = stamps;
+        let step = level::Delta::between(&self.committed, &self.level);
+        if step.is_empty() { return; }
         if let Some(split) = self.level.split_from(&self.committed) { self.ask = Some(split); }
-        let now = self.level.clone();
-        let prev = std::mem::replace(&mut self.committed, now);
-        self.undo.push(prev);
+        step.apply(&mut self.committed, true);
+        debug_assert!(self.committed == self.level, "an undo step took the last state to a different level");
+        self.undo.push(step);
         if self.undo.len() > 300 { self.undo.remove(0); }
         self.redo.clear();
+    }
+
+    /// Parts attached to a part that moved or turned since the last step go with it.
+    fn follow(&mut self) {
+        let Editor { level, committed, .. } = self;
+        level.follow(committed);
+        self.followed = self.level.parts.stamp();
+    }
+
+    /// Make the changes made since the last step part of it (the answer to the instances question).
+    fn amend(&mut self) {
+        let Some(last) = self.undo.pop() else { return self.sync_committed() };
+        let mut before = self.committed.clone();
+        last.apply(&mut before, false);
+        self.undo.push(level::Delta::between(&before, &self.level));
+        self.sync_committed();
     }
 }
 
@@ -375,7 +407,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![],
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -389,7 +421,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![],
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;
