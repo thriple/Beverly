@@ -34,6 +34,9 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
 - A guideline, not a rule (user, 2026-11-20): prefer a vector, table, curve or stroke description to images, grids
   or baked meshes in game files when it does the job as well (shaders are fine; textures only the user's own). It
   keeps files small; where raster data is clearly the better tool, use it.
+- **Logs and signing (user, 2026-11-20):** logs stay local, with no analytics or telemetry at all. Code signing is not
+  planned: the export window shows a static note that the exe is unsigned and why. The review of the built code,
+  the module system and the level-transition design are in `docs/architecture.md`.
 - No third-party asset packs: the user makes Beverly's built-in models and characters. Libraries are fine.
 - Build each feature to its full plan in the roadmap (its parts in order), not a cut-down first version.
 - Every feature says what the MCP server gets from it (most comes free from setting descriptions and named

@@ -1,11 +1,11 @@
 {
- "updated": "2026-11-17",
+ "updated": "2026-11-20",
  "build_note": "Update this file with every release.",
  "features": [
   {
    "id": "shell",
    "name": "Editor shell and Motion kit look",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [],
@@ -20,7 +20,7 @@
   {
    "id": "navigation",
    "name": "Editor and Builder movement",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -37,7 +37,7 @@
   {
    "id": "projects",
    "name": "Projects, save, undo and file drop",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -54,7 +54,7 @@
   {
    "id": "shapes",
    "name": "Basic shapes, placing and the move widget",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -71,7 +71,7 @@
   {
    "id": "scene-list",
    "name": "Scene list",
-   "area": "Level building",
+   "area": "World building",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -88,7 +88,7 @@
   {
    "id": "models",
    "name": "glTF model import",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -105,7 +105,7 @@
   {
    "id": "test-mode",
    "name": "Test mode with the walker",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -122,7 +122,7 @@
   {
    "id": "export",
    "name": "Windows game export",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -132,14 +132,14 @@
    "chunks": [],
    "note": " Later (2026-11-18): export runs the bake cache's bakes and packs their results.",
    "order": 8,
-   "first_game": false,
+   "first_game": true,
    "built": "2026-11-14",
    "build": 5
   },
   {
    "id": "wires",
    "name": "Wires, buttons and moving parts",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -156,7 +156,7 @@
   {
    "id": "updater",
    "name": "Help menu, About and updates",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -173,7 +173,7 @@
   {
    "id": "features-window",
    "name": "Features window",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -190,7 +190,7 @@
   {
    "id": "test-harness",
    "name": "Scripted tests",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -207,7 +207,7 @@
   {
    "id": "auto-panels",
    "name": "Settings panels from data",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -224,7 +224,7 @@
   {
    "id": "scale-widget",
    "name": "Scale handles",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -241,7 +241,7 @@
   {
    "id": "mcp",
    "name": "MCP server",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -263,7 +263,7 @@
   {
    "id": "bev-files",
    "name": "The .bev file extension",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -280,7 +280,7 @@
   {
    "id": "materials",
    "name": "Textures and materials",
-   "area": "Level building",
+   "area": "World building",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -300,7 +300,7 @@
   {
    "id": "instancing",
    "name": "Instancing and Unique",
-   "area": "Level building",
+   "area": "Engine budgets",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -319,7 +319,7 @@
   {
    "id": "lights",
    "name": "Lights, sun and sky",
-   "area": "Level building",
+   "area": "Look and atmosphere",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -339,7 +339,7 @@
   {
    "id": "surface-tags",
    "name": "Surface tags",
-   "area": "Level building",
+   "area": "World building",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -357,7 +357,7 @@
   {
    "id": "cameras",
    "name": "Camera parts",
-   "area": "Level building",
+   "area": "Characters and movement",
    "status": "done",
    "effort": "M",
    "needs": [
@@ -374,7 +374,7 @@
   {
    "id": "physics",
    "name": "Physics for loose objects",
-   "area": "Level building",
+   "area": "Characters and movement",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -395,7 +395,7 @@
   {
    "id": "navmesh",
    "name": "Navigation areas",
-   "area": "AI and enemies",
+   "area": "Actors and combat",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -416,7 +416,7 @@
   {
    "id": "ui-frame",
    "name": "The editor's frame (the user's design)",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -436,7 +436,7 @@
   {
    "id": "ui-redesign",
    "name": "The editor's look, redesigned",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "done",
    "effort": "XL",
    "needs": [
@@ -457,7 +457,7 @@
   {
    "id": "audio",
    "name": "Sounds and the Audio tab",
-   "area": "Audio and dialog",
+   "area": "Sound and music",
    "status": "done",
    "effort": "L",
    "needs": [
@@ -480,7 +480,7 @@
   {
    "id": "brush",
    "name": "Brush tool",
-   "area": "Level building",
+   "area": "World building",
    "effort": "L",
    "needs": [
     "materials"
@@ -500,7 +500,7 @@
   {
    "id": "models-split",
    "name": "Models taken apart into Beverly’s own meshes",
-   "area": "Level building",
+   "area": "Engine budgets",
    "effort": "M",
    "needs": [
     "models",
@@ -519,7 +519,7 @@
   {
    "id": "gpu-setup",
    "name": "GPU set-up: SMAA, capabilities, Vulkan",
-   "area": "Editor basics",
+   "area": "Engine budgets",
    "effort": "S",
    "needs": [
     "shell"
@@ -536,7 +536,7 @@
   {
    "id": "perf-meter",
    "name": "Editor stats",
-   "area": "Editor basics",
+   "area": "Engine budgets",
    "status": "done",
    "effort": "S",
    "needs": [
@@ -553,7 +553,7 @@
   {
    "id": "bake-cache",
    "name": "Bake cache",
-   "area": "Editor basics",
+   "area": "Engine budgets",
    "effort": "S",
    "needs": [
     "projects"
@@ -568,9 +568,25 @@
    "build": 70
   },
   {
+   "id": "change-tracking",
+   "name": "Change tracking and undo as diffs",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "projects"
+   ],
+   "what": "Each part notes when it changed, so the editor stops comparing the whole level every frame, and an undo step stores what changed instead of a copy of the level.",
+   "chunks": [],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Today the edit commit compares the whole level with the last undo step every frame when nothing is dragged, and each step clones the whole level (300 kept). Fine now, but it grows with the level: not for the big polygon, light and logic budgets or for regions. Autosave, the runtime edits layer and the per-region files use the same change stamps.",
+   "order": 32,
+   "first_game": true,
+   "next": true
+  },
+  {
    "id": "shaders",
    "name": "Custom shaders",
-   "area": "Look and effects",
+   "area": "Engine budgets",
    "effort": "L",
    "needs": [
     "materials"
@@ -583,13 +599,50 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "planned",
    "first_game": true,
-   "order": 32,
+   "order": 33,
+   "next": true
+  },
+  {
+   "id": "part-hierarchy",
+   "name": "Part hierarchy",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "shapes",
+    "physics"
+   ],
+   "what": "Parts can be attached to parts: move or turn a parent and its children follow; movers carry what is on them and can turn as well as slide.",
+   "chunks": [
+    "Parent links and local offsets in the level file, the scene list and the move widget",
+    "Play follows the chain: entities, colliders and movers (a Mover gets a turn as well as a slide, for spinning debris, doors and rotors)",
+    "Frame-relative walking: what stands or walks on a moving, turning parent rides it smoothly, interpolated between physics steps"
+   ],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Parts are a flat list today (movers slide only; riding a mover is a special case in the walker). Sockets, prefabs, vehicle assemblies, mounts, ships with interiors, doors on buildings and the attachments that come with a model all need parts attached to parts. Subnautica's moving interior shows the failure to avoid: a walker clipped through the floor when the interior drifted.",
+   "order": 34,
+   "first_game": true,
+   "next": true
+  },
+  {
+   "id": "input-map",
+   "name": "Input map",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
+   "chunks": [],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
+   "order": 35,
+   "first_game": true,
    "next": true
   },
   {
    "id": "pen",
    "name": "Bezier pen tool",
-   "area": "Level building",
+   "area": "World building",
    "effort": "L",
    "needs": [
     "brush"
@@ -599,16 +652,16 @@
     "The pen: click and drag points with Bezier handles, Alt breaks a handle, close on the first point, then move points and handles, insert and remove points; curves drawn on terrain, water and parts",
     "What a pen shape does, with the brush’s layers: a strip along it (width, soft edges: a cobbled path), a fill inside it (feathered edge), scatter along or inside (Even: one every N metres facing along it; Scattered: a band thinning at its edges; Both sides), and height along or inside (ridges, beds, flat pads on terrain); shapes stay live, Turn into items makes placed items; the MCP"
    ],
-   "note": "Part 1 built 2026-11-19 (the pen): P in the Level tab; click for a corner, drag for a smooth point, click the first point to close, Enter finishes; then drag points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) removes it, Delete elsewhere removes the curve, click another curve to edit it, Alt while dragging breaks a handle; points snap to the grid like parts do and land on whatever surface is under the pointer. Curves live in the level file (curves: id, name, points with handle offsets, closed), one undo step per change; the code is curve.rs (the Bezier maths, tested) and editor/pen.rs. MCP: draw_shape (points as [x, y, z] or {at, handle_in, handle_out}, closed, shape to redraw, delete) and list_shapes (tests/mcp/check.py). Part 2, first slice built 2026-11-19 (stretches): each point carries how the line leaving it treats geometry, Ground (default), Over everything, Air or Fall, and the line seen is laid on what it meets (curve.rs laid, pen.rs surface; cached and relaid when the curve or any part changes): Ground takes the walkable surface (a top face, or a part tagged Ground or Water; never one tagged Paths ignore or an invisible collider) within half a metre up or two down from where it was, so it lies on a slab, passes under a prop or ceiling and bridges gaps; Over takes anything visible within 1.5 m up; Air ignores geometry; Fall leaves along its handle and ends where it lands. Ground stretches draw solid, Air and Fall dashed; a small button by the selected point switches its stretch (a new point goes on as the last one went); the Ground and Paths ignore tags are new surface tags; draw_shape points take stretch and list_shapes says it. Strips built 2026-11-19: the pen has a panel (Inspect while it is out: the curve's name, Paint a strip with a material, Width, Edge, Strength); a strip paints the laid line as brush strokes onto the part under each step of it (the part whose top face the point is on, so a prop the line passes through isn't painted and a stretch in the air paints nothing), kept in step with the curve: the strokes are the parts' own, marked with the curve (Stroke.curve), made again in place when the curve, its strip or the geometry changes and taken away with the strip or curve, in the same undo step; draw_shape takes strip {material, width, edge, strength} (null removes it) and list_shapes says it. Fills built 2026-11-19: the pen's panel has a Fill group (Fill the inside, the material it paints, Feather, Strength); a fill paints the ground inside the curve (an open curve is closed by a straight line), the paint shader working out the inside and the feathered edge from the curve's outline, so nothing is painted into an image; it goes to each part with walkable ground inside the outline (a top face within a step of the line's height, as a Ground path counts it), not to props standing on that ground or parts tagged Paths ignore, and lies under a strip on the same curve; like strips its strokes are the parts' own (Stroke.fill, with the outline in the world), made again in place when the curve, its fill or the geometry changes and in the same undo step; draw_shape takes fill {material, feather, strength} (null removes it) and list_shapes says it. Still to do: the path-wide default and Sag for air, the slope limit, scatter, and picking a curve without the pen; height along curves waits for terrain (user, 2026-11-19). Scatter, as the user describes it (2026-11-19): bits of random, context-appropriate debris that make a level feel varied and detailed (in a nature scene tree stumps, logs, boulders, sticks, brambles), so it places items picked at random from a set the user chooses, along or inside a curve. Decided with the user 2026-11-19: a path has two modes, Ground only (default: drapes onto the ground and ignores props, scatter and other paths) and Over everything (follows any geometry it meets); the surface each point was clicked on decides which level it follows, the path stays on that level between points, ground means surfaces within a slope limit and objects below step height, gaps are bridged, Water counts as ground; where two ground paths cross, the later one wins (order keys Ctrl+[ and ], Ctrl+Shift for ends, with a list in the Inspect panel, see the order note on the brush). Refined 2026-11-19 (user: a path crosses many surfaces; tags as well as rules; scatter on the ground, deep select for manual adjustment): the mode is per stretch (stored on a point, for the segment leaving it) with a path-wide default: Ground (walkable surfaces: ground, road, steps, interior floor; the path takes the walkable surface nearest in height to the previous sample within the step height, starting from the clicked level; ceilings and invisible colliders never count), Over everything, Air (ignores geometry; Sag for a rope) and Fall (leaves along its handle and drops until it hits a surface; a faucet stream is Fall then Ground). Tags: Ground forces a part to count, Paths ignore forces it out, Water counts. Precedence: the stretch's own behaviour, tags, the path's default, the slope and step rules. Scatter sits on the surface the path is following and never on other scatter; deep select (gesture to choose: Ctrl+click or double-click in; Alt is taken by the pen and brush) picks one scatter instance to nudge, delete or detach, kept as overrides by position along the curve (they can drift if the curve is reshaped a lot; Turn into items freezes everything). Confirmed by the user 2026-11-19: ground stretches draw as a solid line and air stretches dashed, with a small button on the selected point to switch its stretch behaviour; deep select is a double-click into the shape. Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay).",
+   "note": "Part 1 built 2026-11-19 (the pen): P in the Level tab; click for a corner, drag for a smooth point, click the first point to close, Enter finishes; then drag points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) removes it, Delete elsewhere removes the curve, click another curve to edit it, Alt while dragging breaks a handle; points snap to the grid like parts do and land on whatever surface is under the pointer. Curves live in the level file (curves: id, name, points with handle offsets, closed), one undo step per change; the code is curve.rs (the Bezier maths, tested) and editor/pen.rs. MCP: draw_shape (points as [x, y, z] or {at, handle_in, handle_out}, closed, shape to redraw, delete) and list_shapes (tests/mcp/check.py). Part 2, first slice built 2026-11-19 (stretches): each point carries how the line leaving it treats geometry, Ground (default), Over everything, Air or Fall, and the line seen is laid on what it meets (curve.rs laid, pen.rs surface; cached and relaid when the curve or any part changes): Ground takes the walkable surface (a top face, or a part tagged Ground or Water; never one tagged Paths ignore or an invisible collider) within half a metre up or two down from where it was, so it lies on a slab, passes under a prop or ceiling and bridges gaps; Over takes anything visible within 1.5 m up; Air ignores geometry; Fall leaves along its handle and ends where it lands. Ground stretches draw solid, Air and Fall dashed; a small button by the selected point switches its stretch (a new point goes on as the last one went); the Ground and Paths ignore tags are new surface tags; draw_shape points take stretch and list_shapes says it. Strips built 2026-11-19: the pen has a panel (Inspect while it is out: the curve's name, Paint a strip with a material, Width, Edge, Strength); a strip paints the laid line as brush strokes onto the part under each step of it (the part whose top face the point is on, so a prop the line passes through isn't painted and a stretch in the air paints nothing), kept in step with the curve: the strokes are the parts' own, marked with the curve (Stroke.curve), made again in place when the curve, its strip or the geometry changes and taken away with the strip or curve, in the same undo step; draw_shape takes strip {material, width, edge, strength} (null removes it) and list_shapes says it. Fills built 2026-11-19: the pen's panel has a Fill group (Fill the inside, the material it paints, Feather, Strength); a fill paints the ground inside the curve (an open curve is closed by a straight line), the paint shader working out the inside and the feathered edge from the curve's outline, so nothing is painted into an image; it goes to each part with walkable ground inside the outline (a top face within a step of the line's height, as a Ground path counts it), not to props standing on that ground or parts tagged Paths ignore, and lies under a strip on the same curve; like strips its strokes are the parts' own (Stroke.fill, with the outline in the world), made again in place when the curve, its fill or the geometry changes and in the same undo step; draw_shape takes fill {material, feather, strength} (null removes it) and list_shapes says it. Still to do: the path-wide default and Sag for air, the slope limit, scatter, and picking a curve without the pen; height along curves waits for terrain (user, 2026-11-19). Scatter, as the user describes it (2026-11-19): bits of random, context-appropriate debris that make a level feel varied and detailed (in a nature scene tree stumps, logs, boulders, sticks, brambles), so it places items picked at random from a set the user chooses, along or inside a curve. Decided with the user 2026-11-19: a path has two modes, Ground only (default: drapes onto the ground and ignores props, scatter and other paths) and Over everything (follows any geometry it meets); the surface each point was clicked on decides which level it follows, the path stays on that level between points, ground means surfaces within a slope limit and objects below step height, gaps are bridged, Water counts as ground; where two ground paths cross, the later one wins (order keys Ctrl+[ and ], Ctrl+Shift for ends, with a list in the Inspect panel, see the order note on the brush). Refined 2026-11-19 (user: a path crosses many surfaces; tags as well as rules; scatter on the ground, deep select for manual adjustment): the mode is per stretch (stored on a point, for the segment leaving it) with a path-wide default: Ground (walkable surfaces: ground, road, steps, interior floor; the path takes the walkable surface nearest in height to the previous sample within the step height, starting from the clicked level; ceilings and invisible colliders never count), Over everything, Air (ignores geometry; Sag for a rope) and Fall (leaves along its handle and drops until it hits a surface; a faucet stream is Fall then Ground). Tags: Ground forces a part to count, Paths ignore forces it out, Water counts. Precedence: the stretch's own behaviour, tags, the path's default, the slope and step rules. Scatter sits on the surface the path is following and never on other scatter; deep select (gesture to choose: Ctrl+click or double-click in; Alt is taken by the pen and brush) picks one scatter instance to nudge, delete or detach, kept as overrides by position along the curve (they can drift if the curve is reshaped a lot; Turn into items freezes everything). Confirmed by the user 2026-11-19: ground stretches draw as a solid line and air stretches dashed, with a small button on the selected point to switch its stretch behaviour; deep select is a double-click into the shape. Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay). Review 2026-11-20: the fill outline is stored in world coordinates, which breaks on a moving part or after a region or origin shift; it moves to the part's own frame, or is made again on load. Scatter is its own entry now.",
    "status": "planned",
    "first_game": true,
-   "order": 33,
+   "order": 36,
    "next": true
   },
   {
    "id": "fill",
-   "name": "Fill tool (the bucket)",
-   "area": "Level building",
+   "name": "Bucket fill",
+   "area": "World building",
    "effort": "M",
    "needs": [
     "brush",
@@ -616,16 +669,34 @@
    ],
    "what": "Click a surface and everything matching it gets the brush's layer: the same material or texture, the same colour (with a tolerance), the same surface tag, everything inside this part, or this whole floor; Connected only stops at gaps.",
    "chunks": [],
-   "note": "Decided with the user 2026-11-19: no order is needed; a fill is its clicked point plus its rule, so filling the same area again replaces the earlier fill (as any bucket does), and fills over different areas that overlap just stack with the later one on top. Planned 2026-11-17 (user: a bucket that fills by the colour clicked, e.g. only the blue square on concrete gets grass). The fill stays a rule, not the area it found: recolour the square and what it filled follows. Stored as the clicked point, the rule and the layer. MCP: fill (point, match, layer).",
+   "note": "Decided with the user 2026-11-19: no order is needed; a fill is its clicked point plus its rule, so filling the same area again replaces the earlier fill (as any bucket does), and fills over different areas that overlap just stack with the later one on top. Planned 2026-11-17 (user: a bucket that fills by the colour clicked, e.g. only the blue square on concrete gets grass). The fill stays a rule, not the area it found: recolour the square and what it filled follows. Stored as the clicked point, the rule and the layer. MCP: fill (point, match, layer). Named Bucket fill since 2026-11-20 so it is not confused with the pen's fill (built, under pen).",
    "status": "planned",
    "first_game": true,
    "next": true,
-   "order": 34
+   "order": 37
+  },
+  {
+   "id": "stress-level",
+   "name": "Stress level and memory meter",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "perf-meter",
+    "instancing",
+    "lights"
+   ],
+   "what": "A dense generated level (many parts, lights, props and agents) and video memory in the performance meter.",
+   "chunks": [],
+   "note": "Starts as the separate beverly-bench program (a download of its own, runs unattended at 1080p and 4K, writes a short plain-text log the user sends back: card report, polygons, lights with and without shadows, the moving-headlight case, agents on the processor, memory; no personal data). Its scenes then become this level. Reference card: the user's own, 8 GB of video memory (user, 2026-11-20).",
+   "order": 38,
+   "first_game": true,
+   "next": true
   },
   {
    "id": "grass",
    "name": "Grass carpet and the Foliage topic",
-   "area": "Level building",
+   "area": "World building",
    "effort": "L",
    "needs": [
     "brush",
@@ -642,12 +713,28 @@
    "status": "planned",
    "first_game": true,
    "next": true,
-   "order": 35
+   "order": 39
+  },
+  {
+   "id": "quality-tiers",
+   "name": "Quality tiers",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "perf-meter",
+    "gpu-setup"
+   ],
+   "what": "Presets that choose virtual geometry, cached shadows, baked light and the global illumination tier from the card (GpuCaps) and its budget; a weaker card quietly loses shadows, detail and thinking rate first.",
+   "chunks": [],
+   "note": "The settings screen for them stays in graphics-settings.",
+   "order": 40,
+   "first_game": true
   },
   {
    "id": "world-settings",
    "name": "World settings",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -656,29 +743,29 @@
    "what": "The Level tab's World topic: per level, the kind of ground (none, flat floor, terrain, ocean) and sky or Interior; later wind, weather and boundaries. Space games get no ground at all.",
    "chunks": [],
    "note": "",
-   "order": 36,
+   "order": 41,
    "first_game": true
   },
   {
    "id": "zones",
    "name": "Zone parts",
-   "area": "Level building",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "M",
    "needs": [
     "shapes",
     "auto-panels"
    ],
-   "what": "One stretchable Zone part with settings for weather, post-processing, audio, wind, water, boundaries and hazards, blending at its edges.",
+   "what": "One stretchable Zone part: a volume with enter and exit events and layers (weather, ground, water, sound, post-processing, wind, boundaries, hazards) that modules add to, blending at its edges; also what swimming, air pockets and hazards read.",
    "chunks": [],
-   "note": "",
-   "order": 37,
+   "note": "Review 2026-11-20: the base of module reach. Wind, ambience, atmosphere and ocean settings become layers or packs.",
+   "order": 42,
    "first_game": true
   },
   {
    "id": "particles",
    "name": "Particle effects",
-   "area": "Abilities and combat",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -687,13 +774,13 @@
    "what": "One particle system for every effect: bursts and streams of soft blobs with drag, gravity, spin and wander, size and colour over life drawn as curves.",
    "chunks": [],
    "note": "Generalises Last Ascent's particles (fx.rs and the plume particles), which already match the game's look and run without compute shaders. bevy_hanabi (GPU, Bevy 0.20) stays a fallback if counts outgrow it. Rain and snow are a shader around the camera, not particles.",
-   "order": 38,
+   "order": 43,
    "first_game": true
   },
   {
    "id": "context-menu",
    "name": "Right-click menus and jumping between tabs",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -702,13 +789,13 @@
    "what": "Right-click on parts, assets, keys, ground and sky: duplicate, delete, rename, make unique, and Edit in its tab (Characters, Vehicles, Effects by topic, Audio); double-click opens what a thing is made of; a back chip (Alt+Left) returns with the same selection and view; Ctrl+1 to 8 switch tabs.",
    "chunks": [],
    "note": "Widened 2026-11-17 (user: right-click 'Edit this in the ___ Effects tab'; redundant ways are fine if they don't conflict). Entries for tabs that aren't built yet are left out. MCP: open_in_tab (thing, tab, topic). Ctrl+1 (Level) and Ctrl+5 (Audio) came with the Audio tab (2026-11-17); the rest follow their tabs.",
-   "order": 39,
+   "order": 44,
    "first_game": true
   },
   {
    "id": "asset-shelf",
    "name": "Assets shelf: originals, prepared versions, pips, thumbnails, search",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "effort": "L",
    "needs": [
     "projects",
@@ -722,28 +809,44 @@
    "note": "Part 2 started 2026-11-19 (built ahead of the split, which has little to show until asset-prep): the Assets panel has a search field (every word must be in a file's name; folders with no match drop out and the rest open; tags and pips join in when they exist) and a picture on the left of texture and material rows (a texture shrunk, a material's texture or else its tint as a swatch), made in the background into the bake cache (editor/thumbs.rs); a model's picture is taken by showing it alone far below the level, lit by a light of its own, with a camera into a small image (editor/preview.rs), cut to what it fills. Still to do there: materials and shaders as a lit sphere, sounds as their waveform, prepared versions, the grid view, Ctrl+F, the chips, and the MCP's pips. Planned 2026-11-19 (user: a quick visual guide that a file has been through a tab and isn't the original; modified versions must live in the Assets panel as well, with priority on top; a search bar; thumbnails on the left with an optional grid). Decided with the user: originals never edited; a prepared version hides its original beneath it with a way to find it; several prepared versions of one original; search matches names, tags and pips. Not a new tab: tabs are workbenches, Assets is the shelf. Works at once for materials, sounds and shaders; asset-prep (the model's own file) fills it for models. Replaces the change-bar idea (no baseline is needed).",
    "status": "planned",
    "first_game": true,
-   "order": 40
+   "order": 45
+  },
+  {
+   "id": "runtime-edits",
+   "name": "Runtime edits layer",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "bev-files",
+    "change-tracking"
+   ],
+   "what": "Everything that changes while playing (player-built pieces, dug terrain, destroyed props, parts that moved, what a level looked like when you left) is a saved list of edits over the authored level; test mode throws it away, saves and level changes keep it.",
+   "chunks": [],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Voxel and survival games save only the edited chunks over a generated or authored world. One mechanism serves the save system, test-snapshot, returning to a level, building, digging and destruction. Digging stores shapes added or taken away (small and readable), and chunked data is allowed where it is clearly better (the no-raster rule is a guideline for game data).",
+   "order": 46,
+   "first_game": true
   },
   {
    "id": "shadow-cache",
    "name": "Cached shadows",
-   "area": "Look and effects",
+   "area": "Engine budgets",
    "effort": "M",
    "needs": [
     "lights",
     "perf-meter"
    ],
-   "what": "A light’s shadow is drawn once and only redrawn when something in its reach moves; shadow detail by size on screen; the light budget grows to match.",
-   "note": "Planned 2026-11-18 (docs/lighting.md). Today each shadowed point light draws the scene six times a frame, which is why the budget is 4 overlapping; unshadowed lights are already cheap in Bevy (hundreds). Aim: 20 shadowed lights without notice, 100 when most are still or unshadowed.",
+   "what": "Cached shadow maps in two layers: the shadows of what never moves are drawn once and kept, only moving things are drawn each frame on top; shadow resolution by screen size.",
+   "note": "Design 2026-11-20 (the moving-headlight case): a moving shadowed light can't be cached, and each cached lamp a car passes would otherwise redraw the whole street, so the static layer is kept and only the car is redrawn into each lamp it passes. Lessons from Unreal's virtual shadow maps: changing a mesh's level of detail or streaming in detail does not invalidate pages by itself (do it ourselves), animated characters always count as moving, and skipping updates near the camera shows as artifacts. Headlights: a short shadow range inside a longer light range, shadows only for the nearest cars, a smaller shadow map. Costs by kind (estimates, unmeasured): unshadowed lights are cheap (hundreds); a shadowed point light draws the scene six times; the sun's cascades are a fixed cost.",
    "chunks": [],
    "status": "planned",
    "first_game": true,
-   "order": 41
+   "order": 47
   },
   {
    "id": "asset-library",
    "name": "Asset library: rename, duplicate, delete",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "effort": "M",
    "needs": [
     "projects",
@@ -754,12 +857,12 @@
    "chunks": [],
    "status": "planned",
    "first_game": true,
-   "order": 42
+   "order": 48
   },
   {
    "id": "jump-pads",
    "name": "Jump pads",
-   "area": "Level building",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -769,34 +872,13 @@
    "what": "Step on it and get launched in its direction; works on enemies and objects.",
    "chunks": [],
    "note": "",
-   "order": 43,
-   "first_game": true
-  },
-  {
-   "id": "char-core",
-   "name": "Character files and the Characters tab",
-   "area": "Characters",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "bev-files",
-    "test-mode",
-    "auto-panels"
-   ],
-   "what": "characters/*.bev, the Characters tab: list, preview, character sheet and cards; the walker becomes the first character file.",
-   "chunks": [
-    "Character file and loader; the player is spawned from it; the walker becomes characters/humanoid.bev",
-    "Characters tab: the Cast list, a live preview stage, Inspect groups per topic (Body, Moves, Camera, Controls) as the redesign's board draws them",
-    "Create steps: template, model, fit (auto collision); Body card"
-   ],
-   "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo). Its look is the Characters board of the redesign (docs/ui/design/boards/Characters.dc.html): pink frame, mint accent, topics Body, Moves, Camera, Controls. Characters tab tools (user, 2026-11-17, plan with the tab): the brush paints Beverly's own shaders onto a character; the pen draws hair, cloth strips and jewellery that move with physics.",
-   "order": 44,
+   "order": 49,
    "first_game": true
   },
   {
    "id": "ocean",
    "name": "Ocean",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -805,13 +887,13 @@
    "what": "Waves from a formula (layered Gerstner), shore fade, foam; settings by wind and storm.",
    "chunks": [],
    "note": "bevy_water supports Bevy 0.20.",
-   "order": 45,
+   "order": 50,
    "first_game": true
   },
   {
    "id": "post",
    "name": "Post-processing",
-   "area": "Look and effects",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -821,13 +903,13 @@
    "what": "Per level or camera: bloom, depth of field, motion blur, chromatic aberration, vignette, lens distortion, auto exposure, colour grading; zones and the timeline can change them.",
    "chunks": [],
    "note": "All built into Bevy 0.20. Lasting looks are set in the Level tab (World and Cameras topics); momentary touches fired by events (a flash, heat haze) are effect layers in the Effects tab (2026-11-17).",
-   "order": 46,
+   "order": 51,
    "first_game": true
   },
   {
    "id": "ssao-ssr",
    "name": "Ambient occlusion, reflections and fog volumes",
-   "area": "Look and effects",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -836,13 +918,13 @@
    "what": "Screen-space ambient occlusion and reflections, volumetric fog and light shafts, quality settings.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 47,
+   "order": 52,
    "first_game": true
   },
   {
    "id": "sky",
    "name": "Sky and clouds",
-   "area": "Look and effects",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -854,13 +936,13 @@
     "Cloud layers and volumetric clouds that follow the wind"
    ],
    "note": "Bevy 0.20 has a physical atmosphere built in.",
-   "order": 48,
+   "order": 53,
    "first_game": true
   },
   {
    "id": "wind",
    "name": "Wind",
-   "area": "Look and effects",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -870,13 +952,13 @@
    "what": "One wind for the level (direction, strength, gusts, zones) read by foliage, cloth, flags, particles, smoke, sails and flying lift.",
    "chunks": [],
    "note": "",
-   "order": 49,
+   "order": 54,
    "first_game": true
   },
   {
    "id": "decals",
    "name": "Decals",
-   "area": "Look and effects",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -886,28 +968,29 @@
    "what": "Scorch marks, cracks, skid grooves, bullet holes and signs projected onto surfaces, fading with age.",
    "chunks": [],
    "note": "Bevy 0.20 has decals built in. Blast, crack and scrape marks are drawn by a shader from a few numbers (Last Ascent's are small images today; the no-raster rule asks for math where it can do the job); signs and graffiti use the user's own images.",
-   "order": 50,
+   "order": 55,
    "first_game": true
   },
   {
    "id": "test-snapshot",
    "name": "Test snapshot and keep changes",
-   "area": "Scripting",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "M",
    "needs": [
-    "physics"
+    "physics",
+    "runtime-edits"
    ],
    "what": "Leaving test mode puts back everything that moved, broke or was used up; values tuned while testing are offered to keep.",
    "chunks": [],
-   "note": "Needed as soon as loose physics parts exist, so it comes right after physics instead of at the end.",
-   "order": 51,
+   "note": "Needed as soon as loose physics parts exist, so it comes right after physics instead of at the end. Shares one mechanism with the runtime edits layer: leaving test mode throws the layer away.",
+   "order": 56,
    "first_game": true
   },
   {
    "id": "reflections",
    "name": "Reflection boxes",
-   "area": "Level building",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -916,13 +999,66 @@
    "what": "Reflection box parts with their influence box always drawn.",
    "chunks": [],
    "note": "Captured when the level loads (Bevy 0.20 generates environment maps at run time), so no images are stored.",
-   "order": 52,
+   "order": 57,
+   "first_game": true
+  },
+  {
+   "id": "open-tags",
+   "name": "Open tags",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "surface-tags"
+   ],
+   "what": "Tags the project defines (Flammable, Market, Bench, ...) next to the built-in ones, so modules and games can mark things for their own use.",
+   "chunks": [],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Tag is a fixed list in code today (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery, Ground, Paths ignore).",
+   "order": 58,
+   "first_game": true
+  },
+  {
+   "id": "texture-pipeline",
+   "name": "Texture compression and mips",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "bake-cache",
+    "materials"
+   ],
+   "what": "Compressed texture formats, mip levels and a size cap per quality tier, made in the bake cache, so textures stay inside video memory.",
+   "chunks": [],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Nothing in the roadmap covered it, and textures are the biggest user of the 8 GB reference card.",
+   "order": 59,
+   "first_game": true
+  },
+  {
+   "id": "char-core",
+   "name": "Character files and the Characters tab",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "bev-files",
+    "test-mode",
+    "auto-panels",
+    "input-map"
+   ],
+   "what": "characters/*.bev, the Characters tab: list, preview, character sheet and cards; the walker becomes the first character file.",
+   "chunks": [
+    "Character file and loader; the player is spawned from it; the walker becomes characters/humanoid.bev",
+    "Characters tab: the Cast list, a live preview stage, Inspect groups per topic (Body, Moves, Camera, Controls) as the redesign's board draws them",
+    "Create steps: template, model, fit (auto collision); Body card"
+   ],
+   "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo). Its look is the Characters board of the redesign (docs/ui/design/boards/Characters.dc.html): pink frame, mint accent, topics Body, Moves, Camera, Controls. Characters tab tools (user, 2026-11-17, plan with the tab): the brush paints Beverly's own shaders onto a character; the pen draws hair, cloth strips and jewellery that move with physics.",
+   "order": 60,
    "first_game": true
   },
   {
    "id": "baked-light",
    "name": "Baked lighting",
-   "area": "Look and effects",
+   "area": "Engine budgets",
    "effort": "L",
    "needs": [
     "bake-cache",
@@ -934,15 +1070,15 @@
     "Still or Moving on each light, light probe volumes (Bevy irradiance volumes) baked by capture on any card, rebaked in the background",
     "Reflection boxes baked with them, the path tracer as a better baker on ray-tracing cards, lightmaps once models have a second UV set"
    ],
-   "note": "Planned 2026-11-18 (user: bake still lights the way impostors bake models). Baked data is derived, so it lives in the bake cache, never in the project. Probes before lightmaps: virtual geometry has no lightmaps yet.",
+   "note": "Planned 2026-11-18 (user: bake still lights the way impostors bake models). Baked data is derived, so it lives in the bake cache, never in the project. Probes before lightmaps: virtual geometry has no lightmaps yet. Probes first; the middle tier is gi-tier.",
    "status": "planned",
    "first_game": true,
-   "order": 53
+   "order": 61
   },
   {
    "id": "terrain-tab",
    "name": "The Terrain topic",
-   "area": "World and maps",
+   "area": "World building",
    "effort": "M",
    "needs": [
     "world-settings",
@@ -953,12 +1089,12 @@
    "note": "Planned 2026-11-17 (user: ground-only painting begs a Terrain place). Foliage stays its own topic and borrows the Surfaces. Ground relief stays flat for now (research in design.html, Foliage). Takes over the Water topic (2026-11-17); the kind of ground (none, floor, terrain, ocean) stays level-wide in the World topic.",
    "status": "planned",
    "first_game": true,
-   "order": 54
+   "order": 62
   },
   {
    "id": "prism-import",
    "name": "Prism models: named pieces",
-   "area": "Level building",
+   "area": "World building",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -968,13 +1104,13 @@
    "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
    "chunks": [],
    "note": "",
-   "order": 55,
+   "order": 63,
    "first_game": true
   },
   {
    "id": "sound-synth",
    "name": "Generated sounds",
-   "area": "Audio and dialog",
+   "area": "Sound and music",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -983,13 +1119,13 @@
    "what": "Temporary sounds made from a few settings: blips, hits, footsteps, whooshes, explosions, engine hums and rain, saved as their settings (tiny) and swapped for real recordings whenever you have them.",
    "chunks": [],
    "note": "User, 2026-11-15: generated temporary sounds are fine. Works like the classic sfxr sound makers: a wave, a pitch slide, an envelope and noise. Lives in the Sounds topic as a source beside recordings (2026-11-17).",
-   "order": 56,
+   "order": 64,
    "first_game": true
   },
   {
    "id": "atmosphere",
    "name": "Haze, weather and zones",
-   "area": "Level building",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1004,29 +1140,34 @@
     "Atmosphere settings on Zone parts (Interior preset); Set weather action over time"
    ],
    "note": "Haze is Bevy's distance fog; local fog banks are fog volumes (ambient occlusion and fog volumes feature). Rain and wind sounds go through the sound hooks. Weather looks come built in; once the Effects tab exists they are made and changed there (World effects) and still chosen in the Level by zones and the World topic.",
-   "order": 57,
+   "order": 65,
    "first_game": true
   },
   {
    "id": "levels",
    "name": "Several levels and level exits",
-   "area": "Level building",
+   "area": "Logic and modules",
    "status": "planned",
-   "effort": "M",
+   "effort": "L",
    "needs": [
     "wires",
-    "bev-files"
+    "bev-files",
+    "runtime-edits"
    ],
-   "what": "More than one level per project; Level exit parts wired to the next level.",
-   "chunks": [],
-   "note": "",
-   "order": 58,
+   "what": "More than one level per project, with one named action, Go to level, that wires, triggers, the timeline, quests, screens and modules can all call.",
+   "chunks": [
+    "Several levels per project; Go to level with a named entry point, what carries over (the player, inventory, variables) and per-level edits, so coming back finds the world as it was left (a reset-on-entry option); Level exit parts",
+    "Transition styles: a cut, a fade with a loading screen (the default), or seamless; loading in the background as the exit is approached, and behind a cinematic; a level graph overview drawn like the screens flow chart",
+    "Hand-off points: a trigger that unloads a region or level, leaves a backdrop and keeps what must stay (the ship interior), one-way or reversible; per-level records (time, kills, secrets) as readouts"
+   ],
+   "note": "Decided with the user 2026-11-20: a returning player finds their changes by default; the default transition is a fade with a loading screen. Anything that outputs a finished event can ask for a transition (a cutscene ending, a boss defeated, a quest complete, a death, a menu button, a module). Last Ascent leaves the outside level when entering the ship, replaced by a backdrop, then plays a cinematic from the escape ship while level two loads behind it. The code today loads only the first level.",
+   "order": 66,
    "first_game": true
   },
   {
    "id": "variables",
    "name": "Variables",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -1035,13 +1176,13 @@
    "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
    "chunks": [],
    "note": "",
-   "order": 59,
+   "order": 67,
    "first_game": true
   },
   {
    "id": "timeline",
    "name": "The shared timeline",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "XL",
    "needs": [
@@ -1056,13 +1197,95 @@
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
    "note": "Laid out as the user's design shows (docs/ui.svg, 'timeline lower window'): the view's bottom edge gets a resize grip, the breadcrumb of the selected item and a toolbar (Auto Keyframe toggle, menus, options) sit in a notch at its bottom left, the timeline area below spans the window. Its look is the Timeline board of the redesign (docs/ui/design/boards/Timeline.dc.html): resize grip, breadcrumb, transport, mono timecode, Seconds/Frames zoom, tracks with category icons, keys as diamonds and clips as bars, playhead in the accent, Auto key in the footer; opened from the bottom notch's Timeline button (T).",
-   "order": 60,
+   "order": 68,
+   "first_game": true
+  },
+  {
+   "id": "styles",
+   "name": "Art styles",
+   "area": "Look and atmosphere",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "materials",
+    "post"
+   ],
+   "what": "Cel shading in 2–5 bands, outlines (cheap shell outlines or precise edge detection), painterly and flat looks; a per-project look.",
+   "chunks": [
+    "Toon material with bands and ramp, rim light",
+    "Outlines: shell per object and edge detection over the screen; per-project style presets"
+   ],
+   "note": "bevy_mod_outline supports Bevy 0.20.",
+   "order": 69,
+   "first_game": true
+  },
+  {
+   "id": "sockets",
+   "name": "Sockets",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "part-hierarchy"
+   ],
+   "what": "Named attachment frames on a part, with a type and rules for what fits, drawn as small pins: snap building, vehicle parts, docking bays, perches, seats, saddles and the attachments that come with a model all use them.",
+   "chunks": [],
+   "note": "Decided with the user 2026-11-20 (early groundwork for base-building, vehicles and riding). Replaces the separate ideas of snap points (Valheim, Subnautica), attachment nodes (KSP), docking ports and spots. Spots and claims for modules are sockets with a capacity. Asset prep's attachments come through them.",
+   "order": 70,
+   "first_game": true
+  },
+  {
+   "id": "control-target",
+   "name": "Control target and control locks",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "input-map"
+   ],
+   "what": "What the player controls can change (a character, vehicle, mount, turret or drone), with its own camera and input map; control locks (cinematic, stuck in goo, stunned) as named states that any system can set.",
+   "chunks": [],
+   "note": "Decided with the user 2026-11-20. Enter and exit go through sockets. The rider-and-mount case needs two control paths, not a swap. The cinematic lock (controls off, skippable) and a goo-stuck status are the same mechanism.",
+   "order": 71,
+   "first_game": true
+  },
+  {
+   "id": "export-hardening",
+   "name": "Export hardening",
+   "area": "Shipping",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "export"
+   ],
+   "what": "A friendly error window when the game can't load or the card is unsuitable; a log file in the user's folder; the game's icon, name and version; window mode and quality saved in the user's folder; third-party licence notices; unused and editor-only files left out and the rest packed.",
+   "chunks": [],
+   "note": "Found in the 2026-11-20 review: the player exits silently on a load failure, has no icon or version, a fixed 1600 by 900 window and no notices. Decided with the user 2026-11-20: logs stay local with no analytics at all; the unsigned-exe warning (code signing needs a paid certificate) is a static message on the export window, not a planned feature.",
+   "order": 72,
+   "first_game": true
+  },
+  {
+   "id": "polish-1",
+   "name": "Polish pass: friction and looks",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "L",
+   "needs": [],
+   "pass_after": 6,
+   "what": "A pass over everything built up to here: take out the friction (extra clicks, unclear words, missing shortcuts and keycaps, slow paths) and bring every panel, pop-up and hint up to the Motion kit's look.",
+   "chunks": [
+    "Friction hunt: build a real level start to finish (with a scripted run and screenshots), list every extra click, unclear word, missing keycap or slow path, and fix the worst",
+    "Looks: spacing, alignment, type sizes, colours, springs and entrances across every window built so far; one style for empty states, hints and errors",
+    "Check: before-and-after screenshots of every window at full size and in a small window, kept with the test projects"
+   ],
+   "note": "Placed after step 6 of the Last Ascent path on purpose (not by its needs): by then the editor has most of its panels. MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
+   "order": 73,
    "first_game": true
   },
   {
    "id": "char-modes",
    "name": "Ways of moving and switching rules",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1075,28 +1298,29 @@
     "Rules editor and the library picker (+ Add) with needs; editable ranges"
    ],
    "note": "bevy_tnua (Bevy 0.20) does walking, jumping with coyote time, crouching and dashing on Avian; the + Add library picker is shared with parts, abilities, effects and items.",
-   "order": 61,
+   "order": 74,
    "first_game": true
   },
   {
    "id": "char-camera",
    "name": "Character camera and controls",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "M",
    "needs": [
-    "char-core"
+    "char-core",
+    "control-target"
    ],
    "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
    "chunks": [],
    "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need. The creator chooses how cameras behave, per game and per character, at any step, nothing hardwired (user, 2026-11-18): which modes a character has (first, third person or both), whether a key switches them while playing (and which key), and the mode it starts in.",
-   "order": 62,
+   "order": 75,
    "first_game": true
   },
   {
    "id": "joints",
    "name": "Joint chains and procedural animation",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "XL",
    "needs": [
@@ -1110,13 +1334,13 @@
     "Joint tree by name: drag joints between chains, rename"
    ],
    "note": "The Walk job generalises Last Ascent's mech legs.",
-   "order": 63,
+   "order": 76,
    "first_game": true
   },
   {
    "id": "abilities",
    "name": "Attributes, effects and abilities",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1128,57 +1352,21 @@
     "Attributes and effects (instant and over time), events",
     "Abilities with costs and cooldowns; the Abilities card with its tags"
    ],
-   "note": "",
-   "order": 64,
-   "first_game": true
-  },
-  {
-   "id": "styles",
-   "name": "Art styles",
-   "area": "Look and effects",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "materials",
-    "post"
-   ],
-   "what": "Cel shading in 2–5 bands, outlines (cheap shell outlines or precise edge detection), painterly and flat looks; a per-project look.",
-   "chunks": [
-    "Toon material with bands and ramp, rim light",
-    "Outlines: shell per object and edge detection over the screen; per-project style presets"
-   ],
-   "note": "bevy_mod_outline supports Bevy 0.20.",
-   "order": 65,
-   "first_game": true
-  },
-  {
-   "id": "polish-1",
-   "name": "Polish pass: friction and looks",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "L",
-   "needs": [],
-   "pass_after": 6,
-   "what": "A pass over everything built up to here: take out the friction (extra clicks, unclear words, missing shortcuts and keycaps, slow paths) and bring every panel, pop-up and hint up to the Motion kit's look.",
-   "chunks": [
-    "Friction hunt: build a real level start to finish (with a scripted run and screenshots), list every extra click, unclear word, missing keycap or slow path, and fix the worst",
-    "Looks: spacing, alignment, type sizes, colours, springs and entrances across every window built so far; one style for empty states, hints and errors",
-    "Check: before-and-after screenshots of every window at full size and in a small window, kept with the test projects"
-   ],
-   "note": "Placed after step 6 of the Last Ascent path on purpose (not by its needs): by then the editor has most of its panels. MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 66,
+   "note": "Status effects that change movement or take control away (stuck in goo, stunned) use the control locks of control-target; they can also set identity markers that factions read.",
+   "order": 77,
    "first_game": true
   },
   {
    "id": "asset-prep",
    "name": "Prepared models: a model’s own file",
-   "area": "Level building",
+   "area": "Editor foundations",
    "effort": "L",
    "needs": [
     "asset-library",
     "models-split",
     "context-menu",
-    "asset-shelf"
+    "asset-shelf",
+    "sockets"
    ],
    "what": "Each imported model gets its own file (tower.bev beside tower.glb): its collision, scale, materials, LOD and tags, plus lights, sounds, decals and effects that come with every copy; prepared in its tab, placed in the Level.",
    "chunks": [
@@ -1190,17 +1378,16 @@
    "note": "Planned 2026-11-18 (user: an import may need a route through its tab before the Level: a vehicle's lights and sounds, a tree's LOD, a character's physics and voice). Builds on context-menu's make-in-a-tab, place-in-the-Level. Also fixes Ctrl+D naming a copied model “Model N” (edit.rs duplicate_selected).",
    "status": "planned",
    "first_game": true,
-   "order": 67
+   "order": 78
   },
   {
    "id": "lod",
    "name": "Automatic LOD and draw distance",
-   "area": "Level building",
+   "area": "Engine budgets",
    "status": "planned",
    "effort": "L",
    "needs": [
     "instancing",
-    "atmosphere",
     "models-split"
    ],
    "what": "3 simpler versions per model plus an impostor, swap rings you can drag, Colour by LOD, size classes linked to the haze, and an LOD drawer beside Assets.",
@@ -1209,14 +1396,14 @@
     "Draw-distance classes tied to the haze end, Always visible flag",
     "The LOD drawer: pops out beside the Assets panel with the project’s LOD settings; with a model selected it shows each level side by side (a small live view of it you can turn, triangle count, swap size) and its impostor"
    ],
-   "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd. Since 2026-11-18: classic LOD is the path for skinned and see-through models and the last fallback for virtual geometry (docs/tessera.md).",
-   "order": 68,
+   "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd. Since 2026-11-18: classic LOD is the path for skinned and see-through models and the last fallback for virtual geometry (docs/tessera.md). Dependency on atmosphere dropped 2026-11-20: fog hiding pop-in is a soft preference.",
+   "order": 79,
    "first_game": true
   },
   {
    "id": "paths",
    "name": "Paths tool and animating overlay",
-   "area": "Level building",
+   "area": "World building",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1230,300 +1417,51 @@
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
    "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries. Rail cameras (a camera part that travels along a path) moved here from Camera parts (user, 2026-11-15). Patrol paths (points an enemy walks between, looped or back and forth) come here, drawn with the Paths tool (user, 2026-11-16). Drawn with the pen tool (user, 2026-11-17).",
-   "order": 69,
+   "order": 80,
    "first_game": true
   },
   {
    "id": "save-system",
    "name": "Save points and saved games",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "M",
    "needs": [
     "variables",
-    "levels"
+    "levels",
+    "runtime-edits"
    ],
-   "what": "Save point parts store the player, variables and which parts fired; load from the menu.",
+   "what": "Save points and slots store the player, variables, the runtime edits and which level and entry; load from the menu.",
    "chunks": [],
-   "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs.",
-   "order": 70,
-   "first_game": true
-  },
-  {
-   "id": "clips",
-   "name": "Animation clips and blending",
-   "area": "Characters",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "char-modes",
-    "timeline"
-   ],
-   "what": "Animation clips matched to modes and moves, blended by speed, with crossfades and events; clips come from the model file or are posed and keyed in Beverly.",
-   "chunks": [
-    "Clip playback and blending by speed; one clip slot per mode",
-    "Pose and key: animate a character made of separate pieces (Prism's named groups) by turning its joints on the timeline, saved as clips",
-    "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
-   ],
-   "note": "Skinned characters bring their clips in the GLB (the user will skin in another tool, Prism once it can). Characters made of separate pieces, like the mech, are posed and keyed here, since Prism exports pieces with pivots.",
-   "order": 71,
-   "first_game": true
-  },
-  {
-   "id": "moves-jump",
-   "name": "Jump family",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "char-modes"
-   ],
-   "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
-   "chunks": [],
-   "note": "",
-   "order": 72,
-   "first_game": true
-  },
-  {
-   "id": "moves-dash",
-   "name": "Dash, sprint and roll",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "char-modes"
-   ],
-   "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
-   "chunks": [],
-   "note": "Mostly bevy_tnua's.",
-   "order": 73,
-   "first_game": true
-  },
-  {
-   "id": "moves-low",
-   "name": "Crouch, prone, slide and lean",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "char-modes"
-   ],
-   "what": "Crouch, prone crawl, slide at speed, lean around corners.",
-   "chunks": [],
-   "note": "Mostly bevy_tnua's.",
-   "order": 74,
-   "first_game": true
-  },
-  {
-   "id": "moves-ledge",
-   "name": "Mantle, ledge grab and wall moves",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "char-modes",
-    "surface-tags"
-   ],
-   "what": "Mantle onto ledges, hang and shimmy, wall-run, wall-cling.",
-   "chunks": [
-    "Ledge detection; mantle; ledge grab and shimmy",
-    "Wall-run and wall-cling with their exits into jumps"
-   ],
-   "note": "",
-   "order": 75,
-   "first_game": true
-  },
-  {
-   "id": "flight",
-   "name": "Flying",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "char-modes"
-   ],
-   "what": "Fly, glide, hover; banking turns, rolls (aileron and barrel), dives, loops, stalls, boost.",
-   "chunks": [
-    "Fly / glide / hover modes: pitch, yaw, roll with auto-banking, speed and lift",
-    "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
-   ],
-   "note": "",
-   "order": 76,
-   "first_game": true
-  },
-  {
-   "id": "swim",
-   "name": "Swimming and diving",
-   "area": "Movement",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "char-modes",
-    "surface-tags"
-   ],
-   "what": "Swim at the surface, dive under with breath, water volumes.",
-   "chunks": [],
-   "note": "",
-   "order": 77,
-   "first_game": true
-  },
-  {
-   "id": "effects",
-   "name": "Visual effects",
-   "area": "Abilities and combat",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "abilities",
-    "auto-panels",
-    "particles",
-    "decals"
-   ],
-   "what": "Effects from the user's Plume Editor files (flames, jets, smoke), glow, trails and camera shake, attached to joints and fired by events.",
-   "chunks": [
-    "Plume files (.plume.ron, the user's Plume Editor) as an effect type: read, draw, inputs such as throttle wired to values (Last Ascent's plume code moves in)",
-    "Glow, trails, camera shake; attaching effects to joints and events in the editor"
-   ],
-   "note": "Reuses Last Ascent's plume reader and renderer, which already match the Plume Editor. Making effects happens in the Effects tab.",
-   "order": 78,
-   "first_game": true
-  },
-  {
-   "id": "health",
-   "name": "Health, shields and death",
-   "area": "Abilities and combat",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "abilities"
-   ],
-   "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
-   "chunks": [],
-   "note": "",
-   "order": 79,
-   "first_game": true
-  },
-  {
-   "id": "tools",
-   "name": "Tools",
-   "area": "Abilities and combat",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "abilities",
-    "physics"
-   ],
-   "what": "Teleport, recall, pick up and throw, flare, demo charge, scan, lock-on.",
-   "chunks": [
-    "Teleport, recall, lock-on, scan",
-    "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
-   ],
-   "note": "",
-   "order": 80,
-   "first_game": true
-  },
-  {
-   "id": "inventory",
-   "name": "Inventory",
-   "area": "Abilities and combat",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "abilities",
-    "variables"
-   ],
-   "what": "Items, slots, pickups, keys, consumables, gear that stacks its traits onto the character.",
-   "chunks": [
-    "Item definitions, pickups in levels, slots, keys",
-    "Gear traits stacking, consumables; inventory screen (with Screens)"
-   ],
-   "note": "Gets its own planning pass before building.",
+   "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs. Review 2026-11-20: saves live in the user's own folder (not beside the exe), carry a format version for migration, and include autosave; cloud saves only if a store needs them.",
    "order": 81,
-   "first_game": true
-  },
-  {
-   "id": "brain",
-   "name": "Brains",
-   "area": "AI and enemies",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "navmesh",
-    "char-core",
-    "abilities"
-   ],
-   "what": "How characters act on their own: perception (sight, hearing), states (idle, patrol, chase, attack, flee), presets.",
-   "chunks": [
-    "Perception: sight cones, hearing, memory",
-    "States and the Brain card: idle, patrol (paths), chase, attack, flee",
-    "Presets: guard, wanderer, animal, NPC driver",
-    "Flock preset (the bird code: land on perch spots, scatter, flock)"
-   ],
-   "note": "The Flock preset reuses the user's bird code. Walkers use the navigation areas; flyers and swimmers steer around obstacles with rays instead.",
-   "order": 82,
-   "first_game": true
-  },
-  {
-   "id": "hud",
-   "name": "HUD editor",
-   "area": "HUD, menus and animatics",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "variables",
-    "abilities"
-   ],
-   "what": "The UI/HUD tab (Ctrl+4, or F4): text, image, bar, crosshair, objective, dialog box, minimap; 9 anchors, safe area, 16:9 / 21:9 / 4:3; bind by wire.",
-   "chunks": [
-    "HUD runtime and widgets: text, image, bar, crosshair",
-    "HUD edit mode: select, anchors, safe area, aspect previews",
-    "Binding values by wire (fuel, health, counters); warnings on the timeline",
-    "In-world panels (the mech's fuel gauge), objective, minimap"
-   ],
-   "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink.",
-   "order": 83,
    "first_game": true
   },
   {
    "id": "animatics",
    "name": "Animatics",
-   "area": "HUD, menus and animatics",
+   "area": "Game layer",
    "status": "planned",
    "effort": "L",
    "needs": [
     "timeline",
     "cameras",
-    "char-core"
+    "char-core",
+    "control-target"
    ],
    "what": "Camera cuts, character recordings, subtitles, letterbox, skippable.",
    "chunks": [
     "Animatics tab: camera-cut and subtitle tracks, the Animatic action",
     "Character recordings into editable keys; letterbox and skippable"
    ],
-   "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. The creator chooses, per animatic, how it starts and ends (user, 2026-11-18: a choice, not hardwired): blend in from the player's camera or cut (and how long the blend takes), and on the way out blend or cut back to the mode the player was in, or to a mode the creator picks.",
-   "order": 84,
-   "first_game": true
-  },
-  {
-   "id": "ragdolls",
-   "name": "Ragdolls",
-   "area": "Look and effects",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "physics",
-    "joints"
-   ],
-   "what": "Characters go limp on death or big hits and blend back when they get up.",
-   "chunks": [],
-   "note": "",
-   "order": 85,
+   "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. The creator chooses, per animatic, how it starts and ends (user, 2026-11-18: a choice, not hardwired): blend in from the player's camera or cut (and how long the blend takes), and on the way out blend or cut back to the mode the player was in, or to a mode the creator picks. A cinematic sets the cinematic control lock (controls off, skippable, letterbox, subtitles); its end is a wire output that can start a transition, and the next level can load behind it (user, 2026-11-20).",
+   "order": 82,
    "first_game": true
   },
   {
    "id": "time-of-day",
    "name": "Day and night, and time scale",
-   "area": "Game systems",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -1533,13 +1471,13 @@
    "what": "A running clock with day and night, schedules for lights and NPCs; slow motion and pause.",
    "chunks": [],
    "note": "",
-   "order": 86,
+   "order": 83,
    "first_game": true
   },
   {
    "id": "terrain",
    "name": "Terrain from curves and strokes",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "XL",
    "needs": [
@@ -1555,18 +1493,17 @@
     "Detail and distance: ring sizes and how fine they get, close-up relief (mud, ruts) in the same displacement, no seams between rings"
    ],
    "note": "Height images from other tools could be converted into strokes later, if wanted. Collision (user, 2026-11-15: no meshes where a height function does it cheaper): the ground is the height function itself as a custom shape in Avian that answers rays exactly (standing on it: the walker's tnua sensor as a ray instead of a disc; feet and foot placement, grapple, camera, bullets, placing things), plus a small contact rule of Beverly's own, since Parry works out contact between solid shapes only for its built-in ones: each step, loose bodies' lowest points are checked against the height and pushed up and out along the slope, and ground steeper than a set limit (banks taller than the walker's 0.45 m step) pushes characters back like a wall. Check: sampled points agree with the height function, the walker climbs stairs and is stopped by a steep bank, a loose crate settles on a slope. Its stroke tools are the brush; its curve tools the pen (user, 2026-11-17). Needs the pen, not the Paths tool (2026-11-17): the pen is the one curve tool, and Paths adds the timeline overlay terrain doesn't use. Ground without meshes (user, 2026-11-17: not a fan of meshes for world ground; tessellation can be built if needed): the ground is drawn from its description each frame, the way the grass carpet draws blades.",
-   "order": 87,
+   "order": 84,
    "first_game": true
   },
   {
    "id": "tessera",
    "name": "Tessera: virtual geometry (Nanite-like detail)",
-   "area": "Level building",
+   "area": "Engine budgets",
    "effort": "XL",
    "needs": [
     "models-split",
     "shaders",
-    "lod",
     "bake-cache",
     "gpu-setup"
    ],
@@ -1579,15 +1516,397 @@
     "Streaming: clusters in pages, loaded when the GPU asks for them",
     "Mesh shaders for the hardware raster path, where wgpu supports them"
    ],
-   "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with.",
+   "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with. Review 2026-11-20: no longer waits on LOD (classic LOD stays the path for skinned and see-through things and the fallback; the two pair up).",
    "status": "planned",
    "first_game": true,
-   "order": 88
+   "order": 85
+  },
+  {
+   "id": "streaming",
+   "name": "Streaming regions",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "levels"
+   ],
+   "what": "Big worlds in regions that load and unload around the player; water, terrain and parts belong to regions.",
+   "chunks": [
+    "Decide the region model first: a level as a set of region files, ids that are unique across them, curves that cross regions, floating origin, each region's colliders and navigation tiles, and its runtime edits",
+    "Regions in the editor; saving and loading them separately",
+    "Loading around the player in play, with far regions shown as their simplest LOD or a backdrop"
+   ],
+   "note": "Moved earlier (review 2026-11-20): Last Ascent is a chunked world, and the region model decides the file format, ids and saves. Regions are seamless open ground; levels are discrete places. Both load through the same machinery.",
+   "order": 86,
+   "first_game": true
+  },
+  {
+   "id": "budget-readout",
+   "name": "Budget readout",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "stress-level",
+    "shadow-cache"
+   ],
+   "what": "Triangles, shadowed lights, module cost and video memory against the target card, in the status pill, so headroom is seen while building.",
+   "chunks": [],
+   "note": "Goal (user, 2026-11-20): anyone who picks up Beverly has a very large polygon, light and logic budget in an editor that stays intuitive and modular.",
+   "order": 87,
+   "first_game": true
+  },
+  {
+   "id": "gi-tier",
+   "name": "Middle-tier global illumination",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "baked-light",
+    "shadow-cache"
+   ],
+   "what": "Dynamic diffuse light bounce on any card, without ray tracing, between baked probes and the ray-traced tier.",
+   "chunks": [
+    "Spike on primitives: a world-space probe cache (radiance cascades) against a surface cache with cards on the faces of primitives and distance fields from their maths; measured with the benchmark",
+    "The chosen tier in the editor and the player, picked by GpuCaps, with baked probes as the fallback",
+    "Budgets, quality settings, models through the bake cache, the performance numbers"
+   ],
+   "note": "Research 2026-11-20 (second-hand, to confirm from primary sources): Unity's Surface Cache GI (shown in its Atrio demo) uses hardware ray tracing where there is any and a compute fallback where not; AMD's Brixelizer GI is compute only on sparse distance fields; Lumen's software path uses cards and distance-field tracing; Split Radiance Cascades (2026 paper) stores probes in a sparse hash near visible surfaces. Beverly's parts are mostly primitives, so cards and distance fields are cheap to make. Nothing ready-made exists for Bevy: Solari needs ray queries.",
+   "order": 88,
+   "first_game": true
+  },
+  {
+   "id": "backdrops",
+   "name": "Backdrops",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "bake-cache",
+    "levels"
+   ],
+   "what": "Baked stand-ins for far-away things: a low-res image plus a heightmap (or a low-res mesh) of a region or level seen from a chosen viewpoint, shown at a fake distance with parallax, and swapped for the real thing when you get near.",
+   "chunks": [
+    "Capture: a region or level from a viewpoint into the bake cache (image with depth, or low-res mesh)",
+    "Show: backdrops at fake distance for planets, suns, cities and stations, with no precision problems; an unlit star and sun dome",
+    "Swap and hand-off: turn into the real geometry on approach; a hand-off point that unloads a region and leaves its backdrop (one-way or reversible), with what to keep loaded"
+   ],
+   "note": "From Last Ascent (user, 2026-11-20): entering the ship unloads the outside level and leaves a baked low-res image plus heightmap of the city or forest, seen through windows; the planet, sun and a distant station in the space level are the same thing. Extends impostors from single models to whole regions.",
+   "order": 89,
+   "first_game": true
+  },
+  {
+   "id": "scatter",
+   "name": "Scatter",
+   "area": "World building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "pen",
+    "instancing"
+   ],
+   "what": "Bits of random, context-appropriate debris that make a level feel varied and detailed (tree stumps, logs, boulders, sticks and brambles in a nature scene; asteroids and wreckage in space), placed along a curve, inside an area on the ground or inside a 3D volume, picked at random from a set the user chooses.",
+   "chunks": [
+    "Along and inside a curve on the ground, from a set of items, seeded and live with the curve (made again when the curve or the ground changes, like strips and fills)",
+    "Inside a 3D volume (a debris or asteroid field), with density and falloff, random size, turn and tilt, and slow spin and drift from a turning mover",
+    "Rules (slope, height, tags, keep off paths) and Turn into items, which places ordinary parts; the MCP"
+   ],
+   "note": "The user's description 2026-11-20. Whether items stay live or become parts: live by default, with Turn into items for hand-placing.",
+   "order": 90,
+   "first_game": true
+  },
+  {
+   "id": "readouts",
+   "name": "Readouts",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "variables"
+   ],
+   "what": "Named values (number, text, yes/no, percentage, time, colour) published by variables, attributes, modules and level stats, each with a unit, a range and a live value.",
+   "chunks": [],
+   "note": "Wires carry events today (Pressed, Arrived); screens and HUDs need values (ammo, health, last level's time). Per-level records (time, kills, damage taken, secrets) are readouts too, saved with the level's edits.",
+   "order": 91,
+   "first_game": true
+  },
+  {
+   "id": "modules",
+   "name": "Modules",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "variables",
+    "zones",
+    "open-tags",
+    "sockets"
+   ],
+   "what": "A module is one dropped-in file that becomes a placeable thing: it appears in the Tab menu, shows what it does in the 3D view, and exposes its adjustables as physical dials. Weather, ground, water, sound and behaviours are all modules.",
+   "chunks": [
+    "Module files in assets/modules with a header (name, icon, reach, dials, ports) turned into the Tab menu entry, the Inspect panel and wire ports, like shaders' headers; hot reload; errors in the island",
+    "Reach (everywhere, a zone, along a curve, at pins, on a painted surface, near a part or tag) and physical dials in the view: ring for distance, arrow for direction, plane for level, box for area, gauge for strength, pickers for sounds and materials; the same dial in the panel",
+    "Preset modules with no code that combine built-in layers (weather, ground, water, sound) in a zone; what a module touches is listed before it is placed; MCP write, list and place"
+   ],
+   "note": "Designed with the user 2026-11-20: three nouns, Module, Reach, Dials; presets (header only) and scripted modules (header plus a Luau script). Fortnite's devices and Lyra's game features show the same split (no-code placeable objects with options and events, code when needed). Replaces prefabs as the way to bundle parts with ports.",
+   "order": 92,
+   "first_game": true
+  },
+  {
+   "id": "build-mode",
+   "name": "Build mode",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "sockets",
+    "runtime-edits",
+    "input-map"
+   ],
+   "what": "Place pieces while playing with the editor's own placement code: snap to sockets and a grid, live yes/no feedback (green or red outline), costs, and removal or repair.",
+   "chunks": [
+    "Placing at runtime: snap, validity feedback, cost, saved as runtime edits",
+    "Rules as modules: what may touch what, snap points and grids, ground and water rules",
+    "Removing, repairing and upgrading pieces; ownership; units and the player colliding with what is built"
+   ],
+   "note": "From Valheim, Fortnite, Subnautica and KSP. Priority groundwork for Last Ascent with vehicles and riding; crowds and armies come much later (user, 2026-11-20).",
+   "order": 93,
+   "first_game": true
+  },
+  {
+   "id": "assemblies",
+   "name": "Vehicle assemblies",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "sockets",
+    "part-hierarchy",
+    "physics"
+   ],
+   "what": "Parts joined into one body with mass and centre of mass, physical joints with strength, symmetry placement, and interiors that move with the body.",
+   "chunks": [
+    "Parts joined at sockets into one physics body; mass, centre of mass, symmetry placement",
+    "Physical joints with strength and breaking (KSP's joints needed reinforcing in practice)",
+    "Interiors and passengers in the body's own frame, interpolated"
+   ],
+   "note": "Separate from joints, which is for character rigs. Vehicles are built from this.",
+   "order": 94,
+   "first_game": true
+  },
+  {
+   "id": "clips",
+   "name": "Animation clips and blending",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes",
+    "timeline"
+   ],
+   "what": "Animation clips matched to modes and moves, blended by speed, with crossfades and events; clips come from the model file or are posed and keyed in Beverly.",
+   "chunks": [
+    "Clip playback and blending by speed; one clip slot per mode",
+    "Pose and key: animate a character made of separate pieces (Prism's named groups) by turning its joints on the timeline, saved as clips",
+    "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
+   ],
+   "note": "Skinned characters bring their clips in the GLB (the user will skin in another tool, Prism once it can). Characters made of separate pieces, like the mech, are posed and keyed here, since Prism exports pieces with pivots.",
+   "order": 95,
+   "first_game": true
+  },
+  {
+   "id": "moves-jump",
+   "name": "Jump family",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
+   "chunks": [],
+   "note": "",
+   "order": 96,
+   "first_game": true
+  },
+  {
+   "id": "moves-dash",
+   "name": "Dash, sprint and roll",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
+   "chunks": [],
+   "note": "Mostly bevy_tnua's.",
+   "order": 97,
+   "first_game": true
+  },
+  {
+   "id": "moves-low",
+   "name": "Crouch, prone, slide and lean",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Crouch, prone crawl, slide at speed, lean around corners.",
+   "chunks": [],
+   "note": "Mostly bevy_tnua's.",
+   "order": 98,
+   "first_game": true
+  },
+  {
+   "id": "moves-ledge",
+   "name": "Mantle, ledge grab and wall moves",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes",
+    "surface-tags"
+   ],
+   "what": "Mantle onto ledges, hang and shimmy, wall-run, wall-cling.",
+   "chunks": [
+    "Ledge detection; mantle; ledge grab and shimmy",
+    "Wall-run and wall-cling with their exits into jumps"
+   ],
+   "note": "",
+   "order": 99,
+   "first_game": true
+  },
+  {
+   "id": "flight",
+   "name": "Flying",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "char-modes"
+   ],
+   "what": "Fly, glide, hover; banking turns, rolls (aileron and barrel), dives, loops, stalls, boost.",
+   "chunks": [
+    "Fly / glide / hover modes: pitch, yaw, roll with auto-banking, speed and lift",
+    "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
+   ],
+   "note": "",
+   "order": 100,
+   "first_game": true
+  },
+  {
+   "id": "swim",
+   "name": "Swimming and diving",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "char-modes",
+    "surface-tags"
+   ],
+   "what": "Swim at the surface, dive under with breath, water volumes.",
+   "chunks": [],
+   "note": "",
+   "order": 101,
+   "first_game": true
+  },
+  {
+   "id": "effects",
+   "name": "Visual effects",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "auto-panels",
+    "particles",
+    "decals"
+   ],
+   "what": "Effects from the user's Plume Editor files (flames, jets, smoke), glow, trails and camera shake, attached to joints and fired by events.",
+   "chunks": [
+    "Plume files (.plume.ron, the user's Plume Editor) as an effect type: read, draw, inputs such as throttle wired to values (Last Ascent's plume code moves in)",
+    "Glow, trails, camera shake; attaching effects to joints and events in the editor"
+   ],
+   "note": "Reuses Last Ascent's plume reader and renderer, which already match the Plume Editor. Making effects happens in the Effects tab.",
+   "order": 102,
+   "first_game": true
+  },
+  {
+   "id": "health",
+   "name": "Health, shields and death",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "abilities"
+   ],
+   "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
+   "chunks": [],
+   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts.",
+   "order": 103,
+   "first_game": true
+  },
+  {
+   "id": "tools",
+   "name": "Tools",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "physics"
+   ],
+   "what": "Teleport, recall, pick up and throw, flare, demo charge, scan, lock-on.",
+   "chunks": [
+    "Teleport, recall, lock-on, scan",
+    "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
+   ],
+   "note": "",
+   "order": 104,
+   "first_game": true
+  },
+  {
+   "id": "inventory",
+   "name": "Inventory",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "abilities",
+    "variables"
+   ],
+   "what": "Items, slots, pickups, keys, consumables, gear that stacks its traits onto the character.",
+   "chunks": [
+    "Item definitions, pickups in levels, slots, keys",
+    "Gear traits stacking, consumables; inventory screen (with Screens)"
+   ],
+   "note": "Gets its own planning pass before building.",
+   "order": 105,
+   "first_game": true
+  },
+  {
+   "id": "ragdolls",
+   "name": "Ragdolls",
+   "area": "Characters and movement",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "physics",
+    "joints"
+   ],
+   "what": "Characters go limp on death or big hits and blend back when they get up.",
+   "chunks": [],
+   "note": "",
+   "order": 106,
+   "first_game": true
   },
   {
    "id": "impostors",
    "name": "Octahedral impostors",
-   "area": "Level building",
+   "area": "Engine budgets",
    "effort": "L",
    "needs": [
     "models",
@@ -1599,15 +1918,187 @@
     "Baking and drawing: views around the model rendered on the GPU into a colour and a normal-and-depth atlas (views per side, atlas size, upper half or whole sphere, supersampling, edge fill), and the impostor material: the three nearest views blended, depth parallax, depth offset so it meets the ground and its neighbours correctly, the level’s sun and sky",
     "Impostors as the last LOD: made on import for each model (toggle per model and project-wide), quality changeable any time and rebaked in the background, a compare slider (mesh / impostor) in the LOD drawer; the MCP"
    ],
-   "note": "Planned 2026-11-17. Ported from the user's own baker (docs/reference/octahedral-impostor-baker.html: the octahedral mapping, three-view blend, parallax and depth offset, the alpha bleed and tile dilation) to WGSL. The atlases are never stored in the project (user, 2026-11-17): bake settings live with the model; the atlases are saved locally on the user's machine (a cache outside the project folder), rebuilt when missing, and baked into exported games. MCP: get_lod / change_lod cover impostor quality.",
+   "note": "Planned 2026-11-17. Ported from the user's own baker (docs/reference/octahedral-impostor-baker.html: the octahedral mapping, three-view blend, parallax and depth offset, the alpha bleed and tile dilation) to WGSL. The atlases are never stored in the project (user, 2026-11-17): bake settings live with the model; the atlases are saved locally on the user's machine (a cache outside the project folder), rebuilt when missing, and baked into exported games. MCP: get_lod / change_lod cover impostor quality. Backdrops extend this from single models to whole regions.",
    "status": "planned",
    "first_game": true,
-   "order": 89
+   "order": 107
+  },
+  {
+   "id": "terrain-paint",
+   "name": "Terrain surfaces",
+   "area": "World building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "terrain",
+    "materials",
+    "pen"
+   ],
+   "what": "The Terrain topic's Surfaces on terrain: grass ground, rock, sand and mud laid with the brush, pen and fill, blended at their edges per vertex; automatic rules by slope and height.",
+   "chunks": [
+    "Surfaces on terrain: the brush, pen and fill layers worked into the terrain's own description and blended per vertex at their soft edges",
+    "Automatic rules: rock on steep slopes, snow above a height"
+   ],
+   "note": "Surfaces are outlines and strokes like the terrain itself; blend weights are worked out per vertex, so no paint images are stored. Painted with the brush and pen (user, 2026-11-17).",
+   "order": 108,
+   "first_game": true
+  },
+  {
+   "id": "lakes-rivers",
+   "name": "Lakes and rivers",
+   "area": "World building",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "pen",
+    "terrain"
+   ],
+   "what": "Lakes and ponds inside an outline; rivers along a path with width, depth and flow speed per point, flowing surface and drifting foam, beds carved into the terrain.",
+   "chunks": [
+    "Lakes and ponds: outlined flat water, ripples, shore blending",
+    "Rivers on paths: flow along the curve, foam, carving the bed, joining lakes"
+   ],
+   "note": "",
+   "order": 109,
+   "first_game": true
+  },
+  {
+   "id": "virtual-shadows",
+   "name": "Virtual shadow maps",
+   "area": "Engine budgets",
+   "effort": "XL",
+   "needs": [
+    "tessera",
+    "shadow-cache"
+   ],
+   "what": "Sharp shadows for very dense levels: one huge shadow drawn only where the view needs it, and only redrawn where things changed.",
+   "chunks": [
+    "Page table and drawing only the needed pages",
+    "Caching pages that didn’t change",
+    "Virtual geometry drawing into the pages",
+    "Filtering and quality settings"
+   ],
+   "note": "Planned 2026-11-18, for later: only worth it once levels are dense enough that cached shadows aren’t enough.",
+   "status": "planned",
+   "first_game": true,
+   "order": 110
+  },
+  {
+   "id": "big-coords",
+   "name": "Large-world coordinates",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "streaming"
+   ],
+   "what": "A floating origin so worlds bigger than about 10 km don't jitter.",
+   "chunks": [],
+   "note": "big_space has no release for Bevy 0.20 yet, so the plan is a simple floating origin of Beverly's own (move the world back when the player is far from the middle) with Avian in f64; use big_space if it catches up.",
+   "order": 111,
+   "first_game": true
+  },
+  {
+   "id": "realtime-gi",
+   "name": "Realtime global illumination",
+   "area": "Engine budgets",
+   "effort": "L",
+   "needs": [
+    "tessera",
+    "quality-tiers"
+   ],
+   "what": "Ray-traced light that bounces, many lights and glowing surfaces lighting their surroundings, on ray-tracing cards (the Lumen-like option).",
+   "chunks": [
+    "Planning pass: what Bevy’s Solari does in this version, cost on an RTX 3000, proxy meshes for virtual geometry",
+    "Solari as the Ultra lighting option, with the baked or cached path below it"
+   ],
+   "note": "Planned 2026-11-18. Unverified until its planning pass (docs.rs and bevy.org were out of reach when researched).",
+   "status": "planned",
+   "first_game": true,
+   "order": 112
+  },
+  {
+   "id": "behaviours",
+   "name": "Behaviour host",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "modules",
+    "abilities",
+    "readouts"
+   ],
+   "what": "Scripted modules decide a few times a second (go to the dock, scatter, raise the price) while Beverly's native systems do the moving, steering and bulk work, so many agents stay cheap.",
+   "chunks": [
+    "The Luau host: a sandbox, an operation budget per tick, state in declared fields (so saves, networking and hot reload work), seeded random numbers, commands and events instead of direct changes",
+    "Scheduling by distance (simulation detail levels), the cost of each module in the performance meter, a state overlay while testing",
+    "A test per module on the fixed clock; the MCP can write, test and place modules"
+   ],
+   "note": "Language: Luau (sandbox built in, fast, the assistant writes it reliably); Rhai is the fallback behind the same host contract. To confirm when building: how Luau builds into the Windows player. Rules from multiplayer: declared state, fixed step, seeded randomness, effects as events.",
+   "order": 113,
+   "first_game": true
+  },
+  {
+   "id": "mounts",
+   "name": "Seats, mounts and riding",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "control-target",
+    "sockets",
+    "char-modes"
+   ],
+   "what": "Sit in seats and turrets, ride animals: enter and exit through sockets with animation hooks, rider and mount each with their own control path.",
+   "chunks": [],
+   "note": "Opsive's rideable ability and Unreal's possess calls show the pattern; the hard case is rider and mount controlled at once.",
+   "order": 114,
+   "first_game": true
+  },
+  {
+   "id": "ui-core",
+   "name": "UI core",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "readouts",
+    "auto-panels"
+   ],
+   "what": "The shared layer under the HUD and the screens: widgets, layout, bindings from readouts to widget properties, and the patchbay overlay.",
+   "chunks": [
+    "Widgets (text, image, bar, button, list), layout, anchors, safe areas, fonts, on Bevy's own UI so a shipped game carries no editor code",
+    "Bindings: a readout drives a widget property, with format, range map, thresholds (under 25% turns red) and smoothing; no code",
+    "The patchbay overlay: a searchable rack of readouts grouped by source with live values, springy 2D noodles to widget inputs, event noodles (pulses) and value noodles (labelled values), red where a source is missing; a jack on every setting so a readout can drive any setting of any part"
+   ],
+   "note": "From the user 2026-11-20: screens and HUDs get data by noodles from a rack of outputs with a search bar. Wire-view merges into this. Split from HUD and Screens so both build on it.",
+   "order": 115,
+   "first_game": true
+  },
+  {
+   "id": "hud",
+   "name": "HUD editor",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "ui-core"
+   ],
+   "what": "The UI/HUD tab: what sits on screen during play, with layouts for each state (on foot, in a ship, hidden in cinematics): crosshair, bars, objective, minimap, damage indicators, in-world panels. Values come from readouts through the patchbay.",
+   "chunks": [
+    "HUD runtime and widgets: text, image, bar, crosshair",
+    "HUD edit mode: select, anchors, safe area, aspect previews",
+    "Binding values by wire (fuel, health, counters); warnings on the timeline",
+    "In-world panels (the mech's fuel gauge), objective, minimap"
+   ],
+   "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink. Split from Screens 2026-11-20: the HUD is the always-on overlay; screens are navigated flows; both build on ui-core. Skins that draw it around the character are hud-skins.",
+   "order": 116,
+   "first_game": true
   },
   {
    "id": "effects-tab",
    "name": "Effects tab",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "XL",
    "needs": [
@@ -1626,39 +2117,21 @@
     "Combined effects: layers (plume, particles, marks, glow, trail, shake, a momentary post-processing touch such as a flash or heat haze) timed into one effect (a landing: dust, cracks, shake, a thud)"
    ],
    "note": "User, 2026-11-15: integrate the Plume Editor; other kinds of effects get their own sections. Its fields already come with sections, labels, ranges and notes (references/plume/FIELDS.md in Last Ascent), which is what Settings panels from data needs, and Last Ascent's plume code already draws them the same as the editor. Its look is the Effects board of the redesign (docs/ui/design/boards/Effects.dc.html): orange frame, azure accent. Topics by subject (user, 2026-11-17) replace the board's topics by kind (Plumes, Particles, Fire, Post): kinds are layers inside an effect. Vehicle effects waits as Coming soon until Vehicles exist; the walker stands in for characters until Character files exist.",
-   "order": 90,
-   "first_game": true
-  },
-  {
-   "id": "streaming",
-   "name": "Streaming regions",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "levels",
-    "lod"
-   ],
-   "what": "Big worlds in regions that load and unload around the player; water, terrain and parts belong to regions.",
-   "chunks": [
-    "Regions in the editor; saving and loading them separately",
-    "Loading around the player in play, with far regions shown as their simplest LOD"
-   ],
-   "note": "Each region carries its own colliders and navigation tiles, so physics and enemies load and unload with it.",
-   "order": 91,
+   "order": 117,
    "first_game": true
   },
   {
    "id": "destructibles",
    "name": "Destructible props",
-   "area": "Level building",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "L",
    "needs": [
     "health",
     "physics",
     "prism-import",
-    "test-snapshot"
+    "test-snapshot",
+    "runtime-edits"
    ],
    "what": "Crates, panels, barrels, windows, barricades, pillars, floor panels and custom parts break into their pieces.",
    "chunks": [
@@ -1666,29 +2139,13 @@
     "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
    ],
    "note": "",
-   "order": 92,
-   "first_game": true
-  },
-  {
-   "id": "spawner",
-   "name": "Spawner and waves",
-   "area": "Scripting",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "brain",
-    "timeline"
-   ],
-   "what": "Spawner parts and spawn waves on the timeline.",
-   "chunks": [],
-   "note": "",
-   "order": 93,
+   "order": 118,
    "first_game": true
   },
   {
    "id": "idle",
    "name": "Idles, barks and interaction",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1702,13 +2159,13 @@
     "Interaction targets: look-at, hand reach (two-bone IK with blend in and out), sit / lean spots"
    ],
    "note": "",
-   "order": 94,
+   "order": 119,
    "first_game": true
   },
   {
    "id": "char-templates",
    "name": "Character templates",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1723,13 +2180,13 @@
     "Vehicle and Enemy (with vehicles and the swarm)"
    ],
    "note": "",
-   "order": 95,
+   "order": 120,
    "first_game": true
   },
   {
    "id": "damage",
    "name": "Damage types",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -1738,13 +2195,13 @@
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
    "note": "",
-   "order": 96,
+   "order": 121,
    "first_game": true
   },
   {
    "id": "jet-grapple",
    "name": "Jetpack and grapple",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -1754,13 +2211,13 @@
    "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
    "chunks": [],
    "note": "Reuses Last Ascent's jets and grapple.",
-   "order": 97,
+   "order": 122,
    "first_game": true
   },
   {
    "id": "defence",
    "name": "Block, parry, dodge and shields",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1773,72 +2230,34 @@
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
    "note": "",
-   "order": 98,
-   "first_game": true
-  },
-  {
-   "id": "swarm",
-   "name": "Goo swarm enemies",
-   "area": "AI and enemies",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "brain",
-    "joints",
-    "effects"
-   ],
-   "what": "Goo bugs that swarm; close neighbours' goo merges into one surface, legs stop being worked out, gaps show where links fail.",
-   "chunks": [
-    "Swarm movement for many bugs at once, cheap per bug",
-    "Goo drawing: merged soft shapes in a shader (approved), colours and holes",
-    "Merge levels: threshold, leg culling, splitting apart again",
-    "Combat: bites, goo splash, damage and death"
-   ],
-   "note": "Goo is drawn per cluster: each cluster's box runs a shader over only its own bugs, so cost grows with clusters, not with every bug against every other.",
-   "order": 99,
-   "first_game": true
-  },
-  {
-   "id": "dialog",
-   "name": "Dialog",
-   "area": "Audio and dialog",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "audio",
-    "hud"
-   ],
-   "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
-   "chunks": [],
-   "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then.",
-   "order": 100,
+   "order": 123,
    "first_game": true
   },
   {
    "id": "screens",
    "name": "Screens and menus",
-   "area": "HUD, menus and animatics",
+   "area": "Game layer",
    "status": "planned",
    "effort": "XL",
    "needs": [
-    "hud",
-    "wires"
+    "wires",
+    "ui-core"
    ],
-   "what": "Every screen as a card in a flow chart; buttons wire to Go to screen, Start level, Continue, Quit; default Settings screen; loading screen; live 3D backgrounds.",
+   "what": "Full-screen UI flows as cards in a flow chart: title, pause, settings, loading, results, inventory, map and quest pages. Stacks and overlays, conditions (show if a variable is set), input modes (interface, play, cinematic), gamepad navigation, reusable widgets, in-world screens, live 3D backgrounds, transitions on the timeline.",
    "chunks": [
     "Screens tab: flow chart of cards, screen editing with the HUD's widgets",
     "Buttons, sliders, toggles, lists; wiring to actions",
     "Default Settings screen (graphics, audio, keys) and loading screen",
     "Live 3D backgrounds; transitions on the timeline"
    ],
-   "note": "Gets its own planning pass before building. Its look is the Screens board of the redesign (docs/ui/design/boards/Screens.dc.html): a flow graph of screen cards, with a Flow check card.",
-   "order": 101,
+   "note": "Gets its own planning pass before building. Its look is the Screens board of the redesign (docs/ui/design/boards/Screens.dc.html): a flow graph of screen cards, with a Flow check card. Widened 2026-11-20 (user: screens need more versatility); data comes in through the patchbay, including last level's results. The HUD is a separate entry.",
+   "order": 124,
    "first_game": true
   },
   {
    "id": "water-play",
    "name": "Swimming water and buoyancy",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -1850,91 +2269,13 @@
    "what": "Every water body is a swim volume; floating objects bob with drag; splashes; underwater fog and tint; water puts out fire.",
    "chunks": [],
    "note": "",
-   "order": 102,
+   "order": 125,
    "first_game": true
-  },
-  {
-   "id": "boundaries",
-   "name": "Level boundaries",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "world-settings",
-    "hud",
-    "zones",
-    "pen"
-   ],
-   "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
-   "chunks": [],
-   "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D.",
-   "order": 103,
-   "first_game": true
-  },
-  {
-   "id": "terrain-paint",
-   "name": "Terrain surfaces",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "terrain",
-    "materials",
-    "pen"
-   ],
-   "what": "The Terrain topic's Surfaces on terrain: grass ground, rock, sand and mud laid with the brush, pen and fill, blended at their edges per vertex; automatic rules by slope and height.",
-   "chunks": [
-    "Surfaces on terrain: the brush, pen and fill layers worked into the terrain's own description and blended per vertex at their soft edges",
-    "Automatic rules: rock on steep slopes, snow above a height"
-   ],
-   "note": "Surfaces are outlines and strokes like the terrain itself; blend weights are worked out per vertex, so no paint images are stored. Painted with the brush and pen (user, 2026-11-17).",
-   "order": 104,
-   "first_game": true
-  },
-  {
-   "id": "lakes-rivers",
-   "name": "Lakes and rivers",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "pen",
-    "terrain"
-   ],
-   "what": "Lakes and ponds inside an outline; rivers along a path with width, depth and flow speed per point, flowing surface and drifting foam, beds carved into the terrain.",
-   "chunks": [
-    "Lakes and ponds: outlined flat water, ripples, shore blending",
-    "Rivers on paths: flow along the curve, foam, carving the bed, joining lakes"
-   ],
-   "note": "",
-   "order": 105,
-   "first_game": true
-  },
-  {
-   "id": "virtual-shadows",
-   "name": "Virtual shadow maps",
-   "area": "Look and effects",
-   "effort": "XL",
-   "needs": [
-    "tessera",
-    "shadow-cache"
-   ],
-   "what": "Sharp shadows for very dense levels: one huge shadow drawn only where the view needs it, and only redrawn where things changed.",
-   "chunks": [
-    "Page table and drawing only the needed pages",
-    "Caching pages that didn’t change",
-    "Virtual geometry drawing into the pages",
-    "Filtering and quality settings"
-   ],
-   "note": "Planned 2026-11-18, for later: only worth it once levels are dense enough that cached shadows aren’t enough.",
-   "status": "planned",
-   "first_game": true,
-   "order": 106
   },
   {
    "id": "foliage",
    "name": "Scatter painting: foliage, rocks and props",
-   "area": "Level building",
+   "area": "World building",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1950,13 +2291,79 @@
     "Drawing lots of them: instances grouped in cells, LOD and impostors per cell, culling; wind sway and performance pass"
    ],
    "note": "Stored as brush strokes and a seed, not every plant: the same plants come back each time and the level file stays small. Erasing is a stroke too. Widened from foliage to any scatter (user, 2026-11-17). Later, maybe: tiles, bricks, cobblestones, kerbs and concrete slabs laid as 3D pieces along pen strips or across fills. Next session (user, 2026-11-17): the user uploads a grass system ported from a game of theirs, to be integrated into the foliage and scatter systems; plan the integration from it before building. Its scatter sets appear in the Foliage topic beside the grass carpet and Mixes (2026-11-17). Trees and rocks can draw as virtual geometry with cut-out leaves (raster hooks) where the card allows (2026-11-18).",
-   "order": 107,
+   "order": 126,
+   "first_game": true
+  },
+  {
+   "id": "waterfalls",
+   "name": "Waterfalls and fountains",
+   "area": "World building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "lakes-rivers",
+    "particles"
+   ],
+   "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
+   "chunks": [],
+   "note": "",
+   "order": 127,
+   "first_game": true
+  },
+  {
+   "id": "spots-claims",
+   "name": "Spots and claims",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "behaviours",
+    "sockets"
+   ],
+   "what": "A spot is a socket with a capacity (a dock bay, a perch, a bench, a market stall); an agent claims one, queues if it is taken and lets go when done.",
+   "chunks": [],
+   "note": "One building block for docking ships, birds on perches, crowds and traders.",
+   "order": 128,
+   "first_game": true
+  },
+  {
+   "id": "dialog",
+   "name": "Dialog",
+   "area": "Sound and music",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "audio",
+    "hud"
+   ],
+   "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
+   "chunks": [],
+   "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then.",
+   "order": 129,
+   "first_game": true
+  },
+  {
+   "id": "boundaries",
+   "name": "Level boundaries",
+   "area": "World building",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "world-settings",
+    "hud",
+    "zones",
+    "pen"
+   ],
+   "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
+   "chunks": [],
+   "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D.",
+   "order": 130,
    "first_game": true
   },
   {
    "id": "mech-port",
    "name": "The mech as a character file",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -1975,28 +2382,13 @@
     "Plumes, effects and the fuel gauge hooked up; Last Ascent editor and player removed"
    ],
    "note": "Scripted tests record today's mech before anything changes, so the port can be compared step by step. What to look for when converting it (Physics part 2, 2026-11-15): Beverly no longer hands a game's character the level's triangles (Play::world, with pieces() and offsets(), is gone), so Last Ascent's own editor and player stop building once they update past this; the user chose to rebuild the mech after Beverly is built, not to port it twice. Collision is now Avian's world while playing (physics.rs): each Solid part is a body tagged PartBody(id), still ones static, Moves ones kinematic (their LinearVelocity carries what stands on them), Loose ones dynamic, plus the ground at y = 0. The mech's own physics maps onto it: its sphere-against-triangles step becomes a body of its own (a bevy_tnua character like the walker in play.rs, or Avian's MoveAndSlide), its raycast (grapple, camera, ground) Avian's SpatialQuery::cast_ray, its ground_y (the legs' foot placement) a ray down, and riding moving parts comes free. Physics runs on the fixed 60 Hz step (single precision, Avian's Gravity 9.81 with GravityScale for heavier falls): the mech's movement moves from Update with a variable step to FixedUpdate, catching one-off keys every frame as play.rs does (Play::press), and still sets Play::feet for buttons. Its recorded runs (walk, jets, grapple) will drift with the new collision: compare them, and re-record only when the user agrees.",
-   "order": 108,
-   "first_game": true
-  },
-  {
-   "id": "big-coords",
-   "name": "Large-world coordinates",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "streaming"
-   ],
-   "what": "A floating origin so worlds bigger than about 10 km don't jitter.",
-   "chunks": [],
-   "note": "big_space has no release for Bevy 0.20 yet, so the plan is a simple floating origin of Beverly's own (move the world back when the player is far from the middle) with Avian in f64; use big_space if it catches up.",
-   "order": 109,
+   "order": 131,
    "first_game": true
   },
   {
    "id": "fire",
    "name": "Fire and extinguishing",
-   "area": "Level building",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2006,13 +2398,13 @@
    "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
    "chunks": [],
    "note": "",
-   "order": 110,
+   "order": 132,
    "first_game": true
   },
   {
    "id": "two-point",
    "name": "Two-point grapple",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2022,13 +2414,13 @@
    "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
    "chunks": [],
    "note": "",
-   "order": 111,
+   "order": 133,
    "first_game": true
   },
   {
    "id": "melee",
    "name": "Melee and takedowns",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2039,13 +2431,13 @@
    "what": "Close attacks with combos, takedowns from behind.",
    "chunks": [],
    "note": "",
-   "order": 112,
+   "order": 134,
    "first_game": true
   },
   {
    "id": "weapons",
    "name": "Weapons",
-   "area": "Abilities and combat",
+   "area": "Actors and combat",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2059,81 +2451,29 @@
     "Beams, muzzle effects and sounds, aim with lock-on"
    ],
    "note": "",
-   "order": 113,
+   "order": 135,
    "first_game": true
   },
   {
    "id": "graphics-settings",
    "name": "Graphics settings and quality presets",
-   "area": "Shipping and players",
+   "area": "Engine budgets",
    "status": "planned",
    "effort": "M",
    "needs": [
     "screens",
-    "post",
-    "lod"
+    "quality-tiers"
    ],
    "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
    "chunks": [],
-   "note": "Presets choose virtual geometry, cached shadows, baked lighting and realtime GI where the card allows (2026-11-18).",
-   "order": 114,
+   "note": "Presets choose virtual geometry, cached shadows, baked lighting and realtime GI where the card allows (2026-11-18). Split 2026-11-20: tiers and presets come early as quality-tiers; this is their settings screen.",
+   "order": 136,
    "first_game": true
-  },
-  {
-   "id": "accessibility",
-   "name": "Accessibility",
-   "area": "Shipping and players",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "screens",
-    "dialog"
-   ],
-   "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
-   "chunks": [],
-   "note": "",
-   "order": 115,
-   "first_game": true
-  },
-  {
-   "id": "waterfalls",
-   "name": "Waterfalls and fountains",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "lakes-rivers",
-    "particles"
-   ],
-   "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
-   "chunks": [],
-   "note": "",
-   "order": 116,
-   "first_game": true
-  },
-  {
-   "id": "realtime-gi",
-   "name": "Realtime global illumination",
-   "area": "Look and effects",
-   "effort": "L",
-   "needs": [
-    "tessera",
-    "graphics-settings"
-   ],
-   "what": "Ray-traced light that bounces, many lights and glowing surfaces lighting their surroundings, on ray-tracing cards (the Lumen-like option).",
-   "chunks": [
-    "Planning pass: what Bevy’s Solari does in this version, cost on an RTX 3000, proxy meshes for virtual geometry",
-    "Solari as the Ultra lighting option, with the baked or cached path below it"
-   ],
-   "note": "Planned 2026-11-18. Unverified until its planning pass (docs.rs and bevy.org were out of reach when researched).",
-   "status": "planned",
-   "first_game": true,
-   "order": 117
   },
   {
    "id": "foliage-wind",
    "name": "Foliage and cloth in the wind",
-   "area": "Look and effects",
+   "area": "Look and atmosphere",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2146,13 +2486,197 @@
     "Cloth: flags, banners, sails and capes on characters"
    ],
    "note": "The grass carpet already sways (its own two-part sway); this feature moves it onto the level's wind with everything else.",
-   "order": 118,
+   "order": 137,
+   "first_game": true
+  },
+  {
+   "id": "steering",
+   "name": "Steering and perception",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "spots-claims",
+    "navmesh"
+   ],
+   "what": "Native services the modules use: steering and avoidance on the ground and in free flight, neighbour lookup, sight and hearing, line-of-fire checks.",
+   "chunks": [
+    "Ground steering and avoidance on the navigation area with a neighbour grid, following curves and flow fields",
+    "Free-flight steering (birds, ships, zero gravity) and goals such as get behind the target",
+    "Perception: sight cones, hearing, memory, line-of-fire checks counted against the module budget"
+   ],
+   "note": "From the RTS and crowd research: flow fields for big groups, simulation detail by distance (Unreal's Mass has separate levels for drawing, thinking and networking).",
+   "order": 138,
+   "first_game": true
+  },
+  {
+   "id": "hud-skins",
+   "name": "HUD skins",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "hud",
+    "sockets",
+    "decals"
+   ],
+   "what": "The same readouts drawn three ways: classic 2D, 3D around the character, and physical models; the player can choose.",
+   "chunks": [
+    "3D panels at character sockets (a layout drawn onto a surface in 3D, face the camera, fade by depth, a minimum size, updated only when values change)",
+    "Ground shapes: health rings, cooldown arcs, aim cones, range circles and threat arrows with decals",
+    "Physical models driven by readouts (needle, glowing spine, ammo counter, suit lights), built on the Characters stage with the patchbay, plus the 2D fallback skin"
+   ],
+   "note": "User idea 2026-11-20: a HUD near the mech instead of the corners of the screen, since the mech's fast momentum is the fun; some things (a countdown timer) still belong on the screen; the mech is still in flux. A first-person skin sits on a visor, arm or weapon. World-space UI can be hard to read, so the 2D skin stays available.",
+   "order": 139,
+   "first_game": true
+  },
+  {
+   "id": "brain",
+   "name": "Brains",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "abilities",
+    "behaviours",
+    "steering",
+    "char-core"
+   ],
+   "what": "How characters act on their own: perception (sight, hearing), states (idle, patrol, chase, attack, flee), presets.",
+   "chunks": [
+    "States and the Brain card: idle, patrol (curves), chase, attack, flee, as module files you can open and copy",
+    "Presets as the first module pack: guard, wanderer, animal, NPC driver",
+    "Perception through the steering services: sight cones, hearing, memory",
+    "Allegiance through factions: who counts as an enemy, and markers such as goo that flip it"
+   ],
+   "note": "Becomes the first module pack on the behaviour host (review 2026-11-20). Walkers use the navigation areas; flyers and swimmers steer around obstacles with rays. The Flock preset is the wildlife pack.",
+   "order": 140,
+   "first_game": true
+  },
+  {
+   "id": "accessibility",
+   "name": "Accessibility",
+   "area": "Shipping",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "screens",
+    "dialog"
+   ],
+   "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
+   "chunks": [],
+   "note": "",
+   "order": 141,
+   "first_game": true
+  },
+  {
+   "id": "factions",
+   "name": "Factions and identity",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "abilities",
+    "steering"
+   ],
+   "what": "Who is friendly to whom, and the identity markers perception reads (a uniform, a signal, a status such as covered in goo), so allegiance can flip with state.",
+   "chunks": [],
+   "note": "Story beat from Last Ascent level one (user, 2026-11-20): the enemy coats the main character in goo so thoroughly that the ship's AI takes them for an enemy and sends a military-spec mech after them.",
+   "order": 142,
+   "first_game": true
+  },
+  {
+   "id": "pack-companion",
+   "name": "Companion drone pack",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "behaviours",
+    "steering",
+    "hud-skins",
+    "inventory"
+   ],
+   "what": "A follower that stays near the player, scouts ahead and pings what it finds, and carries the player's inventory as a diegetic display.",
+   "chunks": [],
+   "note": "Last Ascent (user, 2026-11-20): a geometric sphere drone follows the mech everywhere as its inventory (power-ups, healing packs, weapon modifiers) and its visual scout.",
+   "order": 143,
+   "first_game": true
+  },
+  {
+   "id": "spawner",
+   "name": "Spawner and waves",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain",
+    "timeline"
+   ],
+   "what": "Spawner parts and spawn waves on the timeline.",
+   "chunks": [],
+   "note": "",
+   "order": 144,
+   "first_game": true
+  },
+  {
+   "id": "swarm",
+   "name": "Goo swarm enemies",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "brain",
+    "joints",
+    "effects"
+   ],
+   "what": "Goo bugs that swarm; close neighbours' goo merges into one surface, legs stop being worked out, gaps show where links fail.",
+   "chunks": [
+    "Swarm movement for many bugs at once, cheap per bug",
+    "Goo drawing: merged soft shapes in a shader (approved), colours and holes",
+    "Merge levels: threshold, leg culling, splitting apart again",
+    "Combat: bites, goo splash, damage and death"
+   ],
+   "note": "Goo is drawn per cluster: each cluster's box runs a shader over only its own bugs, so cost grows with clusters, not with every bug against every other.",
+   "order": 145,
+   "first_game": true
+  },
+  {
+   "id": "stealth",
+   "name": "Stealth",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain"
+   ],
+   "what": "Hide in shadow or grass, noise enemies hear, distract.",
+   "chunks": [],
+   "note": "",
+   "order": 146,
+   "first_game": true
+  },
+  {
+   "id": "pack-ambushers",
+   "name": "Ambusher enemies pack",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain",
+    "weapons",
+    "stealth"
+   ],
+   "what": "A long-range missile shooter that hides among cover and jumps from spot to spot, and a stealth flanker that gets behind the player and fires a restraining shot of goo before closing in to melee.",
+   "chunks": [],
+   "note": "Last Ascent level two (user, 2026-11-20). The goo shot is a projectile with a status effect and a control lock, not a physical grab (a real grab stays possible through sockets). A director module mixes the two.",
+   "order": 147,
    "first_game": true
   },
   {
    "id": "pointer-tour",
    "name": "Pointer tours",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -2161,28 +2685,13 @@
    "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
    "chunks": [],
    "note": "",
-   "order": 119,
-   "first_game": false
-  },
-  {
-   "id": "autosave",
-   "name": "Autosave and recovery",
-   "area": "Editor basics",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "projects"
-   ],
-   "what": "Saves a recovery copy every few minutes; offers it after a crash.",
-   "chunks": [],
-   "note": "",
-   "order": 120,
+   "order": 148,
    "first_game": false
   },
   {
    "id": "profiler",
    "name": "Performance profiler",
-   "area": "Shipping and players",
+   "area": "Engine budgets",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2191,13 +2700,13 @@
    "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
    "chunks": [],
    "note": "",
-   "order": 121,
+   "order": 149,
    "first_game": false
   },
   {
    "id": "saved-views",
    "name": "Saved views",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -2206,13 +2715,44 @@
    "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
    "chunks": [],
    "note": "",
-   "order": 122,
+   "order": 150,
+   "first_game": false
+  },
+  {
+   "id": "templates",
+   "name": "Starter games",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "projects"
+   ],
+   "what": "Our test projects become starter games (Empty, First-person, Third-person, a base-building and a vehicle one later) offered when Beverly opens, so the first hour has something to play.",
+   "chunks": [],
+   "note": "The launcher's start screen comes later; this gives it something to show.",
+   "order": 151,
+   "first_game": false
+  },
+  {
+   "id": "autosave",
+   "name": "Autosave and recovery",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "projects",
+    "change-tracking"
+   ],
+   "what": "Saves a recovery copy every few minutes; offers it after a crash.",
+   "chunks": [],
+   "note": "",
+   "order": 152,
    "first_game": false
   },
   {
    "id": "array-tool",
    "name": "Array tool",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2221,13 +2761,13 @@
    "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
    "chunks": [],
    "note": "",
-   "order": 123,
+   "order": 153,
    "first_game": false
   },
   {
    "id": "mixer",
    "name": "Mixer: buses, reverb and moods",
-   "area": "Audio and dialog",
+   "area": "Sound and music",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2237,12 +2777,12 @@
    "chunks": [],
    "note": "Planned 2026-11-17. Buses are kira sub-tracks; reverb spaces are send tracks with kira's reverb; muffling is a ray from the listener to the sound and a low-pass filter. The Settings screen's volume sliders are these buses. MCP: get_mix, change_mix, set_mood.",
    "first_game": false,
-   "order": 124
+   "order": 154
   },
   {
    "id": "triggers",
    "name": "Triggers",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2252,13 +2792,13 @@
    "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
    "chunks": [],
    "note": "",
-   "order": 125,
+   "order": 155,
    "first_game": false
   },
   {
    "id": "flow",
    "name": "Flow parts",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2267,13 +2807,13 @@
    "what": "Timer, Relay, Counter, Random.",
    "chunks": [],
    "note": "",
-   "order": 126,
+   "order": 156,
    "first_game": false
   },
   {
    "id": "logic",
    "name": "Logic gates",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -2282,28 +2822,44 @@
    "what": "AND, OR, NOR, XOR, NOT.",
    "chunks": [],
    "note": "",
-   "order": 127,
+   "order": 157,
    "first_game": false
   },
   {
-   "id": "wire-view",
-   "name": "Wire pulses and the flat view",
-   "area": "Scripting",
+   "id": "gamepad",
+   "name": "Gamepad",
+   "area": "Game layer",
    "status": "planned",
    "effort": "M",
    "needs": [
-    "wires"
+    "input-map"
    ],
-   "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
+   "what": "Gamepad controls and glyphs for games, through the input map.",
    "chunks": [],
-   "note": "",
-   "order": 128,
+   "note": "No longer last: the input map comes early and gamepad support follows it.",
+   "order": 158,
+   "first_game": false
+  },
+  {
+   "id": "dynamic-nav",
+   "name": "Dynamic navigation",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "navmesh",
+    "runtime-edits"
+   ],
+   "what": "The walkable area updates while playing, for built, dug or destroyed ground.",
+   "chunks": [],
+   "note": "To confirm: whether the navigation library supports rebuilding tiles at runtime.",
+   "order": 159,
    "first_game": false
   },
   {
    "id": "pointer-tours-chars",
    "name": "Character tours",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -2313,7 +2869,7 @@
    "what": "The pointer tour for each card the first time it opens.",
    "chunks": [],
    "note": "",
-   "order": 129,
+   "order": 160,
    "first_game": false
   },
   {
@@ -2323,18 +2879,19 @@
    "status": "planned",
    "effort": "M",
    "needs": [
-    "export"
+    "export",
+    "export-hardening"
    ],
-   "what": "Make Windows zip locally or Build on GitHub with its status; both make the same zip.",
+   "what": "Make Windows zip: the instant prebuilt player is the default; Build on GitHub is for games with their own code; pre-export checks from the Problems panel; a static note that the exe is unsigned and what that means (code signing costs a yearly certificate).",
    "chunks": [],
    "note": "",
-   "order": 130,
+   "order": 161,
    "first_game": false
   },
   {
    "id": "ambience",
    "name": "Ambience and places",
-   "area": "Audio and dialog",
+   "area": "Sound and music",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2345,12 +2902,12 @@
    "chunks": [],
    "note": "Planned 2026-11-17. The stage is a patch of world with time of day, wind and rain sliders (shared with the Effects tab's World stage); scattered sounds show as dots popping up around you. Weather sounds (rain, wind) are ambience layers that follow the weather. MCP: ambience through the sound tools, zones through the part tools.",
    "first_game": false,
-   "order": 131
+   "order": 162
   },
   {
    "id": "music",
    "name": "Music that follows the game",
-   "area": "Audio and dialog",
+   "area": "Sound and music",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2365,12 +2922,12 @@
    ],
    "note": "Planned 2026-11-17. Works like FMOD's and Wwise's adaptive music: vertical (stems in and out) and horizontal (sections on the beat). MCP: list_music, change_music, set_music_state.",
    "first_game": false,
-   "order": 132
+   "order": 163
   },
   {
    "id": "kits",
    "name": "Modular kits",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2380,37 +2937,54 @@
    "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
    "chunks": [],
    "note": "",
-   "order": 133,
+   "order": 164,
    "first_game": false
   },
   {
    "id": "prefabs",
    "name": "Prefabs",
-   "area": "Scripting",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "L",
    "needs": [
-    "wires",
-    "variables"
+    "variables",
+    "part-hierarchy"
    ],
-   "what": "Select parts, Make prefab: one part with only the chosen ports showing.",
+   "what": "Select parts, Make prefab: a bundle with only the chosen ports and settings showing; a module without code.",
    "chunks": [
     "Make prefab, place copies, edit the original",
     "Exposed ports and settings, nested prefabs"
    ],
+   "note": "Overlaps modules; built on the part hierarchy, with ids remapped for each copy.",
+   "order": 165,
+   "first_game": false
+  },
+  {
+   "id": "achievements",
+   "name": "Achievements and stats",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "variables"
+   ],
+   "what": "Achievements and stats wired to variables, shown in a screen.",
+   "chunks": [],
    "note": "",
-   "order": 134,
+   "order": 166,
    "first_game": false
   },
   {
    "id": "vehicles",
    "name": "Vehicles",
-   "area": "Movement",
+   "area": "Building, vehicles and riding",
    "status": "planned",
    "effort": "XL",
    "needs": [
     "char-modes",
-    "physics"
+    "physics",
+    "assemblies",
+    "control-target"
    ],
    "what": "Arcade driving: steering, traction, suspension, drift with handbrake, boost; seats; enter and exit; vehicle as a character or entered by one.",
    "chunks": [
@@ -2419,14 +2993,14 @@
     "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
     "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
    ],
-   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent.",
-   "order": 135,
+   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent. Built as assemblies from the part hierarchy, sockets and physical joints (review 2026-11-20); the Vehicles tab is the assembler; entering and leaving go through control handover.",
+   "order": 167,
    "first_game": false
   },
   {
    "id": "other-modes",
    "name": "More ways of moving",
-   "area": "Movement",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2439,28 +3013,13 @@
     "Grind rails, zero-g, burrow, ride, perch"
    ],
    "note": "",
-   "order": 136,
-   "first_game": false
-  },
-  {
-   "id": "gamepad",
-   "name": "Gamepad",
-   "area": "HUD, menus and animatics",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "char-camera"
-   ],
-   "what": "Gamepad controls for games and the input map. Last, as asked.",
-   "chunks": [],
-   "note": "",
-   "order": 137,
+   "order": 168,
    "first_game": false
   },
   {
    "id": "plane-lock",
    "name": "Side-on and top-down games",
-   "area": "World and maps",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "S",
    "needs": [
@@ -2469,28 +3028,13 @@
    "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
    "chunks": [],
    "note": "",
-   "order": 138,
-   "first_game": false
-  },
-  {
-   "id": "achievements",
-   "name": "Achievements and stats",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "variables"
-   ],
-   "what": "Achievements and stats wired to variables, shown in a screen.",
-   "chunks": [],
-   "note": "",
-   "order": 139,
+   "order": 169,
    "first_game": false
   },
   {
    "id": "dungeon-gen",
    "name": "Dungeon generator",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2503,13 +3047,13 @@
     "Placing kit pieces, doors, keys and spawns along it"
    ],
    "note": "",
-   "order": 140,
+   "order": 170,
    "first_game": false
   },
   {
    "id": "portals",
    "name": "Rooms and portals",
-   "area": "World and maps",
+   "area": "Engine budgets",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2518,13 +3062,130 @@
    "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
    "chunks": [],
    "note": "",
-   "order": 141,
+   "order": 171,
+   "first_game": false
+  },
+  {
+   "id": "caves",
+   "name": "Sculpted caves and overhangs",
+   "area": "World building",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "terrain",
+    "runtime-edits"
+   ],
+   "what": "Add and subtract smooth shapes (spheres, capsules, swept tunnels, noise) to carve caves and overhangs into terrain; built into meshes.",
+   "chunks": [
+    "Volume description: smooth add / subtract shapes, meshing with surface nets",
+    "Sculpt tools in the editor: place, stretch, blend, tunnel along a path",
+    "Joining caves to terrain, collision and LOD",
+    "Cave dressing: drips, rubble and lights along the walls"
+   ],
+   "note": "fast-surface-nets does the meshing (no Bevy dependency). The open ground is drawn without meshes (terrain); whether caves are meshed with surface nets or drawn from their shapes in a shader is decided when they are planned (user prefers no meshes for the ground). Digging is a runtime edit (shapes added or taken away), baked to chunks in the bake cache.",
+   "order": 172,
+   "first_game": false
+  },
+  {
+   "id": "roads",
+   "name": "Roads and tracks",
+   "area": "World building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "pen",
+    "terrain"
+   ],
+   "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
+   "chunks": [],
+   "note": "",
+   "order": 173,
+   "first_game": false
+  },
+  {
+   "id": "problems-panel",
+   "name": "Problems panel and pre-export checks",
+   "area": "Editor foundations",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "budget-readout"
+   ],
+   "what": "One list of what is wrong: missing files, wires to nothing, no player start, navigation not built, exits pointing at missing levels, red noodles in screens, over-budget polygons, lights or memory; each with a fix, checked before export.",
+   "chunks": [],
+   "note": "Today only the Screens tab has a flow check.",
+   "order": 174,
+   "first_game": false
+  },
+  {
+   "id": "pack-weather",
+   "name": "Weather pack",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "modules",
+    "wind"
+   ],
+   "what": "Rain, snow, fog, wind and lightning as module presets with dials, dropped into a zone or over the whole level.",
+   "chunks": [],
+   "note": "",
+   "order": 175,
+   "first_game": false
+  },
+  {
+   "id": "pack-ground-water",
+   "name": "Ground and water packs",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "modules",
+    "surface-tags",
+    "ocean"
+   ],
+   "what": "Mud, snow, wet ground, water level, flow and currents as module presets: surface material, footsteps, grip and wetness; water volumes with a level plane you drag.",
+   "chunks": [],
+   "note": "",
+   "order": 176,
+   "first_game": false
+  },
+  {
+   "id": "structures",
+   "name": "Structure strength",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "build-mode",
+    "physics"
+   ],
+   "what": "A support graph: strength spreads from the ground through connected pieces, shown as colour while building (blue to red, as in Valheim), and a piece that loses support falls.",
+   "chunks": [],
+   "note": "",
+   "order": 177,
+   "first_game": false
+  },
+  {
+   "id": "wire-view",
+   "name": "Wire pulses and the flat view",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "wires",
+    "ui-core"
+   ],
+   "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
+   "chunks": [],
+   "note": "Merges with the patchbay: one wiring look everywhere, with pulses for events and labelled values for readouts; the 3D wire picker moves to it.",
+   "order": 178,
    "first_game": false
   },
   {
    "id": "builtin-chars",
    "name": "Built-in rigged characters",
-   "area": "Characters",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2533,47 +3194,13 @@
    "what": "A generic humanoid and a small cartoon character, skinned and animated, with walk, run, jump and idle clips, so any project can test from day one.",
    "chunks": [],
    "note": "Made by the user, not asset packs (2026-11-15), and skinned in another tool: Prism once it can skin (user, 2026-11-15). They arrive as GLB with their skeleton and clips.",
-   "order": 142,
-   "first_game": false
-  },
-  {
-   "id": "stealth",
-   "name": "Stealth",
-   "area": "Abilities and combat",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "brain"
-   ],
-   "what": "Hide in shadow or grass, noise enemies hear, distract.",
-   "chunks": [],
-   "note": "",
-   "order": 143,
-   "first_game": false
-  },
-  {
-   "id": "quests",
-   "name": "Objectives and quests",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "variables",
-    "hud"
-   ],
-   "what": "Objectives with steps, markers and completion wired to the level; a quest log screen.",
-   "chunks": [
-    "Objectives and steps wired to variables; on-screen objective",
-    "Quest log, markers on the map and compass"
-   ],
-   "note": "",
-   "order": 144,
+   "order": 179,
    "first_game": false
   },
   {
    "id": "retarget",
    "name": "Shared humanoid animations",
-   "area": "Game systems",
+   "area": "Characters and movement",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2582,13 +3209,13 @@
    "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
    "chunks": [],
    "note": "",
-   "order": 145,
+   "order": 180,
    "first_game": false
   },
   {
    "id": "space",
    "name": "Space levels",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2602,49 +3229,64 @@
     "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
    ],
    "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
-   "order": 146,
+   "order": 181,
    "first_game": false
   },
   {
-   "id": "caves",
-   "name": "Sculpted caves and overhangs",
-   "area": "World and maps",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "terrain"
-   ],
-   "what": "Add and subtract smooth shapes (spheres, capsules, swept tunnels, noise) to carve caves and overhangs into terrain; built into meshes.",
-   "chunks": [
-    "Volume description: smooth add / subtract shapes, meshing with surface nets",
-    "Sculpt tools in the editor: place, stretch, blend, tunnel along a path",
-    "Joining caves to terrain, collision and LOD",
-    "Cave dressing: drips, rubble and lights along the walls"
-   ],
-   "note": "fast-surface-nets does the meshing (no Bevy dependency). The open ground is drawn without meshes (terrain); whether caves are meshed with surface nets or drawn from their shapes in a shader is decided when they are planned (user prefers no meshes for the ground).",
-   "order": 147,
-   "first_game": false
-  },
-  {
-   "id": "roads",
-   "name": "Roads and tracks",
-   "area": "World and maps",
+   "id": "debug-tools",
+   "name": "Debug tools in play",
+   "area": "Logic and modules",
    "status": "planned",
    "effort": "M",
    "needs": [
-    "pen",
-    "terrain"
+    "behaviours",
+    "perf-meter"
    ],
-   "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
+   "what": "Live readout and event watch, slow motion and single step, teleport, and overlays for navigation, sockets, perception and module state.",
    "chunks": [],
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). The profiler exists in the plan but there was no general debug feature.",
+   "order": 182,
+   "first_game": false
+  },
+  {
+   "id": "game-packs",
+   "name": "Game packs",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "behaviours",
+    "control-target"
+   ],
+   "what": "A game rules module (what the player controls, the camera, the HUD, winning and losing, scoring) bundled with modules into a pack, so a genre is a pack and not hard-coded.",
+   "chunks": [],
+   "note": "Unreal's Lyra gets three game modes from one core plus plugins the same way.",
+   "order": 183,
+   "first_game": false
+  },
+  {
+   "id": "quests",
+   "name": "Objectives and quests",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "variables",
+    "hud"
+   ],
+   "what": "Objectives with steps, markers and completion wired to the level; a quest log screen.",
+   "chunks": [
+    "Objectives and steps wired to variables; on-screen objective",
+    "Quest log, markers on the map and compass"
+   ],
    "note": "",
-   "order": 148,
+   "order": 184,
    "first_game": false
   },
   {
    "id": "world-map",
    "name": "World map and fast travel",
-   "area": "World and maps",
+   "area": "World building",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2654,29 +3296,30 @@
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
    "note": "",
-   "order": 149,
+   "order": 185,
    "first_game": false
   },
   {
    "id": "launcher",
    "name": "Project launcher and templates",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "M",
    "needs": [
     "char-templates",
-    "bev-files"
+    "bev-files",
+    "templates"
    ],
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 150,
+   "order": 186,
    "first_game": false
   },
   {
    "id": "sailing",
    "name": "Sailing and wind-driven craft",
-   "area": "Look and effects",
+   "area": "Building, vehicles and riding",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2687,13 +3330,106 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 151,
+   "order": 187,
+   "first_game": false
+  },
+  {
+   "id": "economy",
+   "name": "Shops, crafting and loot",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "inventory",
+    "screens",
+    "behaviours"
+   ],
+   "what": "Currencies, shops, crafting recipes, loot tables.",
+   "chunks": [
+    "Currencies, shops and loot tables",
+    "Crafting recipes and the crafting screen"
+   ],
+   "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight.",
+   "order": 188,
+   "first_game": false
+  },
+  {
+   "id": "photo-mode",
+   "name": "Photo mode",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "post",
+    "screens"
+   ],
+   "what": "Pause, free camera, depth of field and filters, hide the HUD.",
+   "chunks": [],
+   "note": "",
+   "order": 189,
+   "first_game": false
+  },
+  {
+   "id": "multiplayer",
+   "name": "Multiplayer",
+   "area": "Shipping",
+   "status": "planned",
+   "effort": "XL",
+   "needs": [
+    "char-core",
+    "physics",
+    "screens",
+    "control-target"
+   ],
+   "what": "Playing together online: replicated characters and parts, lobbies, join and leave.",
+   "chunks": [
+    "Networking core: replicating characters, parts and variables",
+    "Prediction for the player's own character, smoothing for others",
+    "Physics objects owned by the host, rolled back with the player when predictions are wrong",
+    "Lobbies, join and leave, host migration",
+    "Multiplayer test mode in the editor (several windows) with fake lag and packet loss",
+    "A headless dedicated-server build of the player"
+   ],
+   "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction. Review 2026-11-20: keep the editor friendly to an authoritative server (fixed step, commands as data); decide on lockstep (which needs deterministic maths) only if an RTS pack is wanted.",
+   "order": 190,
+   "first_game": false
+  },
+  {
+   "id": "pack-docking",
+   "name": "Docking pack",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "behaviours",
+    "spots-claims",
+    "flight"
+   ],
+   "what": "Ships that request a bay, approach along a curve, dock, unload and leave, queuing when the bays are full.",
+   "chunks": [],
+   "note": "",
+   "order": 191,
+   "first_game": false
+  },
+  {
+   "id": "game-shell",
+   "name": "Game shell template",
+   "area": "Game layer",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "screens"
+   ],
+   "what": "Title, pause, settings, credits, quit and results screens that work out of the box.",
+   "chunks": [],
+   "note": "Screens covers settings and loading but not pause, title or credits.",
+   "order": 192,
    "first_game": false
   },
   {
    "id": "dialog-trees",
    "name": "Branching dialog",
-   "area": "Game systems",
+   "area": "Game layer",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2706,71 +3442,13 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 152,
-   "first_game": false
-  },
-  {
-   "id": "economy",
-   "name": "Shops, crafting and loot",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "L",
-   "needs": [
-    "inventory",
-    "screens"
-   ],
-   "what": "Currencies, shops, crafting recipes, loot tables.",
-   "chunks": [
-    "Currencies, shops and loot tables",
-    "Crafting recipes and the crafting screen"
-   ],
-   "note": "",
-   "order": 153,
-   "first_game": false
-  },
-  {
-   "id": "photo-mode",
-   "name": "Photo mode",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "S",
-   "needs": [
-    "post",
-    "screens"
-   ],
-   "what": "Pause, free camera, depth of field and filters, hide the HUD.",
-   "chunks": [],
-   "note": "",
-   "order": 154,
-   "first_game": false
-  },
-  {
-   "id": "multiplayer",
-   "name": "Multiplayer",
-   "area": "Game systems",
-   "status": "planned",
-   "effort": "XL",
-   "needs": [
-    "char-core",
-    "physics",
-    "screens"
-   ],
-   "what": "Playing together online: replicated characters and parts, lobbies, join and leave.",
-   "chunks": [
-    "Networking core: replicating characters, parts and variables",
-    "Prediction for the player's own character, smoothing for others",
-    "Physics objects owned by the host, rolled back with the player when predictions are wrong",
-    "Lobbies, join and leave, host migration",
-    "Multiplayer test mode in the editor (several windows) with fake lag and packet loss"
-   ],
-   "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction.",
-   "order": 155,
+   "order": 193,
    "first_game": false
   },
   {
    "id": "localisation",
    "name": "Languages",
-   "area": "Shipping and players",
+   "area": "Shipping",
    "status": "planned",
    "effort": "M",
    "needs": [
@@ -2780,13 +3458,13 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 156,
+   "order": 194,
    "first_game": false
   },
   {
    "id": "island-orbit",
    "name": "Demo level: island to orbit",
-   "area": "Demo levels",
+   "area": "World building",
    "status": "planned",
    "effort": "L",
    "needs": [
@@ -2812,12 +3490,28 @@
    ],
    "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): the demo sets its characters to switch between first and third person while in control, and its rocket animatics to blend in and back out to the player's mode; these are the creator's choices in the character camera and animatics settings, not built in.",
    "first_game": false,
-   "order": 157
+   "order": 195
+  },
+  {
+   "id": "pack-wildlife",
+   "name": "Wildlife pack",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "behaviours",
+    "steering"
+   ],
+   "what": "Birds that land on perch spots, scatter when you come near and flock; the bird code becomes a module.",
+   "chunks": [],
+   "note": "Replaces brain's Flock preset.",
+   "order": 196,
+   "first_game": false
   },
   {
    "id": "polish-2",
    "name": "Polish pass: the whole editor",
-   "area": "Editor basics",
+   "area": "Editor foundations",
    "status": "planned",
    "effort": "L",
    "needs": [],
@@ -2828,14 +3522,14 @@
     "Looks: the same style pass over the newer windows; anything that drifted from the Motion kit",
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
-   "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 158,
+   "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool. Includes the first export of a game.",
+   "order": 197,
    "first_game": false
   },
   {
    "id": "platforms",
    "name": "Mac and Linux builds",
-   "area": "Shipping and players",
+   "area": "Shipping",
    "status": "hold",
    "effort": "M",
    "needs": [
@@ -2844,7 +3538,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 159,
+   "order": 198,
    "first_game": false
   }
  ],
@@ -3058,6 +3752,98 @@
     [
      "Bevy release process",
      "https://bevy.org/learn/contribute/project-information/release-process/"
+    ]
+   ]
+  },
+  {
+   "title": "Lighting: newer techniques (2026-11-20)",
+   "text": "Bevy 0.20's Solari path tracer needs ray queries and now makes ReSTIR optional (off by default); wgpu's ray tracing is experimental with ray queries only, so vendor cluster acceleration structures (RTX Mega Geometry) aren't reachable yet. Unreal's virtual shadow maps keep static pages cached and redraw pages that moving things touch; MegaLights traces a fixed number of rays per pixel toward the important lights instead of a shadow map per light. For a no-ray-tracing tier: Unity's Surface Cache GI (shown in its Atrio demo) falls back to compute, AMD's Brixelizer GI is compute only, Lumen's software path uses cards and distance fields. Second-hand in places; primary pages were out of reach of the research session.",
+   "sources": [
+    [
+     "Bevy 0.20 release",
+     "https://bevy.org/news/bevy-0-20/"
+    ],
+    [
+     "Solari in Bevy 0.19",
+     "https://jms55.github.io/posts/2026-04-12-solari-bevy-0-19"
+    ],
+    [
+     "wgpu ray tracing",
+     "https://wgpu.rs/doc/wgpu/documentation/extensions/ray_tracing/index.html"
+    ],
+    [
+     "RTX Mega Geometry (Vulkan samples)",
+     "https://developer.nvidia.com/blog/nvidia-rtx-mega-geometry-now-available-with-new-vulkan-samples"
+    ],
+    [
+     "Virtual shadow maps in Fortnite",
+     "https://www.unrealengine.com/en-US/tech-blog/virtual-shadow-maps-in-fortnite-battle-royale-chapter-4"
+    ],
+    [
+     "MegaLights (Epic)",
+     "https://dev.epicgames.com/documentation/en-us/unreal-engine/megalights-in-unreal-engine"
+    ],
+    [
+     "ReSTIR paper",
+     "https://developer.download.nvidia.com/devblogs/ReSTIR.pdf"
+    ],
+    [
+     "Unity Surface Cache GI preview",
+     "https://discussions.unity.com/t/surface-cache-gi-preview/1720494"
+    ],
+    [
+     "AMD Brixelizer GI (GDC 2024)",
+     "https://gpuopen.com/gdc-presentations/2024/GDC2024_GI_with_AMD_FidelityFX_Brixelizer.pdf"
+    ],
+    [
+     "Split Radiance Cascades",
+     "https://arxiv.org/pdf/2607.20384"
+    ]
+   ]
+  },
+  {
+   "title": "Building, vehicles, riding and many genres (2026-11-20)",
+   "text": "Snap points (Valheim, Subnautica, KSP's attachment nodes with symmetry), live validity feedback (Valheim's support colours, Fortnite's red tiles), structure strength spreading from the ground, assemblies with joints that need to be strong, interiors that move with a body (Subnautica's Cyclops clipped the walker), control handover for vehicles and mounts (Unreal's unpossess, attach, possess; the rider-and-mount case needs two control paths), crowds with separate levels of detail for drawing, thinking and networking (Unreal's Mass), RTS orders as per-unit command queues and fog of war as a three-state grid, voxel games saving only edited chunks. Fortnite's devices (no-code placeable objects with options and events, code as the fallback) and Lyra's game features (genres as plugin bundles) are the model for modules and game packs. Most sources are guides and forums, not developer documentation.",
+   "sources": [
+    [
+     "Valheim building guide",
+     "https://mobalytics.gg/gamebase/guides/valheim-general-building-guide"
+    ],
+    [
+     "KSP manual",
+     "https://wiki.kerbalspaceprogram.com/wiki/Manual"
+    ],
+    [
+     "Fortnite devices",
+     "https://dev.epicgames.com/documentation/fortnite/creating-gameplay-with-devices-in-fortnite"
+    ],
+    [
+     "Lyra sample game",
+     "https://dev.epicgames.com/documentation/en-us/unreal-engine/lyra-sample-game-in-unreal-engine"
+    ],
+    [
+     "Mass gameplay overview",
+     "https://dev.epicgames.com/documentation/unreal-engine/overview-of-mass-gameplay-in-unreal-engine"
+    ],
+    [
+     "RTS command queues and fog of war",
+     "https://seanking11.github.io/gamebootcamp/modules/22-rts"
+    ],
+    [
+     "Lockstep and determinism",
+     "https://www.gamedev.net/forums/topic/419969-wargamerts-network-architecture-a-danger-of-lock-step-commands-synchronization/3798223/"
+    ],
+    [
+     "Subnautica Cyclops interior bug",
+     "https://forums.unknownworlds.com/discussion/comment/2386176"
+    ],
+    [
+     "Vehicle enter and exit in Unreal",
+     "https://forums.unrealengine.com/t/vehicle-system-enter-exit-and-driving/1248917"
+    ],
+    [
+     "Voxel terrain overview",
+     "https://voxel-tools.readthedocs.io/en/latest/overview/"
     ]
    ]
   }

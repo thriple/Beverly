@@ -14,6 +14,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "editor" / "features.json"
 OUT = ROOT / "docs" / "roadmap.html"
 SESSIONS = {"S": 0.5, "M": 1}
+# the tracks a feature's "area" names, in the order the page lists them
+TRACKS = ["Editor foundations", "Engine budgets", "World building", "Logic and modules", "Characters and movement", "Actors and combat",
+          "Building, vehicles and riding", "Sound and music", "Look and atmosphere", "Game layer", "Shipping"]
 
 data = json.loads(SRC.read_text())
 F = data["features"]
@@ -23,6 +26,7 @@ for f in F:
         if n not in by: sys.exit(f"{f['id']} needs unknown feature {n}")
     if (f["effort"] in ("L", "XL")) != bool(f["chunks"]): sys.exit(f"{f['id']}: L and XL features need parts, S and M none")
     if f["status"] == "done" and not (f.get("built") and f.get("build")): sys.exit(f"{f['id']} is built: give it built (date) and build (number)")
+    if f["area"] not in TRACKS: sys.exit(f"{f['id']}: area {f['area']!r} is not one of the tracks in tools/roadmap.py")
 
 depth = {}
 def d(i, seen=()):
@@ -94,6 +98,15 @@ paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) 
 builds = {}
 for f in F:
     if f["status"] == "done": builds.setdefault((f["build"], f["built"]), []).append(f)
+def track_html():
+    """The same features grouped by track (their area), each list in build order."""
+    out = []
+    for t in TRACKS:
+        fs = [f for f in F if f["area"] == t]
+        items = "".join(f'<li class="{"ok" if f["status"] == "done" else ""}"><a href="#{f["id"]}">{e(f["name"])}</a> <span class="eff">{f["effort"]}</span></li>' for f in fs)
+        out.append(f'<div><h3>{e(t)}</h3><p class="sub">{sum(f["status"] == "done" for f in fs)} of {len(fs)} built · about {sum(sessions(f) for f in fs if f["status"] not in ("done", "hold")):g} sessions to go</p><ul class="trk">{items}</ul></div>')
+    return '<h2>By track</h2><p class="sub">The same features grouped by what they are for; each list is in build order.</p><div class="cols">' + "".join(out) + "</div>"
+
 built_html = "<h2>Built so far</h2><p class=\"sub\">Newest first: each release and the features it finished.</p><ul class=\"built\">" + "".join(f'<li><b>Build {b}</b> <span class="sub">{day(dt)}</span> · ' + " · ".join(f'<a href="#{f["id"]}">{e(f["name"])}</a>' for f in v) + "</li>" for (b, dt), v in sorted(builds.items(), reverse=True)) + "</ul>"
 notes_html = "<h2>Research behind the new areas</h2><div class=\"cols\">" + "".join(f'<div><h3 style="margin-top:10px">{e(n["title"])}</h3><p class="sub" style="margin-top:4px">{e(n["text"])}</p><p class="sub">' + " · ".join(f'<a href="{e(u)}">{e(t)}</a>' for t, u in n["sources"]) + "</p></div>" for n in data.get("notes", [])) + "</div>"
 OUT.write_text(f'''<title>Beverly Roadmap</title>
@@ -151,6 +164,8 @@ dd {{ margin:0; color:var(--muted); }}
 .f:target {{ outline:2px solid var(--accent); }}
 a {{ color:var(--accent); }}
 .built {{ margin:6px 0 0; padding-left:18px; }} .built li {{ margin:2px 0; }} .built .sub {{ margin:0; }}
+.trk {{ margin:6px 0 0; padding-left:18px; font-size:13px; }} .trk li.ok a {{ color:var(--ok); }}
+.trk .eff {{ font:600 10px var(--f-mono); background:var(--chip); color:#1b1820; border-radius:6px; padding:0 5px; }}
 details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
 </style>
 <div class="wrap">
@@ -165,6 +180,7 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
  <div class="stat"><b>{len(ready)}</b><span>ready to build now</span></div>
 </div>
 {built_html}
+{track_html()}
 <details class="more"><summary>Planning notes: longest chains, how the sizes were set, research</summary>
 <div class="cols">
  <div><h2>Longest chains</h2><p class="sub">What has to come first to reach the big ones. The order inside each step is free.</p><ul>{paths}</ul></div>
