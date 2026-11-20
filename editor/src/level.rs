@@ -19,17 +19,21 @@ use bevy::reflect::{std_traits::ReflectDefault, Reflect};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+mod delta;
 mod material;
 mod paint;
 mod project;
 mod shape;
 mod sound;
+mod track;
 mod world;
+pub use delta::Delta;
 pub use material::*;
 pub use paint::*;
 pub use project::*;
 pub use shape::*;
 pub use sound::*;
+pub use track::{Stamps, Tracked};
 pub use world::*;
 
 
@@ -237,32 +241,37 @@ pub struct Level {
     #[serde(default)]
     pub format: u32,
     pub name: String,
-    pub parts: Vec<Part>,
+    pub parts: Tracked<Vec<Part>>,
     pub next_id: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub wires: Vec<Wire>,
+    pub wires: Tracked<Vec<Wire>>,
     /// Pen curves (see `curve.rs`); their ids come from the same count as the parts'.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub curves: Vec<crate::curve::Curve>,
+    pub curves: Tracked<Vec<crate::curve::Curve>>,
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
-    pub ranges: Ranges,
+    pub ranges: Tracked<Ranges>,
     #[serde(default, skip_serializing_if = "Lighting::is_default")]
-    pub lighting: Lighting,
+    pub lighting: Tracked<Lighting>,
     #[serde(default, skip_serializing_if = "Navigation::is_default")]
-    pub navigation: Navigation,
+    pub navigation: Tracked<Navigation>,
     #[serde(default, skip_serializing_if = "WalkerSounds::is_default")]
-    pub walker: WalkerSounds,
+    pub walker: Tracked<WalkerSounds>,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]
-    pub materials: std::collections::BTreeMap<String, Material>,
+    pub materials: Tracked<std::collections::BTreeMap<String, Material>>,
     /// The project's sound files, by path ("assets/sounds/birds.bev"), kept and saved as the materials are.
     #[serde(skip)]
-    pub sounds: std::collections::BTreeMap<String, Sound>,
+    pub sounds: Tracked<std::collections::BTreeMap<String, Sound>>,
 }
 
 impl Level {
+    /// What changed where: see [`Stamps`].
+    pub fn stamps(&self) -> Stamps {
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.materials.stamp(), self.sounds.stamp()]
+    }
+
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }
     pub fn get_mut(&mut self, id: u64) -> Option<&mut Part> { self.parts.iter_mut().find(|p| p.id == id) }
 

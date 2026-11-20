@@ -571,18 +571,20 @@
    "id": "change-tracking",
    "name": "Change tracking and undo as diffs",
    "area": "Editor foundations",
-   "status": "planned",
+   "status": "done",
    "effort": "M",
    "needs": [
     "projects"
    ],
    "what": "Each part notes when it changed, so the editor stops comparing the whole level every frame, and an undo step stores what changed instead of a copy of the level.",
    "chunks": [],
-   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Today the edit commit compares the whole level with the last undo step every frame when nothing is dragged, and each step clones the whole level (300 kept). Fine now, but it grows with the level: not for the big polygon, light and logic budgets or for regions. Autosave, the runtime edits layer and the per-region files use the same change stamps.",
+   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Today the edit commit compares the whole level with the last undo step every frame when nothing is dragged, and each step clones the whole level (300 kept). Fine now, but it grows with the level: not for the big polygon, light and logic budgets or for regions. Autosave, the runtime edits layer and the per-region files use the same change stamps. Built 2026-11-20: each collection in a level (parts, wires, curves, ranges, lighting, navigation, walker sounds, materials, sounds) is a `Tracked` value (level/track.rs) that takes a new stamp whenever it is borrowed for change and costs nothing to read, so `Level::stamps()` says at a glance whether anything may have changed; the per-frame commit and the unsaved-changes dot compare the level only when a stamp moved (nothing is compared in an idle editor, checked by the MCP check through get_project's change_stamp). An undo step is a `Delta` (level/delta.rs: the parts that changed, came, went or moved in the list, and the other things that differ, each before and after), 300 kept, applied forward for redo and back for undo, the answer to the instances question joins the step before it. Autosave and the per-region files can read the touched part ids from a step (`Delta::parts_touched`). Tests: level::delta (round trips), level::track, the editor's one-step instance change, tests/mcp/check.py.",
    "order": 32,
    "first_game": true,
    "next": true,
-   "stage": "Foundations"
+   "stage": "Foundations",
+   "built": "2026-11-20",
+   "build": 105
   },
   {
    "id": "shaders",

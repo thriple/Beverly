@@ -41,8 +41,8 @@ pub fn sync(
 ) {
     if !ed.is_changed() { return; }
     // a textured part's mesh is laid out for its size, and its look follows its materials
-    let mats_changed = *materials != ed.level.materials;
-    if mats_changed { *materials = ed.level.materials.clone(); }
+    let mats_changed = *materials != *ed.level.materials;
+    if mats_changed { *materials = (*ed.level.materials).clone(); }
     let same_look = |a: &Part, b: &Part| a.shape == b.shape && a.model == b.model && a.visible == b.visible && a.color == b.color && a.light == b.light
         && a.surfaces == b.surfaces && (a.surfaces.is_empty() || (a.size == b.size && !mats_changed));
     let mut seen = std::collections::HashSet::new();
@@ -89,5 +89,5 @@ pub fn nav_overlay(ed: Res<Editor>, mut commands: Commands, mut meshes: ResMut<A
 pub fn stage(ed: Res<Editor>, mut applied: Local<Option<level::Lighting>>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>) {
     if applied.as_ref() == Some(&ed.level.lighting) { return; }
     world::light_stage(&ed.level.lighting, std::env::var_os("BEVERLY_LITE").is_none(), &mut sun, &mut fill);
-    *applied = Some(ed.level.lighting.clone());
+    *applied = Some((*ed.level.lighting).clone());
 }

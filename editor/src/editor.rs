@@ -61,8 +61,13 @@ pub struct Editor {
     pub saved: Level,
     /// The level as of the last undo step.
     pub committed: Level,
-    pub undo: Vec<Level>,
-    pub redo: Vec<Level>,
+    /// The level's stamps when it was last compared with `committed`: while they are the same nothing needs comparing.
+    pub checked: level::Stamps,
+    /// Each undo and redo step holds what changed, not a copy of the level (`level::Delta`).
+    pub undo: Vec<level::Delta>,
+    pub redo: Vec<level::Delta>,
+    /// Whether the level differs from the saved one, worked out when its stamps were these (see `dirty`).
+    pub dirty_cache: (level::Stamps, bool),
     pub dir: PathBuf,
     pub name: String,
     pub selected: Option<u64>,
@@ -189,8 +194,8 @@ impl Editor {
                 let mut ed = Self::at(dir);
                 ed.name = name;
                 ed.saved = lvl.clone();
-                ed.committed = lvl.clone();
                 ed.level = lvl;
+                ed.sync_committed();
                 return ed;
             }
         }
@@ -204,6 +209,8 @@ impl Editor {
         let mut ed = Self {
             saved: level.clone(),
             committed: level.clone(),
+            checked: level.stamps(),
+            dirty_cache: (level.stamps(), false),
             level,
             undo: vec![],
             redo: vec![],
@@ -281,7 +288,27 @@ impl Editor {
         ed
     }
 
-    pub fn dirty(&self) -> bool { self.level != self.saved }
+    /// Whether the level differs from the saved one. Looks at the stamps first; the level is compared with the saved one
+    /// only when it was borrowed for change since (and `refresh_dirty` keeps that answer for the frames after).
+    pub fn dirty(&self) -> bool {
+        if self.level.name != self.saved.name { return true; }
+        let now = self.level.stamps();
+        if now == self.saved.stamps() { return false; }
+        if now == self.dirty_cache.0 { return self.dirty_cache.1; }
+        self.level != self.saved
+    }
+
+    /// Make the level the last undo step's (a new project, an opened one, or a change that joins the step before).
+    pub fn sync_committed(&mut self) {
+        self.committed = self.level.clone();
+        self.checked = self.level.stamps();
+    }
+
+    /// Keep the answer of `dirty` for the next frames.
+    pub fn refresh_dirty(&mut self) {
+        let now = self.level.stamps();
+        if now != self.dirty_cache.0 { self.dirty_cache = (now, now != self.saved.stamps() && self.level != self.saved); }
+    }
 
     /// A window over the editor (the unsaved-changes question, Help's windows): the 3D view ignores the keys.
     pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open || self.mcp_open }

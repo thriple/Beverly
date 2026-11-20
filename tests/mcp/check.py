@@ -42,6 +42,9 @@ undo0 = p["undo_steps"]
 
 a = tool("add_part", kind="Box", position=[5, 1, 0], settings={"Name": "Check box", "Turn": 30})
 check("add_part places a part with settings", a.get("name") == "Check box", a)
+# the level notes when it is borrowed for change, so an idle editor (here with a part selected) never has it compared
+s0 = tool("get_project")["change_stamp"]; time.sleep(1.5)
+check("an idle editor leaves the level alone (its change stamp holds still)", tool("get_project")["change_stamp"] == s0, s0)
 check("a plain box is an instance of the lift's ledge (same contents)", tool("get_part", name="Check box").get("instances") == 1)
 r = tool("change_part", name="Check box", settings={"Visible": False})
 check("changing an instance's contents asks for instances", "error" in r and "instances" in r["error"] and setting(tool("get_part", name="Check box"), "visible"), r)

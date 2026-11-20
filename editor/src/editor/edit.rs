@@ -68,9 +68,11 @@ impl Editor {
 
     pub fn undo(&mut self) {
         self.ask = None;
-        if let Some(prev) = self.undo.pop() {
-            self.redo.push(std::mem::replace(&mut self.level, prev.clone()));
-            self.committed = prev;
+        if let Some(step) = self.undo.pop() {
+            step.apply(&mut self.level, false);
+            step.apply(&mut self.committed, false);
+            self.checked = self.level.stamps();
+            self.redo.push(step);
             self.fix_selection();
             self.island.show("↶", "Undo", format!("{} more", self.undo.len()), Tone::Plain);
         } else {
@@ -80,9 +82,11 @@ impl Editor {
 
     pub fn redo(&mut self) {
         self.ask = None;
-        if let Some(next) = self.redo.pop() {
-            self.undo.push(std::mem::replace(&mut self.level, next.clone()));
-            self.committed = next;
+        if let Some(step) = self.redo.pop() {
+            step.apply(&mut self.level, true);
+            step.apply(&mut self.committed, true);
+            self.checked = self.level.stamps();
+            self.undo.push(step);
             self.fix_selection();
             self.island.show("↷", "Redo", format!("{} more", self.redo.len()), Tone::Plain);
         }
@@ -153,8 +157,8 @@ impl Editor {
         self.name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.dir = dir;
         self.saved = lvl.clone();
-        self.committed = lvl.clone();
         self.level = lvl;
+        self.sync_committed();
         self.undo.clear();
         self.redo.clear();
         self.ask = None;
@@ -336,7 +340,7 @@ impl Editor {
             self.island.show("◆", format!("{name} is Unique"), "Its changes stay on it", Tone::Accent);
         }
         // the answer to a question joins the change's step; Make Unique on its own is a step of its own
-        if !them.is_empty() { self.committed = self.level.clone(); }
+        if !them.is_empty() { self.amend(); }
     }
 }
 
@@ -344,6 +348,7 @@ impl Editor {
 pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     // (looking through a camera is one step, made when it ends)
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
+    ed.refresh_dirty();
     pen::strips(&mut ed);
     ed.commit();
 }
@@ -352,13 +357,27 @@ impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
     /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
-        if self.level == self.committed { return; }
+        // nothing was borrowed for change since the last look: nothing to compare
+        let stamps = self.level.stamps();
+        if stamps == self.checked && self.level.name == self.committed.name { return; }
+        self.checked = stamps;
+        let step = level::Delta::between(&self.committed, &self.level);
+        if step.is_empty() { return; }
         if let Some(split) = self.level.split_from(&self.committed) { self.ask = Some(split); }
-        let now = self.level.clone();
-        let prev = std::mem::replace(&mut self.committed, now);
-        self.undo.push(prev);
+        step.apply(&mut self.committed, true);
+        debug_assert!(self.committed == self.level, "an undo step took the last state to a different level");
+        self.undo.push(step);
         if self.undo.len() > 300 { self.undo.remove(0); }
         self.redo.clear();
+    }
+
+    /// Make the changes made since the last step part of it (the answer to the instances question).
+    fn amend(&mut self) {
+        let Some(last) = self.undo.pop() else { return self.sync_committed() };
+        let mut before = self.committed.clone();
+        last.apply(&mut before, false);
+        self.undo.push(level::Delta::between(&before, &self.level));
+        self.sync_committed();
     }
 }
 

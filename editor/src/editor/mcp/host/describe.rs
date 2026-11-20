@@ -70,10 +70,10 @@ pub(super) fn describe_level(ed: &Editor) -> Value {
     let worst = crate::editor::light::budget(&ed.level);
     json!({
         "name": ed.level.name,
-        "settings": settings::describe(&ed.level.lighting),
+        "settings": settings::describe(&*ed.level.lighting),
         "walker_sounds": {"Step": ed.level.walker.steps, "Jump": ed.level.walker.jump, "Land": ed.level.walker.land},
         "navigation": {
-            "settings": settings::describe(&ed.level.navigation),
+            "settings": settings::describe(&*ed.level.navigation),
             "built": ed.nav.is_some(),
             "out_of_date": ed.nav_out_of_date(),
             "walkable_m2": ed.nav.as_ref().map(|(m, _)| settings::num((crate::nav::area(m) * 10.0).round() / 10.0)),

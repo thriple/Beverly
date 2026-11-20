@@ -270,14 +270,14 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
             if w != ed.level.walker { ed.level.walker = w; }
         }
         LevelMode::Lighting => {
-            column(ui, 0.0, "LEVEL · LIGHTING", |ui| { settings::section(ui, &mut l, level::LIGHTING, &mut ctx); });
+            column(ui, 0.0, "LEVEL · LIGHTING", |ui| { settings::section(ui, &mut *l, level::LIGHTING, &mut ctx); });
             // Interior: no sun
-            if !l.interior { column(ui, 0.0, level::SUN, |ui| { settings::section(ui, &mut l, level::SUN, &mut ctx); }); }
+            if !l.interior { column(ui, 0.0, level::SUN, |ui| { settings::section(ui, &mut *l, level::SUN, &mut ctx); }); }
         }
         LevelMode::Physics => {
             // where enemies can walk: who for, Build, and how it stands
             column(ui, 0.0, "LEVEL · PHYSICS · NAVIGATION", |ui| {
-                settings::section(ui, &mut n, level::NAVIGATION, &mut ctx);
+                settings::section(ui, &mut *n, level::NAVIGATION, &mut ctx);
                 ui.add_space(2.0);
                 let (status, colour) = match &ed.nav {
                     None => ("Not built yet".to_string(), MUTED),

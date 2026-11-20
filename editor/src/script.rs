@@ -67,7 +67,7 @@ impl Script {
             })
             .collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
-        Self { movers, buttons, wires: level.wires.clone(), fired: vec![], inputs: vec![], happened: vec![] }
+        Self { movers, buttons, wires: (*level.wires).clone(), fired: vec![], inputs: vec![], happened: vec![] }
     }
 
     /// The button the player at `feet` could press now.
@@ -159,12 +159,12 @@ mod tests {
         pad.mover = Some(Mover { to: [0.0, 6.0, 0.0], secs: 2.0 });
         let level = Level {
             name: "t".into(),
-            parts: vec![part(1, Shape::Interact, [0.0, 0.5, 0.0], [0.5, 1.0, 0.5]), pad],
+            parts: vec![part(1, Shape::Interact, [0.0, 0.5, 0.0], [0.5, 1.0, 0.5]), pad].into(),
             next_id: 2,
             wires: vec![
                 Wire { from: 1, out: "Pressed".into(), to: 2, input: "Toggle".into() },
                 Wire { from: 2, out: "Arrived".into(), to: 2, input: "Back".into() },
-            ],
+            ].into(),
             ..Default::default()
         };
         let mut s = Script::new(&level);

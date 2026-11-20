@@ -167,6 +167,7 @@ pub(super) fn settle_instances(ed: &mut Editor, args: &Value) -> Result<(), Stri
         Some("this one") => ed.level.get_mut(id).expect("in the level").unique = true,
         other => {
             ed.level = ed.committed.clone();
+            ed.checked = ed.level.stamps();
             let name = ed.level.get(id).map(|p| p.name.clone()).unwrap_or_default();
             if let Some(o) = other { return Err(format!("instances is \"all\" or \"this one\", not {o:?}")); }
             return Err(format!("{name} has {} instances (parts with the same shape, colour and textures): say instances \"all\" to change them all, or \"this one\" to make {name} Unique and change only it", them.len()));
