@@ -2,9 +2,9 @@
 """Beverly's feature list: editor/features.json is the source (the editor's Help > Features window reads it).
 
 Run after changing it (and with every release):  python3 tools/roadmap.py
-- checks every feature's needs exist, L / XL features come in parts, and built ones say when (built: date, build: the
-  release's build number, as Help > About shows it),
-- renumbers the build order (built first, then each feature after everything it needs),
+- checks every feature's needs exist, L / XL features come in parts, built ones say when (built: date, build: the
+  release's build number, as Help > About shows it), and every unbuilt one has a stage no earlier than the stages of what it needs,
+- renumbers the build order (built first, then stage by stage, and inside a stage each feature after everything it needs),
 - writes docs/roadmap.html, the readable version with the order, sizes and parts.
 """
 import html, json, pathlib, sys
@@ -14,6 +14,21 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "editor" / "features.json"
 OUT = ROOT / "docs" / "roadmap.html"
 SESSIONS = {"S": 0.5, "M": 1}
+# The build ladder: foundations first, then the interface, then stages that each leave a more complete game level than the one
+# before (author the world, put someone in it, make it alive, ...). Every unbuilt feature names its stage; a feature's stage is
+# never earlier than the stage of anything it needs. What a level can do at the end of each stage is the second item.
+STAGES = [
+    ("Foundations", "The systems everything stands on: data, input and control, renderer budgets, logic plumbing, modules. Little new to see; everything after gets cheaper."),
+    ("Interface", "The editor's own interface and the games' UI: the tab strip, the patchbay, HUD, screens, problems and budgets."),
+    ("Author the world: land, sea and sky", "A level you can author as a place: terrain, water, weather, light, foliage and scatter, with structures and kits."),
+    ("Move through it", "Someone to be in it: characters, movement modes, cameras, abilities and a HUD around the character."),
+    ("Make it alive: sound, effects, prefabs", "The place sounds and reacts alive: effects, mixer, ambience, music, prefabs and paths."),
+    ("Inhabitants", "Things live in it: behaviours, wildlife, spawners, brains and the debug tools."),
+    ("Challenge", "Something to fight or survive: health, damage, weapons, inventory, enemies and the mech."),
+    ("Build and ride", "The player changes the world: building, structures, vehicles, mounts, sailing and digging."),
+    ("Story and flow", "A game from start to end: cinematics, dialog, quests, economy, achievements and the demo level."),
+    ("Ship and scale", "Settings, languages, accessibility, multiplayer, exports and the big renderer extras."),
+]
 # the tracks a feature's "area" names, in the order the page lists them
 TRACKS = ["Editor foundations", "Engine budgets", "World building", "Logic and modules", "Characters and movement", "Actors and combat",
           "Building, vehicles and riding", "Sound and music", "Look and atmosphere", "Game layer", "Shipping"]
@@ -26,7 +41,13 @@ for f in F:
         if n not in by: sys.exit(f"{f['id']} needs unknown feature {n}")
     if (f["effort"] in ("L", "XL")) != bool(f["chunks"]): sys.exit(f"{f['id']}: L and XL features need parts, S and M none")
     if f["status"] == "done" and not (f.get("built") and f.get("build")): sys.exit(f"{f['id']} is built: give it built (date) and build (number)")
+    if f["status"] != "done" and f.get("stage") not in [n for n, _ in STAGES]: sys.exit(f"{f['id']}: stage {f.get('stage')!r} is not one of the stages in tools/roadmap.py")
     if f["area"] not in TRACKS: sys.exit(f"{f['id']}: area {f['area']!r} is not one of the tracks in tools/roadmap.py")
+
+stage_of = lambda i: ([n for n, _ in STAGES].index(by[i]["stage"]) + 1) if by[i]["status"] != "done" else 0
+for f in F:
+    for n in f["needs"]:
+        if stage_of(n) > stage_of(f["id"]): sys.exit(f"{f['id']} (stage {stage_of(f['id'])}) needs {n} from a later stage ({stage_of(n)})")
 
 depth = {}
 def d(i, seen=()):
@@ -46,7 +67,7 @@ def mark(i):
 for f in F:
     if f.get("first_game"): mark(f["id"])
 for f in F: f["first_game"] = f["id"] in path
-F.sort(key=lambda f: (f["status"] != "done", f["status"] == "hold", f.get("build", 0), not f["first_game"], not f.get("next"), depth[f["id"]]))  # stable: file order breaks ties
+F.sort(key=lambda f: (f["status"] != "done", f["status"] == "hold", f.get("build", 0), stage_of(f["id"]), not f["first_game"], not f.get("next"), depth[f["id"]]))  # stable: file order breaks ties
 for k, f in enumerate(F): f["order"] = k + 1
 SRC.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
 
@@ -74,7 +95,7 @@ def card(f):
     st = f"built {day(f['built'])}, build {f['build']}" if f["status"] == "done" else "on hold" if f["status"] == "hold" else ("ready" if f in ready else "planned")
     cls = "built" if f["status"] == "done" else st.replace(" ", "")
     return f'''<article class="f {cls}" id="{f["id"]}"><header><span class="n">{f["order"]}</span><h3>{e(f["name"])}</h3><span class="eff">{f["effort"]}</span></header>
-<p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])} · needs {needs}</p>{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
+<p>{e(f["what"])}</p><p class="meta"><span class="st">{st}</span> · {e(f["area"])}{" · on the Last Ascent path" if f["first_game"] and f["status"] != "done" else ""} · needs {needs}</p>{f'<p class="note">{e(f["note"])}</p>' if f["note"] else ""}</article>'''
 
 def tiles(f):
     """One tile per session-sized part (an S or M feature is one tile), so a row's length shows the work."""
@@ -85,14 +106,13 @@ def tiles(f):
 def row(f): return f'<div class="row">{card(f)}<div class="tiles">{tiles(f)}</div></div>'
 
 phases = {}
-for f in todo + held: phases.setdefault(("Last Ascent path" if f["first_game"] else "After Last Ascent", depth[f["id"]]), []).append(f)
-# each step its own colour (golden-angle hues, so neighbours differ), on its heading and its cards
+for f in todo + held: phases.setdefault(stage_of(f["id"]), []).append(f)
+# each stage its own colour (golden-angle hues, so neighbours differ), on its heading and its cards
 def hue(step): return round(step * 137.5 + 40) % 360
-def phase_head(k, v):
-    if k[1] % 1:  # a polish pass
-        return f'<section class="phase pass"><h2><span class="sw"></span>{k[0]} · polish pass</h2><p class="sub">about {sum(sessions(f) for f in v):g} sessions · after everything above it, before what follows</p>'
-    return f'<section class="phase" style="--h:{hue(k[1])}"><h2><span class="sw"></span>{k[0]} · step {k[1]}</h2><p class="sub">{len(v)} features · about {sum(sessions(f) for f in v):g} sessions · each needs only earlier steps</p>'
-phase_html = "".join(f'{phase_head(k, v)}<div class="rows">{"".join(row(f) for f in v)}</div></section>' for k, v in sorted(phases.items(), key=lambda kv: (kv[0][0] != "Last Ascent path", kv[0][1])))
+def phase_head(n, v):
+    name, what = STAGES[n - 1]
+    return f'<section class="phase" style="--h:{hue(n)}"><h2><span class="sw"></span>Stage {n} · {e(name)}</h2><p class="sub">{e(what)} {len(v)} features · about {sum(sessions(f) for f in v):g} sessions.</p>'
+phase_html = "".join(f'{phase_head(n, v)}<div class="rows">{"".join(row(f) for f in v)}</div></section>' for n, v in sorted(phases.items()))
 paths = "".join(f'<li><b>{e(by[t]["name"])}</b>: {" → ".join(e(by[x]["name"]) for x in chain(t) if not done(x))}</li>' for t in ["mech-port", "swarm", "screens", "vehicles", "destructibles"])
 
 builds = {}
@@ -170,7 +190,7 @@ details {{ margin-top:10px; }} summary {{ cursor:pointer; font-weight:600; }}
 </style>
 <div class="wrap">
 <h1>Beverly roadmap</h1>
-<p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. What Last Ascent needs (and what that needs) comes first; the rest follows. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Next to each feature, one tile per part (about a session each), so a row's length shows the work. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
+<p class="lede">Every planned feature in the order it can be built: each comes after everything it needs. The stages go from foundations, to the interface, to levels that get more and more complete (author the world, put someone in it, make it alive, and on). Features on the Last Ascent path are marked. Sizes: <b>S</b> under a session, <b>M</b> about one, <b>L</b> two or three, <b>XL</b> four or more, with L and XL split into session-sized parts. Next to each feature, one tile per part (about a session each), so a row's length shows the work. Updated {e(data["updated"])}; the editor shows the same list under Help &gt; Features.</p>
 <div class="stats">
  <div class="stat"><b>{len(F) - len(todo) - len(held)}</b><span>built</span></div>
  <div class="stat"><b>{len(todo)}</b><span>to build</span></div>

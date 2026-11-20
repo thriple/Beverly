@@ -122,6 +122,14 @@ lockstep, which needs deterministic maths, only if an RTS pack is wanted.
   a geometric sphere drone follows it as a diegetic inventory (power-ups, healing packs, weapon modifiers) and scout.
   The mech is still in flux.
 
+## Build order: stages
+
+Every unbuilt feature has a stage, and the roadmap lists them stage by stage (dependencies are checked, so nothing
+needs a later stage). Foundations come first, then the interface, then stages that each leave a more complete game
+level: author the world (land, sea and sky), move through it, make it alive, inhabitants, challenge, build and ride,
+story and flow, ship and scale. So, for example, terrain, water and sky come before base building. The stage list
+and what a level can do at the end of each is in `tools/roadmap.py`; the page `docs/roadmap.html` shows it.
+
 ## Editor layout
 
 The top bar's eight fixed tabs become a scrolling strip of grouped tabs (roadmap `tab-strip`): the frame goes neutral, the

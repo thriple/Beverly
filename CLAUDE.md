@@ -74,7 +74,7 @@ Push work to the repository freely, but only cut a release (commit message conta
 run of the Windows build) for finished features, never half-done work.
 
 Every release updates the feature list, `editor/features.json`: what the release finished becomes `done` with `built`
-(the date) and `build` (its build number: the next run of the Windows build); new features get their needs, effort
+(the date) and `build` (its build number: the next run of the Windows build); new features get their needs, their stage (the build ladder in `tools/roadmap.py`, never earlier than the stage of anything they need), effort
 S / M / L / XL and, for L and XL, session-sized parts. Then `python3 tools/roadmap.py` checks it, renumbers the build
 order and writes `docs/roadmap.html`. Help > Features shows the same list.
 
