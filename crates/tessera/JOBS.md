@@ -72,8 +72,8 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    One commit per fix, each message saying why. A top-left fill rule in fixed point for the software rasterizer, if GPU-testable here; otherwise ⏸ with a note.
 4. ⬜ **Baking library** (`tessera::bake`):
    - Any Bevy `Mesh` (a glTF primitive) to `MeshletMesh`. Fill in missing normals (smooth by angle) and UVs (zero), drop extra attributes, weld and index.
-   - Cache key: SHA-256 over the source bytes, bake settings and format version.
-   - Cache folder: `%LOCALAPPDATA%\Beverly\cache` / `~/.cache/beverly`, behind one function main's `bake-cache` can replace.
+   - The cache is main's, already built (`editor/src/bake.rs`: `Bakes`, `bake::key(kind, parts)`, the folder from `Bakes::default_root()`; exports carry the entries they used). Don't make a cache folder or a hash of your own: `tessera::bake` turns a mesh into bytes (and bytes back into a `MeshletMesh`) and names the `kind` ("meshlet") and the key `parts` (source bytes, bake settings, format version); the editor-side glue stores them with `Bakes`. `vg-bake` may use a plain temp folder.
+   - Keep the coarsest level of the cluster hierarchy reachable as an ordinary mesh (`proxy_mesh`): main's `realtime-gi` (ray tracing against a proxy, as Nanite does) and `backdrops` (a far, low-poly stand-in) both want it.
    - A `vg-bake` binary that bakes the test mesh and prints time, output bytes and bytes per triangle.
    - Tests: the result is the same every time (or say why not), a save/load round trip, a wrong-version file is rejected.
 5. ✅ **Instances by change.** (2026-11-20, in an interactive session ahead of order, at the user's request)
@@ -100,11 +100,20 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
     - If usable, add a mesh-shader hardware raster path chosen by `GpuCaps`; otherwise ⏸ with the findings.
 
 **Waiting on interactive sessions or main** (don't start these):
-- Wiring into the editor's cameras and the SMAA swap (`gpu-setup`).
-- Drawing imported models through split meshes (`models-split`).
-- Beverly's paint layers inside the material pass (`shaders`).
+- Wiring into the editor's cameras (the SMAA swap and `GpuCaps` are built on main).
+- Drawing imported models through split meshes (`models-split` is built on main; the wiring is an interactive job).
+- Beverly's paint layers inside the material pass (`shaders` is not built on main yet).
 - Bake status in Assets and the LOD drawer.
 - Anything only the user's RTX card can show.
+
+## Roadmap links (review of 2026-11-20)
+Main's roadmap changed shape: every unbuilt feature has a `stage` (the build ladder in `tools/roadmap.py`), and the stage list puts `tessera` in Foundations, the first stage, so main's later stages can count on it. Built on main now: `gpu-setup`, `models-split`, `bake-cache`, `perf-meter` and, since 2026-11-20, change tracking (the level's collections are `Tracked`) and the part hierarchy (parts can be attached to parts and carried by movers). Tessera sees only Bevy entities, so neither touches it, but keep these in mind:
+- Parts that are carried by a moving part get their `Transform` written each frame only when it changed (`script::carry`), so `Changed<Transform>`, which job 5's instance manager reads, stays quiet for parts at rest.
+- Later features that lean on Tessera, so keep their seams clean:
+  - `realtime-gi` needs a proxy mesh (job 4); `virtual-shadows` and `lod` need to know which meshes are virtual geometry and which fall back (classic LOD, impostors); `foliage` wants masked leaves and wind through the raster hooks (job 8; the hooks should do both); `export-hardening` needs one shared player that carries the runtime, with the fallback when the card lacks the features.
+  - `budget-readout` and `quality-tiers` will show Tessera's memory (job 9) and pick the path from `GpuCaps` (job 7).
+- A real-card baseline is coming from main's `beverly-bench` (a separate download; scenes in `editor/src/bench/scenes.rs`, among them a field of 100k-triangle tiles up to 64 million triangles and a lit town with moving headlights). When a job wants numbers against the normal renderer, build the same field with Tessera, and read `Bench` scenes rather than inventing new ones.
+- On a merge conflict in `editor/features.json` keep taking main's version and put back only the `tessera` entry's note (it also carries a `stage` now; leave it as main has it), as the last run did.
 
 ## Wiring main needs
 (Unattended runs add entries here.)
