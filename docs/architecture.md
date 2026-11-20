@@ -18,7 +18,7 @@ still lets them add modular features to a game. Reference card for "60 fps with 
 | 3 | The editor compares the whole level with the last undo step every frame (when nothing is dragged) and each undo step clones the whole level (300 kept). | `change-tracking` |
 | 4 | Play reads raw keys (W A S D E Shift Space) although the rule is named actions. | `input-map`, `control-target` |
 | 5 | A level is one file, loaded whole, ids unique per level; no regions; only the first level of a project is ever loaded. | `levels`, `streaming` (region model decided first) |
-| 6 | Derived data is saved inside parts (pen strips and fills). The fill outline is in world coordinates, which breaks on a moving part or after a region or origin shift. | fix in `pen`; `runtime-edits` |
+| 6 | Derived data is saved inside parts (pen strips and fills). The fill outline is in world coordinates, which breaks on a moving part or after a region or origin shift. | fixed: the fill outline is stored in the part's frame; `runtime-edits` for the rest |
 | 7 | The walker rides sliding parts but not turning ones. | `part-hierarchy`, `assemblies` |
 
 Already in good shape: tags for climbing, digging, perches, grind rails and slippery surfaces exist; wires use text
@@ -26,7 +26,7 @@ port names (modules can add ports); shader settings already work from a header p
 modules use); the test harness runs on a fixed clock (module tests can be deterministic); materials and sounds load
 from files and are not saved in the level.
 
-Foundation order: fix the fill outline; change tracking and undo as diffs; part hierarchy; sockets; open tags and the
+Foundation order (the fill outline is fixed): change tracking and undo as diffs; part hierarchy; sockets; open tags and the
 module settings slot; named input actions then control handover; the runtime edits layer and the save system's scope;
 the region model (decided early, built later).
 

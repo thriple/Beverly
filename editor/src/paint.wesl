@@ -28,7 +28,7 @@ struct Frame {
 
 // one piece of a stroke: from a to b (w: radius, hardness), c: strength, layer (-1 erases), stroke number, how it
 // lays (0 add, 1 subtract, 2 set); d: its rules (the cosine of the steepest slope, below -1 any; lowest and highest
-// height in the world). A fill's outline is made of pieces too: each an edge from a to b in the world (a.w: the
+// height in the world). A fill's outline is made of pieces too: each an edge from a to b in the part's frame (a.w: the
 // width of the feathered edge), marked by d.w of 1
 struct Piece {
     a: vec4<f32>,
@@ -71,7 +71,7 @@ fn allows(d: vec4<f32>, up: f32, y: f32) -> f32 {
     return slope * smoothstep(d.y - 0.05, d.y + 0.05, y) * (1.0 - smoothstep(d.z - 0.05, d.z + 0.05, y));
 }
 
-fn coverage(at: vec3<f32>, world: vec3<f32>, up: f32, y: f32) -> f32 {
+fn coverage(at: vec3<f32>, up: f32, y: f32) -> f32 {
     var cov = 0.0;
     var i = 0;
     let n = frame.info.y;
@@ -90,7 +90,7 @@ fn coverage(at: vec3<f32>, world: vec3<f32>, up: f32, y: f32) -> f32 {
         loop {
             if i >= n || pieces[i].c.z != stroke { break; }
             if pieces[i].d.w > 0.5 {
-                let e = edge(pieces[i].a.xyz, pieces[i].b.xyz, world);
+                let e = edge(pieces[i].a.xyz, pieces[i].b.xyz, at);
                 fill = true;
                 if e.x > 0.5 { inside = !inside; }
                 near = min(near, e.y);
@@ -126,7 +126,7 @@ fn fragment(
     var pbr_input = pbr_input_from_standard_material(in, is_front);
     let local = turn(frame.unturn, in.world_position.xyz - frame.centre.xyz);
     let up = normalize(pbr_input.world_normal).y;
-    pbr_input.material.base_color.a = pbr_input.material.base_color.a * coverage(local, in.world_position.xyz, up, in.world_position.y);
+    pbr_input.material.base_color.a = pbr_input.material.base_color.a * coverage(local, up, in.world_position.y);
     pbr_input.material.base_color = alpha_discard(
         pbr_input.material.flags,
         pbr_input.material.alpha_cutoff,

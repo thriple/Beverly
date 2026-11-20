@@ -54,8 +54,9 @@ pub struct Stroke {
     /// The pen curve whose strip made this stroke (`curve.rs`): it is made again when that curve changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub curve: Option<u64>,
-    /// A fill, not a stroke: `points` are the outline of the area, in the world (not the part's frame), `size` is the
-    /// width of its feathered edge, and it paints everything inside (as the paint shader works out).
+    /// A fill, not a stroke: `points` are the outline of the area, in the part's frame as a stroke's are (seen from above in
+    /// that frame), `size` is the width of its feathered edge, and it paints everything inside (as the paint shader
+    /// works out). So it holds when the part moves, turns or the world shifts.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fill: bool,
 }
