@@ -269,8 +269,9 @@ impl Drop for CpuTimer<'_> {
 #[derive(bevy_ecs::resource::Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MeshletAvailable(pub bool);
 
-fn meshlet_available(available: Res<MeshletAvailable>) -> bool {
-    available.0
+/// Tessera: run condition for the meshlet render systems (false without the plugin, too).
+pub(crate) fn meshlet_available(available: Option<Res<MeshletAvailable>>) -> bool {
+    available.is_some_and(|available| available.0)
 }
 
 /// Tessera: turns the meshlet systems on when the render device has the features; logs and leaves them off
