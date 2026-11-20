@@ -27,7 +27,7 @@ impl Plugin for PhysicsPlugin {
             .init_resource::<Pulling>()
             .add_message::<Blast>()
             .add_message::<Pull>()
-            .add_systems(Update, (pause, follow))
+            .add_systems(Update, (pause, (follow, crate::script::carry).chain()))
             .add_systems(FixedUpdate, shove.run_if(|p: Res<crate::play::Play>| p.on));
     }
 }
@@ -63,14 +63,24 @@ pub fn collider(p: &Part, geo: &Geometry, body: RigidBody) -> Option<Collider> {
 /// Make the level's bodies (and the ground at y = 0). Returns them, to be despawned when play stops.
 pub fn spawn(commands: &mut Commands, level: &Level, geo: &Geometry) -> Vec<Entity> {
     let mut out = vec![commands.spawn((RigidBody::Static, Collider::half_space(Vec3::Y), Transform::default())).id()];
-    for p in &level.parts {
+    let mut bodies: HashMap<u64, Entity> = HashMap::new();
+    // a still part attached to a moving one is part of the moving body (its collider moves with it), not a body
+    let carried = |p: &Part| kind(p) == Some(RigidBody::Static) && level.carrier(p.id).is_some();
+    for p in level.parts.iter().filter(|p| !carried(p)) {
         let Some(body) = kind(p) else { continue };
         let Some(c) = collider(p, geo, body) else { continue };
         let tf = Transform { translation: Vec3::from(p.pos), rotation: Quat::from_array(p.rot), scale: Vec3::ONE };
         let mut e = commands.spawn((PartBody(p.id), body, c, tf));
         if body != RigidBody::Static { e.insert(TransformInterpolation); }
         if let (RigidBody::Dynamic, Some(l)) = (body, p.loose.as_ref()) { e.insert((Mass(l.mass.max(0.01)), Friction::new(l.friction.max(0.0)))); }
+        bodies.insert(p.id, e.id());
         out.push(e.id());
+    }
+    for p in level.parts.iter().filter(|p| carried(p)) {
+        let Some(carrier) = level.carrier(p.id).and_then(|c| Some((bodies.get(&c).copied()?, level.get(c)?))) else { continue };
+        let Some(c) = collider(p, geo, RigidBody::Kinematic) else { continue };
+        let (pos, rot) = crate::level::within(crate::level::frame(carrier.1), crate::level::frame(p));
+        out.push(commands.spawn((PartBody(p.id), c, Transform { translation: pos, rotation: rot, scale: Vec3::ONE }, ChildOf(carrier.0))).id());
     }
     out
 }

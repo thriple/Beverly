@@ -1,10 +1,10 @@
 //! Script parts at play time: buttons (Interact), wires, and parts that move. Runs in the editor's test mode and
 //! in the game player.
-use crate::level::{Level, Mover, Shape, Wire};
+use crate::level::{beyond, frame, within, Level, Mover, Shape, Wire};
 use crate::physics::PartBody;
 use crate::play::Play;
 use crate::world::part_transform;
-use avian3d::prelude::{LinearVelocity, Position};
+use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 
 /// How close (metres, feet to the button's side) the player must be to press a button.
@@ -15,6 +15,8 @@ struct Moving {
     /// Where it was placed.
     home: Transform,
     to: Vec3,
+    /// How far it turns (radians about x, y, z) by the end.
+    turn: Vec3,
     secs: f32,
     /// 0 at home, 1 at the end.
     t: f32,
@@ -24,7 +26,20 @@ struct Moving {
 
 impl Moving {
     /// How far from home it is now (eased).
-    fn offset(&self) -> Vec3 { self.to * (self.t * self.t * (3.0 - 2.0 * self.t)) }
+    fn offset(&self) -> Vec3 { self.to * self.eased() }
+    fn eased(&self) -> f32 { self.t * self.t * (3.0 - 2.0 * self.t) }
+    /// Where it is and which way it faces now (the turn is about its own middle, in the world's axes).
+    fn pose(&self) -> (Vec3, Quat) {
+        let k = self.eased();
+        let turn = Quat::from_euler(EulerRot::XYZ, self.turn.x * k, self.turn.y * k, self.turn.z * k);
+        (self.home.translation + self.to * k, turn * self.home.rotation)
+    }
+}
+
+/// A part carried by a moving part (`Level::carrier`): where it is in that part's frame.
+struct Carried {
+    carrier: u64,
+    local: (Vec3, Quat),
 }
 
 /// Something that happened while playing, for sounds (and later effects) to follow; they never steer the game.
@@ -45,6 +60,8 @@ pub struct Happened {
 #[derive(Default)]
 pub struct Script {
     movers: Vec<Moving>,
+    /// The parts attached to the moving ones, by id.
+    carried: std::collections::HashMap<u64, Carried>,
     /// Buttons: id, centre, radius.
     buttons: Vec<(u64, Vec3, f32)>,
     wires: Vec<Wire>,
@@ -63,11 +80,15 @@ impl Script {
             .iter()
             .filter_map(|p| {
                 let m: &Mover = p.mover.as_ref()?;
-                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), secs: m.secs.max(0.05), t: 0.0, goal: 0.0 })
+                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), turn: Vec3::from(m.turn) * std::f32::consts::PI / 180.0, secs: m.secs.max(0.05), t: 0.0, goal: 0.0 })
             })
             .collect();
+        let carried = level.parts.iter().filter_map(|p| {
+            let carrier = level.carrier(p.id)?;
+            Some((p.id, Carried { carrier, local: within(frame(level.get(carrier)?), frame(p)) }))
+        }).collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
-        Self { movers, buttons, wires: (*level.wires).clone(), fired: vec![], inputs: vec![], happened: vec![] }
+        Self { movers, carried, buttons, wires: (*level.wires).clone(), fired: vec![], inputs: vec![], happened: vec![] }
     }
 
     /// The button the player at `feet` could press now.
@@ -90,6 +111,9 @@ impl Script {
         self.inputs.clear();
         self.happened.clear();
     }
+
+    /// The parts carried by moving parts: (part, the moving part).
+    pub fn carried(&self) -> impl Iterator<Item = (u64, u64)> + '_ { self.carried.iter().map(|(id, c)| (*id, c.carrier)) }
 
     /// How far moving part `id` is from where it was placed.
     pub fn offset_of(&self, id: u64) -> Option<Vec3> { self.movers.iter().find(|m| m.id == id).map(Moving::offset) }
@@ -130,7 +154,7 @@ impl Script {
 
 /// One fixed step of the script: buttons, then wires, then moving parts, whose bodies are given the speed that
 /// takes them where they should be by the end of the step (so what stands on them rides along).
-pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody, &Position, &mut LinearVelocity)>) {
+pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody, &Position, &Rotation, &mut LinearVelocity, &mut AngularVelocity)>) {
     let play = &mut *play;
     play.script.fired.clear();
     if std::mem::take(&mut play.press) {
@@ -139,8 +163,29 @@ pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody
     let dt = time.delta_secs();
     play.script.tick(dt);
     if dt <= 0.0 { return; }
-    for (b, at, mut v) in &mut bodies {
-        if let Some(m) = play.script.movers.iter().find(|m| m.id == b.0) { v.0 = (m.home.translation + m.offset() - at.0) / dt; }
+    for (b, at, rot, mut v, mut w) in &mut bodies {
+        if let Some(m) = play.script.movers.iter().find(|m| m.id == b.0) {
+            let (to, facing) = m.pose();
+            v.0 = (to - at.0) / dt;
+            // the shortest turn from where it faces to where it should
+            let (axis, angle) = (facing * rot.0.inverse()).normalize().to_axis_angle();
+            let angle = if angle > std::f32::consts::PI { angle - std::f32::consts::TAU } else { angle };
+            w.0 = axis * angle / dt;
+        }
+    }
+}
+
+/// The parts carried by moving parts are drawn where their carrier is (the carrier is drawn smoothed between steps).
+pub fn carry(play: Res<Play>, mut shown: Query<(&crate::world::PartId, &mut Transform)>) {
+    if play.script.carried.is_empty() { return; }
+    let carriers: std::collections::HashMap<u64, (Vec3, Quat)> = shown.iter()
+        .filter(|(id, _)| play.script.carried.values().any(|c| c.carrier == id.0))
+        .map(|(id, t)| (id.0, (t.translation, t.rotation))).collect();
+    for (id, mut t) in &mut shown {
+        let Some(c) = play.script.carried.get(&id.0) else { continue };
+        let Some(&at) = carriers.get(&c.carrier) else { continue };
+        let (pos, rot) = beyond(at, c.local);
+        if t.translation != pos || t.rotation != rot { t.translation = pos; t.rotation = rot; }
     }
 }
 
@@ -156,7 +201,7 @@ mod tests {
     #[test]
     fn a_button_sends_a_pad_up_and_it_reports_arriving() {
         let mut pad = part(2, Shape::Plane, [5.0, 0.05, 0.0], [4.0, 0.1, 4.0]);
-        pad.mover = Some(Mover { to: [0.0, 6.0, 0.0], secs: 2.0 });
+        pad.mover = Some(Mover { to: [0.0, 6.0, 0.0], secs: 2.0, ..default() });
         let level = Level {
             name: "t".into(),
             parts: vec![part(1, Shape::Interact, [0.0, 0.5, 0.0], [0.5, 1.0, 0.5]), pad].into(),
@@ -179,5 +224,29 @@ mod tests {
         // Arrived is wired to its own Back: it heads home again
         s.tick(2.0);
         assert!(up(&s).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_mover_turns_as_well_as_slides_and_what_is_attached_to_it_is_carried() {
+        let mut deck = part(1, Shape::Box, [0.0, 0.5, 0.0], [4.0, 0.4, 4.0]);
+        deck.mover = Some(Mover { to: [0.0, 3.0, 0.0], turn: [0.0, 90.0, 0.0], secs: 2.0 });
+        let mut crate_ = part(2, Shape::Box, [1.5, 0.9, 0.0], [1.0; 3]);
+        crate_.parent = Some(1);
+        // a moving part attached to a moving part is not carried (it moves by its own motion)
+        let mut other = part(3, Shape::Box, [0.0, 0.0, 5.0], [1.0; 3]);
+        other.mover = Some(Mover::default());
+        other.parent = Some(1);
+        let level = Level { name: "t".into(), parts: vec![deck, crate_, other].into(), next_id: 3, ..Default::default() };
+        let mut s = Script::new(&level);
+        assert_eq!(s.carried().collect::<Vec<_>>(), vec![(2, 1)]);
+        s.movers[0].goal = 1.0;
+        for _ in 0..200 { s.tick(0.01); }
+        let (pos, rot) = s.movers[0].pose();
+        assert!((pos - Vec3::new(0.0, 3.5, 0.0)).length() < 1e-4);
+        assert!((rot * Vec3::X - Vec3::NEG_Z).length() < 1e-4, "a quarter turn about Y takes x to -z");
+        // the crate, where its carrier puts it
+        let c = &s.carried[&2];
+        let at = beyond((pos, rot), c.local);
+        assert!((at.0 - Vec3::new(0.0, 3.9, -1.5)).length() < 1e-4, "{:?}", at.0);
     }
 }

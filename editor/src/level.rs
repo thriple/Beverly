@@ -29,6 +29,7 @@ mod sound;
 mod track;
 mod world;
 pub use delta::Delta;
+pub use hierarchy::{beyond, frame, within};
 pub use material::*;
 pub use paint::*;
 pub use project::*;

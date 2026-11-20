@@ -125,7 +125,7 @@ impl Play {
         self.script = Script::new(level);
         self.bodies = crate::physics::spawn(commands, level, geo);
         self.nav = crate::nav::build(level, geo).ok().and_then(|m| crate::nav::Finder::new(&m, &level.navigation).ok());
-        self.homes = level.parts.iter().filter(|p| crate::physics::kind(p).is_some_and(|k| !k.is_static())).map(|p| (p.id, part_transform(p))).collect();
+        self.homes = level.parts.iter().filter(|p| crate::physics::kind(p).is_some_and(|k| !k.is_static()) || level.carrier(p.id).is_some()).map(|p| (p.id, part_transform(p))).collect();
         self.slippery = level.parts.iter().filter(|p| p.tags.contains(&Tag::Slippery)).map(|p| p.id).collect();
         self.loose = level.parts.iter().filter(|p| p.loose.is_some()).map(|p| (p.id, (Vec3::ZERO, -1.0))).collect();
         self.clock = 0.0;

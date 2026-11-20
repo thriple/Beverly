@@ -15,13 +15,13 @@ fn set_frame(p: &mut Part, f: (Vec3, Quat)) {
 }
 
 /// `inner` as seen from `outer` (inner's world frame to a frame within outer's).
-fn within(outer: (Vec3, Quat), inner: (Vec3, Quat)) -> (Vec3, Quat) {
+pub fn within(outer: (Vec3, Quat), inner: (Vec3, Quat)) -> (Vec3, Quat) {
     let inv = outer.1.inverse();
     (inv * (inner.0 - outer.0), inv * inner.1)
 }
 
 /// The inverse of `within`: a frame given within `outer`, in the world.
-fn beyond(outer: (Vec3, Quat), inner: (Vec3, Quat)) -> (Vec3, Quat) { (outer.0 + outer.1 * inner.0, outer.1 * inner.1) }
+pub fn beyond(outer: (Vec3, Quat), inner: (Vec3, Quat)) -> (Vec3, Quat) { (outer.0 + outer.1 * inner.0, outer.1 * inner.1) }
 
 impl Level {
     pub fn children(&self, id: u64) -> Vec<u64> { self.parts.iter().filter(|p| p.parent == Some(id)).map(|p| p.id).collect() }
@@ -37,6 +37,19 @@ impl Level {
             next = level;
         }
         out
+    }
+
+    /// The moving part that carries a part: the nearest part above it that Moves, unless it Moves itself (a moving part
+    /// attached to a moving part is not carried yet: it moves by its own motion).
+    pub fn carrier(&self, id: u64) -> Option<u64> {
+        if self.get(id)?.mover.is_some() { return None; }
+        let mut at = self.get(id)?.parent;
+        for _ in 0..self.parts.len() {
+            let p = self.get(at?)?;
+            if p.mover.is_some() { return Some(p.id); }
+            at = p.parent;
+        }
+        None
     }
 
     /// How many parents are above a part.
