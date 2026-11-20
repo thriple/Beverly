@@ -122,6 +122,13 @@ lockstep, which needs deterministic maths, only if an RTS pack is wanted.
   a geometric sphere drone follows it as a diegetic inventory (power-ups, healing packs, weapon modifiers) and scout.
   The mech is still in flux.
 
+## Editor layout
+
+The top bar's eight fixed tabs become a scrolling strip of grouped tabs (roadmap `tab-strip`): the frame goes neutral, the
+group colour sits in a thin bezel and the selected tab, the wheel scrolls the strip, and tabs squash to slices at the
+sides. Tabs are data, so modules and packs can add them. The design and the first cut of the groups are in
+`docs/ui/HANDOFF.md`.
+
 ## Export
 
 The fundamentals hold: the player plus the project folder in a zip. What changes is in `export-hardening`: one shared
