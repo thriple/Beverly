@@ -331,6 +331,8 @@ pub fn prepare_material_meshlet_meshes_prepass(
             .map(|instance| instance.asset_id)
             .collect::<HashSet<_>>()
         {
+            // Tessera: per material, so one material's DEFERRED_PREPASS doesn't carry over to the next
+            let mut view_key = view_key;
             let Some(material) = render_materials.get(material_id) else {
                 continue;
             };
