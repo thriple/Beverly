@@ -38,15 +38,15 @@ struct Step { series: String, label: String, kind: Kind, size: usize }
 /// The steps to run; `quick` keeps the two lightest of each series (to check the program runs).
 fn plan(quick: bool) -> Vec<Step> {
     let mut v = vec![];
-    for n in [1_000, 10_000, 100_000, 1_000_000] {
-        v.push(Step { series: "agents".into(), label: format!("{n} agents"), kind: Kind::Agents(n), size: 0 });
-    }
     for (s, (name, ..)) in SIZES.iter().enumerate() {
         let mut add = |series: &str, label: String, kind| v.push(Step { series: format!("{series} {name}"), label, kind, size: s });
         for n in [10, 40, 160, 640] { add("polygons", format!("{:.1} million triangles", (n * scenes::TILE_TRIANGLES) as f64 / 1e6), Kind::Polygons(n)); }
         for n in [100, 400, 1600] { add("lights", format!("{n} lights, no shadows"), Kind::Lights(n)); }
         for n in [1, 2, 4, 8, 16, 32] { add("shadowed lights", format!("{n} point lights with shadows"), Kind::Shadowed(n)); }
         for n in [1, 2, 4, 8] { add("headlights", format!("{n} moving headlights with shadows, 300 lights, 600 props"), Kind::Headlights(n)); }
+    }
+    for n in [1_000, 10_000, 100_000, 1_000_000] {
+        v.push(Step { series: "agents".into(), label: format!("{n} agents"), kind: Kind::Agents(n), size: 0 });
     }
     for gb in [1, 2, 4, 6, 8, 10, 12, 16] { v.push(Step { series: "video memory".into(), label: format!("{gb} GB of textures"), kind: Kind::Textures(gb), size: 0 }); }
     if quick {
@@ -56,7 +56,7 @@ fn plan(quick: bool) -> Vec<Step> {
     v
 }
 
-enum Phase { Start, Feed, Warm { frames: u32, secs: f32 }, Measure { times: Vec<f32>, secs: f32 } }
+enum Phase { Start, Feed, Warm { frames: u32, secs: f32 }, Measure { times: Vec<f32>, secs: f32 }, Agents(std::thread::JoinHandle<(f64, f64, usize)>) }
 
 #[derive(Resource)]
 struct Run {
@@ -100,15 +100,20 @@ pub fn run() {
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 300.0, ..default() })
     .insert_resource(Run { steps: plan(quick), secs: if quick { 1.0 } else { 4.0 }, at: 0, phase: Phase::Start, stopped: vec![], done: vec![], textures: 0, log })
     .add_systems(Update, (header.run_if(run_once), drive, scenes::drive).chain());
+    // each frame waits for the card to finish it: otherwise the program runs ahead, queueing frames (and their memory),
+    // and the frame times it measures are the processor's, not the card's
+    app.sub_app_mut(bevy::render::RenderApp).add_systems(bevy::render::Render, wait_for_card.in_set(bevy::render::RenderSystems::Cleanup));
     app.run();
 }
+
+fn wait_for_card(device: Res<bevy::render::renderer::RenderDevice>) { device.poll(wgpu::PollType::wait_indefinitely()).ok(); }
 
 fn run_once(mut done: Local<bool>) -> bool { !std::mem::replace(&mut *done, true) }
 
 /// The card and the machine, at the top of the log.
 fn header(mut run: ResMut<Run>, caps: Res<crate::gpu::GpuCaps>, info: Option<Res<SystemInfo>>) {
     run.say(format!("Beverly bench, build {}", option_env!("BEVERLY_BUILD").unwrap_or("local")));
-    run.say("Each scene runs for a few seconds. If it stops early, send this file as it is.");
+    run.say("Each scene runs for a few seconds, each frame waited out on the card. If it stops early, send this file as it is.");
     run.say(format!("Graphics card: {} ({}, {})", caps.name, caps.backend, caps.kind));
     run.say(format!("Virtual geometry features: {}", if caps.virtual_geometry() { "yes" } else { "no" }));
     if let Some(i) = info { run.say(format!("Processor: {}, {} cores, {}, {} of memory", i.cpu, i.core_count, i.os, i.memory)); }
@@ -135,11 +140,8 @@ fn drive(
             run.say(format!("starting: {series}, {label}"));
             let px = (size.1, size.2);
             if let Kind::Agents(n) = kind {
-                let (one, all, cores) = agents::run(n);
-                run.say(format!("  {label}: {one:.2} ms a tick on one core, {all:.2} ms on {cores} cores"));
-                run.done.push((series.clone(), label, 1000.0 / all));
-                if all > 50.0 { run.stopped.push(series); }
-                run.at += 1;
+                // on a thread of its own, so the window stays alive while the processor is busy
+                run.phase = Phase::Agents(std::thread::spawn(move || agents::run(n)));
                 return;
             }
             // the texture test adds to what is there; every other scene starts clean
@@ -162,12 +164,29 @@ fn drive(
             }
             if run.textures >= gb * scenes::PER_GB { run.phase = Phase::Warm { frames: 0, secs: 0.0 }; }
         }
+        Phase::Agents(handle) => {
+            if !handle.is_finished() { return; }
+            let Phase::Agents(handle) = std::mem::replace(&mut run.phase, Phase::Start) else { return };
+            let (one, all, cores) = handle.join().unwrap_or((0.0, 0.0, 0));
+            let (series, label) = { let s = &run.steps[run.at]; (s.series.clone(), s.label.clone()) };
+            run.say(format!("  {label}: {one:.2} ms a tick on one core, {all:.2} ms on {cores} cores"));
+            run.done.push((series.clone(), label, if all > 0.0 { 1000.0 / all } else { 0.0 }));
+            if all > 50.0 { run.stopped.push(series); }
+            run.at += 1;
+        }
         Phase::Warm { frames, secs } => {
             *frames += 1;
             *secs += dt;
             // long enough for shaders to build and meshes to reach the card
             if *frames >= 20 && *secs >= 1.0 { run.phase = Phase::Measure { times: vec![], secs: 0.0 }; }
-            else if *secs > 30.0 { measured(&mut run, &perf, vec![], 30.0); }
+            else if *secs > 120.0 {
+                let n = *frames;
+                let (series, label) = { let s = &run.steps[run.at]; (s.series.clone(), s.label.clone()) };
+                run.say(format!("  {label}: never got going ({n} frames in two minutes); {series} stopped"));
+                run.stopped.push(series);
+                run.at += 1;
+                run.phase = Phase::Start;
+            }
         }
         Phase::Measure { times, secs } => {
             times.push(dt);

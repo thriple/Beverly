@@ -692,6 +692,15 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
     </div>
 
     <div class="card">
+      <span class="tag">Prism models</span><h3>Named pieces, set up by their words</h3>
+      <ul>
+        <li>A model from Prism arrives as its groups (named child parts, each turning around the axes set in Prism) and its components (shared copies).</li>
+        <li>Words set the pieces up: Prism's game roles, its tags, the words in names and a material's Surface. <code>collider</code> is an invisible collision shape for its group, <code>breakable</code> breaks into its child groups, <code>loose</code> tumbles, <code>stone</code> or <code>wood</code> gives footsteps, weight and grip, <code>door</code> turns on its pivot. The project can add its own words; unknown words become its own tags.</li>
+        <li>Settings that came from a word show a chip; changing one in Beverly wins, and survives a re-export from Prism. The GLB contract both programs follow is <code>docs/prism-glb.md</code>.</li>
+      </ul>
+    </div>
+
+    <div class="card">
       <span class="tag">Draw distance</span><h3>Tied to the haze</h3>
       <ul>
         <li>One level-wide far distance, plus size classes: small props vanish first, then medium, then large. Landmarks are always visible.</li>
