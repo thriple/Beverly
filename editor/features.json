@@ -1650,17 +1650,20 @@
   },
   {
    "id": "prism-import",
-   "name": "Prism models: named pieces",
+   "name": "Prism models: named pieces and tag rules",
    "area": "World building",
    "status": "planned",
-   "effort": "M",
+   "effort": "L",
    "needs": [
     "models",
     "instancing"
    ],
-   "what": "Groups from Prism arrive as named pieces; components as shared instances (with Prism's export brief).",
-   "chunks": [],
-   "note": "",
+   "what": "Groups from Prism arrive as named pieces and components as shared instances; words on them (roles, Prism tags, names, material surfaces) set them up: collider, breakable, loose, stone, door...",
+   "chunks": [
+    "Named pieces: each group of a GLB becomes a child part named after it, components become shared copies, a group's axes are its pivot; re-importing matches pieces by their names so changes made in Beverly stay",
+    "Tag rules: the words from roles, Prism tags, names and material surfaces (docs/prism-glb.md) set the piece up from a table of words (collider, walkthrough, trigger, loose, breakable, surface tags, footstep materials, door, button, lift, light...); the project can add its own rows; settings from a word show a 'from tag' chip, the owner's change wins and a reset brings the word's value back; unknown words become the project's own tags; an import summary in the island; words that wait for unbuilt features (breakable, sockets, LOD, decals) are kept until they arrive; MCP list_tag_rules, change_tag_rule and where each setting came from in list_parts; test project tests/prism-tags"
+   ],
+   "note": "Planned 2026-11-21 with the user: tag a group 'collider' or 'breakable', or a material 'stone', and Beverly sets it up, with overrides. 'collider' means an invisible collision shape for the group it sits in (the Unreal and Godot convention); if a model has any, only colliders collide (models collide as drawn otherwise, so the drawn-and-solid meaning needs no word). The GLB contract both programs follow is docs/prism-glb.md, an addendum to Prism's brief 50 sent to the Prism session: roles as a list on groups and components (extras.prism.roles), the instance's Prism tag (extras.prism.tag), a material's Surface (material extras.prism.surface). Waits its turn in the build order (user).",
    "order": 91,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
