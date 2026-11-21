@@ -364,6 +364,11 @@ pub fn init_meshlet_pipelines(
                 ),
                 layout: vec![visibility_buffer_raster_shadow_view_layout],
                 immediate_size: 4,
+                // Tessera: Bevy left this out, making it the same as the clipped pipeline
+                primitive: PrimitiveState {
+                    unclipped_depth: true,
+                    ..default()
+                },
                 vertex: VertexState {
                     shader: visibility_buffer_hardware_raster.clone(),
                     shader_defs: vec!["MESHLET_VISIBILITY_BUFFER_RASTER_PASS".into()],
