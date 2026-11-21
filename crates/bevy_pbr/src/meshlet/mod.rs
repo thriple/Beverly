@@ -110,7 +110,8 @@ pub struct MeshletPlugin {
     ///
     /// If this number is too low, you'll see rendering artifacts like missing or blinking meshes.
     ///
-    /// Each cluster slot costs 4 bytes of VRAM.
+    /// Each cluster slot costs 32 bytes of VRAM: four queues (the raster clusters, the two BVH traversal queues and
+    /// the cluster cull queue) of an (instance, index) pair of `u32`s each (Tessera; Bevy said 4).
     ///
     /// Must not be greater than 2^25.
     pub cluster_buffer_slots: u32,
