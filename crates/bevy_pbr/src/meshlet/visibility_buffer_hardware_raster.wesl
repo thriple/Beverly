@@ -2,9 +2,7 @@
 
 import package::{
     meshlet::bindings::{
-        meshlet_cluster_meshlet_ids,
         meshlets,
-        meshlet_cluster_instance_ids,
         meshlet_instance_uniforms,
         meshlet_raster_clusters,
         meshlet_previous_raster_counts,
