@@ -62,7 +62,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    - Use main's `beverly::gpu::GpuCaps` (`editor/src/gpu.rs`: probed before the app is built, Vulkan chosen when it can run virtual geometry, the renderer pinned to that adapter). Don't add a second probe.
      - The `tessera` crate can't depend on the editor, so the editor passes what it needs in (e.g. a `bool` or the `WgpuFeatures`) when it adds the plugin; turn the plugin's parts on or off from that.
      - If Tessera needs more from the card (mesh shaders, ray query, limits), add a method on `GpuCaps` in `gpu.rs` on this branch, and note it under *Wiring main needs* so main takes the same change when it merges.
-3. ⬜ **Bug fixes** (the list in `docs/tessera.md`):
+3. 🔶 **Bug fixes** (the list in `docs/tessera.md`): the five below done 2026-11-22; **left: the fill rule** (last line).
    - the prepass and deferred material bind group 2 → 3
    - `unclipped_depth` on the directional-shadow pipeline
    - `DEFERRED_PREPASS` carrying over in the prepass loop (confirm first)
@@ -139,6 +139,34 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-22 (Guam): job 3, bug fixes 🔶 (five done, the fill rule left)
+- **Merge:** main merged in cleanly; the branch also had an interactive update to this file (main's bake cache,
+  the roadmap links).
+- **One commit each:**
+  1. `e0e84de`: the meshlet prepass and deferred passes bound the material at group 2; their layout is (view, empty,
+     meshlet shade, material), so it replaced the shade bind group and left 3 unset. Now 3, like the main pass.
+  2. `e3f061a`: the "unclipped" directional-shadow hardware raster pipeline set no primitive state, so it clipped
+     depth like the plain one. It now sets `unclipped_depth` (needs `DEPTH_CLIP_CONTROL`, already required). The
+     software rasterizer never clipped depth, so the two now agree.
+  3. `94842d4`: confirmed by reading `prepare_material_meshlet_meshes_prepass`: `view_key` is made once per view
+     and `DEFERRED_PREPASS` was OR-ed into it in the per-material loop, so every later material was treated as
+     deferred. Each material now starts from the view's key.
+  4. `3cdbffa`: both raster shaders imported `meshlet_cluster_meshlet_ids` / `meshlet_cluster_instance_ids`, which
+     `bindings.wesl` doesn't define and nothing uses. Removed.
+  5. `9dc0c6e`: a cluster slot costs 32 bytes of VRAM (four queues of a `u32` pair), not 4 as the doc said; the
+     2^25 maximum is 1 GiB.
+- **Left: the top-left fill rule in fixed point** for the software rasterizer. It is GPU-testable here, but it needs
+  its own check: render two triangles sharing an edge and read the visibility buffer back to show no pixel is
+  missed or drawn twice. That is the next run's work. `vg-render`'s picture has a few single dark pixels on the
+  surface, there on earlier nights too; possibly the float edge test's cracks, which that check should settle.
+- **Checks:**
+  - `vg-render`: all four cases exit 0 (draw / unsupported / msaa / device); the draw picture looks as before.
+  - feature off: `cargo build` ✅, `cargo test` ✅ (79)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (79)
+  - `tools/run-tests.sh` ✅ (all 18)
+- **Only the RTX card can show:** fixes 1 and 3 matter only with a prepass or deferred camera, which the editor
+  doesn't use yet. Fix 2 shows as shadows of things behind the sun's near plane.
 
 ### 2026-11-21 (Guam): job 2, no exit on a missing feature ✅
 - **Merge:** main merged in; `editor/features.json` conflicted. Took main's version and put back the `tessera`
