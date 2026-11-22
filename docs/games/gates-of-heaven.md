@@ -8,7 +8,7 @@ The game's universe is full of alien life. An impossibly advanced but misguided 
 
 The same civilisation built a gateway to evacuate its own people to another galaxy, having judged the Milky Way corrupted. Humans and their allies learn only that the gateway may work, and may be usable by them. Their plan is a chain of wormholes, each jump up to 1,000 light years, so that everyone along the route can evacuate too.
 
-The game is the journey from near Sol to the home planet of the gateway's builders, before the wave wipes out galactic life. Along the way are hostile species and environments, and the knowledge that the closer the Pact gets to the gate, the closer it gets to the wave. The gate lies toward the galactic core, the same direction the wave comes from.
+The game is the journey from near Sol to the giant gate in orbit around the gateway's builders' home planet, before the wave wipes out galactic life. The last level is the gate itself. The player never lands on the planet. Along the way are hostile species and environments, and the knowledge that the closer the Pact gets to the gate, the closer it gets to the wave. The gate lies toward the galactic core, the same direction the wave comes from.
 
 The **Pact** is humanity together with the alien civilisations that have joined it in trade and mutual agreement.
 
@@ -247,7 +247,7 @@ The Hejich built the gate, and then used it to leave. The finale is in their gat
 
 ### The gateway system
 
-- **The Guard:** the Hejich rear guard, a force too large to beat head-on. Their civilisation has already gone through, so the Guard holds the gate alone.
+- **The Guard:** the Hejich rear guard, a force too large to beat head-on. Their civilisation has already gone through, so the Guard holds the gate alone. It is a fleet of warships of various sizes. The roster of ship types is not yet designed.
 - **Logistics ships and arrays:** huge ships and machinery, built and used over decades to ferry people to the gate. Targets, and places to hide.
 - **The Weapon:** the same weapon that fired into the black hole. It lies in this system, some distance from the gate, and finding it is part of the level.
 
@@ -258,7 +258,7 @@ The player must be sneaky. Each option below thins the Guard before the player e
 1. **Booster derelict:** mount booster packs on a derelict and accelerate it into the Guard. It destroys a swath of ships.
 2. **Weapon beam:** disconnect an energy shunt cable from the Weapon, hold it in a manipulator on the ship, and fire a beam of pure energy on a short tether. Recoil is strong and wild, so keeping the aim takes a lot of mouse correction. Boosters on the ship can steady it. The Guard notices the beam and homes in, but it takes a few minutes to reach the attacker, which gives time to thin them. A clever player can place turrets, shield projectors or other defences on the Weapon.
 3. **Auto-turret derelict:** a derelict with many auto-turrets, boosted into the Guard.
-4. **The core gamble (50/50):** the player is catapulted with a wormhole core, but is not told where it is. If the core is placed on the Weapon and the Weapon is shot to destruction, both explode. The blast destroys 60 to 90 percent of the Guard. The radius is large, and it kills whoever fires the shot, whether that is the player or a ship they command.
+4. **The core gamble (50/50):** the player is catapulted with a wormhole core, but is not told where it is. It is the one core in play: the previous level's core went into the gate at its end, and a new core was issued for this level. If the core is placed on the Weapon and the Weapon is shot to destruction, both explode. The blast destroys 60 to 90 percent of the Guard. The radius is large, and it kills whoever fires the shot, whether that is the player or a ship they command.
 
 ### How the Guard responds
 
@@ -278,10 +278,16 @@ After the Guard is beaten, the player chooses:
 
 Either way, the MWP arrives, reorients the gate to target a different galaxy, and begins evacuating the known Milky Way.
 
+The player never goes through the gate. The last level ends in orbit, where the gate is the size of a large moon.
+
+**End cinematic:** new alien collapsible wormhole gates are fired by catapult. They expand and come to life, and fleets of transport ships fly out of them moments later. A big crescendo of music.
+
+**Hidden media:** a news show anchor on a monitor in the Catapult's hangar kitchen reports that the Catapult technology has been shared with the galactic network because of the impending disaster, and that new designs are starting to appear. This explains the Catapult's improvements in the later levels.
+
 ## Open questions
 
-1. **The one-core rule:** the core gamble gives the player a core that they are not told about. The rule is that only one core exists at a time. Is the hidden core the same one the player carries, or a second core? This needs to be settled.
-2. **Synopsis:** the synopsis still says the goal is the builders' home planet. The finale now ends with the gate reoriented toward a different galaxy. Does the player ever go through the gate?
-3. **The Guard's size:** does the Guard send a fixed force, or does it scale with how much damage it has taken?
+1. **The core gamble and the core's survival:** the gamble's core is the one core in play, so there is no second core. When the Weapon and core are destroyed, the core is destroyed too. The core rule says core loss is game over. So either the explosion spares the core, or the gamble ends the game. Which is it?
+2. **The Guard's roster:** the warship types, sizes and counts have not been designed yet.
+3. **The Guard's response:** does the Guard send a fixed force, or does it scale with how much damage it has taken?
 4. What does the galactic map look like, and what does the player see on it before a jump?
 5. Which special equipment is kept between destinations, and which is lost? The rules for each item are still to be written.
