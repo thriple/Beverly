@@ -42,6 +42,7 @@ pub struct Delta {
     order: Pair<Vec<u64>>,
     wires: Pair<Vec<Wire>>,
     curves: Pair<Vec<crate::curve::Curve>>,
+    buckets: Pair<Vec<super::Bucket>>,
     ranges: Pair<Ranges>,
     lighting: Pair<Lighting>,
     navigation: Pair<Navigation>,
@@ -59,6 +60,7 @@ impl Delta {
             next_id: pair(&a.next_id, &b.next_id),
             wires: if a.wires.stamp() == b.wires.stamp() { None } else { pair(&*a.wires, &*b.wires) },
             curves: if a.curves.stamp() == b.curves.stamp() { None } else { pair(&*a.curves, &*b.curves) },
+            buckets: if a.buckets.stamp() == b.buckets.stamp() { None } else { pair(&*a.buckets, &*b.buckets) },
             ranges: if a.ranges.stamp() == b.ranges.stamp() { None } else { pair(&*a.ranges, &*b.ranges) },
             lighting: if a.lighting.stamp() == b.lighting.stamp() { None } else { pair(&*a.lighting, &*b.lighting) },
             navigation: if a.navigation.stamp() == b.navigation.stamp() { None } else { pair(&*a.navigation, &*b.navigation) },
@@ -81,7 +83,7 @@ impl Delta {
 
     pub fn is_empty(&self) -> bool {
         self.name.is_none() && self.next_id.is_none() && self.changed.is_empty() && self.removed.is_empty() && self.added.is_empty() && self.order.is_none()
-            && self.wires.is_none() && self.curves.is_none() && self.ranges.is_none() && self.lighting.is_none() && self.navigation.is_none() && self.walker.is_none()
+            && self.wires.is_none() && self.curves.is_none() && self.buckets.is_none() && self.ranges.is_none() && self.lighting.is_none() && self.navigation.is_none() && self.walker.is_none()
             && self.materials.is_empty() && self.sounds.is_empty()
     }
 
@@ -96,6 +98,7 @@ impl Delta {
         if let Some(v) = pick(&self.next_id, forward) { level.next_id = *v; }
         if let Some(v) = pick(&self.wires, forward) { *level.wires = v.clone(); }
         if let Some(v) = pick(&self.curves, forward) { *level.curves = v.clone(); }
+        if let Some(v) = pick(&self.buckets, forward) { *level.buckets = v.clone(); }
         if let Some(v) = pick(&self.ranges, forward) { *level.ranges = v.clone(); }
         if let Some(v) = pick(&self.lighting, forward) { *level.lighting = v.clone(); }
         if let Some(v) = pick(&self.navigation, forward) { *level.navigation = v.clone(); }

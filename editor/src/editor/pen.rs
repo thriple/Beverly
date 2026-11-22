@@ -200,7 +200,7 @@ fn fill_strokes(curve: u64, fill: &curve::Fill, path: curve::Path, line: &[Vert]
             out.push((q.id, crate::level::Stroke {
                 material: fill.material.clone(), size: fill.feather, hardness: 1.0, strength: fill.strength, points: poly.iter().map(|p| q.to_local(*p).to_array()).collect(), lays: crate::level::Lays::Add,
                 // only on what is walkable, not the sides of things
-                rules: crate::level::Rules { slope: path.slope, ..Default::default() }, curve: Some(curve), fill: true,
+                rules: crate::level::Rules { slope: path.slope, ..Default::default() }, curve: Some(curve), fill: true, faces: vec![], bucket: None,
             }));
         }
     }
@@ -214,7 +214,7 @@ fn strip_strokes(curve: u64, strip: &curve::Strip, line: &[Vert], parts: &[Part]
     let mut run: Option<(u64, Vec<[f32; 3]>)> = None;
     let flush = |run: &mut Option<(u64, Vec<[f32; 3]>)>, out: &mut Vec<(u64, crate::level::Stroke)>| {
         if let Some((id, points)) = run.take() {
-            out.push((id, crate::level::Stroke { material: strip.material.clone(), size: strip.size, hardness: strip.hardness, strength: strip.strength, points, lays: crate::level::Lays::Add, rules: Default::default(), curve: Some(curve), fill: false }));
+            out.push((id, crate::level::Stroke { material: strip.material.clone(), size: strip.size, hardness: strip.hardness, strength: strip.strength, points, lays: crate::level::Lays::Add, rules: Default::default(), curve: Some(curve), fill: false, faces: vec![], bucket: None }));
         }
     };
     let step = (strip.size * 0.1).max(0.05);
@@ -554,7 +554,7 @@ mod tests {
         assert!(s.fill && s.curve == Some(9) && s.size == 0.5 && s.points.len() >= 4);
         // the shader's inside test, mirrored: the middle of the floor is filled, beyond the outline is not
         let pc = crate::paint::pieces(&crate::level::Part { strokes: made.iter().map(|m| m.1.clone()).collect(), ..parts[0].clone() });
-        let at = |x: f32, z: f32| crate::paint::coverage(&pc, pc.len(), 0, Vec3::new(x, 0.1, z), 1.0, 0.1);
+        let at = |x: f32, z: f32| crate::paint::coverage(&pc, pc.len(), 0, Vec3::new(x, 0.1, z), 0, 1.0, 0.1);
         assert!(at(3.0, 3.0) > 0.99 && at(-2.0, 3.5) > 0.99);
         assert!(at(4.25, 0.0) < 0.01 && at(0.0, -9.0) < 0.01);
         // the edge fades in over the feather width: half a metre in from the outline is full, a quarter in is part way
@@ -576,7 +576,7 @@ mod tests {
         let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo);
         assert_eq!(made.len(), 1);
         let pc = crate::paint::pieces(&Part { strokes: vec![made[0].1.clone()], ..floor.clone() });
-        let at = |x: f32, z: f32| crate::paint::coverage(&pc, pc.len(), 0, floor.to_local(Vec3::new(x, 0.1, z)), 1.0, 0.1);
+        let at = |x: f32, z: f32| crate::paint::coverage(&pc, pc.len(), 0, floor.to_local(Vec3::new(x, 0.1, z)), 0, 1.0, 0.1);
         assert!(at(cx + 3.0, cz + 3.0) > 0.99 && at(cx - 2.0, cz + 3.5) > 0.99);
         assert!(at(cx + 6.0, cz) < 0.01 && at(cx, cz + 9.0) < 0.01);
         // and the outline follows the part: the same stroke on the part moved elsewhere fills the same place on it
@@ -584,6 +584,6 @@ mod tests {
         moved.pos = [-5.0, 0.05, 40.0];
         let pc = crate::paint::pieces(&moved);
         let local = Vec3::new(2.0, 0.1, -3.0);
-        assert!(crate::paint::coverage(&pc, pc.len(), 0, local, 1.0, 0.1) > 0.99);
+        assert!(crate::paint::coverage(&pc, pc.len(), 0, local, 0, 1.0, 0.1) > 0.99);
     }
 }

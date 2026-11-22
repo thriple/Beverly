@@ -48,6 +48,7 @@ pub const ACTIONS: &[Action] = &[
     a("tool.place", "Place (the last thing placed or picked)", "Tools", "V"),
     a("tool.brush", "Brush", "Tools", "B"),
     a("tool.pen", "Pen", "Tools", "P"),
+    a("tool.fill", "Bucket fill", "Tools", "G"),
     a("tool.pick", "Pick what is under the pointer", "Tools", "I"),
     a("audio.play", "Play or stop the stage", "Stage bar", "P"),
     a("tab.level", "Level tab", "Tab bar", "Ctrl+1"),
@@ -127,6 +128,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         "view.parts" => {
             ed.brush_on = false;
             ed.pen_on = false;
+            ed.bucket_on = false;
             ed.parts_open = true;
             ed.parts_fresh = true;
             ed.parts_query.clear();
@@ -150,6 +152,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             Some((shape, model)) => {
                 ed.brush_on = false;
                 ed.pen_on = false;
+                ed.bucket_on = false;
                 ed.placing = Some(shape);
                 ed.placing_model = model;
             }
@@ -161,8 +164,20 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             ed.pen.reset();
             if ed.pen_on {
                 ed.brush_on = false;
+                ed.bucket_on = false;
                 ed.placing = None;
                 ed.island.show("✎", "Pen", "Click for corners · drag for curves · click the first point to close · Enter finishes · Esc puts it away", Tone::Accent);
+            }
+        }
+        "tool.fill" => {
+            ed.bucket_on = !ed.bucket_on;
+            ed.filling.over = None;
+            if ed.bucket_on {
+                ed.brush_on = false;
+                ed.pen_on = false;
+                ed.placing = None;
+                if !ed.level.materials.contains_key(&ed.brush.material) { ed.brush.material = ed.level.materials.keys().next().cloned().unwrap_or_default(); }
+                ed.island.show("◪", "Bucket fill", "Click to fill what matches · Alt erases · Esc puts it away", Tone::Accent);
             }
         }
         "tool.brush" => {
@@ -170,6 +185,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
             ed.painting = Default::default();
             if ed.brush_on {
                 ed.pen_on = false;
+                ed.bucket_on = false;
                 ed.placing = None;
                 if !ed.level.materials.contains_key(&ed.brush.material) { ed.brush.material = ed.level.materials.keys().next().cloned().unwrap_or_default(); }
                 ed.island.show("◍", "Brush", "[ ] size · Shift + [ ] hardness · Alt erases · Esc puts it away", Tone::Accent);

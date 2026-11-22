@@ -29,7 +29,9 @@ struct Frame {
 // one piece of a stroke: from a to b (w: radius, hardness), c: strength, layer (-1 erases), stroke number, how it
 // lays (0 add, 1 subtract, 2 set); d: its rules (the cosine of the steepest slope, below -1 any; lowest and highest
 // height in the world). A fill's outline is made of pieces too: each an edge from a to b in the part's frame (a.w: the
-// width of the feathered edge), marked by d.w of 1
+// width of the feathered edge), marked by d.w of 1. A stroke over whole faces (a bucket fill's) is one piece marked by
+// d.w of 2, its faces as bits in b.x (faces 0 to 23) and b.y (24 to 47); the mesh's second UV says which face a
+// pixel is on
 struct Piece {
     a: vec4<f32>,
     b: vec4<f32>,
@@ -71,7 +73,7 @@ fn allows(d: vec4<f32>, up: f32, y: f32) -> f32 {
     return slope * smoothstep(d.y - 0.05, d.y + 0.05, y) * (1.0 - smoothstep(d.z - 0.05, d.z + 0.05, y));
 }
 
-fn coverage(at: vec3<f32>, up: f32, y: f32) -> f32 {
+fn coverage(at: vec3<f32>, up: f32, y: f32, face: i32) -> f32 {
     var cov = 0.0;
     var i = 0;
     let n = frame.info.y;
@@ -89,7 +91,14 @@ fn coverage(at: vec3<f32>, up: f32, y: f32) -> f32 {
         var feather = 0.0;
         loop {
             if i >= n || pieces[i].c.z != stroke { break; }
-            if pieces[i].d.w > 0.5 {
+            if pieces[i].d.w > 1.5 {
+                if face >= 0 && face < 48 {
+                    var bits = u32(pieces[i].b.x);
+                    var f = u32(face);
+                    if face >= 24 { bits = u32(pieces[i].b.y); f = u32(face - 24); }
+                    if ((bits >> f) & 1u) == 1u { m = 1.0; }
+                }
+            } else if pieces[i].d.w > 0.5 {
                 let e = edge(pieces[i].a.xyz, pieces[i].b.xyz, at);
                 fill = true;
                 if e.x > 0.5 { inside = !inside; }
@@ -126,7 +135,11 @@ fn fragment(
     var pbr_input = pbr_input_from_standard_material(in, is_front);
     let local = turn(frame.unturn, in.world_position.xyz - frame.centre.xyz);
     let up = normalize(pbr_input.world_normal).y;
-    pbr_input.material.base_color.a = pbr_input.material.base_color.a * coverage(local, up, in.world_position.y);
+    var face = -1;
+@if(VERTEX_UVS_B) {
+    face = i32(round(in.uv_b.x));
+}
+    pbr_input.material.base_color.a = pbr_input.material.base_color.a * coverage(local, up, in.world_position.y, face);
     pbr_input.material.base_color = alpha_discard(
         pbr_input.material.flags,
         pbr_input.material.alpha_cutoff,

@@ -59,6 +59,70 @@ pub struct Stroke {
     /// works out). So it holds when the part moves, turns or the world shifts.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fill: bool,
+    /// Whole faces, not a stroke: it covers these faces of the part all over (`points` and `size` aren't used). A bucket
+    /// fill's strokes are these.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub faces: Vec<u8>,
+    /// The bucket fill that made this stroke (`Level::buckets`, `bucket.rs`): it is made again when the level changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bucket: Option<u64>,
+}
+
+/// A bucket fill: the place clicked and a rule for what else counts as the same, with the layer it lays there. It stays
+/// a rule, not the area it found: change what was clicked (recolour it, lay another material on it) and the fill
+/// follows. The strokes it makes on each part it reaches are made again whenever the level changes (`bucket.rs`).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Bucket {
+    pub id: u64,
+    /// The part clicked, its face, and where on it (in the part's own frame).
+    pub part: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face: Option<u8>,
+    pub at: [f32; 3],
+    /// What else it fills.
+    pub fills: Fills,
+    /// How far a colour may be from the clicked one and still count (0: exactly, 1: any).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub tolerance: f32,
+    /// The surface tag it fills (Same tag), when not the clicked part's first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<Tag>,
+    /// Only what touches the clicked part, part to part: it stops at gaps.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub connected: bool,
+    /// The material it lays (empty: it erases), how much, and how.
+    pub material: String,
+    pub strength: f32,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub lays: Lays,
+}
+
+/// What a bucket fill fills, starting from what was clicked.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Fills {
+    /// Every face with the same material laid on it (or, with none, the same colour).
+    #[default]
+    #[reflect(@Label("Material"))]
+    Material,
+    /// Every face of the same colour, within the tolerance.
+    #[reflect(@Label("Colour"))]
+    Colour,
+    /// Every part with the same surface tag.
+    #[reflect(@Label("Tag"))]
+    Tag,
+    /// All of the part clicked.
+    #[reflect(@Label("Part"))]
+    Part,
+    /// The walkable faces at the height clicked: a storey of a building, the ground of a yard.
+    #[reflect(@Label("Floor"))]
+    Floor,
+}
+
+impl Fills {
+    pub const ALL: [Fills; 5] = [Fills::Material, Fills::Colour, Fills::Tag, Fills::Part, Fills::Floor];
+    pub fn word(self) -> &'static str {
+        match self { Fills::Material => "material", Fills::Colour => "colour", Fills::Tag => "tag", Fills::Part => "part", Fills::Floor => "floor" }
+    }
 }
 
 /// How a stroke lays its layer.
@@ -124,4 +188,6 @@ impl Part {
     }
     /// A point in the world in the part's own frame (metres from its middle, turned with it).
     pub fn to_local(&self, world: Vec3) -> Vec3 { Quat::from_array(self.rot).inverse() * (world - Vec3::from(self.pos)) }
+    /// A point in the part's own frame in the world.
+    pub fn to_world(&self, local: Vec3) -> Vec3 { Quat::from_array(self.rot) * local + Vec3::from(self.pos) }
 }

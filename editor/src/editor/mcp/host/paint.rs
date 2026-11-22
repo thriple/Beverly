@@ -57,7 +57,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
             }
             let p = ed.level.get_mut(id).expect("found above");
             let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
-            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false });
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false, faces: vec![], bucket: None });
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))
@@ -166,6 +166,61 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
             ed.commit();
             Ok(describe_curve(ed.level.curve(id).expect("found")))
         }
+        "list_fills" => Ok(Value::Array(ed.level.buckets.iter().map(|b| describe_fill(ed, b)).collect())),
+        "bucket_fill" => {
+            editable(ed)?;
+            if let Some(id) = args.get("delete").and_then(Value::as_u64) {
+                if !ed.level.buckets.iter().any(|b| b.id == id) { return Err(format!("No fill {id} (list_fills shows them)")); }
+                ed.level.buckets.retain(|b| b.id != id);
+                crate::editor::bucket::fills(ed);
+                ed.commit();
+                return Ok(json!({"deleted": id}));
+            }
+            let p = part_of(ed, args)?.clone();
+            if !crate::paint::paintable(&p) { return Err(format!("{} can't be filled (the bucket fills visible basic shapes)", p.name)); }
+            let names = crate::shapes::build(p.shape).face_names();
+            let point = args.get("point").map(|v| vec3_of(v).ok_or("point is [x, y, z]")).transpose()?;
+            // where it starts: the face named, else the face under the point (looking down onto it), else the top
+            let face: Option<u8> = match args.get("face").and_then(Value::as_str) {
+                Some(f) => Some(names.iter().position(|n| n.eq_ignore_ascii_case(f)).ok_or_else(|| format!("{} has no face {f} (its faces: {})", p.name, names.join(", ")))? as u8),
+                None => {
+                    let from = point.map_or(Vec3::from(p.pos) + Vec3::Y * (Vec3::from(p.size).length() + 1.0), |q| q + Vec3::Y * 0.5);
+                    let ray = Ray3d::new(from, Dir3::NEG_Y);
+                    crate::world::raycast(std::slice::from_ref(&p), &ed.geo, ray, None, |_| true).and_then(|h| h.face)
+                }
+            };
+            let at = point.unwrap_or_else(|| Vec3::from(p.pos) + Vec3::Y * p.size[1] * 0.5);
+            let fills = match args.get("fills").and_then(Value::as_str) {
+                None => ed.bucket.fills,
+                Some(w) => crate::level::Fills::ALL.into_iter().find(|f| f.word() == w.to_lowercase()).ok_or("fills is material, colour, tag, part or floor")?,
+            };
+            let tag = match args.get("tag").and_then(Value::as_str) {
+                None => None,
+                Some(v) => {
+                    let want = v.to_lowercase().replace([' ', '_'], "");
+                    Some(crate::level::Tag::ALL.into_iter().find(|t| format!("{t:?}").to_lowercase() == want).ok_or_else(|| format!("No surface tag called {v}"))?)
+                }
+            };
+            let erase = args.get("erase").and_then(Value::as_bool) == Some(true) || args.get("material").is_some_and(Value::is_null);
+            let material = match (erase, args.get("material").and_then(Value::as_str)) {
+                (true, _) => String::new(),
+                (false, Some(m)) => material_ref(ed, m)?,
+                (false, None) if ed.level.materials.contains_key(&ed.brush.material) => ed.brush.material.clone(),
+                (false, None) => return Err("Give the material to fill with (or erase: true)".into()),
+            };
+            let lays = match args.get("lays").and_then(Value::as_str) {
+                None => if erase { Default::default() } else { ed.brush.lays },
+                Some("add") => crate::level::Lays::Add,
+                Some("subtract") => crate::level::Lays::Subtract,
+                Some("set") => crate::level::Lays::Set,
+                Some(o) => return Err(format!("lays is add, subtract or set, not {o}")),
+            };
+            let num = |k: &str, d: f32| args.get(k).and_then(Value::as_f64).map_or(d, |v| (v as f32).clamp(0.0, 1.0));
+            let b = crate::level::Bucket { id: 0, part: p.id, face, at: p.to_local(at).to_array(), fills, tolerance: num("tolerance", ed.bucket.tolerance), tag, connected: args.get("connected").and_then(Value::as_bool).unwrap_or(false), material, strength: num("strength", ed.brush.strength), lays };
+            let id = crate::editor::bucket::add(ed, b);
+            ed.commit();
+            Ok(describe_fill(ed, ed.level.buckets.iter().find(|b| b.id == id).expect("just added")))
+        }
         _ => unreachable!("routed in `call`"),
     }
 }
@@ -173,4 +228,14 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
 /// A stretch from its word (ground, over, air, fall).
 fn stretch_of(w: &Value) -> Option<crate::curve::Stretch> {
     crate::curve::Stretch::ALL.into_iter().find(|s| w.as_str().is_some_and(|w| stretch_word(*s) == w.to_lowercase()))
+}
+
+/// A bucket fill, as list_fills and bucket_fill say it.
+fn describe_fill(ed: &Editor, b: &crate::level::Bucket) -> Value {
+    let name = |id: u64| ed.level.get(id).map_or_else(|| format!("#{id} (gone)"), |p| p.name.clone());
+    json!({
+        "id": b.id, "from": name(b.part), "fills": b.fills.word(), "tolerance": settings::num(b.tolerance), "tag": b.tag.map(|t| format!("{t:?}")), "connected": b.connected,
+        "material": b.material, "strength": settings::num(b.strength), "lays": format!("{:?}", b.lays).to_lowercase(),
+        "reaches": crate::bucket::reach(&ed.level, b).iter().map(|(id, f)| json!({"part": name(*id), "faces": f.len()})).collect::<Vec<_>>(),
+    })
 }

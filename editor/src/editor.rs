@@ -3,6 +3,7 @@
 mod actions;
 mod audio;
 mod brush;
+mod bucket;
 mod pen;
 mod preview;
 mod thumbs;
@@ -129,6 +130,10 @@ pub struct Editor {
     /// The pen (P): out or not, and what it is doing.
     pub pen_on: bool,
     pub pen: pen::Pen,
+    /// The bucket fill (G): out or not, how it fills, and what it is doing.
+    pub bucket_on: bool,
+    pub bucket: bucket::BucketTool,
+    pub filling: bucket::Filling,
     /// The Assets panel's search, and its pictures.
     pub assets_query: String,
     pub thumbs: thumbs::Thumbs,
@@ -256,6 +261,9 @@ impl Editor {
             painting: brush::Painting::default(),
             pen_on: false,
             pen: pen::Pen::default(),
+            bucket_on: false,
+            bucket: bucket::BucketTool::default(),
+            filling: bucket::Filling::default(),
             assets_query: String::new(),
             thumbs: thumbs::Thumbs::default(),
             tab: 0,

@@ -473,6 +473,72 @@ pub(super) fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     if b != ed.brush { b.keep(); ed.brush = b; }
 }
 
+/// The bucket fill's panel (in Inspect while it is out): what it lays (the brush's material, strength and Lays), what
+/// it fills, and the fills in the level.
+pub(super) fn bucket_panel(ui: &mut Ui, ed: &mut Editor) {
+    let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let sub = match &ed.filling.over {
+        Some((_, reach)) => format!("Bucket · a click fills {} part{}", reach.len(), if reach.len() == 1 { "" } else { "s" }),
+        None if ed.brush.material.is_empty() => "Pick a material to fill with".to_string(),
+        None => format!("Bucket · filling with {}", name(&ed.brush.material)),
+    };
+    identity(ui, theme::VIOLET, "palette", Err("Bucket fill"), &sub, &mut []);
+    let mut b = ed.brush.clone();
+    let mut t = ed.bucket.clone();
+    let mut ranges = ed.level.ranges.clone();
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
+    let tag_label = |t: Option<level::Tag>| t.map_or("The clicked part's".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
+    column(ui, 0.0, crate::editor::bucket::BUCKET, |ui| {
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Lays").color(TEXT_2)).tip("The material it fills with (the brush's)"); });
+            let shown = if b.material.is_empty() { "No material".to_string() } else { name(&b.material) };
+            egui::ComboBox::from_id_salt("bucket material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                for m in ed.level.materials.keys() { ui.selectable_value(&mut b.material, m.clone(), name(m)); }
+                if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
+            });
+        });
+        ui.add_space(8.0);
+        settings::section(ui, &mut t, crate::editor::bucket::BUCKET, &mut ctx);
+        if t.fills == level::Fills::Tag {
+            ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Tag").color(TEXT_2)).tip("The surface tag it fills: every part with it"); });
+                egui::ComboBox::from_id_salt("bucket tag").selected_text(tag_label(t.tag)).width(ui.available_width()).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut t.tag, None, tag_label(None));
+                    for g in level::Tag::ALL { ui.selectable_value(&mut t.tag, Some(g), tag_label(Some(g))); }
+                });
+            });
+        }
+        ui.add_space(8.0);
+        settings::section(ui, &mut b, crate::editor::brush::BRUSH, &mut ctx);
+    });
+    // the fills in the level, newest last, each with its trash
+    if !ed.level.buckets.is_empty() {
+        let mut gone = None;
+        column(ui, 0.0, "FILLS", |ui| {
+            for f in ed.level.buckets.iter() {
+                let on = ed.level.get(f.part).map_or("a part that is gone".to_string(), |p| p.name.clone());
+                let what = if f.material.is_empty() { "Erased".to_string() } else { name(&f.material) };
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(format!("{what} · {} from {on}", f.fills.word())).color(TEXT_2));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if super::audio_ui::trash(ui, "Take this fill out") { gone = Some(f.id); }
+                    });
+                });
+            }
+        });
+        if let Some(id) = gone { ed.level.buckets.retain(|f| f.id != id); }
+    }
+    column(ui, 0.0, "SHORTCUTS", |ui| {
+        theme::hint(ui, "Fill what matches", &["Click"]);
+        theme::hint(ui, "Erase what matches", &["Alt", "Click"]);
+        theme::hint(ui, "Put it away", &["Esc"]);
+    });
+    if theme::main_button(ui, "Done").clicked() { ed.bucket_on = false; }
+    if ctx.ranges_changed { ed.level.ranges = ranges; }
+    if t != ed.bucket { ed.bucket = t; }
+    if b != ed.brush { b.keep(); ed.brush = b; }
+}
+
 /// A row choosing a sound file (or none) for `label`; true when it changed.
 pub(super) fn sound_row(ui: &mut Ui, label: &str, chosen: &mut String, files: &[String], help: &str) -> bool {
     let before = chosen.clone();

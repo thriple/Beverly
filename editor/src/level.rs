@@ -254,6 +254,9 @@ pub struct Level {
     /// Pen curves (see `curve.rs`); their ids come from the same count as the parts'.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub curves: Tracked<Vec<crate::curve::Curve>>,
+    /// Bucket fills (see `bucket.rs`); their ids come from the same count as the parts'.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buckets: Tracked<Vec<Bucket>>,
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
     pub ranges: Tracked<Ranges>,
@@ -275,7 +278,7 @@ pub struct Level {
 impl Level {
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {
-        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.materials.stamp(), self.sounds.stamp()]
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.materials.stamp(), self.sounds.stamp()]
     }
 
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }

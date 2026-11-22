@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, brush, camera, light, pen, texture, Editor, PathTry, Pending, Saved, TestRequest};
+use super::{actions, brush, bucket, camera, light, pen, texture, Editor, PathTry, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -354,6 +354,7 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
     ed.refresh_dirty();
     pen::strips(&mut ed);
+    bucket::fills(&mut ed);
     ed.commit();
 }
 
