@@ -2,11 +2,39 @@
 
 A game planned for Beverly once the editor is reasonably feature complete. This file records the design as it stands. Items marked **open** are not decided yet.
 
+## Synopsis
+
+The game's universe is full of alien life. An impossibly advanced but misguided species fired a weapon into the Milky Way's black hole. The hole now throws out matter and radiation instead of consuming it. The wave of destruction should take thousands of years to cross the galaxy, but it is speeding up past light speed.
+
+The same civilisation built a gateway to evacuate its own people to another galaxy, having judged the Milky Way corrupted. Humans and their allies learn only that the gateway may work, and may be usable by them. Their plan is a chain of wormholes, each jump up to 1,000 light years, so that everyone along the route can evacuate too.
+
+The game is the journey from near Sol to the home planet of the gateway's builders, before the wave wipes out galactic life. Along the way are hostile species and environments, and the knowledge that the closer the Pact gets to the gate, the closer it gets to the wave. The gate lies toward the galactic core, the same direction the wave comes from.
+
+The **Pact** is humanity together with the alien civilisations that have joined it in trade and mutual agreement.
+
+## Background timeline
+
+Not shown to the player directly. It informs the world design.
+
+| Year (AD) | Event |
+|---|---|
+| 2130 | Climate change unites humanity under a single government, which begins colonising the solar system. |
+| 2295 | Some colonies become self-sustaining and branch off from the Earth-centred government, peacefully. Ships stay the domain of the wealthy, corporations and institutions. |
+| 2410 | A ring around the Sun begins sending power by relay to the farthest corners of the system. Energy use is no longer capped. Populations grow and science flourishes. |
+| 2884 | The first stable artificial wormhole is made: 4 inches long, lasting 1.45 seconds before its power relay overloads. |
+| 3199 | Wormhole travel inside Sol is standardised but power-hungry. Cores made at different places never pair, which limits travel to Sol. The Catapult Project starts; the first small prototype is more than a century away. |
+| 3210 | Ansibles, instantaneous communicators through the manifold, are developed. The manifold is already full of unidentified transmissions, so life beyond Sol is confirmed. |
+| 3255 | Signals cannot be sorted into coherent communication. The manifold becomes a last-ditch emergency channel. On 6 July a total jamming of the manifold lasts about 25 days. |
+| 4182 | A multi-generation expedition, carrying a wormhole core, makes contact with the Morsulae, 12 light years from Sol. Trade and a gate follow. The Morsulae report that the galactic core is unravelling. |
+| 4403 | Several alien civilisations have joined the Pact. The core's outflow has become a torrent: a plasma torus expanding outward at relativistic speed, and accelerating. The galaxy could be sterilised in about 100 years. |
+| 4428 | Deep observation finds an anomaly 20,000 light years toward the core: a gateway with a high-energy trail pointing at a neighbouring galaxy. Plan: a chain of wormholes, through known and unknown space, to evacuate hundreds of systems. |
+| 4696 | The new Catapult is complete. It fires a ship in a temporary warp bubble up to 1,000 light years. See Catapult below. |
+
 ## Story
 
-A government-backed freeway mission. Each system the player reaches is opened for a road through a gate, and the mission is limited only by the logistics train behind it and the resources at hand. It is not a private venture: there is no market, and spending is a logistics budget.
+The Pact's plan depends on four things: the path can be forged, the gateway's owners agree, the gateway holds, and the wave does not consume the Pact first. Each jump takes the fleet closer to the gate, and therefore closer to the wave.
 
-**Open:** the back story beyond this (who the government is, what the gate is for, what the final destination is) is not written yet.
+**Open:** how the systems on the route are chosen, and what the gate's far end holds.
 
 ## The loop
 
@@ -30,14 +58,25 @@ A government-backed freeway mission. Each system the player reaches is opened fo
 - **Bunker:** makes the core invulnerable. It is priced to feel expensive early, while few robots harvest, so there is tension until it is built. It can be moved slowly by a robot worker.
 - **Loose core:** enemies attack a loose core in proximity, like any other player structure, but do not hunt it at range.
 - **Gate installation:** the bunker fits into a slot on the finished gate, and the core installs from there.
+- **Pairing:** cores are made from spacetime as identical pairs at one point, and cores made in different places never pair. Each core must therefore be carried to its destination. This is why the Catapult carries the core.
+
+## Catapult
+
+The Catapult is the Pact's launch vehicle, and it is also the station.
+
+- **One pilot and one ship at a time.** The pilot's life support needs the same surge of power that launches the ship. The substance that makes the technology work is produced by the Morsulae's bodies and cannot be synthesised, so the Morsulae supply only the modules, and the crew is limited to one.
+- **Range:** up to 1,000 light years per jump. The last generation managed about 10 without killing its crew.
+- **Mass:** the Catapult has a maximum mass threshold for the ship. This is the launch limit, and it bounds the cargo the ship can carry.
+- **Power:** its own wormhole shunt collects plasma from a star's surface, so each jump needs a recharge. The recharge timer matters most for 7B.
+- **Hangar:** the ship docks in a hangar inside the Catapult between jumps and during refit. After a successful gate opening, the Catapult comes through and the ship docks there again.
 
 ## Station
 
-The player walks up to a physical station and interacts with it. A button on the console opens a window with three pages.
+The station is in the Catapult's hangar, where the ship docks. The player walks up to the console and presses its button to open a window with three pages.
 
 ### Intel
 
-A map of the system, built from probe and telescope data, or from data the government has bought from friendly aliens.
+A map of the system, built from probe and telescope data, or from data the Pact has bought from friendly species.
 
 - **Top-down by default.** Orbit, pan and zoom to switch to a 3D view.
 - **Partial data.** The map does not show everything. Major bodies are always shown, since they cannot usually be hidden. Smaller bodies can be hidden behind larger ones on the far side of an orbit. That is a plot hook for a later level.
@@ -160,9 +199,11 @@ Per-destination state is the largest part of a save, and it is what the 7B branc
 
 1. Does Intel show each datum's source?
 2. Does the player have any way to sell at Cargo, or only buy?
-3. What is the back story and the final destination?
+3. How are the systems on the route chosen, and what is at the far end of the gate?
 4. Base placement rules: planet surface, asteroid, orbital station, or combinations?
 5. Which special equipment carries between destinations?
-6. How does the portable space station work (instant refill, choices, costs)?
+6. How does the portable space station work (instant refill, choices, costs)? The station is now the Catapult's hangar, so this is about refit and restocking there.
 7. Repeat deaths: is there a limit, or an escalating cost?
 8. Does the player pilot the ship directly, or command from above?
+9. Does the galactic wave advance in real time, per jump, or per gate opened? It is the main pressure clock.
+10. Can the core carry a backup of the pilot's memory, through a micro-shunt or the gate? Direct wormhole throughput is higher than the Ansible's, so this may be a late-game or plot mechanic.
