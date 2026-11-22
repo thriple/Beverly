@@ -29,6 +29,7 @@ pub(super) fn describe_material(ed: &Editor, path: &str) -> Value {
     let m = &ed.level.materials[path];
     let (surfaces, parts) = ed.level.material_users(path);
     let mut v = json!({"material": path, "texture": m.texture, "sounds_like": m.sounds_like.map(|g| g.label()), "used_by": {"surfaces": surfaces, "parts": parts}, "settings": settings::describe(m)});
+    if !m.grass.is_empty() { v["grass"] = json!(m.grass.iter().map(|g| json!({"species": g.species, "share": g.share})).collect::<Vec<_>>()); }
     if let Some(s) = &m.shader {
         v["shader"] = json!(s);
         v["shader_settings"] = std::fs::read_to_string(ed.dir.join(s)).map_or(Value::Null, |src| shader_json(&src, &m.shader_values)["settings"].clone());

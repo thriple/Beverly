@@ -56,14 +56,14 @@ pub fn run(extra: fn(&mut App)) {
     }));
     extra(&mut app);
     if let Some(t) = test { crate::scripted::add(&mut app, &dir, &t, &level, record); }
-    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
+    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::grass::GrassPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()
     .init_resource::<crate::sound::Sounds>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, stage, models::fill_models, start, cursor, hear, paint).chain());
+    .add_systems(Update, (models::build_geometry, stage, models::fill_models, start, cursor, hear, paint, grass).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
@@ -111,6 +111,7 @@ fn start(mut commands: Commands, mut game: ResMut<Game>, lib: Res<ModelLib>, mut
 
 /// The brush strokes drawn on the parts.
 fn paint(game: Res<Game>, mut paint: crate::paint::PaintSync) { paint.run(&game.level); }
+fn grass(game: Res<Game>, mut grass: crate::grass::GrassSync) { grass.run(&game.level); }
 
 /// The sounds, heard from the camera.
 fn hear(mut sounds: ResMut<crate::sound::Sounds>, game: Res<Game>, mut play: ResMut<Play>, root: Res<ProjectRoot>, ear: Single<&GlobalTransform, With<PlayCamera>>) {

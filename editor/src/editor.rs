@@ -390,7 +390,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, view::grid_plugin))
+    app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::grass::GrassPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, view::grid_plugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(preview::Previews::new(ed.thumbs.asked.clone()))
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
@@ -416,7 +416,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::interact.run_if(audio::in_level),
                 edit::shortcuts,
                 edit::files,
-                (edit::follow_parents, edit::sync, edit::paint).chain(),
+                (edit::follow_parents, edit::sync, edit::paint, edit::grass).chain(),
                 (audio::follow_tab, audio::stage).chain(),
                 edit::hear,
                 edit::stage,

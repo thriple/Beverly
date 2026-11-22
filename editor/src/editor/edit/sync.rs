@@ -20,6 +20,9 @@ pub fn hear(mut sounds: ResMut<crate::sound::Sounds>, mut ed: ResMut<Editor>, mu
 /// The brush strokes drawn on the parts.
 pub fn paint(ed: Res<Editor>, mut paint: crate::paint::PaintSync) { paint.run(&ed.level); }
 
+/// The grass carpet.
+pub fn grass(ed: Res<Editor>, mut grass: crate::grass::GrassSync) { grass.run(&ed.level); }
+
 #[derive(Component)]
 pub struct PartView { id: u64, applied: Part }
 

@@ -709,6 +709,31 @@ pub(super) fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
         settings::section(ui, &mut m, level::MATERIAL, &mut ctx);
         ground_row(ui, "material sounds like", &mut m.sounds_like, "What it sounds like underfoot, wherever it's laid (else what the part says)");
     });
+    column(ui, 0.0, "GRASS", |ui| {
+        // the species it grows, each with its share, then how thick
+        let names = crate::grass::species_names();
+        let mut gone = None;
+        for (i, g) in m.grass.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt(("grass species", i)).selected_text(g.species.replace('_', " ")).width(ui.available_width() * 0.5).show_ui(ui, |ui| {
+                    for n in &names { ui.selectable_value(&mut g.species, n.clone(), n.replace('_', " ")); }
+                });
+                let w = ui.available_width() - 30.0;
+                settings::number(ui, &mut g.share, 0.01, 0.0, 1.0, "", None, w).on_hover_text("Its share of the blades");
+                if super::audio_ui::trash(ui, "Grow none of this") { gone = Some(i); }
+            });
+        }
+        if let Some(i) = gone { m.grass.remove(i); }
+        if m.grass.len() < 4 && ui.button("+ Add grass").tip("Grass grows wherever this material is laid or painted").clicked() {
+            let next = names.iter().find(|n| !m.grass.iter().any(|g| &g.species == *n)).cloned().unwrap_or_default();
+            m.grass.push(level::Grows { species: next, share: if m.grass.is_empty() { 1.0 } else { 0.2 } });
+        }
+        if m.grass.is_empty() {
+            ui.label(egui::RichText::new("Grows nothing. Add grass and it grows wherever the material is laid or painted").color(MUTED).size(11.0));
+        } else {
+            settings::section(ui, &mut m, level::GRASS, &mut ctx);
+        }
+    });
     ranges_changed = ctx.ranges_changed;
     if m != before { ed.level.materials.insert(path.to_string(), m.clone()); }
     if ranges_changed { ed.level.ranges = ranges; }

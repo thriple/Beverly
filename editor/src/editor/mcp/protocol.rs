@@ -79,6 +79,8 @@ const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes t
 /// The tools, in a fixed order.
 pub fn tools() -> Value {
     let none = json!({"type": "object", "properties": {}});
+    #[allow(non_snake_case)]
+    let GRASS = json!({"type": ["array", "null"], "items": {"type": ["string", "object"]}, "description": format!("The grass it grows wherever it is laid or painted (the grass carpet): up to four species, each a name or {{\"species\", \"share\"}}, such as [\"grass\", {{\"species\": \"daisy_snow\", \"share\": 0.1}}]; null or []: none. Its Thickness setting says how many blades. Grass grows on flat faces only, standing out of tops, walls and ceilings (ivy lies on them). The species: {}.", crate::grass::species_names().join(", "))});
     let part = json!({
         "type": "object",
         "properties": {
@@ -402,6 +404,7 @@ pub fn tools() -> Value {
                     "sounds_like": {"type": ["string", "null"], "description": "What it sounds like underfoot wherever it's laid (Stone, Wood, Metal, Grass…), over what the part says; null: nothing special."},
                     "shader": {"type": ["string", "null"], "description": "A shader in assets/shaders (list_assets) that draws the material, such as stripes or stripes.wesl; null: the standard look. Choosing one clears the old one's values."},
                     "shader_values": {"type": "object", "description": "The shader's settings (get_shader lists them) → value: a number, true/false for a toggle, or [r, g, b] (0 to 1) for a colour. A setting not given keeps the shader's default."},
+                    "grass": GRASS,
                 },
                 "required": ["material"],
             },
@@ -429,6 +432,7 @@ pub fn tools() -> Value {
                     "copy_of": {"type": "string"},
                     "texture": {"type": "string"},
                     "settings": {"type": "object"},
+                    "grass": GRASS,
                 },
             },
         },

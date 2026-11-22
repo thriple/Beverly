@@ -1,0 +1,8 @@
+// The grass carpet as the game draws it: a meadow (grass, tall grass and daisies) painted along the floor with soil
+// at its roots, reeds and rushes thinner on the right, a box with meadow laid all over (grass on its top and out of
+// its walls), ivy painted on the wall behind, and a bridge whose deck grows its own grass over the meadow under it.
+(
+    steps: [
+        (at: 1.0, shot: "grass", expect: [Feet((0, 0.1, 12), 0.2)]),
+    ],
+)

@@ -1,0 +1,1 @@
+(format: 1, tint: (0.42, 0.33, 0.22), roughness: 0.95, grass: [(species: "grass", share: 0.7), (species: "grass_tall", share: 0.2), (species: "daisy_snow", share: 0.1)])
