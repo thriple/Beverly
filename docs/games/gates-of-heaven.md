@@ -266,6 +266,17 @@ The owner models them; the screens and code are Beverly's.
 - **Ship damage screen:** each part of the ship in green, yellow or red.
 - Manual buttons for most of the functions.
 
+## On foot
+
+Reasons to leave the ship in the middle of a level, besides base building:
+
+1. **Spacewalk repairs:** the ship repairs itself only above half health, so the rest is mended outside with the multi-tool. The 30-minute suit gives it a gentle limit.
+2. **Salvage and boarding:** walking through derelicts and Hejich logistics ships. They hold:
+   - caches of Resource Units, as rewards;
+   - special equipment;
+   - wreckage, records and lore plaques, and black boxes that reveal Intel.
+3. **Scouting:** sneaking onto a sheet or asteroid in the suit to place a sensor, or to watch a patrol without the ship being spotted.
+
 ## Orders
 
 Homeworld-style move orders with height.

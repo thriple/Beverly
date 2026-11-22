@@ -3602,7 +3602,7 @@
     "Currencies, shops and loot tables",
     "Crafting recipes and the crafting screen"
    ],
-   "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): two resources: Resource Units, mined by robots and spent on everything (ship parts, base tiles, production), and a gate resource only robots harvest and only the gate uses. Cargo containers of Resource Units are bought from the same budget. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Resource Units also convert into fuel and power; solar panels add power; base tiles draw power except connectors, and the starter base makes a little of its own; efficiency tiers may come later.",
+   "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): two resources: Resource Units, mined by robots and spent on everything (ship parts, base tiles, production), and a gate resource only robots harvest and only the gate uses. Cargo containers of Resource Units are bought from the same budget. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Resource Units also convert into fuel and power; solar panels add power; base tiles draw power except connectors, and the starter base makes a little of its own; efficiency tiers may come later. Loot caches of Resource Units and special equipment inside derelicts, found on foot (Gates of Heaven).",
    "order": 192,
    "first_game": false,
    "stage": "Story and flow"
