@@ -71,7 +71,7 @@ struct VOut {
     @location(2) light: vec3<f32>,
 };
 
-// ---- hash / noise: unchanged from Glide (no sin, bounded input) -------------------------------
+// ---- hash / noise: unchanged from the original (no sin, bounded input) -------------------------------
 fn ghash(p: vec2<f32>) -> f32 {
     let q = p - 4096.0 * floor(p / 4096.0);          // GLSL mod(), not WGSL %
     var p3 = fract(q.xyx * vec3<f32>(0.1031, 0.1030, 0.0973));
