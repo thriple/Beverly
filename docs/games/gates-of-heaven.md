@@ -1,4 +1,4 @@
-# Gate Loop: design notes
+# Gates of Heaven: design notes
 
 A game planned for Beverly once the editor is reasonably feature complete. This file records the design as it stands. Items marked **open** are not decided yet.
 
