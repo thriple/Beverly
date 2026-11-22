@@ -62,7 +62,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    - Use main's `beverly::gpu::GpuCaps` (`editor/src/gpu.rs`: probed before the app is built, Vulkan chosen when it can run virtual geometry, the renderer pinned to that adapter). Don't add a second probe.
      - The `tessera` crate can't depend on the editor, so the editor passes what it needs in (e.g. a `bool` or the `WgpuFeatures`) when it adds the plugin; turn the plugin's parts on or off from that.
      - If Tessera needs more from the card (mesh shaders, ray query, limits), add a method on `GpuCaps` in `gpu.rs` on this branch, and note it under *Wiring main needs* so main takes the same change when it merges.
-3. 🔶 **Bug fixes** (the list in `docs/tessera.md`): the five below done 2026-11-22; **left: the fill rule** (last line).
+3. ✅ **Bug fixes** (the list in `docs/tessera.md`): the five below done 2026-11-22, the fill rule 2026-11-23.
    - the prepass and deferred material bind group 2 → 3
    - `unclipped_depth` on the directional-shadow pipeline
    - `DEFERRED_PREPASS` carrying over in the prepass loop (confirm first)
@@ -139,6 +139,42 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-23 (Guam): job 3, the fill rule ✅ (job 3 done)
+- **Merge:** main merged in cleanly.
+- **Software rasterizer** (`visibility_buffer_software_raster.wesl`, Bevy's "fixed-point math and top-left rule"
+  TODO):
+  - Vertices are snapped to 1/256 pixel, measured from the triangle's bounding-box corner, so the edge functions
+    are exact `i32`s.
+  - A pixel centre exactly on an edge belongs to the triangle only if that edge is a top or left one (worked out from
+    the edge function's gradient, so it doesn't depend on winding). Each pixel of an edge shared by two triangles is
+    drawn by exactly one of them, and none is missed.
+  - Depth is interpolated from the exact weights.
+  - The scanline path keeps Bevy's per-row X interval (now from the integer weights, a pixel wider each way); the
+    exact per-pixel test decides, so the old "shouldn't be needed, but there's bugs without it" test is now the real
+    test.
+  - Triangles over 120 pixels across are skipped, because their edge functions would overflow `i32`. Clusters
+    reach the software rasterizer only at 64 pixels or less (`cull_clusters.wesl`), so none should reach that.
+  - Committed as `a17719a`.
+- **New check: `vg-render OUT grid`.**
+  - `tessera::test_mesh::jittered_grid(160, 1)` is a square of 51,200 triangles with jittered inner corners (every
+    shared edge at an uneven sub-pixel spot) and 0.02 depth bumps (a flat grid simplifies losslessly and would be
+    drawn coarse, through the hardware rasterizer).
+  - It is drawn unlit; the run fails if any background pixel shows inside the square.
+  - Result: 0 holes. Bevy's float rasterizer, put back temporarily, also gave 0 holes here, so on lavapipe the
+    check can't tell the two apart. It guards against cracks coming back. The fix shows on cards whose float
+    rounding cracks, and in no double writes on shared edges, which a screenshot can't show.
+- **Not the fill rule:** `vg-render`'s sphere has 9–13 single dark pixels on the surface in every run, before and
+  after the change. They are something else (shadow acne or detail-level seams); worth a look when the shadow or
+  LOD work comes.
+- **Checks:**
+  - `vg-render`: draw, grid, unsupported, msaa and device all exit 0
+  - `tessera` crate tests ✅ (3)
+  - feature off: `cargo build` ✅, `cargo test` ✅ (81)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (81)
+  - `tools/run-tests.sh` ✅ (all 19)
+- **Only the RTX card can show:** whether its float rounding cracked before (the grid case there), and the
+  rasterizer's speed; integer math may be slightly slower or faster than float.
 
 ### 2026-11-22 (Guam): job 3, bug fixes 🔶 (five done, the fill rule left)
 - **Merge:** main merged in cleanly; the branch also had an interactive update to this file (main's bake cache,
