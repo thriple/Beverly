@@ -118,6 +118,9 @@ An inventory of the ship's holds.
 
 The same editor as the ship design step in the loop.
 
+- **Where:** at the hangar's holo desk, or at the holo desk inside the ship (in the holo desk room, a Habitation part). The player can modify the ship from inside the ship.
+- **Building happens only at holo desks** (owner, 2026-11-22): the ship here, base tiles at the starter base's desk. Nothing is moved around in the 3D world; that may come later.
+
 - **The parts strip:** parts and modules sit in a single scrollable row on the right of the desk's surface, with the categories below the strip.
   - Hovering over a part pops it up in 3D above the desk, slowly spinning.
   - Clicking a part puts the 3D part on the cursor, to place on the ship.
@@ -130,6 +133,7 @@ The same editor as the ship design step in the loop.
   - Parts that are not connected are refunded, with no questions.
   - If a mission-critical part is missing, a pop-up says so.
 - **X-ray mode** shows the interior passages.
+- **The parts list** needs no mask in this game (Beverly's lists can be masked into other shapes).
 - **Systems readout:** bar graphs in the upper right corner. They show fuel and uptime, power and draw, how long life support lasts, and cargo space and how full it is. Some modules come in several versions, and some modules do the same thing with different specs, so the readout is how the player compares them.
 - **Cargo containers filled with Resource Units** come out of the same overall budget. The player has to fill them last, or they can't buy more ship parts unless a container is refunded.
 
@@ -155,6 +159,13 @@ The same editor as the ship design step in the loop.
 ### The hangar monitor
 
 The news anchor on the monitor in the hangar kitchen is an audio-only recording with a waveform on the screen. The screen is an asset, not a menu screen. It is a live background element, not a cinematic: ambience.
+
+## Power, fuel and life support
+
+- **Fuel:** tanks hold fuel; thrusters and power sources use it.
+- **Power:** weapons, turrets and special modules explicitly don't use power. Life support does.
+- **No flow:** there is no physical fuel flow from a tank through pipes to an engine or power source. Each system simply draws from the totals of the ship's parts, as the readout shows.
+- **Space suit:** the player's suit holds **30 minutes of air** (may be tweaked). It should be comfortable enough that the player isn't in a hurry outside the ship, but not long enough to forget a life support module in the ship.
 
 ## Resources
 
