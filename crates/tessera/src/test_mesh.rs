@@ -21,6 +21,37 @@ pub fn test_mesh(levels: u32, seed: u64) -> Mesh {
         .with_inserted_indices(Indices::U32(triangles.into_iter().flatten().collect()))
 }
 
+/// A flat square, -1..1 in X and Y facing +Z, of `cells` × `cells` cells split into two triangles each, with the
+/// inner corners moved up to 0.3 of a cell across and 0.02 in depth by seeded noise (the border stays straight). Every inner edge is shared
+/// by two triangles at uneven sub-pixel positions: the software rasterizer's fill-rule check (`vg-render ... grid`).
+pub fn jittered_grid(cells: u32, seed: u64) -> Mesh {
+    let n = cells + 1;
+    let step = 2.0 / cells as f32;
+    let mut positions = Vec::with_capacity((n * n) as usize);
+    for y in 0..n {
+        for x in 0..n {
+            let inner = x > 0 && y > 0 && x < cells && y < cells;
+            let jitter = |axis: i64| if inner { 0.3 * step * lattice(x as i64, y as i64, axis, seed) } else { 0.0 };
+            // small depth bumps too: a flat grid would simplify losslessly and be drawn at its coarsest level
+            let depth = if inner { 0.02 * lattice(x as i64, y as i64, 2, seed) } else { 0.0 };
+            positions.push([-1.0 + x as f32 * step + jitter(0), -1.0 + y as f32 * step + jitter(1), depth]);
+        }
+    }
+    let mut indices = Vec::with_capacity((cells * cells * 6) as usize);
+    for y in 0..cells {
+        for x in 0..cells {
+            let (a, b, c, d) = (y * n + x, y * n + x + 1, (y + 1) * n + x, (y + 1) * n + x + 1);
+            indices.extend([a, b, d, a, d, c]);
+        }
+    }
+    let count = positions.len();
+    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0f32, 0.0, 1.0]; count])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0f32; 2]; count])
+        .with_inserted_indices(Indices::U32(indices))
+}
+
 /// Unit icosphere: positions and triangles (counter-clockwise from outside), edges' midpoints shared.
 fn icosphere(levels: u32) -> (Vec<[f32; 3]>, Vec<[u32; 3]>) {
     let t = (1.0 + 5f32.sqrt()) / 2.0;
@@ -123,6 +154,23 @@ mod tests {
         assert_eq!(triangles.len(), 20 * 4usize.pow(3));
         // a closed genus-0 mesh: V - E + F = 2, with E = 3F/2
         assert_eq!(positions.len() + triangles.len() - triangles.len() * 3 / 2, 2);
+    }
+
+    #[test]
+    fn grid_counts_and_straight_border() {
+        let mesh = jittered_grid(4, 1);
+        assert_eq!(mesh.indices().unwrap().len(), 4 * 4 * 6);
+        let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap();
+        for p in positions {
+            assert!(p[0].abs() <= 1.0 && p[1].abs() <= 1.0);
+            if p[0].abs() == 1.0 || p[1].abs() == 1.0 {
+                assert!(((p[0] + 1.0) / 0.5).fract() == 0.0 && ((p[1] + 1.0) / 0.5).fract() == 0.0);
+            }
+        }
+        // counter-clockwise from +Z, so the camera in front sees the front faces
+        let i = mesh.indices().unwrap().iter().take(3).collect::<Vec<_>>();
+        let [a, b, c] = [i[0], i[1], i[2]].map(|i| positions[i]);
+        assert!((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0);
     }
 
     #[test]

@@ -3,7 +3,8 @@
 //! Exits with 2 when the card can't run virtual geometry (`GpuCaps::virtual_geometry`), 1 when the screenshot fails.
 //! CASE checks that the app keeps running, drawing no meshlet meshes, where Bevy exited: `unsupported` (the plugin is
 //! told the card can't), `msaa` (the camera has MSAA), `device` (the render device is made without 64-bit texture
-//! atomics).
+//! atomics). `grid` draws `tessera::test_mesh::jittered_grid` flat and unlit, all through the software rasterizer, and
+//! fails (exit 1) if any background pixel shows inside it: a crack where two triangles share an edge.
 use beverly::gpu::GpuCaps;
 use bevy::pbr::experimental::meshlet::{
     MeshletMesh, MeshletMesh3d, MeshletPlugin, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR,
@@ -22,6 +23,8 @@ struct Shot {
     path: PathBuf,
     frame: u32,
     saved: Option<bool>,
+    /// `grid`: count background pixels inside the drawn square
+    check_holes: bool,
 }
 
 fn main() -> AppExit {
@@ -48,16 +51,25 @@ fn main() -> AppExit {
         }),
         MeshletPlugin { cluster_buffer_slots: 1 << 16, supported: caps.virtual_geometry() && case != "unsupported" },
     ))
-    .insert_resource(Shot { path, frame: 0, saved: None })
+    .insert_resource(Shot { path, frame: 0, saved: None, check_holes: case == "grid" })
     .add_systems(Startup, move |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
         // baked here, not before the app: the bake runs on Bevy's task pools
         let start = Instant::now();
-        let mesh = tessera::test_mesh::test_mesh(8, 1);
+        let grid = case == "grid";
+        let mesh = if grid { tessera::test_mesh::jittered_grid(160, 1) } else { tessera::test_mesh::test_mesh(8, 1) };
         let triangles = mesh.indices().map_or(0, |i| i.len() / 3);
         let made = start.elapsed();
         let meshlet = MeshletMesh::from_mesh(&mesh, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR).expect("bake");
         println!("test mesh: {triangles} triangles, made in {made:.2?}, baked in {:.2?}", start.elapsed() - made);
         let msaa = if case == "msaa" { Msaa::Sample4 } else { Msaa::Off };
+        if grid {
+            commands.spawn((Camera3d::default(), Msaa::Off, Transform::from_xyz(0.0, 0.0, 3.2).looking_at(Vec3::ZERO, Vec3::Y)));
+            commands.spawn((
+                MeshletMesh3d(meshlets.add(meshlet)),
+                MeshMaterial3d(materials.add(StandardMaterial { base_color: Color::WHITE, unlit: true, ..default() })),
+            ));
+            return;
+        }
         commands.spawn((Camera3d::default(), msaa, Transform::from_xyz(0.0, 0.6, 2.8).looking_at(Vec3::ZERO, Vec3::Y)));
         commands.spawn((DirectionalLight { illuminance: 8000.0, shadow_maps_enabled: true, ..default() }, Transform::from_xyz(1.0, 2.0, 1.5).looking_at(Vec3::ZERO, Vec3::Y)));
         commands.spawn((
@@ -74,13 +86,20 @@ fn shoot(mut shot: ResMut<Shot>, mut commands: Commands, mut exit: MessageWriter
     shot.frame += 1;
     if shot.frame == SETTLE_FRAMES {
         let path = shot.path.clone();
+        let check_holes = shot.check_holes;
         commands.spawn(Screenshot::primary_window()).observe(move |ev: On<ScreenshotCaptured>, mut shot: ResMut<Shot>| {
-            let ok = (|| {
-                std::fs::create_dir_all(path.parent()?).ok()?;
-                ev.image.clone().try_into_dynamic().ok()?.to_rgb8().save(&path).ok()
-            })()
-            .is_some();
+            let Some(rgb) = ev.image.clone().try_into_dynamic().ok().map(|i| i.to_rgb8()) else {
+                println!("screenshot {}: failed", path.display());
+                shot.saved = Some(false);
+                return;
+            };
+            let mut ok = std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new("."))).is_ok() && rgb.save(&path).is_ok();
             println!("screenshot {}: {}", path.display(), if ok { "saved" } else { "failed" });
+            if check_holes {
+                let holes = holes_inside(&rgb);
+                println!("grid holes: {holes:?}");
+                ok &= holes == Some(0);
+            }
             shot.saved = Some(ok);
         });
     }
@@ -90,4 +109,14 @@ fn shoot(mut shot: ResMut<Shot>, mut commands: Commands, mut exit: MessageWriter
         None if shot.frame > SETTLE_FRAMES + 120 => _ = exit.write(AppExit::from_code(1)),
         None => {}
     }
+}
+
+/// Background-coloured pixels inside the bounding box of everything else, 2 pixels in from its border; None when
+/// nothing was drawn.
+fn holes_inside(rgb: &image::RgbImage) -> Option<usize> {
+    let background = *rgb.get_pixel(0, 0);
+    let drawn: Vec<(u32, u32)> = rgb.enumerate_pixels().filter(|(_, _, p)| **p != background).map(|(x, y, _)| (x, y)).collect();
+    let (x0, x1) = (drawn.iter().map(|d| d.0).min()? + 2, drawn.iter().map(|d| d.0).max()?.checked_sub(2)?);
+    let (y0, y1) = (drawn.iter().map(|d| d.1).min()? + 2, drawn.iter().map(|d| d.1).max()?.checked_sub(2)?);
+    Some((y0..=y1).flat_map(|y| (x0..=x1).map(move |x| (x, y))).filter(|&(x, y)| *rgb.get_pixel(x, y) == background).count())
 }
