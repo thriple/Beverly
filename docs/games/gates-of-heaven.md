@@ -234,7 +234,8 @@ Per-destination state is the largest part of a save, and it is what the 7B branc
 - Acceleration is continuous, and it builds the longer the boosters fire.
 - Limited fuel.
 - Introduced as a manoeuvring tool around level 10. In the finale they are used as weapons.
-
+- **Explosive:** a booster explodes when it is destroyed.
+- **Chain damage:** the explosion's damage multiplies when more than one booster is in range of another. A cluster of boosters is far more destructive than the sum of its parts. About six boosters in range of each other are enough to set off the Weapon's explosion.
 ## Finale
 
 The Hejich built the gate, and then used it to leave. The finale is in their gateway system.
@@ -258,7 +259,7 @@ The player must be sneaky. Each option below thins the Guard before the player e
 1. **Booster derelict:** mount booster packs on a derelict and accelerate it into the Guard. It destroys a swath of ships.
 2. **Weapon beam:** disconnect an energy shunt cable from the Weapon, hold it in a manipulator on the ship, and fire a beam of pure energy on a short tether. Recoil is strong and wild, so keeping the aim takes a lot of mouse correction. Boosters on the ship can steady it. The Guard notices the beam and homes in, but it takes a few minutes to reach the attacker, which gives time to thin them. A clever player can place turrets, shield projectors or other defences on the Weapon.
 3. **Auto-turret derelict:** a derelict with many auto-turrets, boosted into the Guard.
-4. **The core gamble (50/50):** the player is catapulted with a wormhole core, but is not told where it is. It is the one core in play: the previous level's core went into the gate at its end, and a new core was issued for this level. If the core is placed on the Weapon and the Weapon is shot to destruction, both explode. The blast destroys 60 to 90 percent of the Guard. The radius is large, and it kills whoever fires the shot, whether that is the player or a ship they command.
+4. **Booster bomb:** gather about six booster packs in range of each other on the Weapon, and destroy them. The chain of booster explosions sets off the Weapon's explosion. The blast destroys 60 to 90 percent of the Guard. The radius is large, and it kills whoever fires the shot, whether that is the player or a ship they command. The core is not involved.
 
 ### How the Guard responds
 
@@ -286,7 +287,7 @@ The player never goes through the gate. The last level ends in orbit, where the 
 
 ## Open questions
 
-1. **The core gamble and the core's survival:** the gamble's core is the one core in play, so there is no second core. When the Weapon and core are destroyed, the core is destroyed too. The core rule says core loss is game over. So either the explosion spares the core, or the gamble ends the game. Which is it?
+1. **Booster chain damage:** how does the multiplication scale with the number of boosters in range, and what is the range? About six sets off the Weapon, so that is the starting number to tune.
 2. **The Guard's roster:** the warship types, sizes and counts have not been designed yet.
 3. **The Guard's response:** does the Guard send a fixed force, or does it scale with how much damage it has taken?
 4. What does the galactic map look like, and what does the player see on it before a jump?
