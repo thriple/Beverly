@@ -611,6 +611,28 @@
    "build": 108
   },
   {
+   "id": "pen",
+   "name": "Bezier pen tool",
+   "area": "World building",
+   "effort": "L",
+   "needs": [
+    "brush"
+   ],
+   "what": "Click for corners, drag for smooth curves, close a loop on the first point; curves hug the surface under them and stay editable. Lays a strip, fills a shape, scatters along or inside it, or raises and carves.",
+   "chunks": [
+    "The pen: click and drag points with Bezier handles, Alt breaks a handle, close on the first point, then move points and handles, insert and remove points; curves drawn on terrain, water and parts",
+    "What a pen shape does, with the brush’s layers: a strip along it (width, soft edges: a cobbled path), a fill inside it (feathered edge), scatter along or inside (Even: one every N metres facing along it; Scattered: a band thinning at its edges; Both sides), and height along or inside (ridges, beds, flat pads on terrain); shapes stay live, Turn into items makes placed items; the MCP"
+   ],
+   "note": "Part 1 built 2026-11-19 (the pen): P in the Level tab; click for a corner, drag for a smooth point, click the first point to close, Enter finishes; then drag points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) removes it, Delete elsewhere removes the curve, click another curve to edit it, Alt while dragging breaks a handle; points snap to the grid like parts do and land on whatever surface is under the pointer. Curves live in the level file (curves: id, name, points with handle offsets, closed), one undo step per change; the code is curve.rs (the Bezier maths, tested) and editor/pen.rs. MCP: draw_shape (points as [x, y, z] or {at, handle_in, handle_out}, closed, shape to redraw, delete) and list_shapes (tests/mcp/check.py). Part 2, first slice built 2026-11-19 (stretches): each point carries how the line leaving it treats geometry, Ground (default), Over everything, Air or Fall, and the line seen is laid on what it meets (curve.rs laid, pen.rs surface; cached and relaid when the curve or any part changes): Ground takes the walkable surface (a top face, or a part tagged Ground or Water; never one tagged Paths ignore or an invisible collider) within half a metre up or two down from where it was, so it lies on a slab, passes under a prop or ceiling and bridges gaps; Over takes anything visible within 1.5 m up; Air ignores geometry; Fall leaves along its handle and ends where it lands. Ground stretches draw solid, Air and Fall dashed; a small button by the selected point switches its stretch (a new point goes on as the last one went); the Ground and Paths ignore tags are new surface tags; draw_shape points take stretch and list_shapes says it. Strips built 2026-11-19: the pen has a panel (Inspect while it is out: the curve's name, Paint a strip with a material, Width, Edge, Strength); a strip paints the laid line as brush strokes onto the part under each step of it (the part whose top face the point is on, so a prop the line passes through isn't painted and a stretch in the air paints nothing), kept in step with the curve: the strokes are the parts' own, marked with the curve (Stroke.curve), made again in place when the curve, its strip or the geometry changes and taken away with the strip or curve, in the same undo step; draw_shape takes strip {material, width, edge, strength} (null removes it) and list_shapes says it. Fills built 2026-11-19: the pen's panel has a Fill group (Fill the inside, the material it paints, Feather, Strength); a fill paints the ground inside the curve (an open curve is closed by a straight line), the paint shader working out the inside and the feathered edge from the curve's outline, so nothing is painted into an image; it goes to each part with walkable ground inside the outline (a top face within a step of the line's height, as a Ground path counts it), not to props standing on that ground or parts tagged Paths ignore, and lies under a strip on the same curve; like strips its strokes are the parts' own (Stroke.fill, with the outline in the part's own frame like a brush stroke's), made again in place when the curve, its fill or the geometry changes and in the same undo step; draw_shape takes fill {material, feather, strength} (null removes it) and list_shapes says it. Part 2 finished 2026-11-22 (build 119): a path-wide default (the panel's Path group, Lines go; a point's own stretch overrides it, its button reads e.g. 'Air · path' while it follows the path and goes round to following it again after Fall), Steepest ground (default 60°: steeper faces don't count as ground for Ground lines or fills, so a path passes over a steep ramp), Sag for a stretch in the air (the panel's In the air group for the selected point: it hangs down most in the middle, like a rope), and clicking a curve's line with the pen put away opens it in the pen. Scatter moved to its own entry; height along curves waits for terrain (user, 2026-11-19). Test project: tests/pen (a path stepping onto a slab and over a steep ramp, a filled loop, a rope between posts). MCP: draw_shape takes stretch and steepest on the curve, and a point's stretch (null: as the path) and sag; list_shapes says them. Scatter, as the user describes it (2026-11-19): bits of random, context-appropriate debris that make a level feel varied and detailed (in a nature scene tree stumps, logs, boulders, sticks, brambles), so it places items picked at random from a set the user chooses, along or inside a curve. Decided with the user 2026-11-19: a path has two modes, Ground only (default: drapes onto the ground and ignores props, scatter and other paths) and Over everything (follows any geometry it meets); the surface each point was clicked on decides which level it follows, the path stays on that level between points, ground means surfaces within a slope limit and objects below step height, gaps are bridged, Water counts as ground; where two ground paths cross, the later one wins (order keys Ctrl+[ and ], Ctrl+Shift for ends, with a list in the Inspect panel, see the order note on the brush). Refined 2026-11-19 (user: a path crosses many surfaces; tags as well as rules; scatter on the ground, deep select for manual adjustment): the mode is per stretch (stored on a point, for the segment leaving it) with a path-wide default: Ground (walkable surfaces: ground, road, steps, interior floor; the path takes the walkable surface nearest in height to the previous sample within the step height, starting from the clicked level; ceilings and invisible colliders never count), Over everything, Air (ignores geometry; Sag for a rope) and Fall (leaves along its handle and drops until it hits a surface; a faucet stream is Fall then Ground). Tags: Ground forces a part to count, Paths ignore forces it out, Water counts. Precedence: the stretch's own behaviour, tags, the path's default, the slope and step rules. Scatter sits on the surface the path is following and never on other scatter; deep select (gesture to choose: Ctrl+click or double-click in; Alt is taken by the pen and brush) picks one scatter instance to nudge, delete or detach, kept as overrides by position along the curve (they can drift if the curve is reshaped a lot; Turn into items freezes everything). Confirmed by the user 2026-11-19: ground stretches draw as a solid line and air stretches dashed, with a small button on the selected point to switch its stretch behaviour; deep select is a double-click into the shape. Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay). Review 2026-11-20 found the fill outline stored in world coordinates (it would break on a moving part or after a region or origin shift); fixed 2026-11-20: the outline is stored in the part's own frame and the shader tests inside in that frame (test: a fill stays on a part that is moved and turned). Scatter is its own entry now.",
+   "status": "done",
+   "first_game": true,
+   "order": 34,
+   "next": true,
+   "stage": "Author the world: land, sea and sky",
+   "built": "2026-11-22",
+   "build": 119
+  },
+  {
    "id": "shaders",
    "name": "Custom shaders",
    "area": "Engine budgets",
@@ -626,7 +648,7 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "planned",
    "first_game": true,
-   "order": 34,
+   "order": 35,
    "next": true,
    "stage": "Foundations"
   },
@@ -642,7 +664,7 @@
    "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
-   "order": 35,
+   "order": 36,
    "first_game": true,
    "next": true,
    "stage": "Foundations"
@@ -661,7 +683,7 @@
    "what": "A dense generated level (many parts, lights, props and agents) and video memory in the performance meter.",
    "chunks": [],
    "note": "Starts as the separate beverly-bench program (a download of its own, runs unattended at 1080p and 4K, writes a short plain-text log the user sends back: card report, polygons, lights with and without shadows, the moving-headlight case, agents on the processor, memory; no personal data). Bench built 2026-11-20 (`beverly-bench.exe`, code in editor/src/bench.rs and bench/{scenes,agents}.rs; the Windows build makes Beverly-bench-windows.zip beside the main zip): it draws into 1080p and 4K images and steps each series up (1 to 64 million triangles; 100 to 1,600 lights; 1 to 32 shadowed point lights; 1 to 8 moving shadowed headlights in a lit town of 300 lights and 600 props; 1 to 16 GB of textures; 1,000 to 1,000,000 agents on one core and on all), about four seconds a step, a series stopping when it runs under 20 fps; it writes beverly-bench-log.txt line by line (so a crash leaves what came before) with fps, worst 1%, the card's time, triangles, memory and a summary of the heaviest step that held 60 and 30 fps; --quick runs only the lightest steps. First log from the user's RTX 3050 (2026-11-20) showed the first version ran ahead of the card: frames queued up, so the frame rates were the processor's (63 million triangles read 153 fps while the card's own timer said 21 ms), memory grew to 22 GB and it crashed at 4K with 400 lights; the first scene was also wrongly stopped. Fixed the same day: each frame now waits for the card, the crowd test runs on a thread of its own after the card scenes, and a scene gets two minutes to get going. Waiting on a second log from the user's card (its results, such as 1,600 lights without shadows costing 17 ms of card time, and 8 moving shadowed headlights costing about 7.5 ms, are the first real numbers). The stress level builds from the same scene functions. Its scenes then become this level. Reference card: the user's own, 8 GB of video memory (user, 2026-11-20).",
-   "order": 36,
+   "order": 37,
    "first_game": true,
    "next": true,
    "stage": "Foundations"
@@ -679,7 +701,7 @@
    "what": "Presets that choose virtual geometry, cached shadows, baked light and the global illumination tier from the card (GpuCaps) and its budget; a weaker card quietly loses shadows, detail and thinking rate first.",
    "chunks": [],
    "note": "The settings screen for them stays in graphics-settings.",
-   "order": 37,
+   "order": 38,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -696,7 +718,7 @@
    "what": "One stretchable Zone part: a volume with enter and exit events and layers (weather, ground, water, sound, post-processing, wind, boundaries, hazards) that modules add to, blending at its edges; also what swimming, air pockets and hazards read.",
    "chunks": [],
    "note": "Review 2026-11-20: the base of module reach. Wind, ambience, atmosphere and ocean settings become layers or packs. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): hazard zones that act over time, such as radiation that wears down a ship unless a shield projector covers it.",
-   "order": 38,
+   "order": 39,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -713,7 +735,7 @@
    "what": "Everything that changes while playing (player-built pieces, dug terrain, destroyed props, parts that moved, what a level looked like when you left) is a saved list of edits over the authored level; test mode throws it away, saves and level changes keep it.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Voxel and survival games save only the edited chunks over a generated or authored world. One mechanism serves the save system, test-snapshot, returning to a level, building, digging and destruction. Digging stores shapes added or taken away (small and readable), and chunked data is allowed where it is clearly better (the no-raster rule is a guideline for game data).",
-   "order": 39,
+   "order": 40,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -731,7 +753,7 @@
    "chunks": [],
    "status": "planned",
    "first_game": true,
-   "order": 40,
+   "order": 41,
    "stage": "Foundations"
   },
   {
@@ -747,7 +769,7 @@
    "what": "Leaving test mode puts back everything that moved, broke or was used up; values tuned while testing are offered to keep.",
    "chunks": [],
    "note": "Needed as soon as loose physics parts exist, so it comes right after physics instead of at the end. Shares one mechanism with the runtime edits layer: leaving test mode throws the layer away.",
-   "order": 41,
+   "order": 42,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -763,7 +785,7 @@
    "what": "Tags the project defines (Flammable, Market, Bench, ...) next to the built-in ones, so modules and games can mark things for their own use.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Tag is a fixed list in code today (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery, Ground, Paths ignore).",
-   "order": 42,
+   "order": 43,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -780,7 +802,7 @@
    "what": "Compressed texture formats, mip levels and a size cap per quality tier, made in the bake cache, so textures stay inside video memory.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Nothing in the roadmap covered it, and textures are the biggest user of the 8 GB reference card.",
-   "order": 43,
+   "order": 44,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -802,7 +824,7 @@
     "Hand-off points: a trigger that unloads a region or level, leaves a backdrop and keeps what must stay (the ship interior), one-way or reversible; per-level records (time, kills, secrets) as readouts"
    ],
    "note": "Decided with the user 2026-11-20: a returning player finds their changes by default; the default transition is a fade with a loading screen. Anything that outputs a finished event can ask for a transition (a cutscene ending, a boss defeated, a quest complete, a death, a menu button, a module). Last Ascent leaves the outside level when entering the ship, replaced by a backdrop, then plays a cinematic from the escape ship while level two loads behind it. The code today loads only the first level. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): a level can keep running while the player is away; see away-sim.",
-   "order": 44,
+   "order": 45,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -818,7 +840,7 @@
    "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
    "chunks": [],
    "note": "",
-   "order": 45,
+   "order": 46,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -834,7 +856,7 @@
    "what": "Named attachment frames on a part, with a type and rules for what fits, drawn as small pins: snap building, vehicle parts, docking bays, perches, seats, saddles and the attachments that come with a model all use them.",
    "chunks": [],
    "note": "Decided with the user 2026-11-20 (early groundwork for base-building, vehicles and riding). Replaces the separate ideas of snap points (Valheim, Subnautica), attachment nodes (KSP), docking ports and spots. Spots and claims for modules are sockets with a capacity. Asset prep's attachments come through them.",
-   "order": 46,
+   "order": 47,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -850,7 +872,7 @@
    "what": "What the player controls can change (a character, vehicle, mount, turret or drone), with its own camera and input map; control locks (cinematic, stuck in goo, stunned) as named states that any system can set.",
    "chunks": [],
    "note": "Decided with the user 2026-11-20. Enter and exit go through sockets. The rider-and-mount case needs two control paths, not a swap. The cinematic lock (controls off, skippable) and a goo-stuck status are the same mechanism.",
-   "order": 47,
+   "order": 48,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -871,7 +893,7 @@
     "The LOD drawer: pops out beside the Assets panel with the project’s LOD settings; with a model selected it shows each level side by side (a small live view of it you can turn, triangle count, swap size) and its impostor"
    ],
    "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd. Since 2026-11-18: classic LOD is the path for skinned and see-through models and the last fallback for virtual geometry (docs/tessera.md). Dependency on atmosphere dropped 2026-11-20: fog hiding pop-in is a soft preference.",
-   "order": 48,
+   "order": 49,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -889,7 +911,7 @@
    "what": "Save points and slots store the player, variables, the runtime edits and which level and entry; load from the menu.",
    "chunks": [],
    "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs. Review 2026-11-20: saves live in the user's own folder (not beside the exe), carry a format version for migration, and include autosave; cloud saves only if a store needs them. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): saves can be made anywhere, including mid-combat, so a save also holds physics velocities, brain state, projectiles, effect timers and the fixed-step tick, and a load resumes the same moment. Every system that keeps state needs a rule for how it saves and restores; keep a rolling history of saves and let Game Over load any of them.",
-   "order": 49,
+   "order": 50,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -916,7 +938,7 @@
    "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with. Review 2026-11-20: no longer waits on LOD (classic LOD stays the path for skinned and see-through things and the fallback; the two pair up).",
    "status": "planned",
    "first_game": true,
-   "order": 50,
+   "order": 51,
    "stage": "Foundations"
   },
   {
@@ -935,7 +957,7 @@
     "Loading around the player in play, with far regions shown as their simplest LOD or a backdrop"
    ],
    "note": "Moved earlier (review 2026-11-20): Last Ascent is a chunked world, and the region model decides the file format, ids and saves. Regions are seamless open ground; levels are discrete places. Both load through the same machinery.",
-   "order": 51,
+   "order": 52,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -951,7 +973,7 @@
    "what": "Named values (number, text, yes/no, percentage, time, colour) published by variables, attributes, modules and level stats, each with a unit, a range and a live value.",
    "chunks": [],
    "note": "Wires carry events today (Pressed, Arrived); screens and HUDs need values (ammo, health, last level's time). Per-level records (time, kills, damage taken, secrets) are readouts too, saved with the level's edits.",
-   "order": 52,
+   "order": 53,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -974,7 +996,7 @@
     "Preset modules with no code that combine built-in layers (weather, ground, water, sound) in a zone; what a module touches is listed before it is placed; MCP write, list and place"
    ],
    "note": "Designed with the user 2026-11-20: three nouns, Module, Reach, Dials; presets (header only) and scripted modules (header plus a Luau script). Fortnite's devices and Lyra's game features show the same split (no-code placeable objects with options and events, code when needed). Replaces prefabs as the way to bundle parts with ports. Once the tab strip exists, Modules can be a tab of its own in the World group (user, 2026-11-20).",
-   "order": 53,
+   "order": 54,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -996,7 +1018,7 @@
    "note": "Planned 2026-11-17. Ported from the user's own baker (docs/reference/octahedral-impostor-baker.html: the octahedral mapping, three-view blend, parallax and depth offset, the alpha bleed and tile dilation) to WGSL. The atlases are never stored in the project (user, 2026-11-17): bake settings live with the model; the atlases are saved locally on the user's machine (a cache outside the project folder), rebuilt when missing, and baked into exported games. MCP: get_lod / change_lod cover impostor quality. Backdrops extend this from single models to whole regions.",
    "status": "planned",
    "first_game": true,
-   "order": 54,
+   "order": 55,
    "stage": "Foundations"
   },
   {
@@ -1012,7 +1034,7 @@
    "what": "Saves a recovery copy every few minutes; offers it after a crash.",
    "chunks": [],
    "note": "",
-   "order": 55,
+   "order": 56,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1029,7 +1051,7 @@
    "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
    "chunks": [],
    "note": "",
-   "order": 56,
+   "order": 57,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1045,7 +1067,7 @@
    "what": "Timer, Relay, Counter, Random.",
    "chunks": [],
    "note": "",
-   "order": 57,
+   "order": 58,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1061,7 +1083,7 @@
    "what": "AND, OR, NOR, XOR, NOT.",
    "chunks": [],
    "note": "",
-   "order": 58,
+   "order": 59,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1081,7 +1103,7 @@
     "The switcher (Ctrl+K search of tabs and actions, Ctrl+Tab recents), right-click pin, hide and move, Ctrl+1 to 8 to jump between groups, tabs added by modules and packs"
    ],
    "note": "User's decisions 2026-11-20: colour coding by group stays but does not fill the frame (a thin bezel and the selected tab, the rest neutral dark); the wheel scrolls the strip; tabs squash to slices at the sides so the selected one stays in the middle and is never lost. Design and the first cut of the groups, sorted in workflow order, are in docs/ui/HANDOFF.md (Tab groups and the scrolling strip). Splitting the big tabs, and the slots the new features need (Modules, Levels, Problems and Debug drawers, the patchbay), follow this.",
-   "order": 59,
+   "order": 60,
    "first_game": true,
    "next": true,
    "stage": "Interface"
@@ -1098,7 +1120,7 @@
    "what": "Right-click on parts, assets, keys, ground and sky: duplicate, delete, rename, make unique, and Edit in its tab (Characters, Vehicles, Effects by topic, Audio); double-click opens what a thing is made of; a back chip (Alt+Left) returns with the same selection and view; Ctrl+1 to 8 switch tabs.",
    "chunks": [],
    "note": "Widened 2026-11-17 (user: right-click 'Edit this in the ___ Effects tab'; redundant ways are fine if they don't conflict). Entries for tabs that aren't built yet are left out. MCP: open_in_tab (thing, tab, topic). Ctrl+1 (Level) and Ctrl+5 (Audio) came with the Audio tab (2026-11-17); the rest follow their tabs.",
-   "order": 60,
+   "order": 61,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1119,7 +1141,7 @@
    "note": "Part 2 started 2026-11-19 (built ahead of the split, which has little to show until asset-prep): the Assets panel has a search field (every word must be in a file's name; folders with no match drop out and the rest open; tags and pips join in when they exist) and a picture on the left of texture and material rows (a texture shrunk, a material's texture or else its tint as a swatch), made in the background into the bake cache (editor/thumbs.rs); a model's picture is taken by showing it alone far below the level, lit by a light of its own, with a camera into a small image (editor/preview.rs), cut to what it fills. Still to do there: materials and shaders as a lit sphere, sounds as their waveform, prepared versions, the grid view, Ctrl+F, the chips, and the MCP's pips. Planned 2026-11-19 (user: a quick visual guide that a file has been through a tab and isn't the original; modified versions must live in the Assets panel as well, with priority on top; a search bar; thumbnails on the left with an optional grid). Decided with the user: originals never edited; a prepared version hides its original beneath it with a way to find it; several prepared versions of one original; search matches names, tags and pips. Not a new tab: tabs are workbenches, Assets is the shelf. Works at once for materials, sounds and shaders; asset-prep (the model's own file) fills it for models. Replaces the change-bar idea (no baseline is needed).",
    "status": "planned",
    "first_game": true,
-   "order": 61,
+   "order": 62,
    "stage": "Interface"
   },
   {
@@ -1136,7 +1158,7 @@
    "chunks": [],
    "status": "planned",
    "first_game": true,
-   "order": 62,
+   "order": 63,
    "stage": "Interface"
   },
   {
@@ -1157,7 +1179,7 @@
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
    "note": "Laid out as the user's design shows (docs/ui.svg, 'timeline lower window'): the view's bottom edge gets a resize grip, the breadcrumb of the selected item and a toolbar (Auto Keyframe toggle, menus, options) sit in a notch at its bottom left, the timeline area below spans the window. Its look is the Timeline board of the redesign (docs/ui/design/boards/Timeline.dc.html): resize grip, breadcrumb, transport, mono timecode, Seconds/Frames zoom, tracks with category icons, keys as diamonds and clips as bars, playhead in the accent, Auto key in the footer; opened from the bottom notch's Timeline button (T).",
-   "order": 63,
+   "order": 64,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1176,7 +1198,7 @@
     "Check: before-and-after screenshots of every window at full size and in a small window, kept with the test projects"
    ],
    "note": "Placed after step 6 of the Last Ascent path on purpose (not by its needs): by then the editor has most of its panels. MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 64,
+   "order": 65,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1202,7 +1224,7 @@
    "note": "Planned 2026-11-18 (user: an import may need a route through its tab before the Level: a vehicle's lights and sounds, a tree's LOD, a character's physics and voice). Builds on context-menu's make-in-a-tab, place-in-the-Level. Also fixes Ctrl+D naming a copied model “Model N” (edit.rs duplicate_selected).",
    "status": "planned",
    "first_game": true,
-   "order": 65,
+   "order": 66,
    "stage": "Interface"
   },
   {
@@ -1218,7 +1240,7 @@
    "what": "Triangles, shadowed lights, module cost and video memory against the target card, in the status pill, so headroom is seen while building.",
    "chunks": [],
    "note": "Goal (user, 2026-11-20): anyone who picks up Beverly has a very large polygon, light and logic budget in an editor that stays intuitive and modular.",
-   "order": 66,
+   "order": 67,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1239,7 +1261,7 @@
     "The patchbay overlay: a searchable rack of readouts grouped by source with live values, springy 2D noodles to widget inputs, event noodles (pulses) and value noodles (labelled values), red where a source is missing; a jack on every setting so a readout can drive any setting of any part"
    ],
    "note": "From the user 2026-11-20: screens and HUDs get data by noodles from a rack of outputs with a search bar. Wire-view merges into this. Split from HUD and Screens so both build on it. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): UI in the world (diegetic): buttons, strips and readouts on a desk's surface and projected panels above it, drawn with a hologram look, as well as on the screen.",
-   "order": 67,
+   "order": 68,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1260,7 +1282,7 @@
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
    "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink. Split from Screens 2026-11-20: the HUD is the always-on overlay; screens are navigated flows; both build on ui-core. Skins that draw it around the character are hud-skins. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): ship instruments: a faint 3D compass, fuel, power, shields, the active loadout, a damage screen with each part of the ship green, yellow or red, and manual buttons in the cockpit that can be clicked (UI in the world).",
-   "order": 68,
+   "order": 69,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1282,7 +1304,7 @@
     "Live 3D backgrounds; transitions on the timeline"
    ],
    "note": "Gets its own planning pass before building. Its look is the Screens board of the redesign (docs/ui/design/boards/Screens.dc.html): a flow graph of screen cards, with a Flow check card. Widened 2026-11-20 (user: screens need more versatility); data comes in through the patchbay, including last level's results. The HUD is a separate entry.",
-   "order": 69,
+   "order": 70,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1298,7 +1320,7 @@
    "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
    "chunks": [],
    "note": "",
-   "order": 70,
+   "order": 71,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1314,7 +1336,7 @@
    "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
    "chunks": [],
    "note": "",
-   "order": 71,
+   "order": 72,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1330,7 +1352,7 @@
    "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
    "chunks": [],
    "note": "",
-   "order": 72,
+   "order": 73,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1346,7 +1368,7 @@
    "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
    "chunks": [],
    "note": "",
-   "order": 73,
+   "order": 74,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1362,7 +1384,7 @@
    "what": "One list of what is wrong: missing files, wires to nothing, no player start, navigation not built, exits pointing at missing levels, red noodles in screens, over-budget polygons, lights or memory; each with a fix, checked before export.",
    "chunks": [],
    "note": "Today only the Screens tab has a flow check.",
-   "order": 74,
+   "order": 75,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1379,7 +1401,7 @@
    "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
    "chunks": [],
    "note": "Merges with the patchbay: one wiring look everywhere, with pulses for events and labelled values for readouts; the 3D wire picker moves to it.",
-   "order": 75,
+   "order": 76,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1395,29 +1417,9 @@
    "what": "Title, pause, settings, credits, quit and results screens that work out of the box.",
    "chunks": [],
    "note": "Screens covers settings and loading but not pause, title or credits.",
-   "order": 76,
+   "order": 77,
    "first_game": false,
    "stage": "Interface"
-  },
-  {
-   "id": "pen",
-   "name": "Bezier pen tool",
-   "area": "World building",
-   "effort": "L",
-   "needs": [
-    "brush"
-   ],
-   "what": "Click for corners, drag for smooth curves, close a loop on the first point; curves hug the surface under them and stay editable. Lays a strip, fills a shape, scatters along or inside it, or raises and carves.",
-   "chunks": [
-    "The pen: click and drag points with Bezier handles, Alt breaks a handle, close on the first point, then move points and handles, insert and remove points; curves drawn on terrain, water and parts",
-    "What a pen shape does, with the brush’s layers: a strip along it (width, soft edges: a cobbled path), a fill inside it (feathered edge), scatter along or inside (Even: one every N metres facing along it; Scattered: a band thinning at its edges; Both sides), and height along or inside (ridges, beds, flat pads on terrain); shapes stay live, Turn into items makes placed items; the MCP"
-   ],
-   "note": "Part 1 built 2026-11-19 (the pen): P in the Level tab; click for a corner, drag for a smooth point, click the first point to close, Enter finishes; then drag points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) removes it, Delete elsewhere removes the curve, click another curve to edit it, Alt while dragging breaks a handle; points snap to the grid like parts do and land on whatever surface is under the pointer. Curves live in the level file (curves: id, name, points with handle offsets, closed), one undo step per change; the code is curve.rs (the Bezier maths, tested) and editor/pen.rs. MCP: draw_shape (points as [x, y, z] or {at, handle_in, handle_out}, closed, shape to redraw, delete) and list_shapes (tests/mcp/check.py). Part 2, first slice built 2026-11-19 (stretches): each point carries how the line leaving it treats geometry, Ground (default), Over everything, Air or Fall, and the line seen is laid on what it meets (curve.rs laid, pen.rs surface; cached and relaid when the curve or any part changes): Ground takes the walkable surface (a top face, or a part tagged Ground or Water; never one tagged Paths ignore or an invisible collider) within half a metre up or two down from where it was, so it lies on a slab, passes under a prop or ceiling and bridges gaps; Over takes anything visible within 1.5 m up; Air ignores geometry; Fall leaves along its handle and ends where it lands. Ground stretches draw solid, Air and Fall dashed; a small button by the selected point switches its stretch (a new point goes on as the last one went); the Ground and Paths ignore tags are new surface tags; draw_shape points take stretch and list_shapes says it. Strips built 2026-11-19: the pen has a panel (Inspect while it is out: the curve's name, Paint a strip with a material, Width, Edge, Strength); a strip paints the laid line as brush strokes onto the part under each step of it (the part whose top face the point is on, so a prop the line passes through isn't painted and a stretch in the air paints nothing), kept in step with the curve: the strokes are the parts' own, marked with the curve (Stroke.curve), made again in place when the curve, its strip or the geometry changes and taken away with the strip or curve, in the same undo step; draw_shape takes strip {material, width, edge, strength} (null removes it) and list_shapes says it. Fills built 2026-11-19: the pen's panel has a Fill group (Fill the inside, the material it paints, Feather, Strength); a fill paints the ground inside the curve (an open curve is closed by a straight line), the paint shader working out the inside and the feathered edge from the curve's outline, so nothing is painted into an image; it goes to each part with walkable ground inside the outline (a top face within a step of the line's height, as a Ground path counts it), not to props standing on that ground or parts tagged Paths ignore, and lies under a strip on the same curve; like strips its strokes are the parts' own (Stroke.fill, with the outline in the part's own frame like a brush stroke's), made again in place when the curve, its fill or the geometry changes and in the same undo step; draw_shape takes fill {material, feather, strength} (null removes it) and list_shapes says it. Still to do: the path-wide default and Sag for air, the slope limit, scatter, and picking a curve without the pen; height along curves waits for terrain (user, 2026-11-19). Scatter, as the user describes it (2026-11-19): bits of random, context-appropriate debris that make a level feel varied and detailed (in a nature scene tree stumps, logs, boulders, sticks, brambles), so it places items picked at random from a set the user chooses, along or inside a curve. Decided with the user 2026-11-19: a path has two modes, Ground only (default: drapes onto the ground and ignores props, scatter and other paths) and Over everything (follows any geometry it meets); the surface each point was clicked on decides which level it follows, the path stays on that level between points, ground means surfaces within a slope limit and objects below step height, gaps are bridged, Water counts as ground; where two ground paths cross, the later one wins (order keys Ctrl+[ and ], Ctrl+Shift for ends, with a list in the Inspect panel, see the order note on the brush). Refined 2026-11-19 (user: a path crosses many surfaces; tags as well as rules; scatter on the ground, deep select for manual adjustment): the mode is per stretch (stored on a point, for the segment leaving it) with a path-wide default: Ground (walkable surfaces: ground, road, steps, interior floor; the path takes the walkable surface nearest in height to the previous sample within the step height, starting from the clicked level; ceilings and invisible colliders never count), Over everything, Air (ignores geometry; Sag for a rope) and Fall (leaves along its handle and drops until it hits a surface; a faucet stream is Fall then Ground). Tags: Ground forces a part to count, Paths ignore forces it out, Water counts. Precedence: the stretch's own behaviour, tags, the path's default, the slope and step rules. Scatter sits on the surface the path is following and never on other scatter; deep select (gesture to choose: Ctrl+click or double-click in; Alt is taken by the pen and brush) picks one scatter instance to nudge, delete or detach, kept as overrides by position along the curve (they can drift if the curve is reshaped a lot; Turn into items freezes everything). Confirmed by the user 2026-11-19: ground stretches draw as a solid line and air stretches dashed, with a small button on the selected point to switch its stretch behaviour; deep select is a double-click into the shape. Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay). Review 2026-11-20 found the fill outline stored in world coordinates (it would break on a moving part or after a region or origin shift); fixed 2026-11-20: the outline is stored in the part's own frame and the shader tests inside in that frame (test: a fill stays on a part that is moved and turned). Scatter is its own entry now.",
-   "status": "planned",
-   "first_game": true,
-   "order": 77,
-   "next": true,
-   "stage": "Author the world: land, sea and sky"
   },
   {
    "id": "fill",

@@ -39,7 +39,8 @@ mod own {
 pub enum Stretch {
     #[default]
     Ground,
-    #[reflect(@Label("Over everything"))]
+    /// "Over everything" by the point; short in the panel's row of choices.
+    #[reflect(@Label("Over"))]
     Over,
     Air,
     Fall,
