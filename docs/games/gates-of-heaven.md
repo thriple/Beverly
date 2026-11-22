@@ -89,7 +89,14 @@ The Catapult is the Pact's launch vehicle, and it is also the station.
 
 ## Station
 
-The station is in the Catapult's hangar, where the ship docks. The player walks up to the console and presses its button to open a window with three pages.
+The station is in the Catapult's hangar, where the ship docks. It is a **holographic desk**: the player walks up to it and the view settles looking straight ahead over it, with the desk's surface below. There are no menu windows. Everything is in the world (owner, 2026-11-22).
+
+- **Three physical buttons** at the bottom left of the desk's surface: **Intel**, **Cargo** and **Modify Ship**.
+- **The surface** also shows the available resources, parts, modules and so on.
+- **The galactic map** is a 3D hologram above the desk.
+- **Intel** is a 2D map projected above the desk.
+- **The ship editor** is in 3D above the desk.
+- **The look:** parts, modules and cargo are the literal ship parts, with just a tiny bit of hologram outline and the occasional flicker.
 
 ### Intel
 
@@ -107,9 +114,89 @@ An inventory of the ship's holds.
 - **Adding** cargo, modules or weapons costs units from the logistics budget. Units are not a private currency, and nothing can be sold for profit. Cargo is only bought.
 - Cargo space is the constraint that forces the loadout decisions below.
 
-### Modify Ship
+### Modify Ship (the ship editor)
 
-A button that opens the ship editor. This is the same editor as the ship design step in the loop.
+The same editor as the ship design step in the loop.
+
+- **The parts strip:** parts and modules sit in a single scrollable row on the right of the desk's surface, with the categories below the strip.
+  - Hovering over a part pops it up in 3D above the desk, slowly spinning.
+  - Clicking a part puts the 3D part on the cursor, to place on the ship.
+- **Modes, while a part is highlighted.** A part stays highlighted just after it is placed, so the player can change it straight away or switch modes:
+  - **1:** toggles between node snap and surface attach;
+  - **2:** translate;
+  - **3:** rotate.
+- **Dragging:** a part can be dragged elsewhere on the ship, or out into the build space, which works as scratch space.
+- **Leaving the editor:**
+  - Parts that are not connected are refunded, with no questions.
+  - If a mission-critical part is missing, a pop-up says so.
+- **X-ray mode** shows the interior passages.
+- **Systems readout:** bar graphs in the upper right corner. They show fuel and uptime, power and draw, how long life support lasts, and cargo space and how full it is. Some modules come in several versions, and some modules do the same thing with different specs, so the readout is how the player compares them.
+- **Cargo containers filled with Resource Units** come out of the same overall budget. The player has to fill them last, or they can't buy more ship parts unless a container is refunded.
+
+### Parts
+
+- **Nodes** connect some pieces, such as those with interiors. A node is authored in Prism as a 0.25 m cube named "Node". The player has to care about which way a part is rotated, even with nodes.
+- **Surface attach** is for other parts, such as decoration or weapons. The attachment point is the part's origin, for simplicity.
+- **No strict rule** like KSP's decides which parts use nodes and which surface attach: it is whatever the owner authors.
+- **Marking parts:** assets that are in-game editor parts are marked with special tags in Beverly.
+- **Categories for now:**
+  - Mission Critical (its own category in the strip)
+  - Habitation (includes parts with interiors, such as the cockpit and the holo desk room)
+  - Power
+  - Thrust
+  - Life Support
+  - Fuel
+  - Structural
+  - Weapons
+  - Base
+  - Robots
+  - Modules (special items such as the winches and booster packs, and cargo containers of different sizes for Resource Units, to help jump-start base building)
+
+### The hangar monitor
+
+The news anchor on the monitor in the hangar kitchen is an audio-only recording with a waveform on the screen. The screen is an asset, not a menu screen. It is a live background element, not a cinematic: ambience.
+
+## Resources
+
+There are only two, and the player handles only one.
+
+- **Resource Units:**
+  - Mined directly by robots. (They may have been called Resource Credits earlier.)
+  - They pay for ship parts, base modules, and units, ammo and other things made in the bases' manufacturing plants.
+- **The gate resource:** a special resource that only the robots can harvest, for the gate.
+
+## Landing pads
+
+- **Refilling:** landing at a starter base's robot pad refills the ship to its maximum, at a medium pace.
+- **Robots wait:** a robot coming to drop off has to loiter until the pad is clear.
+- **More pads** ease that, depending on how many mining robots the player has built.
+- **Dropoffs** go to bases or to the player's ship. Either way they show up in the UI, all invisibly tied together, as in other RTS games.
+
+## Bases
+
+- **The starter base module:**
+  - The player gives it a basic move command from the ship. It undocks quickly, flies to the point the player indicates and deploys there. This may need pathfinding.
+  - **Range:** a neutral circle from the ship to the cursor, which turns red when the point is outside the module's range.
+  - Once deployed it can't be packed up again.
+  - It can receive robots for resource dropoff.
+- **Hex tiles:**
+  - The starter base is hex shaped, with a ring of open hex slots around it for new base tiles.
+  - Every new tile has the same ring of available slots, unless a slot is already taken.
+- **The base's holo desk:** base tiles are chosen from a holographic desk inside the starter base. Around level 5, a networked remote connection may let players reach any base from the holo desk inside their ship.
+- **Base tiles:**
+  - Power Plant
+  - Connector (an extension two tiles wide that connects only at its ends)
+  - Ammo and missile plant
+  - Solar power plant
+  - Shield generator
+  - Turret emplacement
+  - Landing pad
+  - Robot plant
+  - Missile emplacement
+  - Sensor emplacement
+  - Drone plant
+  - Ship module plant
+- **Interiors:** base parts have little interior, mostly just the starter base. The rest are open to space.
 
 ## Refit and restocking
 
@@ -283,7 +370,7 @@ The player never goes through the gate. The last level ends in orbit, where the 
 
 **End cinematic:** new alien collapsible wormhole gates are fired by catapult. They expand and come to life, and fleets of transport ships fly out of them moments later. A big crescendo of music.
 
-**Hidden media:** a news show anchor on a monitor in the Catapult's hangar kitchen reports that the Catapult technology has been shared with the galactic network because of the impending disaster, and that new designs are starting to appear. This explains the Catapult's improvements in the later levels.
+**Hidden media:** a news show anchor on a monitor in the Catapult's hangar kitchen (an audio recording with a waveform; see The hangar monitor) reports that the Catapult technology has been shared with the galactic network because of the impending disaster, and that new designs are starting to appear. This explains the Catapult's improvements in the later levels.
 
 ## Open questions
 
@@ -292,3 +379,4 @@ The player never goes through the gate. The last level ends in orbit, where the 
 3. **The Guard's response:** does the Guard send a fixed force, or does it scale with how much damage it has taken?
 4. What does the galactic map look like, and what does the player see on it before a jump?
 5. Which special equipment is kept between destinations, and which is lost? The rules for each item are still to be written.
+6. **Loop variation:** the save section stores a system's seed and "loop variation". Does a system change each time the player comes back through it, or is the seed only for generated detail such as asteroid fields?
