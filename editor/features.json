@@ -801,7 +801,7 @@
     "Transition styles: a cut, a fade with a loading screen (the default), or seamless; loading in the background as the exit is approached, and behind a cinematic; a level graph overview drawn like the screens flow chart",
     "Hand-off points: a trigger that unloads a region or level, leaves a backdrop and keeps what must stay (the ship interior), one-way or reversible; per-level records (time, kills, secrets) as readouts"
    ],
-   "note": "Decided with the user 2026-11-20: a returning player finds their changes by default; the default transition is a fade with a loading screen. Anything that outputs a finished event can ask for a transition (a cutscene ending, a boss defeated, a quest complete, a death, a menu button, a module). Last Ascent leaves the outside level when entering the ship, replaced by a backdrop, then plays a cinematic from the escape ship while level two loads behind it. The code today loads only the first level.",
+   "note": "Decided with the user 2026-11-20: a returning player finds their changes by default; the default transition is a fade with a loading screen. Anything that outputs a finished event can ask for a transition (a cutscene ending, a boss defeated, a quest complete, a death, a menu button, a module). Last Ascent leaves the outside level when entering the ship, replaced by a backdrop, then plays a cinematic from the escape ship while level two loads behind it. The code today loads only the first level. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): a level can keep running while the player is away; see away-sim.",
    "order": 44,
    "first_game": true,
    "stage": "Foundations"
@@ -888,7 +888,7 @@
    ],
    "what": "Save points and slots store the player, variables, the runtime edits and which level and entry; load from the menu.",
    "chunks": [],
-   "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs. Review 2026-11-20: saves live in the user's own folder (not beside the exe), carry a format version for migration, and include autosave; cloud saves only if a store needs them.",
+   "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs. Review 2026-11-20: saves live in the user's own folder (not beside the exe), carry a format version for migration, and include autosave; cloud saves only if a store needs them. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): saves can be made anywhere, including mid-combat, so a save also holds physics velocities, brain state, projectiles, effect timers and the fixed-step tick, and a load resumes the same moment. Every system that keeps state needs a rule for how it saves and restores; keep a rolling history of saves and let Game Over load any of them.",
    "order": 49,
    "first_game": true,
    "stage": "Foundations"
@@ -2869,6 +2869,27 @@
    "stage": "Inhabitants"
   },
   {
+   "id": "away-sim",
+   "name": "Simulating levels while away",
+   "area": "Logic and modules",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "levels",
+    "runtime-edits",
+    "behaviours"
+   ],
+   "what": "A level the player has left keeps going: enemies build and attack, robots keep working.",
+   "chunks": [
+    "Decide and build the model: a coarse catch-up when the player returns, or a low-detail simulation that runs in the background; what each system must provide so it can be advanced without being drawn",
+    "Per-level simulation rules in data (what grows, what is paused), saved with the level's runtime edits, and tests that leave a level and return to a changed one"
+   ],
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the failure branch needs enemies that build while the player is gone. Decide this early because every system with state has to support it. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "stage": "Inhabitants",
+   "first_game": false,
+   "order": 155
+  },
+  {
    "id": "pack-docking",
    "name": "Docking pack",
    "area": "Logic and modules",
@@ -2882,7 +2903,7 @@
    "what": "Ships that request a bay, approach along a curve, dock, unload and leave, queuing when the bays are full.",
    "chunks": [],
    "note": "",
-   "order": 155,
+   "order": 156,
    "first_game": false,
    "stage": "Inhabitants"
   },
@@ -2899,9 +2920,26 @@
    "what": "Birds that land on perch spots, scatter when you come near and flock; the bird code becomes a module.",
    "chunks": [],
    "note": "Replaces brain's Flock preset.",
-   "order": 156,
+   "order": 157,
    "first_game": false,
    "stage": "Inhabitants"
+  },
+  {
+   "id": "squad-ai",
+   "name": "Squad AI",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "brain",
+    "factions"
+   ],
+   "what": "A group layer over brains: shared knowledge, short-range alerts and group decisions.",
+   "chunks": [],
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): one sighting alerts the squad; a squad investigates where an attack came from and reports; the group then decides how many units to send. Teleporting units use the shared knowledge to jump to a spotted place. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "stage": "Inhabitants",
+   "first_game": false,
+   "order": 158
   },
   {
    "id": "health",
@@ -2914,8 +2952,8 @@
    ],
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
-   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts.",
-   "order": 157,
+   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): death can send the player to a different level (a clone wakes in the previous one) while the wreck, its salvage and the world stay behind.",
+   "order": 159,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -2935,7 +2973,7 @@
     "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
    ],
    "note": "",
-   "order": 158,
+   "order": 160,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -2955,7 +2993,7 @@
     "Gear traits stacking, consumables; inventory screen (with Screens)"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 159,
+   "order": 161,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -2977,8 +3015,8 @@
     "Destructible part: health, swap whole model A for pieces B, presets in the Props section",
     "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
    ],
-   "note": "",
-   "order": 160,
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): mining: asteroids and sheets are worn down by harvesting and give up resources, with the loss stored as runtime edits.",
+   "order": 162,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -2993,8 +3031,8 @@
    ],
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
-   "note": "",
-   "order": 161,
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): area blasts can chain: when several explosive things are in range of each other the damage multiplies (six boosters set off a Weapon).",
+   "order": 163,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3011,7 +3049,7 @@
    "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
    "chunks": [],
    "note": "Reuses Last Ascent's jets and grapple.",
-   "order": 162,
+   "order": 164,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3031,7 +3069,7 @@
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
    "note": "",
-   "order": 163,
+   "order": 165,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3057,7 +3095,7 @@
     "Plumes, effects and the fuel gauge hooked up; Last Ascent editor and player removed"
    ],
    "note": "Scripted tests record today's mech before anything changes, so the port can be compared step by step. What to look for when converting it (Physics part 2, 2026-11-15): Beverly no longer hands a game's character the level's triangles (Play::world, with pieces() and offsets(), is gone), so Last Ascent's own editor and player stop building once they update past this; the user chose to rebuild the mech after Beverly is built, not to port it twice. Collision is now Avian's world while playing (physics.rs): each Solid part is a body tagged PartBody(id), still ones static, Moves ones kinematic (their LinearVelocity carries what stands on them), Loose ones dynamic, plus the ground at y = 0. The mech's own physics maps onto it: its sphere-against-triangles step becomes a body of its own (a bevy_tnua character like the walker in play.rs, or Avian's MoveAndSlide), its raycast (grapple, camera, ground) Avian's SpatialQuery::cast_ray, its ground_y (the legs' foot placement) a ray down, and riding moving parts comes free. Physics runs on the fixed 60 Hz step (single precision, Avian's Gravity 9.81 with GravityScale for heavier falls): the mech's movement moves from Update with a variable step to FixedUpdate, catching one-off keys every frame as play.rs does (Play::press), and still sets Play::feet for buttons. Its recorded runs (walk, jets, grapple) will drift with the new collision: compare them, and re-record only when the user agrees.",
-   "order": 164,
+   "order": 166,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3074,7 +3112,7 @@
    "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
    "chunks": [],
    "note": "",
-   "order": 165,
+   "order": 167,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3090,8 +3128,8 @@
    ],
    "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
    "chunks": [],
-   "note": "",
-   "order": 166,
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the reel pulls two points together at a fixed speed whatever the bodies weigh (so 'lighter moves more' becomes an option, not the rule), and a pin anchors a body around a rotatable point like a hinge. Both are bodies held by runtime joints; see attach-anywhere and tethers.",
+   "order": 168,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3109,7 +3147,7 @@
    "what": "Close attacks with combos, takedowns from behind.",
    "chunks": [],
    "note": "",
-   "order": 167,
+   "order": 169,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3130,7 +3168,7 @@
     "Beams, muzzle effects and sounds, aim with lock-on"
    ],
    "note": "",
-   "order": 168,
+   "order": 170,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3149,7 +3187,7 @@
    "what": "A follower that stays near the player, scouts ahead and pings what it finds, and carries the player's inventory as a diegetic display.",
    "chunks": [],
    "note": "Last Ascent (user, 2026-11-20): a geometric sphere drone follows the mech everywhere as its inventory (power-ups, healing packs, weapon modifiers) and its visual scout.",
-   "order": 169,
+   "order": 171,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3172,7 +3210,7 @@
     "Combat: bites, goo splash, damage and death"
    ],
    "note": "Goo is drawn per cluster: each cluster's box runs a shader over only its own bugs, so cost grows with clusters, not with every bug against every other.",
-   "order": 170,
+   "order": 172,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3188,7 +3226,7 @@
    "what": "Hide in shadow or grass, noise enemies hear, distract.",
    "chunks": [],
    "note": "",
-   "order": 171,
+   "order": 173,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3206,7 +3244,7 @@
    "what": "A long-range missile shooter that hides among cover and jumps from spot to spot, and a stealth flanker that gets behind the player and fires a restraining shot of goo before closing in to melee.",
    "chunks": [],
    "note": "Last Ascent level two (user, 2026-11-20). The goo shot is a projectile with a status effect and a control lock, not a physical grab (a real grab stays possible through sockets). A director module mixes the two.",
-   "order": 172,
+   "order": 174,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3228,7 +3266,7 @@
     "Removing, repairing and upgrading pieces; ownership; units and the player colliding with what is built"
    ],
    "note": "From Valheim, Fortnite, Subnautica and KSP. Priority groundwork for Last Ascent with vehicles and riding; crowds and armies come much later (user, 2026-11-20).",
-   "order": 173,
+   "order": 175,
    "first_game": true,
    "stage": "Build and ride"
   },
@@ -3249,8 +3287,8 @@
     "Physical joints with strength and breaking (KSP's joints needed reinforcing in practice)",
     "Interiors and passengers in the body's own frame, interpolated"
    ],
-   "note": "Separate from joints, which is for character rigs. Vehicles are built from this.",
-   "order": 174,
+   "note": "Separate from joints, which is for character rigs. Vehicles are built from this. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): mass, centre of mass and inertia come from the attached parts and update when parts attach or detach during play (cargo, boosters, drones, detached modules), and ship stats such as thrust, cargo slots and a mass limit are derived from the parts.",
+   "order": 176,
    "first_game": true,
    "stage": "Build and ride"
   },
@@ -3268,9 +3306,27 @@
    "what": "Sit in seats and turrets, ride animals: enter and exit through sockets with animation hooks, rider and mount each with their own control path.",
    "chunks": [],
    "note": "Opsive's rideable ability and Unreal's possess calls show the pattern; the hard case is rider and mount controlled at once.",
-   "order": 175,
+   "order": 177,
    "first_game": true,
    "stage": "Build and ride"
+  },
+  {
+   "id": "attach-anywhere",
+   "name": "Attach anywhere at runtime",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "sockets",
+    "physics",
+    "runtime-edits"
+   ],
+   "what": "Attach a part, a booster or a pin to any surface the player aims at, and release it again.",
+   "chunks": [],
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): sockets are placed ahead of time. Here the point is chosen during play (boosters on a derelict, a pin on a sheet), joined by a physical joint, saved as a runtime edit, and the body's mass updates. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "stage": "Build and ride",
+   "first_game": false,
+   "order": 178
   },
   {
    "id": "vehicles",
@@ -3291,8 +3347,8 @@
     "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
     "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
    ],
-   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent. Built as assemblies from the part hierarchy, sockets and physical joints (review 2026-11-20); the Vehicles tab is the assembler; entering and leaving go through control handover.",
-   "order": 176,
+   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent. Built as assemblies from the part hierarchy, sockets and physical joints (review 2026-11-20); the Vehicles tab is the assembler; entering and leaving go through control handover. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): capital ships with many independently aimed turrets, run by AI, for large enemy fleets; and ship stats derived from parts with a mass limit.",
+   "order": 179,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3314,7 +3370,7 @@
     "Cave dressing: drips, rubble and lights along the walls"
    ],
    "note": "fast-surface-nets does the meshing (no Bevy dependency). The open ground is drawn without meshes (terrain); whether caves are meshed with surface nets or drawn from their shapes in a shader is decided when they are planned (user prefers no meshes for the ground). Digging is a runtime edit (shapes added or taken away), baked to chunks in the bake cache.",
-   "order": 177,
+   "order": 180,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3331,9 +3387,26 @@
    "what": "A support graph: strength spreads from the ground through connected pieces, shown as colour while building (blue to red, as in Valheim), and a piece that loses support falls.",
    "chunks": [],
    "note": "",
-   "order": 178,
+   "order": 181,
    "first_game": false,
    "stage": "Build and ride"
+  },
+  {
+   "id": "tethers",
+   "name": "Tethers and cables",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "physics",
+    "attach-anywhere"
+   ],
+   "what": "Ropes and cables with tension that can be held, pulled and let go.",
+   "chunks": [],
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Weapon's energy cable held on a short tether with strong, wild recoil that the player corrects with the mouse; a fixed-speed reel between two bodies. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "stage": "Build and ride",
+   "first_game": false,
+   "order": 182
   },
   {
    "id": "sailing",
@@ -3349,9 +3422,31 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 179,
+   "order": 183,
    "first_game": false,
    "stage": "Build and ride"
+  },
+  {
+   "id": "rts-command",
+   "name": "RTS command and work orders",
+   "area": "Actors and combat",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "brain",
+    "steering",
+    "hud"
+   ],
+   "what": "Select units and give orders; workers take jobs and carry things between places.",
+   "chunks": [
+    "Selection, orders and formations for allied ships and drones, including backup ships launched one after another",
+    "Work orders for workers: harvest, build, repair, carry, copy themselves; a job queue and priorities",
+    "Logistics: storage, carrying between harvest sites, the base and a build site, with progress shown as a readout"
+   ],
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the robot swarm that builds the gate (exponential growth to a self-sustaining point) and the backup ships. build-mode says armies come much later; this game needs it earlier. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "stage": "Build and ride",
+   "first_game": false,
+   "order": 184
   },
   {
    "id": "animatics",
@@ -3371,7 +3466,7 @@
     "Character recordings into editable keys; letterbox and skippable"
    ],
    "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. The creator chooses, per animatic, how it starts and ends (user, 2026-11-18: a choice, not hardwired): blend in from the player's camera or cut (and how long the blend takes), and on the way out blend or cut back to the mode the player was in, or to a mode the creator picks. A cinematic sets the cinematic control lock (controls off, skippable, letterbox, subtitles); its end is a wire output that can start a transition, and the next level can load behind it (user, 2026-11-20).",
-   "order": 180,
+   "order": 185,
    "first_game": true,
    "stage": "Story and flow"
   },
@@ -3387,8 +3482,8 @@
    ],
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
-   "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then.",
-   "order": 181,
+   "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): short lore fragments (plaques, records, monitors, loading screens) are drawn from one table of records, so a line is written once and shown wherever it fits.",
+   "order": 186,
    "first_game": true,
    "stage": "Story and flow"
   },
@@ -3404,7 +3499,7 @@
    "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
-   "order": 182,
+   "order": 187,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3424,7 +3519,7 @@
     "Quest log, markers on the map and compass"
    ],
    "note": "",
-   "order": 183,
+   "order": 188,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3440,8 +3535,8 @@
    ],
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
-   "note": "",
-   "order": 184,
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the same screen style also serves a hand-plotted route of levels (a galactic map); see level-map.",
+   "order": 189,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3462,7 +3557,7 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight.",
-   "order": 185,
+   "order": 190,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3479,7 +3574,7 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 186,
+   "order": 191,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3499,7 +3594,7 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 187,
+   "order": 192,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3532,8 +3627,25 @@
    ],
    "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): the demo sets its characters to switch between first and third person while in control, and its rocket animatics to blend in and back out to the player's mode; these are the creator's choices in the character camera and animatics settings, not built in.",
    "first_game": false,
-   "order": 188,
+   "order": 193,
    "stage": "Story and flow"
+  },
+  {
+   "id": "level-map",
+   "name": "Level map and route map",
+   "area": "World building",
+   "status": "planned",
+   "effort": "M",
+   "needs": [
+    "world-map",
+    "levels"
+   ],
+   "what": "An orbitable top-down and 3D map of a level from what the author marked as known, and a hand-plotted route of levels.",
+   "chunks": [],
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Intel map shows major bodies always, hides small ones (behind larger ones, say), and shows authored resources and enemy bases only when marked as known; the route map is the levels in the order the author chose. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "stage": "Story and flow",
+   "first_game": false,
+   "order": 194
   },
   {
    "id": "export-hardening",
@@ -3547,7 +3659,7 @@
    "what": "A friendly error window when the game can't load or the card is unsuitable; a log file in the user's folder; the game's icon, name and version; window mode and quality saved in the user's folder; third-party licence notices; unused and editor-only files left out and the rest packed.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review: the player exits silently on a load failure, has no icon or version, a fixed 1600 by 900 window and no notices. Decided with the user 2026-11-20: logs stay local with no analytics at all; the unsigned-exe warning (code signing needs a paid certificate) is a static message on the export window, not a planned feature.",
-   "order": 189,
+   "order": 195,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3570,7 +3682,7 @@
    "note": "Planned 2026-11-18, for later: only worth it once levels are dense enough that cached shadows aren’t enough.",
    "status": "planned",
    "first_game": true,
-   "order": 190,
+   "order": 196,
    "stage": "Ship and scale"
   },
   {
@@ -3586,7 +3698,7 @@
    "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
    "chunks": [],
    "note": "Presets choose virtual geometry, cached shadows, baked lighting and realtime GI where the card allows (2026-11-18). Split 2026-11-20: tiers and presets come early as quality-tiers; this is their settings screen.",
-   "order": 191,
+   "order": 197,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3603,7 +3715,7 @@
    "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
    "chunks": [],
    "note": "",
-   "order": 192,
+   "order": 198,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3619,7 +3731,7 @@
    "what": "Our test projects become starter games (Empty, First-person, Third-person, a base-building and a vehicle one later) offered when Beverly opens, so the first hour has something to play.",
    "chunks": [],
    "note": "The launcher's start screen comes later; this gives it something to show.",
-   "order": 193,
+   "order": 199,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3636,7 +3748,7 @@
    "what": "Make Windows zip: the instant prebuilt player is the default; Build on GitHub is for games with their own code; pre-export checks from the Problems panel; a static note that the exe is unsigned and what that means (code signing costs a yearly certificate).",
    "chunks": [],
    "note": "",
-   "order": 194,
+   "order": 200,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3654,7 +3766,7 @@
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 195,
+   "order": 201,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3680,7 +3792,7 @@
     "A headless dedicated-server build of the player"
    ],
    "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction. Review 2026-11-20: keep the editor friendly to an authoritative server (fixed step, commands as data); decide on lockstep (which needs deterministic maths) only if an RTS pack is wanted.",
-   "order": 196,
+   "order": 202,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3697,7 +3809,7 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 197,
+   "order": 203,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3716,7 +3828,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool. Includes the first export of a game.",
-   "order": 198,
+   "order": 204,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3732,7 +3844,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 199,
+   "order": 205,
    "first_game": false,
    "stage": "Ship and scale"
   }
