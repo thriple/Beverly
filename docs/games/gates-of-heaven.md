@@ -12,6 +12,14 @@ The game is the journey from near Sol to the home planet of the gateway's builde
 
 The **Pact** is humanity together with the alien civilisations that have joined it in trade and mutual agreement.
 
+## Names and presentation
+
+- **In-game name:** the **Milky Way Pact (MWP)**. It is the name the player sees on the ship, the station, the UI and the mission briefings. It is an uplifting name, and it is the coalition's own choice.
+- **Historical records:** just **the Pact**, in records, timelines and plaques.
+- **Scale:** the coalition is 21 species. Against the rest of the galaxy that is very small, and the name does not claim otherwise.
+- **Presentation is visual first.** The Pact is not only humans. Its design choices, from ship hulls and hangar layout to signage, colour, typography and iconography, come from many species, so the look of the game carries the lore. Written text supports it.
+- **Where lore appears:** plaques, historical records, decorations, and dialogue. Lore is never delivered as a block of exposition on a loading or menu screen.
+
 ## Background timeline
 
 Not shown to the player directly. It informs the world design.
