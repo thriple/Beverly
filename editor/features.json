@@ -1259,7 +1259,7 @@
     "Binding values by wire (fuel, health, counters); warnings on the timeline",
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
-   "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink. Split from Screens 2026-11-20: the HUD is the always-on overlay; screens are navigated flows; both build on ui-core. Skins that draw it around the character are hud-skins.",
+   "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink. Split from Screens 2026-11-20: the HUD is the always-on overlay; screens are navigated flows; both build on ui-core. Skins that draw it around the character are hud-skins. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): ship instruments: a faint 3D compass, fuel, power, shields, the active loadout, a damage screen with each part of the ship green, yellow or red, and manual buttons in the cockpit that can be clicked (UI in the world).",
    "order": 68,
    "first_game": true,
    "stage": "Interface"
@@ -1944,7 +1944,7 @@
    ],
    "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
    "chunks": [],
-   "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D.",
+   "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): a sphere that move orders and targets can't pass, shown on the map.",
    "order": 105,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
@@ -2535,7 +2535,7 @@
     "Space level type: no gravity, starfield and distant planets; loose objects drift and spin",
     "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
    ],
-   "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off.",
+   "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): mouse steering with a deadzone near the centre (as in Starship EVO), Q and E roll, Caps Lock auto-forward with Shift and Ctrl throttle and Z / X for full and zero, G landing gear, middle-click free look, cockpit view with F4 for third person; all through the input map, set per game.",
    "order": 137,
    "first_game": false,
    "stage": "Move through it"
@@ -2952,7 +2952,7 @@
    ],
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
-   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): death can send the player to a different level (a clone wakes in the previous one) while the wreck, its salvage and the world stay behind. Gates of Heaven's ship has shield modules that draw power from the ship's totals (2026-11-22).",
+   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): death can send the player to a different level (a clone wakes in the previous one) while the wreck, its salvage and the world stay behind. Gates of Heaven's ship has shield modules that draw power from the ship's totals (2026-11-22). Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): self-repair while under 50% and no damage for a while (as Last Ascent's mech); the rest is repaired by hand with a tool.",
    "order": 159,
    "first_game": true,
    "stage": "Challenge"
@@ -2972,7 +2972,7 @@
     "Teleport, recall, lock-on, scan",
     "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
    ],
-   "note": "",
+   "note": " Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): the multi-tool: repair, and a grav beam that moves parts and modules by hand or throws them into space; parts left loose despawn only once the level is cleared.",
    "order": 160,
    "first_game": true,
    "stage": "Challenge"
@@ -3031,7 +3031,7 @@
    ],
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
-   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): area blasts can chain: when several explosive things are in range of each other the damage multiplies (six boosters set off a Weapon).",
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): area blasts can chain: when several explosive things are in range of each other the damage multiplies (six boosters set off a Weapon). Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): hitting a loose part at speed damages shields first, then the ship.",
    "order": 163,
    "first_game": true,
    "stage": "Challenge"
@@ -3449,7 +3449,7 @@
     "Leaving and checking: unconnected parts are refunded, a required category (Mission Critical) missing asks first, costs come from the game's budget, the result is saved in the player's save",
     "Views and readouts: the editor's camera turns, zooms and pans with the mouse around the build, an X-ray cutaway to see interiors, bar readouts of stats summed from the parts (fuel and uptime, power and draw, life support, cargo filled), a hologram look (an outline and flicker shader); MCP"
    ],
-   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): each game's editor has to look like its own game, not like Beverly's or a cookie-cutter kit (user), so Beverly gives the behaviour and the creator gives the look. Gates of Heaven's ship editor sits over a holographic desk in the hangar: three physical buttons (Intel, Cargo, Modify Ship), the parts strip on the right, the readouts top right. Nodes come from Prism as a 0.25 m cube named Node (docs/prism-glb.md). Gates of Heaven builds only through holo desks (user, 2026-11-22): the ship from the hangar's desk or the one inside the ship, base tiles from the starter base's desk onto its hex rings (a starter hex with a ring of open slots, every new tile opening the same ring unless taken, connectors two tiles wide joined only at their ends); placing in the world (build-mode) can come later. Its parts list needs no mask. MCP: settings come free from their descriptions; its named actions are part of the feature.",
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): each game's editor has to look like its own game, not like Beverly's or a cookie-cutter kit (user), so Beverly gives the behaviour and the creator gives the look. Gates of Heaven's ship editor sits over a holographic desk in the hangar: three physical buttons (Intel, Cargo, Modify Ship), the parts strip on the right, the readouts top right. Nodes come from Prism as a 0.25 m cube named Node (docs/prism-glb.md). Gates of Heaven builds only through holo desks (user, 2026-11-22): the ship from the hangar's desk or the one inside the ship, base tiles from the starter base's desk onto its hex rings (a starter hex with a ring of open slots, every new tile opening the same ring unless taken, connectors two tiles wide joined only at their ends); placing in the world (build-mode) can come later. Its parts list needs no mask. MCP: settings come free from their descriptions; its named actions are part of the feature. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): the ship editor has a hotkeys window: hotkeys in a column, then what each can activate (several functions allowed), then toggle or press (toggle by default); these are the player's own bindings, saved with the ship.",
    "first_game": false,
    "stage": "Build and ride",
    "order": 184
@@ -3489,7 +3489,7 @@
     "Work orders for workers: harvest, build, repair, carry, copy themselves; a job queue and priorities",
     "Logistics: storage, carrying between harvest sites, the base and a build site, with progress shown as a readout"
    ],
-   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the robot swarm that builds the gate (exponential growth to a self-sustaining point) and the backup ships. build-mode says armies come much later; this game needs it earlier. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): enemy sides build bases with the same work orders as the player's robots. Plants make units, ammo, drones, robots and ship modules from a production queue paid in Resource Units. A move order on a single unit shows its range as a circle from the ship to the cursor, red when out of range. Robots carry to the nearest base or to the player's ship, and all stores count as one.",
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the robot swarm that builds the gate (exponential growth to a self-sustaining point) and the backup ships. build-mode says armies come much later; this game needs it earlier. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): enemy sides build bases with the same work orders as the player's robots. Plants make units, ammo, drones, robots and ship modules from a production queue paid in Resource Units. A move order on a single unit shows its range as a circle from the ship to the cursor, red when out of range. Robots carry to the nearest base or to the player's ship, and all stores count as one. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Homeworld-style move orders with height: a selected unit shows a grid on its plane and a line from the cursor's circle to it; Shift raises or lowers the target off the plane (the line splits into a triangle); an order-received mark and sound; orders given from a holographic map mode (Tab) that works on foot and while flying, in first or third person.",
    "stage": "Build and ride",
    "first_game": false,
    "order": 186
@@ -3602,7 +3602,7 @@
     "Currencies, shops and loot tables",
     "Crafting recipes and the crafting screen"
    ],
-   "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): two resources: Resource Units, mined by robots and spent on everything (ship parts, base tiles, production), and a gate resource only robots harvest and only the gate uses. Cargo containers of Resource Units are bought from the same budget.",
+   "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): two resources: Resource Units, mined by robots and spent on everything (ship parts, base tiles, production), and a gate resource only robots harvest and only the gate uses. Cargo containers of Resource Units are bought from the same budget. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Resource Units also convert into fuel and power; solar panels add power; base tiles draw power except connectors, and the starter base makes a little of its own; efficiency tiers may come later.",
    "order": 192,
    "first_game": false,
    "stage": "Story and flow"

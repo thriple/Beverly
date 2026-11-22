@@ -135,6 +135,10 @@ The same editor as the ship design step in the loop.
   - If a mission-critical part is missing, a pop-up says so.
 - **X-ray mode** shows the interior passages.
 - **The parts list** needs no mask in this game (Beverly's lists can be masked into other shapes).
+- **Hotkeys window:** the ship editor has its own window for the ship's hotkeys, in three columns.
+  1. The hotkeys, listed in a column.
+  2. Clicking one opens a second column with the things that hotkey can activate. A hotkey can have several functions if the player wants.
+  3. A third column chooses **toggle** or **press**, with toggle as the default.
 - **Systems readout:** bar graphs in the upper right corner. They show fuel and uptime, power and draw, how long life support lasts, and cargo space and how full it is. Some modules come in several versions, and some modules do the same thing with different specs, so the readout is how the player compares them.
 - **Cargo containers filled with Resource Units** come out of the same overall budget. The player has to fill them last, or they can't buy more ship parts unless a container is refunded.
 
@@ -176,6 +180,11 @@ The news anchor on the monitor in the hangar kitchen is an audio-only recording 
 - **Power:** weapons, turrets and special modules explicitly don't use power. Life support and shields do.
 - **Shields:** the ship needs shield modules, and they use power. 
 - **Shield projectors:** the bombardment and anti-radiation shield projectors carried as cargo have their own set damage bars, separate from power. They draw only a minimal basic level of power.
+- **Base tiles use power,** unless they are a simple connector or similar.
+- **The starter base makes its own small power,** so it can do processing by itself at a slow rate.
+- **Resource Units convert** to spaceship fuel and power, and are also the building material.
+- **Solar panels** can help or replace power plants, on bases and probably on the ship too.
+- **Later, maybe:** efficiency tiers for base tiles (1, 2, 3).
 - **No flow:** there is no physical fuel flow from a tank through pipes to an engine or power source. Each system simply draws from the totals of the ship's parts, as the readout shows.
 - **Space suit:** the player's suit holds **30 minutes of air** (may be tweaked). It should be comfortable enough that the player isn't in a hurry outside the ship, but not long enough to forget a life support module in the ship.
 
@@ -237,12 +246,48 @@ Each level sets a stake on cargo space, and the player decides what to bring bef
 
 ## Piloting
 
-- **Direct control:** the player flies the ship directly.
+- **Direct control:** the player flies the ship directly, in full 3D. The scheme is still to be decided; the owner is used to Starship EVO's, and the draft follows it.
 - **Cockpit view by default.** F4 toggles an optional third-person camera while flying.
+- **Steering:** with the mouse, with a deadzone near the centre. Q and E roll.
+- **Hotkeys:** the number keys and left and right click, all set in the hotkeys window. G is landing gear.
+- **Throttle:**
+  - Caps Lock toggles auto-forward.
+  - Shift throttles up and Ctrl throttles down.
+  - Z is maximum throttle and X is zero.
+- **Free look:** a middle-mouse click.
+
+### Instruments
+
+The owner models them; the screens and code are Beverly's.
+
+- A basic 3D compass as a faint overlay.
+- Fuel, power and shields.
+- **Active Loadout:** the weapons or special modules chosen by hotkeys.
+- **Ship damage screen:** each part of the ship in green, yellow or red.
+- Manual buttons for most of the functions.
+
+## Orders
+
+Homeworld-style move orders with height.
+
+- **A selected unit** puts a circle on the cursor, with a line pointing to the unit. A grid spreads out from the unit, showing its current plane in space.
+- **Moving the mouse** gives a simple 2D move order; a click places it on the current plane.
+- **Holding Shift** while moving the mouse splits the line into a triangle, with the small circle still on the cursor. It shows how far above or below the current plane the order will send the unit.
+- **Feedback:** a visual "order received" under the cursor, and a sound.
+- **Ordering while flying:** Tab brings up a holographic map mode, as Tab brings up a window in Starship EVO and in Beverly. It works in first person and while flying the ship, in first or third person.
+
+## Damage and repair
+
+- **Self-repair:** as in Last Ascent, the ship repairs itself automatically while it is under 50% health and there is a lull in damage. The player repairs the rest.
+- **The multi-tool:** the player gets it at the very start. It repairs, and it has a **grav beam** for moving modules and ship parts around by hand, or throwing them off into space.
+- **Loose parts:** parts not connected to the ship despawn only after the level is cleared.
+- **Collisions:** running into a part at high speed damages the shields, or the ship if the shields are down.
 
 ## Scale and bases
 
 Levels are at the scale of *Homeworld*: small. Planets can appear in the background, but play happens around very small moons, asteroids and similar bodies. Bases are built on those, and on crystal sheets where a level has them.
+
+- **Map boundary:** a sphere (owner, 2026-11-22), as Homeworld's play areas seem to be. Move orders and probe targets can't go past it, and the Intel map shows it.
 
 ## Crystal sheets
 
