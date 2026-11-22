@@ -149,6 +149,7 @@ The same editor as the ship design step in the loop.
   - Power
   - Thrust
   - Life Support
+  - Shields
   - Fuel
   - Structural
   - Weapons
@@ -163,7 +164,8 @@ The news anchor on the monitor in the hangar kitchen is an audio-only recording 
 ## Power, fuel and life support
 
 - **Fuel:** tanks hold fuel; thrusters and power sources use it.
-- **Power:** weapons, turrets and special modules explicitly don't use power. Life support does.
+- **Power:** weapons, turrets and special modules explicitly don't use power. Life support and shields do.
+- **Shields:** the ship needs shield modules, and they use power. (The bombardment and anti-radiation shield projectors carried as cargo are special modules, so they don't.)
 - **No flow:** there is no physical fuel flow from a tank through pipes to an engine or power source. Each system simply draws from the totals of the ship's parts, as the readout shows.
 - **Space suit:** the player's suit holds **30 minutes of air** (may be tweaked). It should be comfortable enough that the player isn't in a hurry outside the ship, but not long enough to forget a life support module in the ship.
 

@@ -2952,7 +2952,7 @@
    ],
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
-   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): death can send the player to a different level (a clone wakes in the previous one) while the wreck, its salvage and the world stay behind.",
+   "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): death can send the player to a different level (a clone wakes in the previous one) while the wreck, its salvage and the world stay behind. Gates of Heaven's ship has shield modules that draw power from the ship's totals (2026-11-22).",
    "order": 159,
    "first_game": true,
    "stage": "Challenge"
