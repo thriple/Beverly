@@ -128,6 +128,7 @@ The same editor as the ship design step in the loop.
   - **1:** toggles between node snap and surface attach;
   - **2:** translate;
   - **3:** rotate.
+- **Camera:** the ship editor and the base editor turn (rotate), zoom and pan with the mouse.
 - **Dragging:** a part can be dragged elsewhere on the ship, or out into the build space, which works as scratch space.
 - **Leaving the editor:**
   - Parts that are not connected are refunded, with no questions.
@@ -155,7 +156,15 @@ The same editor as the ship design step in the loop.
   - Weapons
   - Base
   - Robots
+  - Accessories (Module Rack, lights, batteries, landing pads, skids and legs, ladders, surface-mounted tanks, cargo bays that hold robots or other deployables in a protected area, and so on)
   - Modules (special items such as the winches and booster packs, and cargo containers of different sizes for Resource Units, to help jump-start base building)
+
+### Probe
+
+A special module, one-time use and probably small. Whether it takes up a robot slot is **open**.
+
+- It pathfinds its way out from the ship to about 50 metres, then fires its main thruster toward the point the player picks on the map.
+- It has no maximum range, so it uses no fuel and no power.
 
 ### The hangar monitor
 
@@ -165,7 +174,8 @@ The news anchor on the monitor in the hangar kitchen is an audio-only recording 
 
 - **Fuel:** tanks hold fuel; thrusters and power sources use it.
 - **Power:** weapons, turrets and special modules explicitly don't use power. Life support and shields do.
-- **Shields:** the ship needs shield modules, and they use power. (The bombardment and anti-radiation shield projectors carried as cargo are special modules, so they don't.)
+- **Shields:** the ship needs shield modules, and they use power. 
+- **Shield projectors:** the bombardment and anti-radiation shield projectors carried as cargo have their own set damage bars, separate from power. They draw only a minimal basic level of power.
 - **No flow:** there is no physical fuel flow from a tank through pipes to an engine or power source. Each system simply draws from the totals of the ship's parts, as the readout shows.
 - **Space suit:** the player's suit holds **30 minutes of air** (may be tweaked). It should be comfortable enough that the player isn't in a hurry outside the ship, but not long enough to forget a life support module in the ship.
 

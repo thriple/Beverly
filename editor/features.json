@@ -3068,7 +3068,7 @@
     "Block, parry and dodge windows",
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
-   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): placed area shields: a projector that shelters what is inside it, with a finite capacity (the bombardment shield) or against a hazard (the anti-radiation shield); base shield generators work the same way.",
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): placed area shields: a projector that shelters what is inside it, with a finite capacity (the bombardment shield) or against a hazard (the anti-radiation shield); base shield generators work the same way. Projectors have their own damage bars, separate from the power they draw (a minimal basic level).",
    "order": 165,
    "first_game": true,
    "stage": "Challenge"
@@ -3447,7 +3447,7 @@
     "The catalogue: assets marked as in-game parts (a part word on the model file, the project's own categories, a cost and stats such as power, draw, fuel and cargo), shown in a list the creator places on any surface or screen and shapes as they like: resize handles set its rows and columns, a slider beside it sets the thumbnail size, and pen-drawn masks hide parts of it for organic or slanted layouts; categories, a 3D preview that pops up and turns on hover, and a click that puts the part on the cursor",
     "Placing and changing at the editor: node snap (nodes face a way, so turning a part matters) or surface attach at the part's origin, translate and rotate as modes on keys the game names (1, 2, 3), the just-placed part stays selected, dragging along the build or out into scratch space; the creator's rules, not KSP's. Shares the placing code of Beverly's own Place tool",
     "Leaving and checking: unconnected parts are refunded, a required category (Mission Critical) missing asks first, costs come from the game's budget, the result is saved in the player's save",
-    "Views and readouts: an X-ray cutaway to see interiors, bar readouts of stats summed from the parts (fuel and uptime, power and draw, life support, cargo filled), a hologram look (an outline and flicker shader); MCP"
+    "Views and readouts: the editor's camera turns, zooms and pans with the mouse around the build, an X-ray cutaway to see interiors, bar readouts of stats summed from the parts (fuel and uptime, power and draw, life support, cargo filled), a hologram look (an outline and flicker shader); MCP"
    ],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): each game's editor has to look like its own game, not like Beverly's or a cookie-cutter kit (user), so Beverly gives the behaviour and the creator gives the look. Gates of Heaven's ship editor sits over a holographic desk in the hangar: three physical buttons (Intel, Cargo, Modify Ship), the parts strip on the right, the readouts top right. Nodes come from Prism as a 0.25 m cube named Node (docs/prism-glb.md). Gates of Heaven builds only through holo desks (user, 2026-11-22): the ship from the hangar's desk or the one inside the ship, base tiles from the starter base's desk onto its hex rings (a starter hex with a ring of open slots, every new tile opening the same ring unless taken, connectors two tiles wide joined only at their ends); placing in the world (build-mode) can come later. Its parts list needs no mask. MCP: settings come free from their descriptions; its named actions are part of the feature.",
    "first_game": false,
@@ -3688,7 +3688,7 @@
    ],
    "what": "An orbitable top-down and 3D map of a level from what the author marked as known, and a hand-plotted route of levels.",
    "chunks": [],
-   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Intel map shows major bodies always, hides small ones (behind larger ones, say), and shows authored resources and enemy bases only when marked as known; the route map is the levels in the order the author chose. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the galactic map is a 3D hologram above the station's desk and the Intel map a 2D projection above it, so the maps must draw in the world, not only full screen.",
+   "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Intel map shows major bodies always, hides small ones (behind larger ones, say), and shows authored resources and enemy bases only when marked as known; the route map is the levels in the order the author chose. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the galactic map is a 3D hologram above the station's desk and the Intel map a 2D projection above it, so the maps must draw in the world, not only full screen. Orders can be given on the map: pick a point and a unit goes there (Gates of Heaven's probe flies out about 50 m, then heads straight for the point picked, with no range limit).",
    "stage": "Story and flow",
    "first_game": false,
    "order": 196
