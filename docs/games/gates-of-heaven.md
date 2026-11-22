@@ -18,7 +18,8 @@ The **Pact** is humanity together with the alien civilisations that have joined 
 - **Historical records:** just **the Pact**, in records, timelines and plaques.
 - **Scale:** the coalition is 21 species. Against the rest of the galaxy that is very small, and the name does not claim otherwise.
 - **Presentation is visual first.** The Pact is not only humans. Its design choices, from ship hulls and hangar layout to signage, colour, typography and iconography, come from many species, so the look of the game carries the lore. Written text supports it.
-- **Where lore appears:** plaques, historical records, decorations, and dialogue. Lore is never delivered as a block of exposition on a loading or menu screen.
+- **Where lore appears:** plaques, historical records, decorations, and dialogue.
+- **Loading screens:** short lore fragments, one at a time, such as a record, a quote, a dispatch or a fact about a species. Each fragment is a line or two, never a block of exposition. Fragments are drawn from the same records as the plaques, so they add to the world rather than repeat it.
 
 ## Background timeline
 
