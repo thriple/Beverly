@@ -4,7 +4,7 @@ A game planned for Beverly once the editor is reasonably feature complete. This 
 
 ## Synopsis
 
-The game's universe is full of alien life. An impossibly advanced but misguided species fired a weapon into the Milky Way's black hole. The hole now throws out matter and radiation instead of consuming it. The wave of destruction should take thousands of years to cross the galaxy, but it is speeding up past light speed.
+The game's universe is full of alien life. An impossibly advanced but misguided species, the Hejich, fired a weapon into the Milky Way's black hole. The hole now throws out matter and radiation instead of consuming it. The wave of destruction should take thousands of years to cross the galaxy, but it is speeding up past light speed.
 
 The same civilisation built a gateway to evacuate its own people to another galaxy, having judged the Milky Way corrupted. Humans and their allies learn only that the gateway may work, and may be usable by them. Their plan is a chain of wormholes, each jump up to 1,000 light years, so that everyone along the route can evacuate too.
 
@@ -85,6 +85,7 @@ The Catapult is the Pact's launch vehicle, and it is also the station.
 - **Power:** its own wormhole shunt collects plasma from a star's surface, so each jump needs a recharge. The recharge timer matters most for 7B.
 - **Hangar:** the ship docks in a hangar inside the Catapult between jumps and during refit. After a successful gate opening, the Catapult comes through and the ship docks there again.
 - **Pilot memory:** the pilot's memory is streamed back through the shunt to the cloning pod in the previous system. This is flavour only, with no mechanics.
+- **Upgrade (last five levels):** the Catapult can be upgraded to carry more cargo and modules, to launch up to five backup ships, or both. Backup ships are AI-controlled and commanded like an RTS. They launch staggered about ten minutes apart.
 
 ## Station
 
@@ -225,8 +226,62 @@ Saves are `.bev` files, plain text, the same kind of file as the rest of a Bever
 
 Per-destination state is the largest part of a save, and it is what the 7B branch depends on. Only the core's location and its single instance are critical. Everything else can be rebuilt from the seed and the saved changes.
 
+## Ship modules
+
+### Booster packs (from about level 10)
+
+- Rocket engines that attach to the ship or to objects, such as derelicts.
+- Acceleration is continuous, and it builds the longer the boosters fire.
+- Limited fuel.
+- Introduced as a manoeuvring tool around level 10. In the finale they are used as weapons.
+
+## Finale
+
+The Hejich built the gate, and then used it to leave. The finale is in their gateway system.
+
+### The Hejich
+
+- An impossibly advanced species, and actively hostile. They want to wipe out life in the Milky Way while they escape.
+- They have chosen a dwarf galaxy with no life. By their beliefs it is pure, so they need not worry about other species.
+- The player learns this over the game, in fragments: records, dialogue and wreckage.
+
+### The gateway system
+
+- **The Guard:** the Hejich rear guard, a force too large to beat head-on. Their civilisation has already gone through, so the Guard holds the gate alone.
+- **Logistics ships and arrays:** huge ships and machinery, built and used over decades to ferry people to the gate. Targets, and places to hide.
+- **The Weapon:** the same weapon that fired into the black hole. It lies in this system, some distance from the gate, and finding it is part of the level.
+
+### Getting past the Guard
+
+The player must be sneaky. Each option below thins the Guard before the player engages.
+
+1. **Booster derelict:** mount booster packs on a derelict and accelerate it into the Guard. It destroys a swath of ships.
+2. **Weapon beam:** disconnect an energy shunt cable from the Weapon, hold it in a manipulator on the ship, and fire a beam of pure energy on a short tether. Recoil is strong and wild, so keeping the aim takes a lot of mouse correction. Boosters on the ship can steady it. The Guard notices the beam and homes in, but it takes a few minutes to reach the attacker, which gives time to thin them. A clever player can place turrets, shield projectors or other defences on the Weapon.
+3. **Auto-turret derelict:** a derelict with many auto-turrets, boosted into the Guard.
+4. **The core gamble (50/50):** the player is catapulted with a wormhole core, but is not told where it is. If the core is placed on the Weapon and the Weapon is shot to destruction, both explode. The blast destroys 60 to 90 percent of the Guard. The radius is large, and it kills whoever fires the shot, whether that is the player or a ship they command.
+
+### How the Guard responds
+
+- Detecting hostility sends a squad to investigate the vector of the attack.
+- If the squad finds the player's units, it relays their location.
+- The Guard then decides how many forces to send. Against a small group, the squad fights alone.
+- The Guard does not simply absorb damage.
+
+### The choice
+
+After the Guard is beaten, the player chooses:
+
+- Send the Weapon through the gate, with some robots, to destroy the dwarf galaxy's black hole as revenge.
+- Or do not.
+
+### Ending
+
+Either way, the MWP arrives, reorients the gate to target a different galaxy, and begins evacuating the known Milky Way.
+
 ## Open questions
 
-1. What does the galactic map look like, and what does the player see on it before a jump?
-2. Which special equipment is kept between destinations, and which is lost? (Depends on the loadout and the player's choice, so the rules for each item are still to be written.)
-3. What is the far end of the gate, and what is the gateway's own system like?
+1. **The one-core rule:** the core gamble gives the player a core that they are not told about. The rule is that only one core exists at a time. Is the hidden core the same one the player carries, or a second core? This needs to be settled.
+2. **Synopsis:** the synopsis still says the goal is the builders' home planet. The finale now ends with the gate reoriented toward a different galaxy. Does the player ever go through the gate?
+3. **The Guard's size:** does the Guard send a fixed force, or does it scale with how much damage it has taken?
+4. What does the galactic map look like, and what does the player see on it before a jump?
+5. Which special equipment is kept between destinations, and which is lost? The rules for each item are still to be written.
