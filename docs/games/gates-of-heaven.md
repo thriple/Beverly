@@ -43,7 +43,13 @@ Not shown to the player directly. It informs the world design.
 
 The Pact's plan depends on four things: the path can be forged, the gateway's owners agree, the gateway holds, and the wave does not consume the Pact first. Each jump takes the fleet closer to the gate, and therefore closer to the wave.
 
-**Open:** how the systems on the route are chosen, and what the gate's far end holds.
+The wave is there for story and urgency. It is not a timer, and the player is never timed.
+
+## Route and galactic map
+
+- **Hand-plotted:** the route is chosen by the designer. It is not procedural.
+- **Gates already open cannot be entered** by the player.
+- **Galactic map:** a map of the route, used to plot the next jump. It needs to be built as its own feature, and the level editor must be able to place each system on it.
 
 ## The loop
 
@@ -56,7 +62,7 @@ The Pact's plan depends on four things: the path can be forged, the gateway's ow
 7. Activate the gate. The fleet arrives, secures the system, and the catapult comes through.
 8. Repeat.
 
-**Failure branch (7B):** the ship is destroyed before the gate opens. The clone wakes in the previous system. Rebuild, relaunch, recover.
+**Failure branch (7B):** the ship is destroyed before the gate opens. The clone wakes in the previous system. Rebuild, relaunch, recover. There is no limit on repeated deaths. A difficulty setting that raises the cost may come later.
 
 ## Core rules
 
@@ -78,6 +84,7 @@ The Catapult is the Pact's launch vehicle, and it is also the station.
 - **Mass:** the Catapult has a maximum mass threshold for the ship. This is the launch limit, and it bounds the cargo the ship can carry.
 - **Power:** its own wormhole shunt collects plasma from a star's surface, so each jump needs a recharge. The recharge timer matters most for 7B.
 - **Hangar:** the ship docks in a hangar inside the Catapult between jumps and during refit. After a successful gate opening, the Catapult comes through and the ship docks there again.
+- **Pilot memory:** the pilot's memory is streamed back through the shunt to the cloning pod in the previous system. This is flavour only, with no mechanics.
 
 ## Station
 
@@ -85,24 +92,28 @@ The station is in the Catapult's hangar, where the ship docks. The player walks 
 
 ### Intel
 
-A map of the system, built from probe and telescope data, or from data the Pact has bought from friendly species.
+A map of the system, built from probe and telescope data, or from data the Pact has bought from friendly species. It is only Intel: it does not say where each piece of data came from.
 
 - **Top-down by default.** Orbit, pan and zoom to switch to a 3D view.
 - **Partial data.** The map does not show everything. Major bodies are always shown, since they cannot usually be hidden. Smaller bodies can be hidden behind larger ones on the far side of an orbit. That is a plot hook for a later level.
 - **Authoring dependency:** resources and known enemy base locations are placed by hand in the level editor. The Intel page cannot be built until the editor can place them.
-- **Open:** whether each piece of data shows its source (probe, telescope, purchased). Leaning yes, since it makes uncertainty visible.
 
 ### Cargo
 
 An inventory of the ship's holds.
 
-- Remove cargo, modules or weapons for no fee.
-- Add cargo, modules or weapons using units. Units are a logistics budget, not a private currency.
+- **Removing** cargo, modules or weapons refunds them in full, with no penalty.
+- **Adding** cargo, modules or weapons costs units from the logistics budget. Units are not a private currency, and nothing can be sold for profit. Cargo is only bought.
 - Cargo space is the constraint that forces the loadout decisions below.
 
 ### Modify Ship
 
 A button that opens the ship editor. This is the same editor as the ship design step in the loop.
+
+## Refit and restocking
+
+- **Ammo is automatic.** Any weapon with limited ammo is replenished automatically in the hangar.
+- **Weapon types:** most weapons are energy, plasma or missile.
 
 ## Loadout decisions
 
@@ -111,6 +122,16 @@ Each level sets a stake on cargo space, and the player decides what to bring bef
 - **Radiation level:** a large anti-radiation shield projector protects the ship. It takes cargo space, so the ship carries fewer robots.
 - **Enemy-fleet level:** a bombardment shield projector with a finite capacity, large enough to clear the arrival area once. The player fills the rest of the hold with gun drones or slow turret emplacements that clear the area while the ship is sheltered. One or two robots can then start harvesting.
 - **Crystal sheet level:** the reels and pins occupy cargo slots, and the sheets are the terrain. See below.
+- **Special equipment:** what carries between destinations depends on what is left on the ship after a level, and on what the player chooses to keep.
+
+## Piloting
+
+- **Direct control:** the player flies the ship directly.
+- **Cockpit view by default.** F4 toggles an optional third-person camera while flying.
+
+## Scale and bases
+
+Levels are at the scale of *Homeworld*: small. Planets can appear in the background, but play happens around very small moons, asteroids and similar bodies. Bases are built on those, and on crystal sheets where a level has them.
 
 ## Crystal sheets
 
@@ -206,13 +227,6 @@ Per-destination state is the largest part of a save, and it is what the 7B branc
 
 ## Open questions
 
-1. Does Intel show each datum's source?
-2. Does the player have any way to sell at Cargo, or only buy?
-3. How are the systems on the route chosen, and what is at the far end of the gate?
-4. Base placement rules: planet surface, asteroid, orbital station, or combinations?
-5. Which special equipment carries between destinations?
-6. How does the portable space station work (instant refill, choices, costs)? The station is now the Catapult's hangar, so this is about refit and restocking there.
-7. Repeat deaths: is there a limit, or an escalating cost?
-8. Does the player pilot the ship directly, or command from above?
-9. Does the galactic wave advance in real time, per jump, or per gate opened? It is the main pressure clock.
-10. Can the core carry a backup of the pilot's memory, through a micro-shunt or the gate? Direct wormhole throughput is higher than the Ansible's, so this may be a late-game or plot mechanic.
+1. What does the galactic map look like, and what does the player see on it before a jump?
+2. Which special equipment is kept between destinations, and which is lost? (Depends on the loadout and the player's choice, so the rules for each item are still to be written.)
+3. What is the far end of the gate, and what is the gateway's own system like?
