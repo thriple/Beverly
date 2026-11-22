@@ -1,0 +1,7 @@
+(
+    format: 1,
+    name: "Pen test",
+    levels: [
+        "main",
+    ],
+)

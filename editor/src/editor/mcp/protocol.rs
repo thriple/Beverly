@@ -287,13 +287,13 @@ pub fn tools() -> Value {
         {
             "name": "list_shapes",
             "title": "List the pen's curves",
-            "description": "Every curve drawn with the pen (P): its id, name, whether it is closed, its length in metres and its points. A point is its place in the world and its two handles as offsets from it (handle_out leads on toward the next point, handle_in back toward the one before; [0, 0, 0] makes a corner).",
+            "description": "Every curve drawn with the pen (P): its id, name, whether it is closed, its length in metres, its path's stretch and steepest ground, and its points. A point is its place in the world and its two handles as offsets from it (handle_out leads on toward the next point, handle_in back toward the one before; [0, 0, 0] makes a corner), its own stretch (null: as the path says) and its sag.",
             "inputSchema": none,
         },
         {
             "name": "draw_shape",
             "title": "Draw a curve with the pen",
-            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). A point can also say stretch: how the line leaving it treats what it meets: ground (default: lies on walkable surfaces, passing over props), over (follows any geometry), air (ignores geometry) or fall (leaves along its handle and drops until it hits a surface). closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. strip paints a material along the line, as the brush would, kept in step with the curve: {material, width (m), edge (0 soft to 1 hard), strength}; null takes it away. fill paints a material over the ground the curve encloses (an open curve is closed by a straight line), with a feathered edge, also kept in step with the curve and laid under a strip: {material, feather (m, how far in from the edge it fades), strength}; null takes it away. The fill goes on the walkable ground inside the outline, not on props standing on it. One undo step.",
+            "description": "Draw a curve as the pen does: points in the world (on surfaces; list_parts and get_part give where things are), each [x, y, z] for a corner or {at: [x, y, z], handle_in: [x, y, z], handle_out: [x, y, z]} with the handles as offsets from the point (a smooth point has them opposite). A point can also say stretch: how the line leaving it treats what it meets: ground (lies on walkable surfaces, passing over props), over (follows any geometry), air (ignores geometry) or fall (leaves along its handle and drops until it hits a surface); left out or null, it does as the path's stretch says (ground unless set). A point whose stretch is air can say sag: how far (m, up to 10) that stretch hangs down in its middle, like a rope. stretch on the curve itself sets the path's default, and steepest the steepest surface (degrees, default 60) that ground lines lie on and fills paint. closed: true joins the last point back to the first. Give shape (an id or name from list_shapes) to redraw that curve instead of making a new one, and delete: true to remove it. strip paints a material along the line, as the brush would, kept in step with the curve: {material, width (m), edge (0 soft to 1 hard), strength}; null takes it away. fill paints a material over the ground the curve encloses (an open curve is closed by a straight line), with a feathered edge, also kept in step with the curve and laid under a strip: {material, feather (m, how far in from the edge it fades), strength}; null takes it away. The fill goes on the walkable ground inside the outline, not on props standing on it. One undo step.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -303,10 +303,12 @@ pub fn tools() -> Value {
                     "name": {"type": "string", "description": "A new curve's name."},
                     "points": {"type": "array", "items": {"anyOf": [
                         {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
-                        {"type": "object", "properties": {"at": {"type": "array", "items": {"type": "number"}}, "handle_in": {"type": "array", "items": {"type": "number"}}, "handle_out": {"type": "array", "items": {"type": "number"}}, "stretch": {"type": "string", "enum": ["ground", "over", "air", "fall"]}}, "required": ["at"]},
+                        {"type": "object", "properties": {"at": {"type": "array", "items": {"type": "number"}}, "handle_in": {"type": "array", "items": {"type": "number"}}, "handle_out": {"type": "array", "items": {"type": "number"}}, "stretch": {"type": ["string", "null"], "enum": ["ground", "over", "air", "fall", null]}, "sag": {"type": "number"}}, "required": ["at"]},
                     ]}},
                     "closed": {"type": "boolean"},
                     "delete": {"type": "boolean"},
+                    "stretch": {"type": "string", "enum": ["ground", "over", "air", "fall"], "description": "How the path's lines go unless a point says otherwise."},
+                    "steepest": {"type": "number", "description": "The steepest surface (degrees) ground lines lie on and fills paint; default 60."},
                 },
             },
         },

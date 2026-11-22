@@ -87,6 +87,7 @@ doesn't break the owner's changes in Beverly.
 | `climbable`, `ladder`, `slippery`, `water`, `ground`, `diggable`, `grind rail`, `perch`, `paths ignore` | Beverly's surface tags. |
 | `stone`, `wood`, `metal`, `grass`, `dirt`, `sand`, `gravel`, `water`, `snow`, `carpet`, `glass`, `ice`, `rubber` | What it's made of: footstep sounds, weight, grip; later impact sounds, marks and effects. Usually on a material's Surface, but allowed as a role too. |
 | `door`, `button`, `lift`, `platform` | A door that turns 90 degrees around the node's own origin when used, an E button, a moving part. The group's axes (Group Axes) are the pivot. |
+| `node` | An attachment node for in-game editors: a small cube (0.25 m) named `Node` inside a part. Its centre and axes give the node's position and facing, so which way it points matters; the cube itself isn't drawn. A part with no node attaches at its origin. |
 | `light`, `socket`, `seat` | A light at the node's origin, coloured by its glowing material; an attachment point. |
 | `lod1`, `lod2`, `editor` | Simpler versions of the parent, and pieces shown only in the editor. |
 

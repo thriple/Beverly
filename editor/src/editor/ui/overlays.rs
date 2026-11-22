@@ -53,7 +53,8 @@ pub(super) fn stage_tag(ctx: &egui::Context, ed: &Editor, view: &View, cam: (&Ca
 }
 
 /// The pen's stretch button: a small pill by the selected point with how the line leaving it treats what it meets
-/// (Ground, Over everything, Air, Fall); a click goes on to the next.
+/// (Ground, Over everything, Air, Fall, or "· path" when it does as the path says); a click goes on to the next, and
+/// after Fall back to following the path.
 pub(super) fn stretch_button(ctx: &egui::Context, ed: &mut Editor, view: &View, cam: (&Camera, &GlobalTransform)) {
     if !ed.pen_on { return; }
     let (Some(id), Some(i)) = (ed.pen.curve, ed.pen.point) else { return };
@@ -62,7 +63,9 @@ pub(super) fn stretch_button(ctx: &egui::Context, ed: &mut Editor, view: &View, 
     // the last point of an open curve has no stretch yet, unless the next point is about to go on
     if i + 1 == c.points.len() && !c.closed && !ed.pen.drawing { return; }
     let Some(at) = view.to_screen(cam.0, cam.1, point.pos()) else { return };
-    let name = point.stretch.name();
+    let own = point.stretch;
+    let name = match own { Some(s) => s.name().to_string(), None => format!("{} · path", c.path.stretch.name()) };
+    let name = name.as_str();
     let w = 12.0 + text_w(ctx, name, theme::bold(12.0)) + 12.0;
     let v = view.rect;
     let pos = pos2((at.x + 16.0).clamp(v.min.x + 8.0, (v.max.x - w - 8.0).max(v.min.x)), (at.y - 38.0).clamp(v.min.y + 48.0, v.max.y - 60.0));
@@ -72,8 +75,8 @@ pub(super) fn stretch_button(ctx: &egui::Context, ed: &mut Editor, view: &View, 
         let fill = if resp.hovered() { highlight() } else { highlight().gamma_multiply(0.85) };
         ui.painter().rect_filled(r, CornerRadius::same(7), fill);
         ui.painter().text(r.center(), Align2::CENTER_CENTER, name, theme::bold(12.0), look().highlight_text);
-        let resp = resp.tip_keys("How the line leaving this point treats what it meets: Ground, Over everything, Air or Fall", &["Click"]);
-        if resp.clicked() { next = Some(point.stretch.next()); }
+        let resp = resp.tip_keys("How the line leaving this point treats what it meets: Ground, Over everything, Air or Fall, or as the path says", &["Click"]);
+        if resp.clicked() { next = Some(match own { None => Some(crate::curve::Stretch::Ground), Some(crate::curve::Stretch::Fall) => None, Some(s) => Some(s.next()) }); }
     });
     if let Some(s) = next {
         if let Some(p) = ed.level.curve_mut(id).and_then(|c| c.points.get_mut(i)) { p.stretch = s; }

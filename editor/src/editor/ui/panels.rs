@@ -359,8 +359,14 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
     if let Some(c) = &cur {
         let mut strip = c.strip.clone();
         let mut fill = c.fill.clone();
+        let mut path = c.path;
+        // the selected point's stretch, when it is in the air: how far it sags
+        let air = ed.pen.point.filter(|&i| i < c.segments() && c.stretch(i) == crate::curve::Stretch::Air);
+        let mut hang = crate::curve::Hang { sag: air.map_or(0.0, |i| c.points[i].sag) };
         let mut ranges = ed.level.ranges.clone();
         let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
+        column(ui, 0.0, crate::curve::PATH, |ui| { settings::section(ui, &mut path, crate::curve::PATH, &mut ctx); });
+        if air.is_some() { column(ui, 0.0, crate::curve::HANG, |ui| { settings::section(ui, &mut hang, crate::curve::HANG, &mut ctx); }); }
         column(ui, 0.0, crate::curve::STRIP, |ui| {
             let mut on = strip.is_some();
             let mut none = false;
@@ -389,6 +395,8 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
         if let Some(cm) = ed.level.curve_mut(c.id) {
             if strip != c.strip { cm.strip = strip; }
             if fill != c.fill { cm.fill = fill; }
+            if path != c.path { cm.path = path; }
+            if let Some(p) = air.and_then(|i| cm.points.get_mut(i)).filter(|p| p.sag != hang.sag) { p.sag = hang.sag; }
             if name != c.name && !name.is_empty() { cm.name = name; }
         }
     }

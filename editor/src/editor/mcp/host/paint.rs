@@ -92,9 +92,10 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                                 into: v3("handle_in")?.unwrap_or_default().to_array(),
                                 out: v3("handle_out")?.unwrap_or_default().to_array(),
                                 stretch: match p.get("stretch") {
-                                    None | Some(Value::Null) => crate::curve::Stretch::Ground,
-                                    Some(w) => crate::curve::Stretch::ALL.into_iter().find(|s| w.as_str().is_some_and(|w| stretch_word(*s) == w.to_lowercase())).ok_or_else(|| format!("point {i}: stretch is ground, over, air or fall"))?,
+                                    None | Some(Value::Null) => None,
+                                    Some(w) => Some(stretch_of(w).ok_or_else(|| format!("point {i}: stretch is ground, over, air or fall (or null: as the path says)"))?),
                                 },
+                                sag: match p.get("sag") { None | Some(Value::Null) => 0.0, Some(n) => (n.as_f64().ok_or_else(|| format!("point {i}: sag is metres"))? as f32).clamp(0.0, 10.0) },
                             },
                             None => return Err(format!("point {i} is [x, y, z] or {{at, handle_in, handle_out}}")),
                         });
@@ -104,6 +105,9 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                 }
             };
             let closed = args.get("closed").and_then(Value::as_bool);
+            // the path: how its lines go unless a point says otherwise, and the steepest ground
+            let lines = match args.get("stretch") { None | Some(Value::Null) => None, Some(w) => Some(stretch_of(w).ok_or("stretch is ground, over, air or fall")?) };
+            let steepest = match args.get("steepest") { None | Some(Value::Null) => None, Some(n) => Some((n.as_f64().ok_or("steepest is degrees")? as f32).clamp(0.0, 89.0)) };
             // a strip: {material, width, edge, strength}, or null to take it away
             let strip: Option<Option<crate::curve::Strip>> = match args.get("strip") {
                 None => None,
@@ -138,6 +142,8 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     if let Some(p) = points { c.points = p; }
                     if let Some(k) = closed { c.closed = k; }
                     if c.points.len() < 3 { c.closed = false; }
+                    if let Some(s) = lines { c.path.stretch = s; }
+                    if let Some(s) = steepest { c.path.slope = s; }
                     if let Some(st) = strip { c.strip = st; }
                     if let Some(f) = fill { c.fill = f; }
                     id
@@ -146,6 +152,8 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     let id = ed.level.add_curve(points.unwrap_or_default(), closed.unwrap_or(false));
                     let c = ed.level.curve_mut(id).expect("just added");
                     if c.points.len() < 3 { c.closed = false; }
+                    if let Some(s) = lines { c.path.stretch = s; }
+                    if let Some(s) = steepest { c.path.slope = s; }
                     if let Some(n) = args.get("name").and_then(Value::as_str).filter(|n| !n.is_empty()) { c.name = n.to_string(); }
                     if let Some(st) = strip { c.strip = st; }
                     if let Some(f) = fill { c.fill = f; }
@@ -160,4 +168,9 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
         }
         _ => unreachable!("routed in `call`"),
     }
+}
+
+/// A stretch from its word (ground, over, air, fall).
+fn stretch_of(w: &Value) -> Option<crate::curve::Stretch> {
+    crate::curve::Stretch::ALL.into_iter().find(|s| w.as_str().is_some_and(|w| stretch_word(*s) == w.to_lowercase()))
 }
