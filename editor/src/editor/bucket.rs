@@ -12,8 +12,21 @@ use bevy::reflect::std_traits::ReflectDefault;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
-/// The bucket's section in its panel.
+/// The bucket's section in its panel, and the one for Colour's tolerance (shown only for Colour).
 pub const BUCKET: &str = "BUCKET";
+pub const TOLERANCE: &str = "TOLERANCE";
+/// The layer's section: what of the brush's the bucket lays.
+pub const LAYER: &str = "LAYER";
+
+/// How much the bucket lays, and how: the brush's strength and Lays, as its panel shows them.
+#[derive(Clone, Copy, PartialEq, Debug, Default, Reflect)]
+#[reflect(Default)]
+pub struct Layer {
+    #[reflect(@Setting::feel("Strength", &["Faint", "Half", "Full"], 0.05, 1.0, "").section(LAYER).help("How much it covers (with Set: exactly how much); the brush's"))]
+    pub strength: f32,
+    #[reflect(@Setting::choice("Lays").section(LAYER).help("Add: over what is there  ·  Subtract: takes its own material away  ·  Set: exactly its strength; the brush's"))]
+    pub lays: crate::level::Lays,
+}
 
 /// How the bucket fills (it lays the brush's material, strength and Lays).
 #[derive(Clone, PartialEq, Debug, Reflect)]
@@ -21,7 +34,7 @@ pub const BUCKET: &str = "BUCKET";
 pub struct BucketTool {
     #[reflect(@Setting::choice("Fills").section(BUCKET).help("What else counts as the same as what you click: the same material, the same colour, the same surface tag, the part itself, or the walkable faces at that height"))]
     pub fills: Fills,
-    #[reflect(@Setting::feel("Tolerance", &["Exact", "Close", "Loose", "Any"], 0.0, 1.0, "").section(BUCKET).help("For Colour: how far a colour may be from the one clicked"))]
+    #[reflect(@Setting::feel("Tolerance", &["Exact", "Close", "Loose", "Any"], 0.0, 1.0, "").section(TOLERANCE).help("How far a colour may be from the one clicked"))]
     pub tolerance: f32,
     #[reflect(@Setting::toggle("Connected only").section(BUCKET).help("Only what touches the part clicked, part to part: it stops at gaps"))]
     pub connected: bool,

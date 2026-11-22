@@ -220,12 +220,15 @@ impl Part {
     }
 
     /// Whether two parts hold the same contents: what is inside the box (the shape or model, its colour, its
-    /// textures and how they lie, Visible, Collision, tags, Physics). The box itself (name, position, turn, size) is each part's
-    /// own, as an instance's placement is in SketchUp.
+    /// textures and how they lie, Visible, Collision, tags, Physics, strokes painted by hand). The box itself (name, position,
+    /// turn, size) is each part's own, as an instance's placement is in SketchUp, and so are the strokes a pen curve or
+    /// a bucket fill made on it (they come from where it stands).
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
-            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like && self.strokes == o.strokes
+            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like && self.own_strokes().eq(o.own_strokes())
     }
+    /// The strokes painted on it by hand (not made by a pen curve or a bucket fill).
+    pub fn own_strokes(&self) -> impl Iterator<Item = &Stroke> { self.strokes.iter().filter(|s| s.curve.is_none() && s.bucket.is_none()) }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
         self.shape = from.shape;
@@ -237,7 +240,9 @@ impl Part {
         self.tags = from.tags.clone();
         self.loose = from.loose.clone();
         self.sounds_like = from.sounds_like;
-        self.strokes = from.strokes.clone();
+        // its own made strokes stay; the ones painted by hand are the other's
+        let made: Vec<Stroke> = self.strokes.iter().filter(|s| s.curve.is_some() || s.bucket.is_some()).cloned().collect();
+        self.strokes = from.own_strokes().cloned().chain(made).collect();
     }
 }
 

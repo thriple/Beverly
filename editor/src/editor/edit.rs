@@ -354,7 +354,6 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
     ed.refresh_dirty();
     pen::strips(&mut ed);
-    bucket::fills(&mut ed);
     ed.commit();
 }
 
@@ -362,8 +361,9 @@ impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
     /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
-        // what was moved takes what is attached to it along, in the same step
+        // what was moved takes what is attached to it along, in the same step, and the bucket fills follow the change
         if self.level.parts.stamp() != self.followed { self.follow(); }
+        bucket::fills(self);
         // nothing was borrowed for change since the last look: nothing to compare
         let stamps = self.level.stamps();
         if stamps == self.checked && self.level.name == self.committed.name { return; }

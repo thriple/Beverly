@@ -1,0 +1,8 @@
+// What the bucket fills made, as the game draws them: sand over the floor clicked and the floor touching it (not the
+// one across the gap, nor the slab a storey up), moss on both blue squares (Colour) wherever they are, and moss over
+// the brick (Material: all of one box, only the brick face of the other).
+(
+    steps: [
+        (at: 0.5, shot: "filled", expect: [Feet((0, 0.1, 9), 0.2)]),
+    ],
+)

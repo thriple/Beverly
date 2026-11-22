@@ -490,7 +490,7 @@ pub(super) fn bucket_panel(ui: &mut Ui, ed: &mut Editor) {
     let tag_label = |t: Option<level::Tag>| t.map_or("The clicked part's".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
     column(ui, 0.0, crate::editor::bucket::BUCKET, |ui| {
         ui.horizontal(|ui| {
-            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Lays").color(TEXT_2)).tip("The material it fills with (the brush's)"); });
+            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Fills with").color(TEXT_2)).tip("The material it lays (the brush's)"); });
             let shown = if b.material.is_empty() { "No material".to_string() } else { name(&b.material) };
             egui::ComboBox::from_id_salt("bucket material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
                 for m in ed.level.materials.keys() { ui.selectable_value(&mut b.material, m.clone(), name(m)); }
@@ -499,6 +499,7 @@ pub(super) fn bucket_panel(ui: &mut Ui, ed: &mut Editor) {
         });
         ui.add_space(8.0);
         settings::section(ui, &mut t, crate::editor::bucket::BUCKET, &mut ctx);
+        if t.fills == level::Fills::Colour { settings::section(ui, &mut t, crate::editor::bucket::TOLERANCE, &mut ctx); }
         if t.fills == level::Fills::Tag {
             ui.horizontal(|ui| {
                 ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Tag").color(TEXT_2)).tip("The surface tag it fills: every part with it"); });
@@ -509,12 +510,13 @@ pub(super) fn bucket_panel(ui: &mut Ui, ed: &mut Editor) {
             });
         }
         ui.add_space(8.0);
-        settings::section(ui, &mut b, crate::editor::brush::BRUSH, &mut ctx);
+        let mut layer = crate::editor::bucket::Layer { strength: b.strength, lays: b.lays };
+        if settings::section(ui, &mut layer, crate::editor::bucket::LAYER, &mut ctx) { (b.strength, b.lays) = (layer.strength, layer.lays); }
     });
     // the fills in the level, newest last, each with its trash
     if !ed.level.buckets.is_empty() {
         let mut gone = None;
-        column(ui, 0.0, "FILLS", |ui| {
+        column(ui, 0.0, "IN THE LEVEL", |ui| {
             for f in ed.level.buckets.iter() {
                 let on = ed.level.get(f.part).map_or("a part that is gone".to_string(), |p| p.name.clone());
                 let what = if f.material.is_empty() { "Erased".to_string() } else { name(&f.material) };
