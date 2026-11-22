@@ -416,6 +416,18 @@ fn select_step(ed: &mut Editor, view: &View, ray: Option<Ray3d>, pointer: Option
         if let (Some(a), Some(b)) = (press.at.take(), pointer) {
             if a.distance(b) < 5.0 || view.mode == Mode::Builder {
                 let hit = ray.and_then(|r| ed.hit(r));
+                // a curve's line in front of what was clicked: it opens in the pen
+                let curve = ray.filter(|_| ed.tab == crate::editor::audio::LEVEL).and_then(|r| pen::curve_at(ed, view, r, hit.as_ref().map(|h| h.point.distance(r.origin))));
+                if let Some(id) = curve {
+                    ed.pen_on = true;
+                    ed.brush_on = false;
+                    ed.pen.reset();
+                    ed.pen.curve = Some(id);
+                    ed.selected = None;
+                    let name = ed.level.curve(id).map(|c| c.name.clone()).unwrap_or_default();
+                    ed.island.show("✎", format!("Editing {name}"), "Drag points and handles · click the line to add a point · Esc puts the pen away", theme::Tone::Accent);
+                    return;
+                }
                 ed.selected = hit.as_ref().and_then(|h| h.part);
                 ed.material_open = None;
                 ed.sound_open = None;

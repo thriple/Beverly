@@ -322,7 +322,7 @@ impl Level {
     pub fn add_curve(&mut self, points: Vec<crate::curve::PenPoint>, closed: bool) -> u64 {
         self.next_id += 1;
         let name = (1..).map(|n| format!("Curve {n}")).find(|n| !self.curves.iter().any(|c| &c.name == n)).expect("a free name");
-        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None });
+        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None, path: Default::default() });
         self.next_id
     }
     pub fn curve(&self, id: u64) -> Option<&crate::curve::Curve> { self.curves.iter().find(|c| c.id == id) }

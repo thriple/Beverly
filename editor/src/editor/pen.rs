@@ -58,15 +58,15 @@ const DROP: f32 = 2.0;
 const OVER: f32 = 1.5;
 
 /// Where a line's point `p` goes onto the surface it meets, given the last point laid (`from`): a Ground stretch takes
-/// the walkable surface just under `from` (a part's top face or anything tagged Ground or Water, not one tagged Paths
-/// ignore, invisible colliders never); Over everything takes anything visible within reach; Fall takes the first
+/// the walkable surface just under `from` (a face whose normal points up at least `up`, or anything tagged Ground or
+/// Water; not one tagged Paths ignore, invisible colliders never); Over everything takes anything visible within reach; Fall takes the first
 /// surface it reaches. No surface within reach: None, and the line goes on straight over the gap.
-fn surface(parts: &[Part], geo: &Geometry, p: Vec3, from: Vec3, s: Stretch) -> Option<Vec3> {
+fn surface(parts: &[Part], geo: &Geometry, p: Vec3, from: Vec3, s: Stretch, up: f32) -> Option<Vec3> {
     let mut y = match s { Stretch::Ground => from.y + STEP, Stretch::Over => from.y + OVER, _ => p.y + STEP };
     for _ in 0..4 {
         let ray = Ray3d::new(Vec3::new(p.x, y, p.z), Dir3::NEG_Y);
         let h = world::raycast(parts, geo, ray, None, |q| q.visible && (s != Stretch::Ground || !q.tags.contains(&Tag::PathsIgnore)))?;
-        let walkable = s != Stretch::Ground || h.normal.y >= 0.5 || h.part.and_then(|id| parts.iter().find(|q| q.id == id)).is_some_and(|q| q.tags.iter().any(|t| matches!(t, Tag::Ground | Tag::Water)));
+        let walkable = s != Stretch::Ground || h.normal.y >= up || h.part.and_then(|id| parts.iter().find(|q| q.id == id)).is_some_and(|q| q.tags.iter().any(|t| matches!(t, Tag::Ground | Tag::Water)));
         if walkable { return (s == Stretch::Fall || h.point.y >= from.y - DROP).then_some(h.point); }
         y = h.point.y - 0.01;
     }
@@ -89,9 +89,9 @@ fn world_stamp(ed: &Editor) -> u64 {
 
 fn curve_stamp(c: &Curve, world: u64) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    (world, c.closed).hash(&mut h);
+    (world, c.closed, c.path.stretch as u8, c.path.slope.to_bits()).hash(&mut h);
     for p in &c.points {
-        (p.stretch as u8).hash(&mut h);
+        (p.stretch.map(|s| s as u8), p.sag.to_bits()).hash(&mut h);
         for v in p.at.iter().chain(&p.into).chain(&p.out) { v.to_bits().hash(&mut h); }
     }
     h.finish()
@@ -107,7 +107,7 @@ pub fn lay(ed: &mut Editor) {
     for c in &level.curves {
         let now = curve_stamp(c, world);
         if pen.lines.get(&c.id).is_some_and(|(then, _)| *then == now) { continue; }
-        pen.lines.insert(c.id, (now, c.laid(|p, from, s| surface(&level.parts, geo, p, from, s))));
+        pen.lines.insert(c.id, (now, c.laid(|p, from, s| surface(&level.parts, geo, p, from, s, c.path.up()))));
     }
 }
 
@@ -134,7 +134,7 @@ pub fn strips(ed: &mut Editor) {
         pen.stripped.insert(c.id, now);
         // the fill goes on first, so a strip along the curve lies over it
         let mut made = vec![];
-        if let Some(f) = c.fill.as_ref().filter(|f| level.materials.contains_key(&f.material)) { made.extend(fill_strokes(c.id, f, line, &level.parts, geo)); }
+        if let Some(f) = c.fill.as_ref().filter(|f| level.materials.contains_key(&f.material)) { made.extend(fill_strokes(c.id, f, c.path, line, &level.parts, geo)); }
         if let Some(s) = c.strip.as_ref().filter(|s| level.materials.contains_key(&s.material)) { made.extend(strip_strokes(c.id, s, line, &level.parts, geo)); }
         // each part gets the new strokes where its old ones were (so what was painted over or under them stays so)
         for p in &mut level.parts {
@@ -160,11 +160,11 @@ fn inside(poly: &[Vec3], x: f32, z: f32) -> bool {
 }
 
 /// A fill's strokes: the curve's laid line as a closed outline, given to each part that has walkable ground inside it
-/// (a top face within a step of the line's height, as a Ground path counts it), so props standing on that ground, and
+/// (a face no steeper than the path's steepest ground, within a step of the line's height, as a Ground path counts it), so props standing on that ground, and
 /// anything tagged Paths ignore, are left out. The outline is kept in each part's own frame, like a brush stroke, so it
 /// holds when the part moves; the paint shader works out the inside.
 /// (part id, stroke)
-fn fill_strokes(curve: u64, fill: &curve::Fill, line: &[Vert], parts: &[Part], geo: &Geometry) -> Vec<(u64, crate::level::Stroke)> {
+fn fill_strokes(curve: u64, fill: &curve::Fill, path: curve::Path, line: &[Vert], parts: &[Part], geo: &Geometry) -> Vec<(u64, crate::level::Stroke)> {
     let mut poly: Vec<Vec3> = line.iter().map(|v| v.at).collect();
     poly.dedup_by(|a, b| a.distance_squared(*b) < 1e-6);
     if poly.len() > 1 && poly[0].distance_squared(poly[poly.len() - 1]) < 1e-6 { poly.pop(); }
@@ -194,13 +194,13 @@ fn fill_strokes(curve: u64, fill: &curve::Fill, line: &[Vert], parts: &[Part], g
         let ground = q.tags.iter().any(|t| matches!(t, Tag::Ground | Tag::Water));
         let has_ground = samples.iter().any(|s| {
             let ray = Ray3d::new(Vec3::new(s.x, s.y + STEP, s.z), Dir3::NEG_Y);
-            world::raycast(std::slice::from_ref(q), geo, ray, None, |_| true).is_some_and(|h| h.part == Some(q.id) && (h.normal.y >= 0.5 || ground) && h.point.y >= s.y - DROP)
+            world::raycast(std::slice::from_ref(q), geo, ray, None, |_| true).is_some_and(|h| h.part == Some(q.id) && (h.normal.y >= path.up() || ground) && h.point.y >= s.y - DROP)
         });
         if has_ground {
             out.push((q.id, crate::level::Stroke {
                 material: fill.material.clone(), size: fill.feather, hardness: 1.0, strength: fill.strength, points: poly.iter().map(|p| q.to_local(*p).to_array()).collect(), lays: crate::level::Lays::Add,
                 // only on what is walkable, not the sides of things
-                rules: crate::level::Rules { slope: 60.0, ..Default::default() }, curve: Some(curve), fill: true,
+                rules: crate::level::Rules { slope: path.slope, ..Default::default() }, curve: Some(curve), fill: true,
             }));
         }
     }
@@ -260,6 +260,16 @@ fn spot_at(c: &Curve, view: &View, ray: Ray3d) -> Option<Spot> {
         if p.into_handle() != Vec3::ZERO && near(p.pos() + p.into_handle()) { return Some(Spot::Into(i)); }
     }
     c.points.iter().position(|p| near(p.pos())).map(Spot::Point)
+}
+
+/// The curve whose line a click with the pen put away lands on, if it is nearer than the surface it would otherwise
+/// pick (`behind`, how far along the ray that surface is): it opens in the pen to edit.
+pub fn curve_at(ed: &Editor, view: &View, ray: Ray3d, behind: Option<f32>) -> Option<u64> {
+    ed.level.curves.iter().filter_map(|c| {
+        let (_, _, d, at) = curve::nearest(line(ed, c)?, ray)?;
+        let along = (at - ray.origin).dot(*ray.direction);
+        (d < reach(view, at) && behind.is_none_or(|b| along < b + 0.3)).then_some((c.id, along))
+    }).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(id, _)| id)
 }
 
 /// The pen's part of `edit::interact`. Returns whether it took the pointer (always, while the pen is out).
@@ -355,7 +365,7 @@ fn click(ed: &mut Editor, view: &View, ray: Option<Ray3d>, alt: bool) {
         (true, Some(id)) if ed.level.curve(id).is_some() => {
             let c = ed.level.curve_mut(id).expect("checked");
             // a new point goes on as the last one went
-            let stretch = c.points.last().map_or(Stretch::Ground, |p| p.stretch);
+            let stretch = c.points.last().and_then(|p| p.stretch);
             c.points.push(PenPoint { stretch, ..PenPoint::corner(at) });
             c.points.len() - 1
         }
@@ -512,7 +522,7 @@ mod tests {
         // a floor 0.1 thick (top at 0.1), a big box standing on it, and a line along the floor through the box
         let parts = vec![part(1, Shape::Plane, [0.0, 0.05, 0.0], [20.0, 0.1, 20.0]), part(2, Shape::Box, [0.0, 1.1, 0.0], [2.0, 2.0, 2.0])];
         let geo = Geometry::default();
-        let c = Curve { id: 9, name: "T".into(), points: vec![PenPoint::corner(Vec3::new(-6.0, 0.1, 0.0)), PenPoint::corner(Vec3::new(6.0, 0.1, 0.0))], closed: false, strip: None, fill: None };
+        let c = Curve { id: 9, name: "T".into(), points: vec![PenPoint::corner(Vec3::new(-6.0, 0.1, 0.0)), PenPoint::corner(Vec3::new(6.0, 0.1, 0.0))], closed: false, strip: None, fill: None, path: curve::Path::default() };
         let line = c.laid(|_, _, _| None);
         let strip = curve::Strip { material: "assets/materials/moss.bev".into(), size: 1.0, hardness: 0.5, strength: 1.0 };
         let made = strip_strokes(9, &strip, &line, &parts, &geo);
@@ -521,7 +531,7 @@ mod tests {
         assert!(made.iter().all(|(_, s)| s.curve == Some(9) && s.size == 1.0 && s.points.len() > 100));
         // a line in the air paints nothing
         let mut air = c.clone();
-        air.points[0].stretch = Stretch::Air;
+        air.points[0].stretch = Some(Stretch::Air);
         assert!(strip_strokes(9, &strip, &air.laid(|_, _, _| None), &parts, &geo).is_empty());
     }
 
@@ -535,9 +545,9 @@ mod tests {
         ];
         let geo = Geometry::default();
         let square = |s: f32| vec![PenPoint::corner(Vec3::new(-s, 0.1, -s)), PenPoint::corner(Vec3::new(s, 0.1, -s)), PenPoint::corner(Vec3::new(s, 0.1, s)), PenPoint::corner(Vec3::new(-s, 0.1, s))];
-        let c = Curve { id: 9, name: "F".into(), points: square(4.0), closed: true, strip: None, fill: None };
+        let c = Curve { id: 9, name: "F".into(), points: square(4.0), closed: true, strip: None, fill: None, path: curve::Path::default() };
         let fill = curve::Fill { material: "assets/materials/moss.bev".into(), feather: 0.5, strength: 1.0 };
-        let made = fill_strokes(9, &fill, &c.laid(|_, _, _| None), &parts, &geo);
+        let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo);
         // the floor (not the box standing on it: its top is higher than a step, and the line runs inside it; nor the far slab)
         assert_eq!(made.iter().map(|m| m.0).collect::<Vec<_>>(), vec![1]);
         let s = &made[0].1;
@@ -561,9 +571,9 @@ mod tests {
         let geo = Geometry::default();
         let (cx, cz) = (30.0, -12.0);
         let sq = [(-4.0, -4.0), (4.0, -4.0), (4.0, 4.0), (-4.0, 4.0)];
-        let c = Curve { id: 9, name: "F".into(), points: sq.iter().map(|(x, z)| PenPoint::corner(Vec3::new(cx + x, 0.1, cz + z))).collect(), closed: true, strip: None, fill: None };
+        let c = Curve { id: 9, name: "F".into(), points: sq.iter().map(|(x, z)| PenPoint::corner(Vec3::new(cx + x, 0.1, cz + z))).collect(), closed: true, strip: None, fill: None, path: curve::Path::default() };
         let fill = curve::Fill { material: "assets/materials/moss.bev".into(), feather: 0.5, strength: 1.0 };
-        let made = fill_strokes(9, &fill, &c.laid(|_, _, _| None), &parts, &geo);
+        let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo);
         assert_eq!(made.len(), 1);
         let pc = crate::paint::pieces(&Part { strokes: vec![made[0].1.clone()], ..floor.clone() });
         let at = |x: f32, z: f32| crate::paint::coverage(&pc, pc.len(), 0, floor.to_local(Vec3::new(x, 0.1, z)), 1.0, 0.1);

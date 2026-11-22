@@ -1,0 +1,8 @@
+// What the pen made, as the game draws it: a sand path that steps up onto the slab and passes over the steep ramp
+// (the path's steepest ground is 30 degrees), a moss fill inside a loop with a feathered edge, and a rope hung in
+// the air between the two posts (drawn only in the editor; the game shows the posts).
+(
+    steps: [
+        (at: 0.5, shot: "drawn", expect: [Feet((0, 0.1, 8), 0.2)]),
+    ],
+)

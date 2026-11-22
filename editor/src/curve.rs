@@ -1,6 +1,6 @@
 //! Pen curves: a curve is points with Bezier handles (what the pen tool draws, `editor/pen.rs`). It is kept as the
 //! points and handles only; the line through them is worked out when needed, so it stays editable and exact.
-use crate::settings::Setting;
+use crate::settings::{Label, Setting};
 use bevy::prelude::{Ray3d, Reflect, Vec3};
 use bevy::reflect::std_traits::ReflectDefault;
 use serde::{Deserialize, Serialize};
@@ -14,16 +14,36 @@ pub struct PenPoint {
     pub into: [f32; 3],
     #[serde(default, skip_serializing_if = "is_zero")]
     pub out: [f32; 3],
-    /// How the stretch leaving this point (toward the next) treats what it meets.
-    #[serde(default, skip_serializing_if = "is_ground")]
-    pub stretch: Stretch,
+    /// How the stretch leaving this point (toward the next) treats what it meets; None: as the path says
+    /// ([`Path::stretch`]).
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "own")]
+    pub stretch: Option<Stretch>,
+    /// How far (m) the stretch leaving this point hangs down in its middle when it is in the air (a rope).
+    #[serde(default, skip_serializing_if = "is_zero_f")]
+    pub sag: f32,
+}
+
+/// A point's own stretch is written bare (`stretch: Air`), as before paths had a default, and left out when it
+/// follows the path.
+mod own {
+    use super::Stretch;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    pub fn serialize<S: Serializer>(v: &Option<Stretch>, s: S) -> Result<S::Ok, S::Error> { v.expect("skipped when None").serialize(s) }
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Stretch>, D::Error> { Stretch::deserialize(d).map(Some) }
 }
 
 /// How a stretch of a curve treats what it meets. Ground lies on the walkable surfaces (ground, road, steps, a
 /// floor indoors) and passes over props; Over follows any geometry it meets; Air ignores geometry (a rope hangs
 /// in it); Fall leaves along its handle and drops until it hits a surface (a faucet's stream).
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum Stretch { #[default] Ground, Over, Air, Fall }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Stretch {
+    #[default]
+    Ground,
+    #[reflect(@Label("Over everything"))]
+    Over,
+    Air,
+    Fall,
+}
 
 impl Stretch {
     pub const ALL: [Stretch; 4] = [Stretch::Ground, Stretch::Over, Stretch::Air, Stretch::Fall];
@@ -33,7 +53,7 @@ impl Stretch {
     pub fn next(self) -> Stretch { Stretch::ALL[(Stretch::ALL.iter().position(|s| *s == self).unwrap_or(0) + 1) % 4] }
 }
 
-fn is_ground(s: &Stretch) -> bool { *s == Stretch::Ground }
+fn is_zero_f(v: &f32) -> bool { *v == 0.0 }
 
 fn is_zero(v: &[f32; 3]) -> bool { *v == [0.0; 3] }
 
@@ -45,6 +65,42 @@ impl PenPoint {
 }
 
 fn default<T: Default>() -> T { T::default() }
+
+/// The path's section in the pen's panel.
+pub const PATH: &str = "PATH";
+
+/// What holds for the whole path: how its stretches treat what they meet unless a point says otherwise, and the
+/// steepest surface that still counts as ground.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+pub struct Path {
+    #[reflect(@Setting::choice("Lines go").section(PATH).help("How the line treats what it meets, unless a point's own button says otherwise: Ground lies on walkable surfaces, Over everything follows any geometry, Air ignores it, Fall drops until it lands"))]
+    pub stretch: Stretch,
+    #[reflect(@Setting::feel("Steepest ground", &["Flat", "Gentle", "Steep", "Any"], 0.0, 89.0, "°").section(PATH).help("The steepest surface a Ground line lies on (and a fill paints); steeper ones are passed over"))]
+    pub slope: f32,
+}
+
+impl Default for Path {
+    fn default() -> Self { Path { stretch: Stretch::Ground, slope: 60.0 } }
+}
+
+impl Path {
+    /// The least a surface's normal points up and still counts as ground.
+    pub fn up(&self) -> f32 { self.slope.clamp(0.0, 89.0).to_radians().cos() }
+}
+
+fn is_default_path(p: &Path) -> bool { *p == Path::default() }
+
+/// The selected point's section in the pen's panel, for a stretch in the air.
+pub const HANG: &str = "IN THE AIR";
+
+/// A stretch in the air, as the panel shows it.
+#[derive(Clone, Copy, PartialEq, Debug, Default, Reflect)]
+#[reflect(Default)]
+pub struct Hang {
+    #[reflect(@Setting::feel("Sag", &["Taut", "Slack", "Loose"], 0.0, 10.0, "m").section(HANG).help("How far this stretch hangs down in its middle, like a rope or cable"))]
+    pub sag: f32,
+}
 
 /// The strip's section in the pen's panel.
 pub const STRIP: &str = "STRIP";
@@ -104,6 +160,9 @@ pub struct Curve {
     /// What it paints inside itself, if anything.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill: Option<Fill>,
+    /// What holds for the whole path.
+    #[serde(default, skip_serializing_if = "is_default_path")]
+    pub path: Path,
 }
 
 /// How many straight pieces a curved segment is drawn with.
@@ -115,6 +174,9 @@ impl Curve {
         let n = self.points.len();
         if n < 2 { 0 } else if self.closed { n } else { n - 1 }
     }
+
+    /// How the stretch leaving point `i` treats what it meets: its own, or the path's.
+    pub fn stretch(&self, i: usize) -> Stretch { self.points[i].stretch.unwrap_or(self.path.stretch) }
 
     /// Segment `i`'s Bezier: its two points and the two control points between them.
     pub fn bezier(&self, i: usize) -> [Vec3; 4] {
@@ -149,23 +211,25 @@ impl Curve {
     fn pieces(&self, i: usize) -> usize {
         let [a, b, c, d] = self.bezier(i);
         let min = if self.straight(i) { 1 } else { PIECES };
-        if self.points[i].stretch == Stretch::Air { return min; }
+        if self.stretch(i) == Stretch::Air { return if self.points[i].sag > 0.0 { PIECES } else { min }; }
         (((a.distance(b) + b.distance(c) + c.distance(d)) / 0.75).ceil() as usize).clamp(min, 64.max(min))
     }
 
     /// The line as it is seen: the curve with each stretch laid on what it meets. `lay(p, from, stretch)` says where
     /// the line's point `p` goes, given the last point laid (`from`): onto a surface, or None to leave it where it is
-    /// (gaps are bridged). A Fall stretch ends where it first reaches a surface.
+    /// (gaps are bridged). A Fall stretch ends where it first reaches a surface; an Air stretch hangs down by its sag
+    /// (most in the middle, as a rope does).
     pub fn laid(&self, mut lay: impl FnMut(Vec3, Vec3, Stretch) -> Option<Vec3>) -> Vec<Vert> {
         let mut v: Vec<Vert> = vec![];
         for i in 0..self.segments() {
             let b = self.bezier(i);
-            let stretch = self.points[i].stretch;
+            let stretch = self.stretch(i);
+            let sag = if stretch == Stretch::Air { self.points[i].sag } else { 0.0 };
             if i == 0 { v.push(Vert { at: b[0], stretch, seg: 0, t: 0.0 }); }
             let n = self.pieces(i);
             for k in 1..=n {
                 let t = k as f32 / n as f32;
-                let mut p = at(&b, t);
+                let mut p = at(&b, t) - Vec3::Y * (sag * 4.0 * t * (1.0 - t));
                 let mut landed = false;
                 if k < n && stretch != Stretch::Air {
                     let from = v.last().expect("a start").at;
@@ -194,7 +258,7 @@ impl Curve {
         let j = (i + 1) % self.points.len();
         self.points[i].out = (q0 - p0).to_array();
         self.points[j].into = (q2 - p3).to_array();
-        let new = PenPoint { at: s.to_array(), into: (r0 - s).to_array(), out: (r1 - s).to_array(), stretch: self.points[i].stretch };
+        let new = PenPoint { at: s.to_array(), into: (r0 - s).to_array(), out: (r1 - s).to_array(), stretch: self.points[i].stretch, sag: self.points[i].sag };
         // a segment from the last point back to the first goes on the end
         self.points.insert(i + 1, new);
         i + 1
@@ -253,7 +317,7 @@ mod tests {
     use bevy::prelude::Dir3;
 
     fn two() -> Curve {
-        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: Stretch::Ground }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: Stretch::Ground }], closed: false, strip: None, fill: None }
+        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: None, sag: 0.0 }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: None, sag: 0.0 }], closed: false, strip: None, fill: None, path: Path::default() }
     }
 
     #[test]
@@ -293,14 +357,14 @@ mod tests {
 
     #[test]
     fn a_closed_curve_has_one_more_segment_and_points_come_out() {
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None, path: Path::default() };
         assert_eq!(c.segments(), 3);
         assert_eq!(*c.sample().last().unwrap(), Vec3::ZERO);
         c.remove(2);
         assert!(!c.closed, "two points can't be a loop");
         assert_eq!(c.segments(), 1);
         // splitting the segment that closes the loop puts the new point at the end
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None, path: Path::default() };
         let i = c.split(2, 0.5);
         assert_eq!(i, 3);
         assert_eq!(c.points[3].pos(), Vec3::new(0.0, 0.0, 0.5));
@@ -322,8 +386,8 @@ mod tests {
     }
 
     fn flat(stretch: Stretch) -> Curve {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None, fill: None };
-        c.points[0].stretch = stretch;
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None, fill: None, path: Path::default() };
+        c.points[0].stretch = Some(stretch);
         c
     }
 
@@ -340,8 +404,8 @@ mod tests {
 
     #[test]
     fn a_fall_ends_where_it_lands() {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None, fill: None };
-        c.points[0].stretch = Stretch::Fall;
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None, fill: None, path: Path::default() };
+        c.points[0].stretch = Some(Stretch::Fall);
         // the floor is 1 m up: the line comes down to it and stops there, then rests on the second point
         let line = c.laid(|p, _, _| (p.y <= 1.0).then(|| Vec3::new(p.x, 1.0, p.z)));
         let land = line.iter().position(|v| v.at.y == 1.0).expect("lands");
@@ -350,10 +414,42 @@ mod tests {
     }
 
     #[test]
+    fn points_follow_the_path_unless_they_say_otherwise() {
+        let mut c = flat(Stretch::Ground);
+        c.points[0].stretch = None;
+        c.path.stretch = Stretch::Air;
+        let lay = |p: Vec3, _: Vec3, _: Stretch| Some(Vec3::new(p.x, 1.0, p.z));
+        assert!(c.laid(lay).iter().all(|v| v.at.y == 0.0 && v.stretch == Stretch::Air), "the path says Air");
+        c.points[0].stretch = Some(Stretch::Ground);
+        assert!(c.laid(lay).iter().any(|v| v.at.y == 1.0), "the point's own Ground wins");
+        // the file: a point's own stretch is written bare, one that follows the path not at all, and old files read
+        let text = ron::to_string(&c).unwrap();
+        assert!(text.contains("stretch:Ground") && text.contains("path:"), "{text}");
+        assert_eq!(ron::from_str::<Curve>(&text).unwrap(), c);
+        let old: Curve = ron::from_str("(id: 1, name: \"C\", points: [(at: (0, 0, 0), stretch: Over), (at: (1, 0, 0))])").unwrap();
+        assert_eq!((old.points[0].stretch, old.points[1].stretch, old.path), (Some(Stretch::Over), None, Path::default()));
+        assert!((Path::default().up() - 0.5).abs() < 1e-4, "60 degrees, as before");
+    }
+
+    #[test]
+    fn a_rope_in_the_air_sags_most_in_its_middle() {
+        let mut c = flat(Stretch::Air);
+        c.points[0].sag = 2.0;
+        let line = c.laid(|_, _, _| None);
+        assert_eq!(line.len(), PIECES + 1, "cut so it can hang");
+        let low = line.iter().map(|v| v.at.y).fold(f32::MAX, f32::min);
+        assert!((low + 2.0).abs() < 1e-4, "{low}");
+        assert!((line[PIECES / 2].at.y + 2.0).abs() < 1e-4 && line[0].at.y == 0.0 && line[PIECES].at.y == 0.0);
+        // a sag only shows in the air
+        c.points[0].stretch = Some(Stretch::Ground);
+        assert!(c.laid(|_, _, _| None).iter().all(|v| v.at.y == 0.0));
+    }
+
+    #[test]
     fn a_cut_keeps_the_stretch_and_stretches_go_round() {
         let mut c = flat(Stretch::Air);
         let i = c.split(0, 0.5);
-        assert_eq!(c.points[i].stretch, Stretch::Air);
+        assert_eq!(c.points[i].stretch, Some(Stretch::Air));
         assert_eq!(Stretch::Fall.next(), Stretch::Ground);
         assert_eq!(Stretch::Ground.next(), Stretch::Over);
     }
