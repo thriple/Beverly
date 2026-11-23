@@ -10,3 +10,11 @@ publish = false
 # pinned with Beverly's bevy (editor/Cargo.toml)
 bevy_asset = { version = "=0.20.1", default-features = false }
 bevy_mesh = { version = "=0.20.1", default-features = false }
+# the fork of Bevy's meshlet renderer (crates/bevy_pbr): MeshletMesh and its builder
+bevy_pbr = { version = "=0.20.1", default-features = false, features = ["meshlet_processor"] }
+# a bake outside an app needs Bevy's task pools
+bevy_tasks = { version = "=0.20.1" }
+
+# the same patch as editor/Cargo.toml, so this crate builds and tests on its own too
+[patch.crates-io]
+bevy_pbr = { path = "../bevy_pbr" }

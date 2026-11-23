@@ -60,6 +60,11 @@ tessera = ["bevy/meshlet", "bevy/meshlet_processor", "dep:tessera"]
 name = "vg-render"
 required-features = ["tessera"]
 
+# Tessera's bake check: bakes the test mesh and prints time and bytes
+[[bin]]
+name = "vg-bake"
+required-features = ["tessera"]
+
 # Tessera's instance benchmark: the meshlet systems' CPU time per frame with 10k / 100k copies
 [[bin]]
 name = "vg-bench"

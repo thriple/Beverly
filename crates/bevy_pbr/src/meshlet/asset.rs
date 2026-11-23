@@ -7,7 +7,6 @@ use bevy_asset::{
 use bevy_math::{Vec2, Vec3};
 use bevy_reflect::TypePath;
 use bevy_render::render_resource::ShaderType;
-use bevy_tasks::block_on;
 use bytemuck::{Pod, Zeroable};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use std::io::{Read, Write};
@@ -161,31 +160,10 @@ impl AssetSaver for MeshletMeshSaver {
         _settings: &(),
         _asset_path: AssetPath<'_>,
     ) -> Result<(), MeshletMeshSaveOrLoadError> {
-        // Write asset magic number
-        writer
-            .write_all(&MESHLET_MESH_ASSET_MAGIC.to_le_bytes())
-            .await?;
-
-        // Write asset version
-        writer
-            .write_all(&MESHLET_MESH_ASSET_VERSION.to_le_bytes())
-            .await?;
-
-        writer.write_all(bytemuck::bytes_of(&asset.aabb)).await?;
-        writer
-            .write_all(bytemuck::bytes_of(&asset.bvh_depth))
-            .await?;
-
-        // Compress and write asset data
-        let mut writer = FrameEncoder::new(AsyncWriteSyncAdapter(writer));
-        write_slice(&asset.vertex_positions, &mut writer)?;
-        write_slice(&asset.vertex_normals, &mut writer)?;
-        write_slice(&asset.vertex_uvs, &mut writer)?;
-        write_slice(&asset.indices, &mut writer)?;
-        write_slice(&asset.bvh, &mut writer)?;
-        write_slice(&asset.meshlets, &mut writer)?;
-        write_slice(&asset.meshlet_cull_data, &mut writer)?;
-        writer.finish()?;
+        // Tessera: the format is written by `MeshletMesh::write`, shared with the bake library
+        let mut bytes = Vec::new();
+        asset.write(&mut bytes)?;
+        writer.write_all(&bytes).await?;
 
         Ok(())
     }
@@ -206,46 +184,10 @@ impl AssetLoader for MeshletMeshLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<MeshletMesh, MeshletMeshSaveOrLoadError> {
-        // Load and check magic number
-        let magic = async_read_u64(reader).await?;
-        if magic != MESHLET_MESH_ASSET_MAGIC {
-            return Err(MeshletMeshSaveOrLoadError::WrongFileType);
-        }
-
-        // Load and check asset version
-        let version = async_read_u64(reader).await?;
-        if version != MESHLET_MESH_ASSET_VERSION {
-            return Err(MeshletMeshSaveOrLoadError::WrongVersion { found: version });
-        }
-
-        let mut bytes = [0u8; size_of::<MeshletAabb>()];
-        reader.read_exact(&mut bytes).await?;
-        let aabb = bytemuck::cast(bytes);
-        let mut bytes = [0u8; size_of::<u32>()];
-        reader.read_exact(&mut bytes).await?;
-        let bvh_depth = u32::from_le_bytes(bytes);
-
-        // Load and decompress asset data
-        let reader = &mut FrameDecoder::new(AsyncReadSyncAdapter(reader));
-        let vertex_positions = read_slice(reader)?;
-        let vertex_normals = read_slice(reader)?;
-        let vertex_uvs = read_slice(reader)?;
-        let indices = read_slice(reader)?;
-        let bvh = read_slice(reader)?;
-        let meshlets = read_slice(reader)?;
-        let meshlet_cull_data = read_slice(reader)?;
-
-        Ok(MeshletMesh {
-            vertex_positions,
-            vertex_normals,
-            vertex_uvs,
-            indices,
-            bvh,
-            meshlets,
-            meshlet_cull_data,
-            aabb,
-            bvh_depth,
-        })
+        // Tessera: the format is read by `MeshletMesh::read`, shared with the bake library
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+        MeshletMesh::read(&mut bytes.as_slice())
     }
 
     fn extensions(&self) -> &[&str] {
@@ -265,10 +207,57 @@ pub enum MeshletMeshSaveOrLoadError {
     Io(#[from] std::io::Error),
 }
 
-async fn async_read_u64(reader: &mut dyn Reader) -> Result<u64, std::io::Error> {
-    let mut bytes = [0u8; 8];
-    reader.read_exact(&mut bytes).await?;
-    Ok(u64::from_le_bytes(bytes))
+impl MeshletMesh {
+    /// Tessera: writes the `.meshlet_mesh` format (magic, version, AABB, BVH depth, then the lz4-compressed data),
+    /// as the asset saver does, for Beverly's bake cache.
+    pub fn write(&self, writer: &mut dyn Write) -> Result<(), MeshletMeshSaveOrLoadError> {
+        writer.write_all(&MESHLET_MESH_ASSET_MAGIC.to_le_bytes())?;
+        writer.write_all(&MESHLET_MESH_ASSET_VERSION.to_le_bytes())?;
+        writer.write_all(bytemuck::bytes_of(&self.aabb))?;
+        writer.write_all(bytemuck::bytes_of(&self.bvh_depth))?;
+
+        let mut writer = FrameEncoder::new(writer);
+        write_slice(&self.vertex_positions, &mut writer)?;
+        write_slice(&self.vertex_normals, &mut writer)?;
+        write_slice(&self.vertex_uvs, &mut writer)?;
+        write_slice(&self.indices, &mut writer)?;
+        write_slice(&self.bvh, &mut writer)?;
+        write_slice(&self.meshlets, &mut writer)?;
+        write_slice(&self.meshlet_cull_data, &mut writer)?;
+        writer.finish()?;
+        Ok(())
+    }
+
+    /// Tessera: reads the `.meshlet_mesh` format; a different magic number or version is an error.
+    pub fn read(reader: &mut dyn Read) -> Result<Self, MeshletMeshSaveOrLoadError> {
+        if read_u64(reader)? != MESHLET_MESH_ASSET_MAGIC {
+            return Err(MeshletMeshSaveOrLoadError::WrongFileType);
+        }
+        let version = read_u64(reader)?;
+        if version != MESHLET_MESH_ASSET_VERSION {
+            return Err(MeshletMeshSaveOrLoadError::WrongVersion { found: version });
+        }
+
+        let mut bytes = [0u8; size_of::<MeshletAabb>()];
+        reader.read_exact(&mut bytes)?;
+        let aabb = bytemuck::cast(bytes);
+        let mut bytes = [0u8; size_of::<u32>()];
+        reader.read_exact(&mut bytes)?;
+        let bvh_depth = u32::from_le_bytes(bytes);
+
+        let reader = &mut FrameDecoder::new(reader);
+        Ok(MeshletMesh {
+            vertex_positions: read_slice(reader)?,
+            vertex_normals: read_slice(reader)?,
+            vertex_uvs: read_slice(reader)?,
+            indices: read_slice(reader)?,
+            bvh: read_slice(reader)?,
+            meshlets: read_slice(reader)?,
+            meshlet_cull_data: read_slice(reader)?,
+            aabb,
+            bvh_depth,
+        })
+    }
 }
 
 fn read_u64(reader: &mut dyn Read) -> Result<u64, std::io::Error> {
@@ -294,26 +283,4 @@ fn read_slice<T: Pod>(reader: &mut dyn Read) -> Result<Arc<[T]>, std::io::Error>
     reader.read_exact(bytemuck::cast_slice_mut(slice))?;
 
     Ok(data)
-}
-
-// TODO: Use async for everything and get rid of this adapter
-struct AsyncWriteSyncAdapter<'a>(&'a mut Writer);
-
-impl Write for AsyncWriteSyncAdapter<'_> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        block_on(self.0.write(buf))
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        block_on(self.0.flush())
-    }
-}
-
-// TODO: Use async for everything and get rid of this adapter
-struct AsyncReadSyncAdapter<'a>(&'a mut dyn Reader);
-
-impl Read for AsyncReadSyncAdapter<'_> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        block_on(self.0.read(buf))
-    }
 }
