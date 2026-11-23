@@ -304,7 +304,7 @@ pub fn tools() -> Value {
                 "properties": {
                     "strip": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "width": {"type": "number"}, "edge": {"type": "number"}, "strength": {"type": "number"}}},
                     "fill": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "feather": {"type": "number"}, "strength": {"type": "number"}}},
-                    "scatter": {"type": ["object", "null"], "description": "Bits of debris (stumps, logs, boulders) along the line in a band, all over the ground the curve encloses, or through the space above its outline (a debris or asteroid field; the outline is the floor): {settings: {Where: Along, Inside or Volume, Spacing (m), Band (m), Size variation 0 to 1, Tilt (degrees), Sink 0 to 0.8, \"Volume height\" (m), Falloff 0 to 1 (thinning toward the edge), Spin and Drift (the fastest turn in degrees a second, and travel in metres a second, while playing), Seed}, items: [{name, shape: Box, Ramp, Stairs, Arch, Cylinder, Sphere or Plane, settings: {Size: [x, y, z], Colour: \"#6b4c33\", Share, \"On its side\": true}}]}. The items are ordinary parts, made again whenever the curve, the settings or the ground change, the same for one seed; with no items given it scatters stumps, logs and boulders. null takes the scatter away (and its items).", "properties": {"settings": {"type": "object"}, "items": {"type": "array", "items": {"type": "object"}}}},
+                    "scatter": {"type": ["object", "null"], "description": "Bits of debris (stumps, logs, boulders) along the line in a band, all over the ground the curve encloses, or through the space above its outline (a debris or asteroid field; the outline is the floor): {settings: {Where: Along, Inside or Volume, Spacing (m), Band (m), Size variation 0 to 1, Tilt (degrees), Sink 0 to 0.8, \"Volume height\" (m), Falloff 0 to 1 (thinning toward the edge), Spin and Drift (the fastest turn in degrees a second, and travel in metres a second, while playing), \"Keep clear\" (m from paths, other curves that lay a strip, and from water), Seed}, rules: {slope: steepest ground in degrees, band: [lowest, highest] heights or null, on: a surface tag or null}, items: [{name, shape: Box, Ramp, Stairs, Arch, Cylinder, Sphere or Plane, settings: {Size: [x, y, z], Colour: \"#6b4c33\", Share, \"On its side\": true}}]}. The items are ordinary parts, made again whenever the curve, the settings or the ground change, the same for one seed; with no items given it scatters stumps, logs and boulders. null takes the scatter away (and its items).", "properties": {"settings": {"type": "object"}, "items": {"type": "array", "items": {"type": "object"}}}},
                     "shape": {"type": ["integer", "string"], "description": "An existing curve's id or name, to redraw or delete."},
                     "name": {"type": "string", "description": "A new curve's name."},
                     "points": {"type": "array", "items": {"anyOf": [
@@ -316,6 +316,16 @@ pub fn tools() -> Value {
                     "stretch": {"type": "string", "enum": ["ground", "over", "air", "fall"], "description": "How the path's lines go unless a point says otherwise."},
                     "steepest": {"type": "number", "description": "The steepest surface (degrees) ground lines lie on and fills paint; default 60."},
                 },
+            },
+        },
+        {
+            "name": "turn_into_items",
+            "title": "Turn a scatter into items",
+            "description": "Make the items a curve's scatter placed into ordinary parts that stay where they are (move, change or delete them one by one); the curve stops scattering. One undo step. Returns how many.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"shape": {"type": ["integer", "string"], "description": "The curve's id or name (list_shapes shows them)."}},
+                "required": ["shape"],
             },
         },
         {
@@ -850,6 +860,7 @@ mod tests {
                 "paint_stroke",
                 "list_shapes",
                 "draw_shape",
+                "turn_into_items",
                 "bucket_fill",
                 "list_fills",
                 "get_sound",

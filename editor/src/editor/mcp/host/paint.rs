@@ -31,27 +31,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                 Some(o) => return Err(format!("lays is add, subtract or set, not {o}")),
             };
             if erase && lays != crate::level::Lays::Add { return Err("Erasing takes every material away; give lays only when painting".into()); }
-            let mut rules = b.rules;
-            if let Some(r) = args.get("rules") {
-                if let Some(v) = r.get("slope").and_then(Value::as_f64) { rules.slope = (v as f32).clamp(0.0, 90.0); }
-                match r.get("band") {
-                    Some(Value::Null) => rules.band = None,
-                    Some(v) => {
-                        let lh: Vec<f32> = v.as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect()).unwrap_or_default();
-                        let [lo, hi] = lh[..] else { return Err("band is [lowest, highest] in metres, or null".into()) };
-                        rules.band = Some([lo.min(hi), lo.max(hi)]);
-                    }
-                    None => {}
-                }
-                match r.get("on") {
-                    Some(Value::Null) => rules.on = None,
-                    Some(v) => {
-                        let want = v.as_str().unwrap_or_default().to_lowercase().replace([' ', '_'], "");
-                        rules.on = Some(crate::level::Tag::ALL.into_iter().find(|t| format!("{t:?}").to_lowercase() == want).ok_or_else(|| format!("No surface tag called {v} (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery, Ground, Paths ignore)"))?);
-                    }
-                    None => {}
-                }
-            }
+            let rules = match args.get("rules") { Some(r) => rules_from(r, b.rules)?, None => b.rules };
             if let Some(t) = rules.on {
                 if !ed.level.get(id).expect("found above").tags.contains(&t) { return Err(format!("{name} isn't tagged {t:?}, and the rules paint only on parts that are")); }
             }
@@ -147,13 +127,14 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     Some(Some(f))
                 }
             };
-            // a scatter: {settings: {Where, Spacing, Band, Size variation, Tilt, Sink, Volume height, Falloff, Spin, Drift, Seed}, items: [{name, shape, settings: {Size, Colour, Share, On its side}}]}, or null
+            // a scatter: {settings: {Where, Spacing, Band, Size variation, Tilt, Sink, Volume height, Falloff, Spin, Drift, Keep clear, Seed}, rules: {slope, band, on}, items: [{name, shape, settings: {Size, Colour, Share, On its side}}]}, or null
             let scatter: Option<Option<crate::curve::Scatter>> = match args.get("scatter") {
                 None => None,
                 Some(Value::Null) => Some(None),
                 Some(v) => {
                     let mut sc = existing.and_then(|id| ed.level.curve(id)).and_then(|c| c.scatter.clone()).unwrap_or_default();
                     if let Some(set) = v.get("settings") { settings::apply(&mut sc, set)?; }
+                    if let Some(r) = v.get("rules") { sc.rules = rules_from(r, sc.rules)?; }
                     if let Some(items) = v.get("items").and_then(Value::as_array) {
                         sc.items = items.iter().enumerate().map(|(k, i)| {
                             let mut it = crate::curve::Item { name: format!("Item {}", k + 1), ..Default::default() };
@@ -200,6 +181,15 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
             crate::editor::scatter::scatters(ed);
             ed.commit();
             Ok(describe_curve(ed.level.curve(id).expect("found")))
+        }
+        "turn_into_items" => {
+            editable(ed)?;
+            let v = args.get("shape").ok_or("Give the shape (curve id or name) whose scattered items to turn into parts")?;
+            let id = ed.level.curves.iter().find(|c| v.as_u64() == Some(c.id) || v.as_str() == Some(c.name.as_str())).map(|c| c.id).ok_or_else(|| format!("No curve {v} (list_shapes shows them)"))?;
+            let n = crate::editor::scatter::turn_into_items(ed, id);
+            if n == 0 && ed.level.curve(id).is_some_and(|c| c.scatter.is_none()) { return Err("That curve has no scatter".into()); }
+            ed.commit();
+            Ok(json!({"shape": id, "items": n}))
         }
         "list_fills" => Ok(Value::Array(ed.level.buckets.iter().map(|b| describe_fill(ed, b)).collect())),
         "bucket_fill" => {
@@ -273,4 +263,27 @@ fn describe_fill(ed: &Editor, b: &crate::level::Bucket) -> Value {
         "material": b.material, "strength": settings::num(b.strength), "lays": format!("{:?}", b.lays).to_lowercase(),
         "reaches": crate::bucket::reach(&ed.level, b).iter().map(|(id, f)| json!({"part": name(*id), "faces": f.len()})).collect::<Vec<_>>(),
     })
+}
+
+/// The rules a call gives ({slope, band: [lowest, highest] or null, on: a surface tag or null}) over the ones it starts from.
+fn rules_from(r: &Value, mut rules: crate::level::Rules) -> Result<crate::level::Rules, String> {
+    if let Some(v) = r.get("slope").and_then(Value::as_f64) { rules.slope = (v as f32).clamp(0.0, 90.0); }
+    match r.get("band") {
+        Some(Value::Null) => rules.band = None,
+        Some(v) => {
+            let lh: Vec<f32> = v.as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect()).unwrap_or_default();
+            let [lo, hi] = lh[..] else { return Err("band is [lowest, highest] in metres, or null".into()) };
+            rules.band = Some([lo.min(hi), lo.max(hi)]);
+        }
+        None => {}
+    }
+    match r.get("on") {
+        Some(Value::Null) => rules.on = None,
+        Some(v) => {
+            let want = v.as_str().unwrap_or_default().to_lowercase().replace([' ', '_'], "");
+            rules.on = Some(crate::level::Tag::ALL.into_iter().find(|t| format!("{t:?}").to_lowercase() == want).ok_or_else(|| format!("No surface tag called {v} (Climbable, Diggable, Water, Grind rail, Perch spot, Slippery, Ground, Paths ignore)"))?);
+        }
+        None => {}
+    }
+    Ok(rules)
 }

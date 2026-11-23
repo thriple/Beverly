@@ -216,8 +216,13 @@ pub struct Scatter {
     pub spin: f32,
     #[reflect(@Setting::feel("Drift", &["Still", "Slow", "Moving"], 0.0, 20.0, "m/s").section(SCATTER).help("The fastest any travels all the time while playing, each its own way"))]
     pub drift: f32,
+    #[reflect(@Setting::feel("Keep clear", &["Beside", "Clear", "Well clear"], 0.0, 20.0, "m").section(SCATTER).help("How far to keep from a path (another curve that lays a strip) and from water, on the ground"))]
+    pub clear: f32,
     #[reflect(@Setting::number("Seed", "", 1.0, 0.0, 99999.0).section(SCATTER).help("Another number: another random layout of the same things"))]
     pub seed: f32,
+    /// Where it may land: the steepest ground, between which heights, on which tagged parts (as the brush's rules).
+    #[reflect(ignore)]
+    pub rules: crate::level::Rules,
     #[reflect(ignore)]
     pub items: Vec<Item>,
 }
@@ -227,7 +232,7 @@ impl Default for Scatter {
         let item = |name: &str, shape, size: [f32; 3], colour: [f32; 3], weight: f32, on_side| Item { name: name.into(), shape, size, colour, weight, on_side };
         use crate::level::Shape;
         Scatter {
-            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, height: 6.0, falloff: 0.0, spin: 0.0, drift: 0.0, seed: 1.0,
+            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, height: 6.0, falloff: 0.0, spin: 0.0, drift: 0.0, clear: 0.0, rules: Default::default(), seed: 1.0,
             items: vec![
                 item("Stump", Shape::Cylinder, [0.7, 0.5, 0.7], [0.42, 0.3, 0.2], 1.0, false),
                 item("Log", Shape::Cylinder, [0.4, 2.0, 0.4], [0.38, 0.27, 0.18], 1.0, true),

@@ -3,10 +3,10 @@
 //! or the ground changes, and the same every time for one seed. Ids are reused in order, so a part keeps its id (and
 //! its selection) while the layout changes under it. The level file keeps only the curves and their settings (`grow`
 //! makes the items when a level opens, in the editor and in the game).
-use super::pen::{curve_stamp, inside, surface, world_stamp};
+use super::pen::{curve_stamp, inside, surface, surface_hit, world_stamp};
 use super::Editor;
 use crate::curve::{Curve, Place, Scatter, Stretch, Vert};
-use crate::level::{Level, Mover, Part};
+use crate::level::{Level, Mover, Part, Tag};
 use crate::world::Geometry;
 use bevy::prelude::*;
 use std::hash::{Hash, Hasher};
@@ -41,10 +41,39 @@ fn depth(poly: &[Vec3], x: f32, z: f32) -> f32 {
     }).fold(f32::MAX, f32::min)
 }
 
+/// How far a point is from a line, seen from above.
+fn off_line(line: &[Vec3], p: Vec3) -> f32 {
+    let q = Vec2::new(p.x, p.z);
+    line.windows(2).map(|w| {
+        let (a, b) = (Vec2::new(w[0].x, w[0].z), Vec2::new(w[1].x, w[1].z));
+        let ab = b - a;
+        q.distance(a + ab * ((q - a).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0))
+    }).fold(f32::MAX, f32::min)
+}
+
+/// How far a point is from the footprint of a part, seen from above (0 over it).
+fn off_part(part: &Part, at: Vec3) -> f32 {
+    let (l, h) = (part.to_local(at), Vec3::from(part.size) * 0.5);
+    Vec2::new((l.x.abs() - h.x).max(0.0), (l.z.abs() - h.z).max(0.0)).length()
+}
+
+/// The paths a scatter keeps clear of: the lines of the other curves that lay a strip (a path, a road, a stream).
+fn paths_of(level: &Level, c: &Curve, lines: impl Fn(&Curve) -> Option<Vec<Vec3>>) -> Vec<Vec<Vec3>> {
+    if c.scatter.as_ref().is_none_or(|s| s.clear <= 0.0) { return vec![]; }
+    level.curves.iter().filter(|o| o.id != c.id && o.strip.is_some()).filter_map(lines).collect()
+}
+
 /// The points the scatter puts items at: along the line in a band, over the ground inside it, or through the space above it.
-fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, rng: &mut Rng) -> Vec<Vec3> {
+fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, paths: &[Vec<Vec3>], rng: &mut Rng) -> Vec<Vec3> {
     let spacing = sc.spacing.max(0.1);
     let up = c.path.up();
+    // the ground at a spot, if the rules let an item land there: steep enough, high enough, on the right part, clear of paths and water
+    let land = |at: Vec3, from: Vec3| -> Option<Vec3> {
+        let h = surface_hit(parts, geo, at, from, Stretch::Ground, up)?;
+        let on = |t: Tag| h.part.and_then(|id| parts.iter().find(|q| q.id == id)).is_some_and(|q| q.tags.contains(&t));
+        let clear = sc.clear <= 0.0 || (paths.iter().all(|l| off_line(l, h.point) >= sc.clear) && parts.iter().filter(|q| q.tags.contains(&Tag::Water)).all(|q| off_part(q, h.point) >= sc.clear));
+        (sc.rules.on.is_none_or(on) && sc.rules.allows(h.normal.y, h.point.y) >= 0.5 && clear).then_some(h.point)
+    };
     let mut out = vec![];
     match sc.place {
         Place::Along => {
@@ -62,7 +91,7 @@ fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry,
                     next += spacing * rng.between(0.6, 1.4);
                     let at = p + side * rng.between(-0.5, 0.5) * sc.band;
                     if !on_ground { continue; }
-                    if let Some(g) = surface(parts, geo, at, p, Stretch::Ground, up) { out.push(g); }
+                    if let Some(g) = land(at, p) { out.push(g); }
                 }
                 walked += len;
             }
@@ -91,10 +120,10 @@ fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry,
                         let walls = depth(&poly, px, pz).min(if volume { py.min(high - py) } else { f32::MAX });
                         let kept = fade <= 0.0 || { let t = (walls / fade).clamp(0.0, 1.0); rng.next() < t * t * (3.0 - 2.0 * t) };
                         if kept && py < high && inside(&poly, px, pz) {
-                            if volume { out.push(Vec3::new(px, floor + py, pz)); }
+                            if volume { if sc.rules.allows(1.0, floor + py) >= 0.5 { out.push(Vec3::new(px, floor + py, pz)); } }
                             else {
                                 let near = poly.iter().min_by(|a, b| (a.x - px).hypot(a.z - pz).total_cmp(&(b.x - px).hypot(b.z - pz))).map_or(0.0, |p| p.y);
-                                if let Some(g) = surface(parts, geo, Vec3::new(px, near, pz), Vec3::new(px, near, pz), Stretch::Ground, up) { out.push(g); }
+                                if let Some(g) = land(Vec3::new(px, near, pz), Vec3::new(px, near, pz)) { out.push(g); }
                             }
                         }
                         y += step;
@@ -109,12 +138,12 @@ fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry,
 }
 
 /// The items of a scatter, one for each spot.
-fn made(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry) -> Vec<Made> {
+fn made(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, paths: &[Vec<Vec3>]) -> Vec<Made> {
     if sc.items.is_empty() { return vec![]; }
     let mut rng = Rng((sc.seed as u64).wrapping_mul(0x2545_F491_4F6C_DD1D) ^ c.id);
     let total: f32 = sc.items.iter().map(|i| i.weight.max(0.0)).sum();
     let mut out = vec![];
-    for (n, ground) in spots(c, sc, line, parts, geo, &mut rng).into_iter().enumerate() {
+    for (n, ground) in spots(c, sc, line, parts, geo, paths, &mut rng).into_iter().enumerate() {
         // which item, by share
         let mut pick = rng.next() * if total > 0.0 { total } else { sc.items.len() as f32 };
         let item = sc.items.iter().find(|i| { pick -= if total > 0.0 { i.weight.max(0.0) } else { 1.0 }; pick < 0.0 }).unwrap_or(&sc.items[0]);
@@ -161,9 +190,21 @@ pub fn grow(level: &mut Level, geo: &Geometry) {
     level.parts.retain(|p| p.scatter.is_none());
     for c in level.curves.clone().iter() {
         let Some(sc) = c.scatter.as_ref() else { continue };
+        let lay = |o: &Curve| Some(o.laid(|p, from, s| surface(&level.parts, geo, p, from, s, o.path.up())).iter().map(|v| v.at).collect::<Vec<_>>());
         let line = c.laid(|p, from, s| surface(&level.parts, geo, p, from, s, c.path.up()));
-        for m in made(c, sc, &line, &level.parts, geo) { level.add(part(&m, c.id)); }
+        for m in made(c, sc, &line, &level.parts, geo, &paths_of(level, c, lay)) { level.add(part(&m, c.id)); }
     }
+}
+
+/// Turn a curve's scattered items into ordinary parts: the curve stops scattering and they stay where they are, free to
+/// move, change or delete one by one. Returns how many.
+pub fn turn_into_items(ed: &mut Editor, curve: u64) -> usize {
+    let Some(c) = ed.level.curve_mut(curve) else { return 0 };
+    if c.scatter.take().is_none() { return 0; }
+    ed.pen.scattered.remove(&curve);
+    let mut n = 0;
+    for p in ed.level.parts.iter_mut().filter(|p| p.scatter == Some(curve)) { p.scatter = None; n += 1; }
+    n
 }
 
 /// Make each curve's scattered items again where the curve, its scatter or the ground changed, and take away those of
@@ -178,13 +219,16 @@ pub fn scatters(ed: &mut Editor) {
     for id in gone { level.remove_part(id); }
     for c in level.curves.clone().iter().filter(|c| c.scatter.is_some()) {
         let (Some(sc), Some((_, line))) = (c.scatter.as_ref(), pen.lines.get(&c.id)) else { continue };
+        let paths = paths_of(level, c, |o| pen.lines.get(&o.id).map(|(_, l)| l.iter().map(|v| v.at).collect()));
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        (curve_stamp(c, world), sc.place as u8, [sc.spacing, sc.band, sc.size_var, sc.tilt, sc.sink, sc.height, sc.falloff, sc.spin, sc.drift, sc.seed].map(f32::to_bits)).hash(&mut h);
+        (curve_stamp(c, world), sc.place as u8, [sc.spacing, sc.band, sc.size_var, sc.tilt, sc.sink, sc.height, sc.falloff, sc.spin, sc.drift, sc.clear, sc.seed].map(f32::to_bits)).hash(&mut h);
+        (sc.rules.slope.to_bits(), sc.rules.band.map(|b| b.map(f32::to_bits)), sc.rules.on.map(|t| t as u8)).hash(&mut h);
+        for l in &paths { for v in l { v.to_array().map(f32::to_bits).hash(&mut h); } }
         for i in &sc.items { (&i.name, i.shape as u8, i.size.map(f32::to_bits), i.colour.map(f32::to_bits), i.weight.to_bits(), i.on_side).hash(&mut h); }
         let now = h.finish();
         if pen.scattered.get(&c.id) == Some(&now) { continue; }
         pen.scattered.insert(c.id, now);
-        let want = made(c, sc, line, &level.parts, geo);
+        let want = made(c, sc, line, &level.parts, geo, &paths);
         let have: Vec<u64> = level.parts.iter().filter(|p| p.scatter == Some(c.id)).map(|p| p.id).collect();
         let same = have.len() == want.len() && have.iter().zip(&want).all(|(id, m)| level.get(*id).is_some_and(|p| matches(p, m)));
         if same { continue; }
@@ -226,14 +270,14 @@ mod tests {
         let c = curve(&[(-10.0, 0.0), (10.0, 0.0)], false, sc.clone());
         let line = c.laid(|_, _, _| None);
         let (parts, geo) = (floor(), Geometry::default());
-        let a = made(&c, &sc, &line, &parts, &geo);
+        let a = made(&c, &sc, &line, &parts, &geo, &[]);
         assert!(a.len() >= 8 && a.len() <= 14, "about one a spacing along 20 m: {}", a.len());
         assert!(a.iter().all(|m| m.pos.z.abs() <= 2.05 && m.pos.x.abs() <= 10.5), "inside the band");
         assert!(a.iter().all(|m| m.pos.y > 0.1 && m.pos.y < 1.5), "on the floor, not floating or buried: {:?}", a.iter().map(|m| m.pos.y).collect::<Vec<_>>());
-        let b = made(&c, &sc, &line, &parts, &geo);
+        let b = made(&c, &sc, &line, &parts, &geo, &[]);
         assert!(a.iter().zip(&b).all(|(x, y)| x.pos == y.pos && x.size == y.size && x.name == y.name), "the same every time");
         let other = Scatter { seed: 2.0, ..sc.clone() };
-        let d = made(&c, &other, &line, &parts, &geo);
+        let d = made(&c, &other, &line, &parts, &geo, &[]);
         assert!(a.iter().zip(&d).any(|(x, y)| x.pos != y.pos), "another seed, another layout");
     }
 
@@ -243,7 +287,7 @@ mod tests {
         sc.items[0].weight = 0.0;
         let c = curve(&[(-6.0, -6.0), (6.0, -6.0), (6.0, 6.0), (-6.0, 6.0)], true, sc.clone());
         let line = c.laid(|_, _, _| None);
-        let a = made(&c, &sc, &line, &floor(), &Geometry::default());
+        let a = made(&c, &sc, &line, &floor(), &Geometry::default(), &[]);
         assert!(a.len() >= 20 && a.len() <= 50, "about a 12 m square over 2 m: {}", a.len());
         assert!(a.iter().all(|m| m.pos.x.abs() <= 6.0 && m.pos.z.abs() <= 6.0));
         assert!(a.iter().all(|m| !m.name.starts_with("Stump")), "the stump has no share");
@@ -277,7 +321,7 @@ mod tests {
         let sc = Scatter { place: Place::Volume, spacing: 2.0, height: 8.0, spin: 30.0, drift: 2.0, ..Default::default() };
         let c = curve(&square, true, sc.clone());
         let line = c.laid(|_, _, _| None);
-        let a = made(&c, &sc, &line, &[], &Geometry::default());
+        let a = made(&c, &sc, &line, &[], &Geometry::default(), &[]);
         assert!(a.len() >= 200 && a.len() <= 400, "a 16 x 16 x 8 m space over 2 m cubes: {}", a.len());
         assert!(a.iter().all(|m| m.pos.x.abs() <= 8.0 && m.pos.z.abs() <= 8.0 && m.pos.y >= 0.1 && m.pos.y <= 8.1), "inside the space");
         assert!(a.iter().any(|m| m.pos.y > 6.0) && a.iter().any(|m| m.pos.y < 2.0), "all the way up");
@@ -286,11 +330,62 @@ mod tests {
         assert!(a.iter().all(|m| m.mover.as_ref().is_some_and(|v| v.spin.iter().all(|s| s.abs() <= 30.0) && v.drift.iter().all(|d| d.abs() <= 2.0))));
         // falloff takes the ones at the edge: the middle keeps its thickness
         let soft = Scatter { falloff: 1.0, ..sc.clone() };
-        let b = made(&c, &soft, &line, &[], &Geometry::default());
+        let b = made(&c, &soft, &line, &[], &Geometry::default(), &[]);
         let edge = |v: &[Made]| v.iter().filter(|m| m.pos.x.abs() > 6.0 || m.pos.z.abs() > 6.0 || m.pos.y > 6.0 || m.pos.y < 2.0).count() as f32 / v.len() as f32;
         assert!(b.len() < a.len() && edge(&b) < edge(&a) * 0.7, "thinner at the edge: {} of {} vs {} of {}", edge(&b), b.len(), edge(&a), a.len());
         // one that doesn't move has no mover, and the ground layouts are as before
         let still = Scatter { spin: 0.0, drift: 0.0, ..sc };
-        assert!(made(&c, &still, &line, &[], &Geometry::default()).iter().all(|m| m.mover.is_none()));
+        assert!(made(&c, &still, &line, &[], &Geometry::default(), &[]).iter().all(|m| m.mover.is_none()));
+    }
+
+    #[test]
+    fn rules_keep_items_off_steep_or_low_or_untagged_ground_and_clear_of_paths_and_water() {
+        let sc = Scatter { place: Place::Along, spacing: 1.0, band: 6.0, ..Default::default() };
+        let c = curve(&[(-10.0, 0.0), (10.0, 0.0)], false, sc.clone());
+        let line = c.laid(|_, _, _| None);
+        let (parts, geo) = (floor(), Geometry::default());
+        let count = |sc: &Scatter, parts: &[Part], paths: &[Vec<Vec3>]| made(&c, sc, &line, parts, &geo, paths).len();
+        let all = count(&sc, &parts, &[]);
+        assert!(all > 10);
+        // the height band: the floor's top is at 0.1 m
+        let high = Scatter { rules: crate::level::Rules { band: Some([5.0, 9.0]), ..Default::default() }, ..sc.clone() };
+        assert_eq!(count(&high, &parts, &[]), 0, "nothing that high");
+        let low = Scatter { rules: crate::level::Rules { band: Some([-1.0, 1.0]), ..Default::default() }, ..sc.clone() };
+        assert_eq!(count(&low, &parts, &[]), all, "all of it inside the band");
+        // only on a tagged part
+        let tagged = Scatter { rules: crate::level::Rules { on: Some(Tag::Diggable), ..Default::default() }, ..sc.clone() };
+        assert_eq!(count(&tagged, &parts, &[]), 0, "the floor isn't diggable");
+        let mut dig = parts.clone();
+        dig[0].tags.push(Tag::Diggable);
+        assert_eq!(count(&tagged, &dig, &[]), all, "now it is");
+        // keep clear of a path along the line itself, and of water
+        let clear = Scatter { clear: 2.0, ..sc.clone() };
+        let path = vec![vec![Vec3::new(-10.0, 0.1, 0.0), Vec3::new(10.0, 0.1, 0.0)]];
+        let off = made(&c, &clear, &line, &parts, &geo, &path);
+        assert!(!off.is_empty() && off.len() < all && off.iter().all(|m| m.pos.z.abs() >= 2.0 - 1e-3), "none within 2 m of the path: {:?}", off.iter().map(|m| m.pos.z).fold(9.0f32, |a, b| a.min(b.abs())));
+        let mut wet = parts.clone();
+        let mut pond = Part::placed(Shape::Box, None, "Pond".into(), [5.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0], [4.0, 0.1, 4.0]);
+        pond.id = 2;
+        pond.tags.push(Tag::Water);
+        wet.push(pond);
+        let near_pond = made(&c, &clear, &line, &wet, &geo, &[]);
+        assert!(!near_pond.is_empty() && near_pond.iter().all(|m| (m.pos.x - 5.0).abs() >= 2.0 || m.pos.z.abs() >= 2.0 + 2.0 - 1e-3 || { let (dx, dz) = ((m.pos.x - 5.0).abs() - 2.0, m.pos.z.abs() - 2.0); dx.max(0.0).hypot(dz.max(0.0)) >= 2.0 - 1e-3 }));
+    }
+
+    #[test]
+    fn turning_a_scatter_into_items_leaves_ordinary_parts_and_no_scatter() {
+        let mut ed = Editor::at(std::env::temp_dir());
+        ed.level.parts = floor().into();
+        let id = ed.level.add_curve(vec![PenPoint::corner(Vec3::new(-10.0, 0.1, 0.0)), PenPoint::corner(Vec3::new(10.0, 0.1, 0.0))], false);
+        ed.level.curve_mut(id).unwrap().scatter = Some(Scatter { spacing: 2.0, ..Default::default() });
+        super::super::pen::lay(&mut ed);
+        scatters(&mut ed);
+        let made = ed.level.parts.iter().filter(|p| p.scatter == Some(id)).count();
+        assert!(made >= 8, "{made}");
+        assert_eq!(turn_into_items(&mut ed, id), made);
+        assert!(ed.level.curve(id).unwrap().scatter.is_none() && ed.level.parts.iter().all(|p| p.scatter.is_none()));
+        scatters(&mut ed);
+        assert_eq!(ed.level.parts.len(), made + 1, "they stay, and nothing is made again");
+        assert_eq!(turn_into_items(&mut ed, id), 0);
     }
 }

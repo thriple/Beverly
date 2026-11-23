@@ -64,12 +64,17 @@ const OVER: f32 = 1.5;
 /// Water; not one tagged Paths ignore, invisible colliders never); Over everything takes anything visible within reach; Fall takes the first
 /// surface it reaches. No surface within reach: None, and the line goes on straight over the gap.
 pub(super) fn surface(parts: &[Part], geo: &Geometry, p: Vec3, from: Vec3, s: Stretch, up: f32) -> Option<Vec3> {
+    surface_hit(parts, geo, p, from, s, up).map(|h| h.point)
+}
+
+/// As `surface`, with what was hit (its normal and part).
+pub(super) fn surface_hit(parts: &[Part], geo: &Geometry, p: Vec3, from: Vec3, s: Stretch, up: f32) -> Option<world::Hit> {
     let mut y = match s { Stretch::Ground => from.y + STEP, Stretch::Over => from.y + OVER, _ => p.y + STEP };
     for _ in 0..4 {
         let ray = Ray3d::new(Vec3::new(p.x, y, p.z), Dir3::NEG_Y);
         let h = world::raycast(parts, geo, ray, None, |q| q.visible && q.scatter.is_none() && (s != Stretch::Ground || !q.tags.contains(&Tag::PathsIgnore)))?;
         let walkable = s != Stretch::Ground || h.normal.y >= up || h.part.and_then(|id| parts.iter().find(|q| q.id == id)).is_some_and(|q| q.tags.iter().any(|t| matches!(t, Tag::Ground | Tag::Water)));
-        if walkable { return (s == Stretch::Fall || h.point.y >= from.y - DROP).then_some(h.point); }
+        if walkable { return (s == Stretch::Fall || h.point.y >= from.y - DROP).then_some(h); }
         y = h.point.y - 0.01;
     }
     None

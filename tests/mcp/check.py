@@ -165,6 +165,19 @@ check("a volume fills the space with parts", n >= 8, n)
 tool("run_action", id="edit.undo")
 check("one undo takes the field away", tool("get_project")["parts"] == before and tool("get_project")["undo_steps"] == steps, tool("get_project"))
 
+# rules and Turn into items: a height band keeps items off, and turning them into items leaves ordinary parts
+before = tool("get_project")["parts"]
+steps = tool("get_project")["undo_steps"]
+tool("draw_shape", name="Rubble", points=[[-6, 0.1, 6], [6, 0.1, 6]], scatter={"settings": {"Spacing": 1.5, "Band": 2}, "rules": {"band": [50, 60]}})
+check("a height band that is nowhere near keeps every item off", tool("get_project")["parts"] == before)
+r = tool("draw_shape", shape="Rubble", scatter={"rules": {"band": None, "slope": 45}})
+n = tool("get_project")["parts"] - before
+check("without the band they land again, and the rules are described", n >= 5 and r["scatter"]["rules"]["slope"] == 45 and r["scatter"]["rules"]["band"] is None, (n, r["scatter"]))
+t = tool("turn_into_items", shape="Rubble")
+check("turning them into items keeps the parts and the curve scatters no more", t["items"] == n and tool("get_project")["parts"] - before == n and next(c for c in tool("list_shapes") if c["name"] == "Rubble").get("scatter") is None, t)
+for _ in range(3): tool("run_action", id="edit.undo")
+check("undo takes it all back", tool("get_project")["parts"] == before, tool("get_project"))
+
 # foliage: the carpet, a new species, and a Mix (plants over a ground)
 f = tool("get_foliage")
 check("get_foliage lists the carpet, the species and the Mixes", {"settings", "species", "mixes"} <= set(f) and len(f["species"]) >= 17, f)

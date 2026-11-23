@@ -1,6 +1,6 @@
 // Debris made by three pen curves: the default stumps, logs and boulders in a band along a bending path, rocks and sticks (a
 // log-like cylinder on its side) over the ground inside a closed outline, and a field of slowly spinning, drifting asteroids
-// filling the space above another outline, thinning at its edge. The level file keeps only the curves; the items are made
+// filling the space above another outline, thinning at its edge. The clearing keeps 1.5 m clear of its pond (a Water part). The level file keeps only the curves; the items are made
 // when it opens (the editor and the player both make them from the same seeds).
 (
     steps: [

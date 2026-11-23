@@ -24,6 +24,18 @@
             visible: true,
             collision: Solid,
         ),
+        (
+            id: 41,
+            name: "Pond",
+            shape: Box,
+            pos: (0.0, 0.1, -11.5),
+            rot: (0.0, 0.0, 0.0, 1.0),
+            size: (3.0, 0.1, 3.0),
+            color: (0.25, 0.45, 0.7),
+            visible: true,
+            collision: Solid,
+            tags: [Water],
+        ),
     ],
     next_id: 45,
     curves: [
@@ -101,6 +113,7 @@
             scatter: Some((
                 place: Inside,
                 spacing: 2.5,
+                clear: 1.5,
                 band: 4.0,
                 size_var: 0.4,
                 tilt: 10.0,

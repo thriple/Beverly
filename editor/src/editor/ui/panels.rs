@@ -362,6 +362,7 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
         let mut strip = c.strip.clone();
         let mut fill = c.fill.clone();
         let mut scatter = c.scatter.clone();
+        let mut turn = false;
         let mut path = c.path;
         // the selected point's stretch, when it is in the air: how far it sags
         let air = ed.pen.point.filter(|&i| i < c.segments() && c.stretch(i) == crate::curve::Stretch::Air);
@@ -420,8 +421,13 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
                 }
                 if let Some(k) = gone { sc.items.remove(k); }
                 if ui.button("+ Add item").tip("Another kind of thing to pick from").clicked() { sc.items.push(crate::curve::Item { name: format!("Item {}", sc.items.len() + 1), ..Default::default() }); }
+                if ui.button("Turn into items").tip("Makes them ordinary parts that stay where they are, for nudging or deleting one by one; the curve stops scattering").clicked() { turn = true; }
             }
         });
+        if let Some(sc) = scatter.as_mut() {
+            let y = c.points.first().map_or(0.0, |p| p.at[1]);
+            column(ui, 0.0, level::RULES, |ui| rules_body(ui, &mut sc.rules, "scatter only on", y, "Scatters", &mut ctx));
+        }
         if ctx.ranges_changed { ed.level.ranges = ranges; }
         if let Some(cm) = ed.level.curve_mut(c.id) {
             if scatter != c.scatter { cm.scatter = scatter; }
@@ -430,6 +436,10 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
             if path != c.path { cm.path = path; }
             if let Some(p) = air.and_then(|i| cm.points.get_mut(i)).filter(|p| p.sag != hang.sag) { p.sag = hang.sag; }
             if name != c.name && !name.is_empty() { cm.name = name; }
+        }
+        if turn {
+            let n = crate::editor::scatter::turn_into_items(ed, c.id);
+            ed.island.show("◇", format!("{n} items"), "They are ordinary parts now; the curve stops scattering", theme::Tone::Accent);
         }
     }
     column(ui, 0.0, "SHORTCUTS", |ui| {
@@ -442,6 +452,32 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
         theme::hint(ui, "Put it away", &["Esc"]);
     });
     if theme::main_button(ui, "Done").clicked() { ed.pen_on = false; ed.pen.reset(); }
+}
+
+/// A rules section (the brush's and a scatter's): the steepest slope, between which heights, on which tagged parts. `does`
+/// is what the thing does ("Paints", "Scatters"); `y` is where the heights start.
+fn rules_body(ui: &mut Ui, rules: &mut level::Rules, salt: &str, y: f32, does: &str, ctx: &mut settings::Ctx) {
+    settings::section(ui, rules, level::RULES, ctx);
+    ui.add_space(8.0);
+    // only between two heights in the world
+    let mut band = rules.band.is_some();
+    let mut none = false;
+    if settings::toggle_row(ui, "", "Only between heights", &mut band, &format!("{does} only between two heights in the world, wherever the part goes"), false, &mut none) {
+        rules.band = band.then(|| [y - 1.0, y + 1.0]);
+    }
+    if let Some([lo, hi]) = rules.band.as_mut() {
+        settings::row(ui, "", "From", "The lowest it goes (metres)", false, &mut none, |ui| settings::number(ui, lo, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
+        settings::row(ui, "", "To", "The highest it goes (metres)", false, &mut none, |ui| settings::number(ui, hi, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
+    }
+    // only on parts with a surface tag
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Only on").color(TEXT_2)).tip(format!("{does} only parts with this surface tag (their Tags, in Advanced)")); });
+        let label = |t: Option<level::Tag>| t.map_or("Any surface".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
+        egui::ComboBox::from_id_salt(salt).selected_text(label(rules.on)).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(&mut rules.on, None, label(None));
+            for t in level::Tag::ALL { ui.selectable_value(&mut rules.on, Some(t), label(Some(t))); }
+        });
+    });
 }
 
 /// The brush's panel (in Inspect while the brush is out): what it paints and how.
@@ -493,27 +529,8 @@ pub(super) fn brush_body(ui: &mut Ui, ed: &mut Editor) {
         });
     }
     column(ui, 0.0, level::RULES, |ui| {
-        settings::section(ui, &mut b.rules, level::RULES, &mut ctx);
-        ui.add_space(8.0);
-        // only between two heights in the world
-        let mut band = b.rules.band.is_some();
-        let mut none = false;
-        if settings::toggle_row(ui, "", "Only between heights", &mut band, "Paints only between two heights in the world, wherever the part goes", false, &mut none) {
-            b.rules.band = band.then(|| { let y = ed.painting.over.map_or(0.0, |o| o.1.y); [y - 1.0, y + 1.0] });
-        }
-        if let Some([lo, hi]) = b.rules.band.as_mut() {
-            settings::row(ui, "", "From", "The lowest it paints (metres)", false, &mut none, |ui| settings::number(ui, lo, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
-            settings::row(ui, "", "To", "The highest it paints (metres)", false, &mut none, |ui| settings::number(ui, hi, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
-        }
-        // only on parts with a surface tag
-        ui.horizontal(|ui| {
-            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Only on").color(TEXT_2)).tip("Paints only parts with this surface tag (their Tags, in Advanced)"); });
-            let label = |t: Option<level::Tag>| t.map_or("Any surface".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
-            egui::ComboBox::from_id_salt("brush only on").selected_text(label(b.rules.on)).width(ui.available_width()).show_ui(ui, |ui| {
-                ui.selectable_value(&mut b.rules.on, None, label(None));
-                for t in level::Tag::ALL { ui.selectable_value(&mut b.rules.on, Some(t), label(Some(t))); }
-            });
-        });
+        let y = ed.painting.over.map_or(0.0, |o| o.1.y);
+        rules_body(ui, &mut b.rules, "brush only on", y, "Paints", &mut ctx);
     });
     column(ui, 0.0, "SHORTCUTS", |ui| {
         theme::hint(ui, "Presets S to XL", &["1", "2", "3", "4"]);
