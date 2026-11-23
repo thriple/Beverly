@@ -147,7 +147,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     Some(Some(f))
                 }
             };
-            // a scatter: {settings: {Where, Spacing, Band, Size variation, Tilt, Sink, Seed}, items: [{name, shape, settings: {Size, Colour, Share, On its side}}]}, or null
+            // a scatter: {settings: {Where, Spacing, Band, Size variation, Tilt, Sink, Volume height, Falloff, Spin, Drift, Seed}, items: [{name, shape, settings: {Size, Colour, Share, On its side}}]}, or null
             let scatter: Option<Option<crate::curve::Scatter>> = match args.get("scatter") {
                 None => None,
                 Some(Value::Null) => Some(None),

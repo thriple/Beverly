@@ -184,6 +184,9 @@ pub enum Place {
     /// Over the ground the curve encloses (an open curve is closed by a straight line).
     #[reflect(@Label("Inside"))]
     Inside,
+    /// Through the space above the outline (a debris or asteroid field), which is its floor.
+    #[reflect(@Label("Volume"))]
+    Volume,
 }
 
 /// Bits of debris placed along or inside a curve, picked at random from a set of items: stumps, logs, boulders. The
@@ -191,8 +194,9 @@ pub enum Place {
 /// same way every time for one seed.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
 #[reflect(Default)]
+#[serde(default)]
 pub struct Scatter {
-    #[reflect(@Setting::choice("Where").section(SCATTER).help("In a band along the line, or all over the ground it encloses"))]
+    #[reflect(@Setting::choice("Where").section(SCATTER).help("In a band along the line, over the ground it encloses, or through the space above it"))]
     pub place: Place,
     #[reflect(@Setting::feel("Spacing", &["Packed", "Close", "Spread", "Sparse"], 0.3, 30.0, "m").log().section(SCATTER).help("About how far apart they are"))]
     pub spacing: f32,
@@ -204,6 +208,14 @@ pub struct Scatter {
     pub tilt: f32,
     #[reflect(@Setting::feel("Sink", &["Sitting", "Half in", "Buried"], 0.0, 0.8, "").section(SCATTER).help("How far into the ground each sits, as a share of its height"))]
     pub sink: f32,
+    #[reflect(@Setting::feel("Volume height", &["Low", "Tall", "Towering"], 0.5, 500.0, "m").log().section(SCATTER).help("Volume: how high the space above the outline reaches"))]
+    pub height: f32,
+    #[reflect(@Setting::feel("Falloff", &["Even", "Thinning", "Fading"], 0.0, 1.0, "").section(SCATTER).help("Inside and Volume: how far in from the edge they thin out, so the field has no hard edge"))]
+    pub falloff: f32,
+    #[reflect(@Setting::feel("Spin", &["Still", "Slow", "Turning"], 0.0, 180.0, "°/s").section(SCATTER).help("The fastest any turns all the time while playing, each its own way (slowly spinning debris)"))]
+    pub spin: f32,
+    #[reflect(@Setting::feel("Drift", &["Still", "Slow", "Moving"], 0.0, 20.0, "m/s").section(SCATTER).help("The fastest any travels all the time while playing, each its own way"))]
+    pub drift: f32,
     #[reflect(@Setting::number("Seed", "", 1.0, 0.0, 99999.0).section(SCATTER).help("Another number: another random layout of the same things"))]
     pub seed: f32,
     #[reflect(ignore)]
@@ -215,7 +227,7 @@ impl Default for Scatter {
         let item = |name: &str, shape, size: [f32; 3], colour: [f32; 3], weight: f32, on_side| Item { name: name.into(), shape, size, colour, weight, on_side };
         use crate::level::Shape;
         Scatter {
-            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, seed: 1.0,
+            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, height: 6.0, falloff: 0.0, spin: 0.0, drift: 0.0, seed: 1.0,
             items: vec![
                 item("Stump", Shape::Cylinder, [0.7, 0.5, 0.7], [0.42, 0.3, 0.2], 1.0, false),
                 item("Log", Shape::Cylinder, [0.4, 2.0, 0.4], [0.38, 0.27, 0.18], 1.0, true),

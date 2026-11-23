@@ -1,6 +1,7 @@
-// Debris scattered by two pen curves: the default stumps, logs and boulders in a band along a bending path, and rocks and
-// sticks (a log-like cylinder on its side) over the ground inside a closed outline. The items are ordinary parts in the
-// level once it opens (the file keeps only the curves, and the editor and the player both make them from the same seeds).
+// Debris made by three pen curves: the default stumps, logs and boulders in a band along a bending path, rocks and sticks (a
+// log-like cylinder on its side) over the ground inside a closed outline, and a field of slowly spinning, drifting asteroids
+// filling the space above another outline, thinning at its edge. The level file keeps only the curves; the items are made
+// when it opens (the editor and the player both make them from the same seeds).
 (
     steps: [
         (at: 1.0, shot: "scatter", expect: [Feet((0, 0.1, 12), 0.2)]),

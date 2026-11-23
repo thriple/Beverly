@@ -6,7 +6,7 @@
 use super::pen::{curve_stamp, inside, surface, world_stamp};
 use super::Editor;
 use crate::curve::{Curve, Place, Scatter, Stretch, Vert};
-use crate::level::{Level, Part};
+use crate::level::{Level, Mover, Part};
 use crate::world::Geometry;
 use bevy::prelude::*;
 use std::hash::{Hash, Hasher};
@@ -29,9 +29,19 @@ impl Rng {
 }
 
 /// What one item looks like: the part it is.
-struct Made { name: String, shape: crate::level::Shape, pos: Vec3, rot: Quat, size: Vec3, colour: [f32; 3] }
+struct Made { name: String, shape: crate::level::Shape, pos: Vec3, rot: Quat, size: Vec3, colour: [f32; 3], mover: Option<Mover> }
 
-/// The ground points the scatter puts items on: along the line in a band, or over the ground inside it.
+/// How far a point is inside a polygon's outline, seen from above (the nearest edge).
+fn depth(poly: &[Vec3], x: f32, z: f32) -> f32 {
+    let p = Vec2::new(x, z);
+    (0..poly.len()).map(|i| {
+        let (a, b) = (Vec2::new(poly[i].x, poly[i].z), Vec2::new(poly[(i + 1) % poly.len()].x, poly[(i + 1) % poly.len()].z));
+        let ab = b - a;
+        p.distance(a + ab * ((p - a).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0))
+    }).fold(f32::MAX, f32::min)
+}
+
+/// The points the scatter puts items at: along the line in a band, over the ground inside it, or through the space above it.
 fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, rng: &mut Rng) -> Vec<Vec3> {
     let spacing = sc.spacing.max(0.1);
     let up = c.path.up();
@@ -57,22 +67,37 @@ fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry,
                 walked += len;
             }
         }
-        Place::Inside => {
+        Place::Inside | Place::Volume => {
             let mut poly: Vec<Vec3> = line.iter().map(|v| v.at).collect();
             poly.dedup_by(|a, b| a.distance_squared(*b) < 1e-6);
             if poly.len() > 1 && poly[0].distance_squared(poly[poly.len() - 1]) < 1e-6 { poly.pop(); }
             if poly.len() < 3 { return out; }
             let (lo, hi) = poly.iter().fold((Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)), |(lo, hi), p| (lo.min(Vec2::new(p.x, p.z)), hi.max(Vec2::new(p.x, p.z))));
-            // a jittered grid; wider apart when the area would hold too many
-            let step = spacing.max(((hi.x - lo.x) * (hi.y - lo.y) / MOST as f32).sqrt());
+            let volume = sc.place == Place::Volume;
+            let (floor, high) = (poly.iter().map(|p| p.y).fold(f32::MAX, f32::min), sc.height.max(0.5));
+            // a jittered grid (of cubes in a volume); wider apart when the space would hold too many
+            let space = (hi.x - lo.x) * (hi.y - lo.y) * if volume { high } else { 1.0 };
+            let step = spacing.max((space / MOST as f32).powf(if volume { 1.0 / 3.0 } else { 0.5 }));
+            // thinning toward the edge: it takes this far in to be as thick as the middle
+            let fade = sc.falloff.clamp(0.0, 1.0) * 0.5 * (hi.x - lo.x).min(hi.y - lo.y).min(if volume { high } else { f32::MAX });
             let mut z = lo.y;
             while z < hi.y {
                 let mut x = lo.x;
                 while x < hi.x {
-                    let (px, pz) = (x + rng.between(0.0, step), z + rng.between(0.0, step));
-                    if inside(&poly, px, pz) {
-                        let near = poly.iter().min_by(|a, b| (a.x - px).hypot(a.z - pz).total_cmp(&(b.x - px).hypot(b.z - pz))).map_or(0.0, |p| p.y);
-                        if let Some(g) = surface(parts, geo, Vec3::new(px, near, pz), Vec3::new(px, near, pz), Stretch::Ground, up) { out.push(g); }
+                    let mut y = 0.0;
+                    while y < if volume { high } else { 1e-3 } {
+                        let (px, pz) = (x + rng.between(0.0, step), z + rng.between(0.0, step));
+                        let py = y + if volume { rng.between(0.0, step) } else { 0.0 };
+                        let walls = depth(&poly, px, pz).min(if volume { py.min(high - py) } else { f32::MAX });
+                        let kept = fade <= 0.0 || { let t = (walls / fade).clamp(0.0, 1.0); rng.next() < t * t * (3.0 - 2.0 * t) };
+                        if kept && py < high && inside(&poly, px, pz) {
+                            if volume { out.push(Vec3::new(px, floor + py, pz)); }
+                            else {
+                                let near = poly.iter().min_by(|a, b| (a.x - px).hypot(a.z - pz).total_cmp(&(b.x - px).hypot(b.z - pz))).map_or(0.0, |p| p.y);
+                                if let Some(g) = surface(parts, geo, Vec3::new(px, near, pz), Vec3::new(px, near, pz), Stretch::Ground, up) { out.push(g); }
+                            }
+                        }
+                        y += step;
                     }
                     x += step;
                 }
@@ -95,15 +120,27 @@ fn made(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry) 
         let item = sc.items.iter().find(|i| { pick -= if total > 0.0 { i.weight.max(0.0) } else { 1.0 }; pick < 0.0 }).unwrap_or(&sc.items[0]);
         let scale = (1.0 + rng.between(-1.0, 1.0) * sc.size_var).max(0.2);
         let size = Vec3::from(item.size) * scale;
+        let volume = sc.place == Place::Volume;
         let lean = Quat::from_euler(EulerRot::XYZ, rng.between(-1.0, 1.0) * sc.tilt.to_radians(), 0.0, rng.between(-1.0, 1.0) * sc.tilt.to_radians());
-        let rot = Quat::from_rotation_y(rng.next() * std::f32::consts::TAU) * lean * if item.on_side { Quat::from_rotation_z(std::f32::consts::FRAC_PI_2) } else { Quat::IDENTITY };
-        // its height above the ground when it sits on it, less how far it is sunk
-        let tall = if item.on_side { size.x } else { size.y };
+        let rot = if volume {
+            // nothing is upright in the air: any way round
+            Quat::from_euler(EulerRot::XYZ, rng.next() * std::f32::consts::TAU, rng.next() * std::f32::consts::TAU, rng.next() * std::f32::consts::TAU)
+        } else {
+            Quat::from_rotation_y(rng.next() * std::f32::consts::TAU) * lean * if item.on_side { Quat::from_rotation_z(std::f32::consts::FRAC_PI_2) } else { Quat::IDENTITY }
+        };
+        // its height above the ground when it sits on it, less how far it is sunk (in a volume the spot is its middle)
+        let tall = if volume { 0.0 } else if item.on_side { size.x } else { size.y };
         let shade = rng.between(0.9, 1.1);
+        // slowly turning and drifting, each its own way (the random numbers come last, so a scatter that doesn't move lays out as it did)
+        let mover = (sc.spin > 0.0 || sc.drift > 0.0).then(|| {
+            let mut way = || Vec3::new(rng.between(-1.0, 1.0), rng.between(-1.0, 1.0), rng.between(-1.0, 1.0));
+            let (spin, drift) = (way() * sc.spin, way() * sc.drift);
+            Mover { to: [0.0; 3], spin: spin.to_array(), drift: drift.to_array(), ..Default::default() }
+        });
         out.push(Made {
             name: format!("{} {}", item.name, n + 1), shape: item.shape,
             pos: ground + Vec3::Y * (tall * 0.5 - tall * sc.sink), rot, size,
-            colour: item.colour.map(|v| (v * shade).clamp(0.0, 1.0)),
+            colour: item.colour.map(|v| (v * shade).clamp(0.0, 1.0)), mover,
         });
     }
     out
@@ -114,6 +151,7 @@ fn part(m: &Made, curve: u64) -> Part {
     let mut p = Part::placed(m.shape, None, m.name.clone(), m.pos.to_array(), m.rot.to_array(), m.size.to_array());
     p.color = m.colour;
     p.scatter = Some(curve);
+    p.mover = m.mover.clone();
     p
 }
 
@@ -141,7 +179,7 @@ pub fn scatters(ed: &mut Editor) {
     for c in level.curves.clone().iter().filter(|c| c.scatter.is_some()) {
         let (Some(sc), Some((_, line))) = (c.scatter.as_ref(), pen.lines.get(&c.id)) else { continue };
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        (curve_stamp(c, world), sc.place as u8, [sc.spacing, sc.band, sc.size_var, sc.tilt, sc.sink, sc.seed].map(f32::to_bits)).hash(&mut h);
+        (curve_stamp(c, world), sc.place as u8, [sc.spacing, sc.band, sc.size_var, sc.tilt, sc.sink, sc.height, sc.falloff, sc.spin, sc.drift, sc.seed].map(f32::to_bits)).hash(&mut h);
         for i in &sc.items { (&i.name, i.shape as u8, i.size.map(f32::to_bits), i.colour.map(f32::to_bits), i.weight.to_bits(), i.on_side).hash(&mut h); }
         let now = h.finish();
         if pen.scattered.get(&c.id) == Some(&now) { continue; }
@@ -163,7 +201,7 @@ pub fn scatters(ed: &mut Editor) {
 
 /// Whether a part is what an item would make.
 fn matches(p: &Part, m: &Made) -> bool {
-    p.name == m.name && p.shape == m.shape && p.pos == m.pos.to_array() && p.rot == m.rot.to_array() && p.size == m.size.to_array() && p.color == m.colour
+    p.name == m.name && p.shape == m.shape && p.pos == m.pos.to_array() && p.rot == m.rot.to_array() && p.size == m.size.to_array() && p.color == m.colour && p.mover == m.mover
 }
 
 #[cfg(test)]
@@ -231,5 +269,28 @@ mod tests {
         // growing a level that already has them (an older file) doesn't double them
         grow(&mut opened, &geo);
         assert_eq!(items(&opened), first);
+    }
+
+    #[test]
+    fn a_volume_fills_the_space_above_its_outline_thinner_at_the_edge_and_its_items_spin_and_drift() {
+        let square = [(-8.0, -8.0), (8.0, -8.0), (8.0, 8.0), (-8.0, 8.0)];
+        let sc = Scatter { place: Place::Volume, spacing: 2.0, height: 8.0, spin: 30.0, drift: 2.0, ..Default::default() };
+        let c = curve(&square, true, sc.clone());
+        let line = c.laid(|_, _, _| None);
+        let a = made(&c, &sc, &line, &[], &Geometry::default());
+        assert!(a.len() >= 200 && a.len() <= 400, "a 16 x 16 x 8 m space over 2 m cubes: {}", a.len());
+        assert!(a.iter().all(|m| m.pos.x.abs() <= 8.0 && m.pos.z.abs() <= 8.0 && m.pos.y >= 0.1 && m.pos.y <= 8.1), "inside the space");
+        assert!(a.iter().any(|m| m.pos.y > 6.0) && a.iter().any(|m| m.pos.y < 2.0), "all the way up");
+        let m = a[0].mover.as_ref().expect("it moves");
+        assert!(m.to == [0.0; 3] && m.spin.iter().any(|v| *v != 0.0) && m.drift.iter().any(|v| *v != 0.0));
+        assert!(a.iter().all(|m| m.mover.as_ref().is_some_and(|v| v.spin.iter().all(|s| s.abs() <= 30.0) && v.drift.iter().all(|d| d.abs() <= 2.0))));
+        // falloff takes the ones at the edge: the middle keeps its thickness
+        let soft = Scatter { falloff: 1.0, ..sc.clone() };
+        let b = made(&c, &soft, &line, &[], &Geometry::default());
+        let edge = |v: &[Made]| v.iter().filter(|m| m.pos.x.abs() > 6.0 || m.pos.z.abs() > 6.0 || m.pos.y > 6.0 || m.pos.y < 2.0).count() as f32 / v.len() as f32;
+        assert!(b.len() < a.len() && edge(&b) < edge(&a) * 0.7, "thinner at the edge: {} of {} vs {} of {}", edge(&b), b.len(), edge(&a), a.len());
+        // one that doesn't move has no mover, and the ground layouts are as before
+        let still = Scatter { spin: 0.0, drift: 0.0, ..sc };
+        assert!(made(&c, &still, &line, &[], &Geometry::default()).iter().all(|m| m.mover.is_none()));
     }
 }

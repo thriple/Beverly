@@ -156,6 +156,15 @@ check("two undos bring the scatter back, then the curve is gone with a third", t
 tool("run_action", id="edit.undo"); tool("run_action", id="edit.undo")
 check("undo takes the scatter back", tool("get_project")["parts"] == before and tool("get_project")["undo_steps"] == steps, tool("get_project"))
 
+# a volume: a debris field through the space above an outline, with spin and drift
+before = tool("get_project")["parts"]
+steps = tool("get_project")["undo_steps"]
+tool("draw_shape", name="Field", points=[[-4, 3, -4], [4, 3, -4], [4, 3, 4], [-4, 3, 4]], closed=True, scatter={"settings": {"Where": "Volume", "Spacing": 2, "Volume height": 4, "Falloff": 0.5, "Spin": 20, "Drift": 1}})
+n = tool("get_project")["parts"] - before
+check("a volume fills the space with parts", n >= 8, n)
+tool("run_action", id="edit.undo")
+check("one undo takes the field away", tool("get_project")["parts"] == before and tool("get_project")["undo_steps"] == steps, tool("get_project"))
+
 # foliage: the carpet, a new species, and a Mix (plants over a ground)
 f = tool("get_foliage")
 check("get_foliage lists the carpet, the species and the Mixes", {"settings", "species", "mixes"} <= set(f) and len(f["species"]) >= 17, f)
