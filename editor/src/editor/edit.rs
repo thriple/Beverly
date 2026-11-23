@@ -151,7 +151,8 @@ impl Editor {
         if self.dirty() { self.pending = Some(what) } else { self.run(what, exit) }
     }
 
-    fn load_into(&mut self, dir: std::path::PathBuf, lvl: Level) {
+    fn load_into(&mut self, dir: std::path::PathBuf, mut lvl: Level) {
+        super::scatter::grow(&mut lvl, &default());
         self.name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.dir = dir;
         self.saved = lvl.clone();

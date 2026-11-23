@@ -200,7 +200,8 @@ impl Editor {
             found.next().is_none().then_some(one)
         };
         if let Some(dir) = std::env::args().nth(1).map(|a| level::project_dir_of(Path::new(&a))).or_else(beside) {
-            if let Ok((name, lvl)) = level::load(&dir) {
+            if let Ok((name, mut lvl)) = level::load(&dir) {
+                scatter::grow(&mut lvl, &default());
                 let mut ed = Self::at(dir);
                 ed.name = name;
                 ed.saved = lvl.clone();

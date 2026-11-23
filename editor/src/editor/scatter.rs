@@ -1,11 +1,12 @@
 //! Scatter: the items a pen curve scatters along or inside itself (`curve::Scatter`). They are ordinary parts, marked
 //! with the curve, so they draw, collide and play like any part; they are made again whenever the curve, the scatter
 //! or the ground changes, and the same every time for one seed. Ids are reused in order, so a part keeps its id (and
-//! its selection) while the layout changes under it.
+//! its selection) while the layout changes under it. The level file keeps only the curves and their settings (`grow`
+//! makes the items when a level opens, in the editor and in the game).
 use super::pen::{curve_stamp, inside, surface, world_stamp};
 use super::Editor;
 use crate::curve::{Curve, Place, Scatter, Stretch, Vert};
-use crate::level::Part;
+use crate::level::{Level, Part};
 use crate::world::Geometry;
 use bevy::prelude::*;
 use std::hash::{Hash, Hasher};
@@ -108,6 +109,25 @@ fn made(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry) 
     out
 }
 
+/// The part an item is.
+fn part(m: &Made, curve: u64) -> Part {
+    let mut p = Part::placed(m.shape, None, m.name.clone(), m.pos.to_array(), m.rot.to_array(), m.size.to_array());
+    p.color = m.colour;
+    p.scatter = Some(curve);
+    p
+}
+
+/// Make the items of every scattering curve of a level that was just opened (the file keeps none; one that has some, from
+/// before, loses them for the same ones). The editor and the game both call it, so the layout is the same in both.
+pub fn grow(level: &mut Level, geo: &Geometry) {
+    level.parts.retain(|p| p.scatter.is_none());
+    for c in level.curves.clone().iter() {
+        let Some(sc) = c.scatter.as_ref() else { continue };
+        let line = c.laid(|p, from, s| surface(&level.parts, geo, p, from, s, c.path.up()));
+        for m in made(c, sc, &line, &level.parts, geo) { level.add(part(&m, c.id)); }
+    }
+}
+
 /// Make each curve's scattered items again where the curve, its scatter or the ground changed, and take away those of
 /// a curve or scatter that is gone. `edit::commit` calls it as the change becomes an undo step.
 pub fn scatters(ed: &mut Editor) {
@@ -131,9 +151,7 @@ pub fn scatters(ed: &mut Editor) {
         let same = have.len() == want.len() && have.iter().zip(&want).all(|(id, m)| level.get(*id).is_some_and(|p| matches(p, m)));
         if same { continue; }
         for (k, m) in want.iter().enumerate() {
-            let mut p = Part::placed(m.shape, None, m.name.clone(), m.pos.to_array(), m.rot.to_array(), m.size.to_array());
-            p.color = m.colour;
-            p.scatter = Some(c.id);
+            let mut p = part(m, c.id);
             match have.get(k).and_then(|id| level.get_mut(*id)) {
                 Some(old) => { p.id = old.id; p.tags = old.tags.clone(); if *old != p { *old = p; } }
                 None => { level.add(p); }
@@ -192,5 +210,26 @@ mod tests {
         assert!(a.iter().all(|m| m.pos.x.abs() <= 6.0 && m.pos.z.abs() <= 6.0));
         assert!(a.iter().all(|m| !m.name.starts_with("Stump")), "the stump has no share");
         assert!(a.iter().any(|m| m.name.starts_with("Log")) && a.iter().any(|m| m.name.starts_with("Boulder")));
+    }
+
+    #[test]
+    fn the_file_keeps_the_curve_and_the_items_are_made_again_the_same_when_it_opens() {
+        let sc = Scatter { place: Place::Along, spacing: 2.0, band: 4.0, ..Default::default() };
+        let mut level = Level { parts: floor().into(), next_id: 1, ..Default::default() };
+        level.curves.push(curve(&[(-10.0, 0.0), (10.0, 0.0)], false, sc));
+        let geo = Geometry::default();
+        grow(&mut level, &geo);
+        let items = |l: &Level| l.parts.iter().filter(|p| p.scatter.is_some()).map(|p| (p.name.clone(), p.pos, p.size)).collect::<Vec<_>>();
+        let first = items(&level);
+        assert!(first.len() >= 8, "items were made: {}", first.len());
+        let file = level.to_file();
+        assert!(file.parts.iter().all(|p| p.scatter.is_none()), "the file has none of them");
+        assert_eq!(file.curves.len(), 1);
+        let mut opened = file;
+        grow(&mut opened, &geo);
+        assert_eq!(items(&opened), first, "the same layout when it opens");
+        // growing a level that already has them (an older file) doesn't double them
+        grow(&mut opened, &geo);
+        assert_eq!(items(&opened), first);
     }
 }

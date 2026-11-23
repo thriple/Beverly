@@ -120,9 +120,11 @@ impl Level {
         }
     }
 
-    /// The level as the file keeps it: a child's position and turn as offsets from its parent.
+    /// The level as the file keeps it: a child's position and turn as offsets from its parent, and no scattered items
+    /// (the curves make them again when the level opens).
     pub fn to_file(&self) -> Level {
         let mut out = self.clone();
+        out.parts.retain(|p| p.scatter.is_none());
         for p in &mut out.parts {
             if let Some(par) = p.parent.and_then(|pid| self.get(pid)) { set_frame(p, within(frame(par), frame(p))); }
         }

@@ -63,7 +63,7 @@ pub fn run(extra: fn(&mut App)) {
     .init_resource::<crate::sound::Sounds>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, stage, models::fill_models, start, cursor, hear, paint, grass).chain());
+    .add_systems(Update, (models::build_geometry, stage, models::fill_models, scattered, start, cursor, hear, paint, grass).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
@@ -94,6 +94,33 @@ fn stage(game: Res<Game>, mut done: Local<bool>, mut sun: Query<(&mut Directiona
     if *done || sun.is_empty() { return; }
     world::light_stage(&game.level.lighting, true, &mut sun, &mut fill);
     *done = true;
+}
+
+/// The scatter items (the level file keeps only the curves): made once every model has loaded, so ground that is a
+/// model counts, then drawn like the rest.
+#[allow(clippy::too_many_arguments)]
+fn scattered(
+    mut commands: Commands,
+    mut game: ResMut<Game>,
+    lib: Res<ShapeLib>,
+    mut models: ResMut<ModelLib>,
+    server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut assets: ResMut<Assets<StandardMaterial>>,
+    mut shaded: ResMut<Assets<crate::shader::ShaderMaterial>>,
+    mut shaders: ResMut<crate::shader::Shaders>,
+    mats: Option<ResMut<world::Mats>>,
+    mut done: Local<bool>,
+) {
+    let Some(mut mats) = mats else { return };
+    if *done || models.pending() { return; }
+    *done = true;
+    let game = &mut *game;
+    game.geo.sync_models(&models);
+    let before = game.level.parts.len();
+    crate::editor::scatter::grow(&mut game.level, &game.geo);
+    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, shaded: &mut shaded, shaders: &mut shaders, meshes: &mut meshes, materials: &game.level.materials, shadows: true };
+    for p in game.level.parts.iter().skip(before) { world::spawn_visual(&mut commands, p, &mut looks, false); }
 }
 
 /// Start playing once every model has loaded (so the walker collides with them too).
