@@ -17,12 +17,14 @@ mod parts;
 mod sounds;
 mod paint;
 mod materials;
+mod foliage;
 mod session;
 use project::*;
 use parts::*;
 use sounds::*;
 use paint::*;
 use materials::*;
+use foliage::*;
 use session::*;
 mod args;
 mod describe;
@@ -103,6 +105,7 @@ pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &m
         "get_sound" | "change_sound" | "new_sound" | "play_sound" => sounds_tools(ed, name, args),
         "paint_stroke" | "list_shapes" | "draw_shape" | "bucket_fill" | "list_fills" => paint_tools(ed, name, args),
         "get_material" | "change_material" | "get_shader" | "write_shader" | "new_material" => materials_tools(ed, name, args),
+        "get_foliage" | "change_foliage" | "change_species" | "new_species" => foliage_tools(ed, name, args),
         "get_camera" | "move_camera" | "run_job" | "get_job" | "list_jobs" | "list_actions" | "run_action" => session_tools(ed, view, name, args, exit),
         _ => Err(format!("No tool called {name}")),
     }

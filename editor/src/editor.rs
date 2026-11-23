@@ -44,7 +44,7 @@ pub enum Pending { Quit, New, Open }
 
 /// What the Level tab shows: building (the plain tab), or one topic from its menu.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum LevelMode { Build, Physics, Cameras, Lighting }
+pub enum LevelMode { Build, Physics, Cameras, Lighting, Foliage }
 
 /// Trying a path on the navigation area: the start and end picked (clicks in the view) and the way found.
 #[derive(Default)]
@@ -119,6 +119,8 @@ pub struct Editor {
     pub tex_hot: Option<texture::Grip>,
     /// The material shown in the bottom panel instead of the selected part (clicked in Assets).
     pub material_open: Option<String>,
+    /// The grass species open in the Foliage topic.
+    pub species_open: Option<String>,
     /// The sound file shown in the bottom panel instead of the selected part (clicked in Assets or the part's panel).
     pub sound_open: Option<String>,
     /// A sound file to hear once (its panel's Play), on a surface, taken by `edit::hear`.
@@ -254,6 +256,7 @@ impl Editor {
             tex_drag: None,
             tex_hot: None,
             material_open: None,
+            species_open: None,
             sound_open: None,
             preview_sound: None,
             brush_on: false,

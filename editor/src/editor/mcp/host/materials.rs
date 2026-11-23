@@ -21,8 +21,12 @@ pub(super) fn materials_tools(ed: &mut Editor, name: &str, args: &Value) -> Resu
                 changed.push("texture");
             }
             if let Some(g) = args.get("grass") {
-                m.grass = grass_ref(g)?;
+                m.grass = grass_ref(&ed.level, g)?;
                 changed.push("grass");
+            }
+            if let Some(g) = args.get("ground") {
+                m.ground = match g.as_str() { Some(g) => Some(material_ref(ed, g)?).filter(|k| *k != path), None => None };
+                changed.push("ground");
             }
             if let Some(s) = args.get("shader") {
                 m.shader = match s.as_str() { Some(s) => Some(shader_ref(ed, s)?), None => None };
@@ -74,7 +78,8 @@ pub(super) fn materials_tools(ed: &mut Editor, name: &str, args: &Value) -> Resu
             };
             if let Some(t) = args.get("texture").and_then(Value::as_str) { m.texture = Some(texture_ref(ed, t)?); }
             if let Some(set) = args.get("settings") { settings::apply(&mut m, set)?; }
-            if let Some(g) = args.get("grass") { m.grass = grass_ref(g)?; }
+            if let Some(g) = args.get("grass") { m.grass = grass_ref(&ed.level, g)?; }
+            if let Some(g) = args.get("ground").and_then(Value::as_str) { m.ground = Some(material_ref(ed, g)?); }
             let name = args.get("name").and_then(Value::as_str).unwrap_or("Material").replace(['/', '\\'], " ");
             let path = ed.level.new_material(&name, m);
             ed.commit();
@@ -85,8 +90,8 @@ pub(super) fn materials_tools(ed: &mut Editor, name: &str, args: &Value) -> Resu
 }
 
 /// The grass a material grows, as the MCP gives it: species names, or {species, share}; null or [] for none.
-fn grass_ref(v: &Value) -> Result<Vec<crate::level::Grows>, String> {
-    let names = crate::grass::species_names();
+fn grass_ref(level: &crate::level::Level, v: &Value) -> Result<Vec<crate::level::Grows>, String> {
+    let names = crate::grass::species_names(level);
     let list = match v { Value::Null => return Ok(vec![]), Value::Array(a) => a, _ => return Err("Give grass as a list of species, such as [\"grass\", {\"species\": \"daisy_snow\", \"share\": 0.1}]".into()) };
     if list.len() > 4 { return Err("A material grows at most four species".into()); }
     list.iter().map(|g| {

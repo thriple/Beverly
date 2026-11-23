@@ -179,7 +179,7 @@ impl Sounds {
             Some(_) => {
                 for h in happened {
                     let (path, ground) = match h.part {
-                        None => (level.walker.get(&h.what).to_string(), h.on.and_then(|p| level.ground_under(p))),
+                        None => (level.walker.get(&h.what).to_string(), h.on.and_then(|p| level.ground_at(p, h.at))),
                         Some(id) => (level.get(id).and_then(|p| p.sound_on(&h.what)).unwrap_or_default().to_string(), None),
                     };
                     if path.is_empty() { continue; }

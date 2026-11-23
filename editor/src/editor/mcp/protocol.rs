@@ -80,7 +80,7 @@ const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes t
 pub fn tools() -> Value {
     let none = json!({"type": "object", "properties": {}});
     #[allow(non_snake_case)]
-    let GRASS = json!({"type": ["array", "null"], "items": {"type": ["string", "object"]}, "description": format!("The grass it grows wherever it is laid or painted (the grass carpet): up to four species, each a name or {{\"species\", \"share\"}}, such as [\"grass\", {{\"species\": \"daisy_snow\", \"share\": 0.1}}]; null or []: none. Its Thickness setting says how many blades. Grass grows on flat faces only, standing out of tops, walls and ceilings (ivy lies on them). The species: {}.", crate::grass::species_names().join(", "))});
+    let GRASS = json!({"type": ["array", "null"], "items": {"type": ["string", "object"]}, "description": format!("The grass it grows wherever it is laid or painted (the grass carpet): up to four species, each a name or {{\"species\", \"share\"}}, such as [\"grass\", {{\"species\": \"daisy_snow\", \"share\": 0.1}}]; null or []: none. Its Thickness setting says how many blades. Grass grows on flat faces only, standing out of tops, walls and ceilings (ivy lies on them). The species: {}.", crate::grass::species_names(&crate::level::Level::default()).join(", "))});
     let part = json!({
         "type": "object",
         "properties": {
@@ -279,6 +279,7 @@ pub fn tools() -> Value {
                     "hardness": {"type": "number"},
                     "strength": {"type": "number"},
                     "lays": {"type": "string", "enum": ["add", "subtract", "set"]},
+                    "ground": {"type": ["string", "null"], "description": "For a Mix's plants: the ground under them for this stroke, a material, or none; left out: the Mix's own."},
                     "rules": {"type": "object", "properties": {"slope": {"type": "number"}, "band": {"type": ["array", "null"], "items": {"type": "number"}}, "on": {"type": ["string", "null"]}}},
                     "erase": {"type": "boolean"},
                     "clear": {"type": "boolean"},
@@ -405,6 +406,7 @@ pub fn tools() -> Value {
                     "shader": {"type": ["string", "null"], "description": "A shader in assets/shaders (list_assets) that draws the material, such as stripes or stripes.wesl; null: the standard look. Choosing one clears the old one's values."},
                     "shader_values": {"type": "object", "description": "The shader's settings (get_shader lists them) → value: a number, true/false for a toggle, or [r, g, b] (0 to 1) for a colour. A setting not given keeps the shader's default."},
                     "grass": GRASS,
+                    "ground": {"type": ["string", "null"], "description": "The ground a Mix lays under its plants (a material, such as soil): wherever this material is painted the ground goes under, wider and softer than the plants (its Spread, Soft edge and Follows thickness settings); null: its own colour. Every stroke of it changes."},
                 },
                 "required": ["material"],
             },
@@ -433,8 +435,33 @@ pub fn tools() -> Value {
                     "texture": {"type": "string"},
                     "settings": {"type": "object"},
                     "grass": GRASS,
+                    "ground": {"type": ["string", "null"], "description": "The ground a Mix lays under its plants (a material, such as soil): wherever this material is painted the ground goes under, wider and softer than the plants (its Spread, Soft edge and Follows thickness settings)."},
                 },
             },
+        },
+        {
+            "name": "get_foliage",
+            "title": "Describe the foliage",
+            "description": "The level's foliage, as the Foliage topic shows it: the grass carpet's Reach and Quality (settings, as change_foliage takes them), every grass species with its settings and whether this level changed it (a material grows them: grass on change_material), and the Mixes (materials that grow grass or lay a ground) with their species, ground and how it spreads.",
+            "inputSchema": none,
+        },
+        {
+            "name": "change_foliage",
+            "title": "Change the grass carpet",
+            "description": "Change how far the grass grows from the camera (Reach, in metres) and how finely it is laid (Quality, 6 to 14: more costs the graphics card more), by setting label as get_foliage lists them. One undo step.",
+            "inputSchema": {"type": "object", "properties": {"settings": {"type": "object", "description": "Such as {\"Reach\": 60, \"Quality\": 12}."}}, "required": ["settings"]},
+        },
+        {
+            "name": "change_species",
+            "title": "Change a grass species",
+            "description": "Change a grass species' settings (Height, Width, Taper, Bend, Sway, Head size, Kind, Head, Grows, Dryness: get_foliage lists them with their values) for this level; every material growing it follows. Built-in species are kept as they were in the program: the level holds only what it changed.",
+            "inputSchema": {"type": "object", "properties": {"species": {"type": "string", "description": "Its name, such as grass or daisy_snow."}, "settings": {"type": "object", "description": "Setting label or field → new value, such as {\"Height\": 1.5, \"Kind\": \"Flower\"}."}}, "required": ["species", "settings"]},
+        },
+        {
+            "name": "new_species",
+            "title": "Make a grass species",
+            "description": "A new grass species for this level, a copy of another to change (copy_of; else a plain blade), with settings as change_species takes them. A material can then grow it by name. At most 32 species.",
+            "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "Its name (letters, digits and _), such as tall_fern."}, "copy_of": {"type": "string"}, "settings": {"type": "object"}}, "required": ["name"]},
         },
         {
             "name": "screenshot",
@@ -831,6 +858,10 @@ mod tests {
                 "get_shader",
                 "write_shader",
                 "new_material",
+                "get_foliage",
+                "change_foliage",
+                "change_species",
+                "new_species",
                 "screenshot",
                 "get_camera",
                 "move_camera",

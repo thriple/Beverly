@@ -95,7 +95,7 @@ pub fn fills(ed: &mut Editor) {
         if ed.filling.made.get(&b.id) == Some(&now) { continue; }
         ed.filling.made.insert(b.id, now);
         let reach = crate::bucket::reach(&ed.level, b);
-        let stroke = |faces: &Vec<u8>| Stroke { material: b.material.clone(), size: 0.0, hardness: 1.0, strength: b.strength, points: vec![], lays: b.lays, rules: Default::default(), curve: None, fill: false, faces: faces.clone(), bucket: Some(b.id) };
+        let stroke = |faces: &Vec<u8>| Stroke { material: b.material.clone(), size: 0.0, hardness: 1.0, strength: b.strength, points: vec![], lays: b.lays, rules: Default::default(), curve: None, fill: false, faces: faces.clone(), bucket: Some(b.id), ground: None };
         let ids: Vec<u64> = ed.level.parts.iter().map(|p| p.id).collect();
         for id in ids {
             let want: Option<Stroke> = reach.iter().find(|(pid, _)| *pid == id).map(|(_, f)| stroke(f));

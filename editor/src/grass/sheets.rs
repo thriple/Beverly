@@ -56,13 +56,17 @@ fn srgb(c: Vec3) -> [u8; 3] { c.to_array().map(|x| (x.clamp(0.0, 1.0) * 255.0).r
 pub fn sheets(level: &Level, p: &Part, growers: &[String]) -> Vec<Sheet> {
     if !crate::paint::paintable(p) || growers.is_empty() { return vec![]; }
     let grows = |m: &str| growers.iter().position(|g| g == m).map(|i| (i, level.materials[m].grass_density.clamp(0.0, 1.0)));
+    // what grows comes from the strokes as painted, the colour of the surface from the part as it looks (a Mix's strokes are its ground)
+    let shown = crate::level::shown(level, p);
     let layers = p.painted();
-    let painted: Vec<(Option<(usize, f32)>, Vec3)> = layers.iter().map(|m| (grows(m), level.materials.get(*m).map_or(Vec3::ONE, |x| Vec3::from(x.tint)))).collect();
+    let grow: Vec<Option<(usize, f32)>> = layers.iter().map(|m| grows(m)).collect();
+    let tints: Vec<Vec3> = shown.painted().iter().map(|m| level.materials.get(*m).map_or(Vec3::ONE, |x| Vec3::from(x.tint))).collect();
     let tris = crate::shapes::build(p.shape);
     let base_grows = |f: u8| crate::bucket::face_material(p, Some(f)).and_then(grows);
-    if painted.iter().all(|l| l.0.is_none()) && (0..tris.faces.len() as u8).all(|f| base_grows(f).is_none()) { return vec![]; }
-    let pieces = crate::paint::pieces(p);
+    if grow.iter().all(|l| l.is_none()) && (0..tris.faces.len() as u8).all(|f| base_grows(f).is_none()) { return vec![]; }
+    let (pieces, seen) = (crate::paint::pieces(p), crate::paint::pieces(&shown));
     let count = if p.strokes.is_empty() { 0 } else { pieces.len() };
+    let seen_count = if p.strokes.is_empty() { 0 } else { seen.len() };
     let (a, turn, size) = (crate::world::part_affine(p), Quat::from_array(p.rot), Vec3::from(p.size));
     let mut out = vec![];
     for (f, lay) in tris.faces.iter().enumerate() {
@@ -93,19 +97,23 @@ pub fn sheets(level: &Level, p: &Part, growers: &[String]) -> Vec<Sheet> {
                 let w = origin + u * at.x + v * at.y;
                 let local = p.to_local(w);
                 let (mut left, mut colour, mut best, mut thick) = (1.0f32, Vec3::ZERO, (0.0f32, 0usize), 0.0f32);
-                for (l, (gr, tint)) in painted.iter().enumerate() {
-                    let cov = crate::paint::coverage(&pieces, count, l as i32, local, f, normal.y, w.y);
-                    if cov <= 0.0 { continue; }
-                    left -= cov;
+                for (l, tint) in tints.iter().enumerate() {
+                    let cov = crate::paint::coverage(&seen, seen_count, l as i32, local, f, normal.y, w.y);
                     colour += *tint * cov;
+                    left -= cov;
+                }
+                colour += base_colour * left.max(0.0);
+                let mut left = 1.0f32;
+                for (l, gr) in grow.iter().enumerate() {
+                    let cov = crate::paint::coverage(&pieces, count, l as i32, local, f, normal.y, w.y);
+                    left -= cov;
                     if let Some((gi, d)) = gr {
                         thick += cov * d;
                         if cov * d > best.0 { best = (cov * d, *gi); }
                     }
                 }
-                let left = left.max(0.0);
-                colour += base_colour * left;
                 if let Some((gi, d)) = base {
+                    let left = left.max(0.0);
                     thick += left * d;
                     if left * d > best.0 { best = (left * d, gi); }
                 }
@@ -136,7 +144,7 @@ mod tests {
         level.materials.insert("assets/materials/meadow.bev".into(), meadow());
         let mut p = Part::placed(Shape::Box, None, "Floor".into(), [0.0, 0.5, 0.0], [0.0, 0.0, 0.0, 1.0], [10.0, 1.0, 10.0]);
         // a round dab of meadow 2 m across on the top, at x = -3
-        p.strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 2.0, hardness: 1.0, strength: 1.0, points: vec![[-3.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None }];
+        p.strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 2.0, hardness: 1.0, strength: 1.0, points: vec![[-3.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None }];
         let g = growers(&level);
         let s = sheets(&level, &p, &g);
         assert_eq!(s.len(), 1, "only the top: {:?}", s.iter().map(|s| s.face).collect::<Vec<_>>());

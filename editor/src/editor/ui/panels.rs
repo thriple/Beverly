@@ -269,6 +269,7 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
         LevelMode::Lighting => ("Lighting".into(), "bulb", theme::CAT_LIGHTS),
         LevelMode::Physics => ("Physics".into(), "feel", theme::CAT_FLOW),
         LevelMode::Cameras => ("Cameras".into(), "camera", theme::CAT_CAMERAS),
+        LevelMode::Foliage => ("Foliage".into(), "leaf", theme::CAT_FLOW),
     };
     let sub = if ed.level_mode == LevelMode::Build { format!("Level · {parts} part{}", if parts == 1 { "" } else { "s" }) } else { format!("Level · {}", ed.level.name) };
     identity(ui, colour, icon, Err(&name), &sub, &mut []);
@@ -328,6 +329,7 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 }
             });
         }
+        LevelMode::Foliage => {} // its own panel (`foliage.rs`)
         LevelMode::Cameras => {
             column(ui, 0.0, "LEVEL · CAMERAS", |ui| {
                 let cams: Vec<(u64, String)> = ed.level.parts.iter().filter(|p| p.shape.is_camera()).map(|p| (p.id, format!("{}  {}", p.shape.glyph(), p.name))).collect();
@@ -417,6 +419,12 @@ pub(super) fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let sub = if ed.brush.material.is_empty() { "Pick a material to paint with".to_string() } else { format!("Brush · painting {}", name(&ed.brush.material)) };
     identity(ui, theme::VIOLET, "palette", Err("Brush"), &sub, &mut []);
+    brush_body(ui, ed);
+}
+
+/// The brush's settings, rules and shortcuts (the Foliage topic shows them under its Mixes).
+pub(super) fn brush_body(ui: &mut Ui, ed: &mut Editor) {
+    let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let mut b = ed.brush.clone();
     let mut ranges = ed.level.ranges.clone();
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
@@ -434,6 +442,19 @@ pub(super) fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
             let mut k = b.preset;
             if theme::choices(ui, "brush-preset", &crate::editor::brush::PRESETS, &mut k) { b.pick(k); }
         });
+        // a Mix's ground, unless this stroke says otherwise
+        if ed.level.materials.get(&b.material).is_some_and(|m| m.ground.is_some() || !m.grass.is_empty()) {
+            ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Ground").color(TEXT_2)).tip("What it lays under the plants: the Mix's own, none, or another material for these strokes"); });
+                let own = ed.level.materials.get(&b.material).and_then(|m| m.ground.as_deref()).map_or("None".to_string(), name);
+                let shown = match b.ground.as_deref() { None => format!("{own} (the Mix's)"), Some("") => "None".to_string(), Some(g) => name(g) };
+                egui::ComboBox::from_id_salt("brush ground").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut b.ground, None, format!("{own} (the Mix's)"));
+                    ui.selectable_value(&mut b.ground, Some(String::new()), "None");
+                    for m in ed.level.materials.keys().filter(|m| **m != b.material) { ui.selectable_value(&mut b.ground, Some(m.clone()), name(m)); }
+                });
+            });
+        }
         ui.add_space(8.0);
         settings::section(ui, &mut b, crate::editor::brush::BRUSH, &mut ctx);
     });
@@ -580,6 +601,7 @@ pub(super) fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
         LevelMode::Lighting => |p| p.shape.is_light(),
         LevelMode::Cameras => |p| p.shape.is_camera(),
         LevelMode::Physics => |p| crate::physics::kind(p).is_some(),
+        LevelMode::Foliage => |p| crate::paint::paintable(p),
     };
     // the search field
     let qid = Id::new("scene-find");
@@ -711,7 +733,7 @@ pub(super) fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
     });
     column(ui, 0.0, "GRASS", |ui| {
         // the species it grows, each with its share, then how thick
-        let names = crate::grass::species_names();
+        let names = crate::grass::species_names(&ed.level);
         let mut gone = None;
         for (i, g) in m.grass.iter_mut().enumerate() {
             ui.horizontal(|ui| {
@@ -732,6 +754,20 @@ pub(super) fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
             ui.label(egui::RichText::new("Grows nothing. Add grass and it grows wherever the material is laid or painted").color(MUTED).size(11.0));
         } else {
             settings::section(ui, &mut m, level::GRASS, &mut ctx);
+        }
+    });
+    column(ui, 0.0, "GROUND", |ui| {
+        // what it lays under its plants, then how far and how softly
+        let name = |p: &str| p.trim_start_matches("assets/materials/").trim_end_matches(".bev").to_string();
+        let shown = m.ground.as_deref().map_or("None (its own colour)".to_string(), name);
+        egui::ComboBox::from_id_salt("material ground").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(&mut m.ground, None, "None (its own colour)");
+            for k in ed.level.materials.keys().filter(|k| k.as_str() != path) { ui.selectable_value(&mut m.ground, Some(k.clone()), name(k)); }
+        });
+        if m.ground.is_some() {
+            settings::section(ui, &mut m, level::GROUND, &mut ctx);
+        } else {
+            ui.label(egui::RichText::new("Pick a material and wherever this is painted it lays that ground under its plants, wider and softer than the plants").color(MUTED).size(11.0));
         }
     });
     ranges_changed = ctx.ranges_changed;

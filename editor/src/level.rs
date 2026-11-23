@@ -20,8 +20,10 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod delta;
+mod foliage;
 mod hierarchy;
 mod material;
+mod mix;
 mod paint;
 mod project;
 mod shape;
@@ -29,8 +31,10 @@ mod sound;
 mod track;
 mod world;
 pub use delta::Delta;
+pub use foliage::*;
 pub use hierarchy::{beyond, frame, within};
 pub use material::*;
+pub use mix::shown;
 pub use paint::*;
 pub use project::*;
 pub use shape::*;
@@ -271,6 +275,9 @@ pub struct Level {
     pub navigation: Tracked<Navigation>,
     #[serde(default, skip_serializing_if = "WalkerSounds::is_default")]
     pub walker: Tracked<WalkerSounds>,
+    /// The grass carpet's reach and quality, and the species this level changed or added.
+    #[serde(default, skip_serializing_if = "Foliage::is_default")]
+    pub foliage: Tracked<Foliage>,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]
@@ -283,7 +290,7 @@ pub struct Level {
 impl Level {
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {
-        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.materials.stamp(), self.sounds.stamp()]
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp()]
     }
 
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }
@@ -478,6 +485,15 @@ mod tests {
         lvl.materials.insert("assets/materials/turf.bev".into(), Material { sounds_like: Some(Ground::Grass), ..Default::default() });
         lvl.get_mut(id).unwrap().lay(Surface { face: None, material: "assets/materials/turf.bev".into(), tile: [1.0, 1.0], offset: [0.0, 0.0] });
         assert_eq!(lvl.ground_under(id), Some(Ground::Grass));
+        // paint says what it sounds like where it covers: a Mix's plants, then its ground reaching past them
+        lvl.get_mut(id).unwrap().surfaces.clear();
+        lvl.materials.insert("assets/materials/mud.bev".into(), Material { sounds_like: Some(Ground::Dirt), ..Default::default() });
+        lvl.materials.insert("assets/materials/meadow.bev".into(), Material { sounds_like: Some(Ground::Grass), ground: Some("assets/materials/mud.bev".into()), spread: 2.0, soft: 0.0, ..Default::default() });
+        lvl.get_mut(id).unwrap().strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 1.0, hardness: 1.0, strength: 1.0, points: vec![[0.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None }];
+        let at = |x: f32| Some(Vec3::new(x, 0.5, 0.0));
+        assert_eq!(lvl.ground_at(id, at(0.1)), Some(Ground::Grass), "in the plants");
+        assert_eq!(lvl.ground_at(id, at(0.8)), Some(Ground::Dirt), "in the ground past them");
+        assert_eq!(lvl.ground_at(id, at(1.8)), Some(Ground::Wood), "off the paint: the part's own");
         // what can happen to a part: its outputs, Starts when it moves, Hit when it's loose
         let mut b = Part::placed(Shape::Interact, None, "B".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [0.5; 3]);
         assert_eq!(b.events(), ["Pressed"]);

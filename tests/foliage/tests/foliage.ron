@@ -1,0 +1,7 @@
+// A Mix on a floor: meadow plants on soil that reaches past them (soft edge), the same Mix with stone under it where
+// that stroke chose it, and the level's own species (tall_fern) and carpet (reach 30 m, quality 8).
+(
+    steps: [
+        (at: 1.0, shot: "foliage", expect: [Feet((0, 0.1, 8), 0.2)]),
+    ],
+)

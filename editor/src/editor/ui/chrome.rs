@@ -8,7 +8,7 @@ pub(super) const TOPICS: [(&str, &str, Option<LevelMode>, &str); 7] = [
     ("Lighting", "bulb", Some(LevelMode::Lighting), ""),
     ("Cameras", "camera", Some(LevelMode::Cameras), ""),
     ("Water", "drop", None, "Coming soon: water comes with the Ocean"),
-    ("Foliage", "leaf", None, "Coming soon: foliage comes with foliage painting"),
+    ("Foliage", "leaf", Some(LevelMode::Foliage), ""),
     ("World", "globe", None, "Coming soon: World settings come next"),
 ];
 
@@ -378,6 +378,8 @@ pub(super) fn dock(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &
                 match ed.dock_view {
                     0 if ed.tab == audio::AUDIO => audio_ui::inspect(ui, ed, sounds),
                     1 if ed.tab == audio::AUDIO => audio_ui::list(ui, ed),
+                    0 if foliage_open(ed) && ed.material_open.is_some() => inspector(ui, ed, view, exit),
+                    0 if foliage_open(ed) => foliage_panel(ui, ed),
                     0 if ed.brush_on => brush_panel(ui, ed),
                     0 if ed.pen_on => pen_panel(ui, ed),
                     0 if ed.bucket_on => bucket_panel(ui, ed),

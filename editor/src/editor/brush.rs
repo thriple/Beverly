@@ -20,6 +20,8 @@ pub const BRUSH: &str = "BRUSH";
 pub struct Brush {
     /// The material it paints (a file in assets/materials).
     pub material: String,
+    /// The ground under a Mix's plants when it isn't the Mix's own (`level::mix`): a material, or empty for none.
+    pub ground: Option<String>,
     #[reflect(@Setting::feel("Size", &["Dab", "Small", "Large", "Forest"], 0.1, 500.0, "m").log().section(BRUSH).help("How wide it paints  ·  [ and ] smaller and larger"))]
     pub size: f32,
     #[reflect(@Setting::feel("Hardness", &["Soft", "Medium", "Hard"], 0.0, 1.0, "").section(BRUSH).help("Soft fades out to its edge; hard stops sharply  ·  Shift + [ and ]"))]
@@ -46,7 +48,7 @@ impl Default for Brush {
     fn default() -> Self {
         let p = |size| Preset { size, hardness: 0.6, strength: 1.0, lays: Lays::Add };
         let presets = [p(0.25), p(1.0), p(4.0), p(20.0)];
-        Brush { material: String::new(), size: 1.0, hardness: 0.6, strength: 1.0, lays: Lays::Add, preset: 1, presets, rules: Rules::default() }
+        Brush { material: String::new(), ground: None, size: 1.0, hardness: 0.6, strength: 1.0, lays: Lays::Add, preset: 1, presets, rules: Rules::default() }
     }
 }
 
@@ -141,7 +143,7 @@ pub fn input(ed: &mut Editor, view: &View, ray: Option<Ray3d>, mouse: &ButtonInp
         // a new stroke (or onto another part: a stroke of its own there)
         _ => {
             let lays = if alt { Lays::Add } else { b.lays };
-            p.strokes.push(Stroke { material, size: b.size, hardness: b.hardness, strength: b.strength, points: vec![local], lays, rules: b.rules, curve: None, fill: false, faces: vec![], bucket: None });
+            p.strokes.push(Stroke { material, size: b.size, hardness: b.hardness, strength: b.strength, points: vec![local], lays, rules: b.rules, curve: None, fill: false, faces: vec![], bucket: None, ground: if alt { None } else { b.ground } });
             ed.painting.stroke = Some((id, p.strokes.len() - 1));
         }
     }

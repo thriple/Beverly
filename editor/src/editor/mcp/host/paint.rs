@@ -55,9 +55,15 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
             if let Some(t) = rules.on {
                 if !ed.level.get(id).expect("found above").tags.contains(&t) { return Err(format!("{name} isn't tagged {t:?}, and the rules paint only on parts that are")); }
             }
+            // the ground under a Mix's plants, when it isn't the Mix's own: a material, or "none"
+            let ground = match args.get("ground").and_then(Value::as_str) {
+                None => b.ground.clone(),
+                Some("none") | Some("") => Some(String::new()),
+                Some(g) => Some(material_ref(ed, g)?),
+            };
             let p = ed.level.get_mut(id).expect("found above");
             let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
-            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false, faces: vec![], bucket: None });
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false, faces: vec![], bucket: None, ground: if erase { None } else { ground } });
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))

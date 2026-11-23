@@ -194,16 +194,38 @@ impl Level {
         self.sounds.insert(path.clone(), m);
         path
     }
+    /// The face that is the top of `p` (the flat face turned most upward).
+    fn top_face(p: &Part) -> Option<u8> {
+        let rot = Quat::from_array(p.rot);
+        let faces = crate::shapes::build(p.shape).faces;
+        faces.iter().enumerate().filter_map(|(i, l)| match l { crate::shapes::Lay::Flat(n) => Some((i, (rot * *n).y)), _ => None })
+            .max_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i as u8)
+    }
     /// What the top of part `id` sounds like underfoot: the material on its top face, else the part's own.
     pub fn ground_under(&self, id: u64) -> Option<Ground> {
         let p = self.get(id)?;
-        let rot = Quat::from_array(p.rot);
-        let faces = crate::shapes::build(p.shape).faces;
-        let top = faces.iter().enumerate().filter_map(|(i, l)| match l { crate::shapes::Lay::Flat(n) => Some((i, (rot * *n).y)), _ => None })
-            .max_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i as u8);
+        let top = Self::top_face(p);
         let from_material = p.surfaces.iter().find(|s| s.face.is_some() && s.face == top).or_else(|| p.surfaces.iter().find(|s| s.face.is_none()))
             .and_then(|s| self.materials.get(&s.material)).and_then(|m| m.sounds_like);
         from_material.or(p.sounds_like)
+    }
+    /// What the top of part `id` sounds like underfoot at `at` in the world: paint on it that says (a Mix's plants, or its
+    /// ground, reaching past them) where it covers at least half, else what the top says as a whole.
+    pub fn ground_at(&self, id: u64, at: Option<Vec3>) -> Option<Ground> {
+        let (Some(p), Some(at)) = (self.get(id), at) else { return self.ground_under(id) };
+        if p.strokes.is_empty() { return self.ground_under(id); }
+        let (shown, top) = (shown(self, p), Self::top_face(p).unwrap_or(0));
+        let local = p.to_local(at);
+        let mut best = (0.5f32, None);
+        for part in [p, &*shown] {
+            let pieces = crate::paint::pieces(part);
+            for (l, m) in part.painted().into_iter().enumerate() {
+                let Some(g) = self.materials.get(m).and_then(|m| m.sounds_like) else { continue };
+                let cov = crate::paint::coverage(&pieces, pieces.len(), l as i32, local, top, 1.0, at.y);
+                if cov > best.0 { best = (cov, Some(g)); }
+            }
+        }
+        best.1.or_else(|| self.ground_under(id))
     }
     /// How many Sound parts play a sound file.
     pub fn sound_users(&self, path: &str) -> usize { self.parts.iter().filter(|p| p.sound.as_ref().is_some_and(|s| s.sound == path)).count() }

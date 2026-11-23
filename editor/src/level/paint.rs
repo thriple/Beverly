@@ -66,6 +66,9 @@ pub struct Stroke {
     /// The bucket fill that made this stroke (`Level::buckets`, `bucket.rs`): it is made again when the level changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bucket: Option<u64>,
+    /// The ground under its plants, when it isn't the material's own (`mix.rs`): a material, or empty for none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ground: Option<String>,
 }
 
 /// A bucket fill: the place clicked and a rule for what else counts as the same, with the layer it lays there. It stays

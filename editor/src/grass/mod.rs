@@ -27,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 /// The names of the species a material can grow.
-pub fn species_names() -> Vec<String> { GrassSpeciesRegistry::default().species.into_iter().map(|s| s.name).collect() }
+pub fn species_names(level: &Level) -> Vec<String> { GrassSpeciesRegistry::with(&level.foliage.species).species.into_iter().map(|s| s.name).collect() }
 
 /// Each blade's place in its tile (the tile's own place arrives in the entity's translation).
 pub const ATTRIBUTE_GRASS_CELL: MeshVertexAttribute = MeshVertexAttribute::new("GrassCell", 0x6772_6173, VertexFormat::Float32x2);
@@ -149,6 +149,8 @@ pub struct State {
     shared: Option<(GrassParams, species::SpeciesTable, GrowerTable)>,
     /// The level's parts and materials as last looked at (their stamps), and whether a part's rebuild is waiting.
     seen: Option<(u64, u64)>,
+    /// The species as the level has them, and the foliage stamp they were made at.
+    species: Option<(u64, GrassSpeciesRegistry)>,
     waiting: bool,
 }
 
@@ -160,7 +162,6 @@ pub struct GrassSync<'w, 's> {
     materials: ResMut<'w, Assets<GrassMaterial>>,
     images: ResMut<'w, Assets<Image>>,
     settings: Res<'w, GrassSettings>,
-    species: Res<'w, GrassSpeciesRegistry>,
     wind: Res<'w, GrassWind>,
     lighting: ResMut<'w, GrassLighting>,
     time: Res<'w, Time>,
@@ -189,14 +190,16 @@ fn grower_table(level: &Level, growers: &[String], reg: &GrassSpeciesRegistry) -
 }
 
 /// What a part's grass is made from, as one number (0: nothing on it grows grass).
-fn part_key(level: &Level, p: &crate::level::Part, growers: &[String], table: &GrowerTable) -> u64 {
-    let used: Vec<&str> = p.painted().into_iter().chain(p.surfaces.iter().map(|s| s.material.as_str())).collect();
-    if !used.iter().any(|m| growers.iter().any(|g| g == m)) { return 0; }
+fn part_key(level: &Level, p: &crate::level::Part, growers: &[String], table: &GrowerTable, spacing: f32) -> u64 {
+    if !p.painted().into_iter().chain(p.surfaces.iter().map(|s| s.material.as_str())).any(|m| growers.iter().any(|g| g == m)) { return 0; }
+    // the strokes as they look: a Mix's are its ground
+    let shown = crate::level::shown(level, p);
+    let used: Vec<&str> = p.painted().into_iter().chain(shown.painted()).chain(p.surfaces.iter().map(|s| s.material.as_str())).collect();
     let mut h = std::collections::hash_map::DefaultHasher::new();
     (p.visible, std::mem::discriminant(&p.shape)).hash(&mut h);
     for v in p.pos.iter().chain(&p.rot).chain(&p.size).chain(&p.color) { v.to_bits().hash(&mut h); }
     for s in &p.surfaces { (s.face, &s.material).hash(&mut h); }
-    for s in &p.strokes {
+    for s in p.strokes.iter().chain(&shown.strokes) {
         (&s.material, s.size.to_bits(), s.hardness.to_bits(), s.strength.to_bits(), s.lays as u8, s.fill, &s.faces, format!("{:?}", s.rules)).hash(&mut h);
         for q in &s.points { q.map(f32::to_bits).hash(&mut h); }
     }
@@ -204,6 +207,7 @@ fn part_key(level: &Level, p: &crate::level::Part, growers: &[String], table: &G
         if let Some(m) = level.materials.get(m) { (m.tint.map(f32::to_bits), m.grass_density.to_bits()).hash(&mut h); }
     }
     growers.hash(&mut h);
+    spacing.to_bits().hash(&mut h);
     for g in &table.items { (g.species.to_array().map(f32::to_bits), g.upto.to_array().map(f32::to_bits)).hash(&mut h); }
     h.finish()
 }
@@ -211,13 +215,13 @@ fn part_key(level: &Level, p: &crate::level::Part, growers: &[String], table: &G
 fn lin(c: [f32; 3]) -> Vec4 { let l = Color::srgb(c[0], c[1], c[2]).to_linear(); Vec4::new(l.red, l.green, l.blue, 1.0) }
 
 impl GrassSync<'_, '_> {
-    fn shared_params(&mut self) -> GrassParams {
+    fn shared_params(&mut self, s: &GrassSettings, species: usize) -> GrassParams {
         if self.lighting.sync_directional_light && let Some((l, t)) = self.sun.iter().next() {
             let c = l.color.to_linear();
             let (dir, colour) = (-Vec3::from(t.forward()), Vec3::new(c.red, c.green, c.blue) * 0.9);
             if self.lighting.sun_dir != dir || self.lighting.sun_color != colour { (self.lighting.sun_dir, self.lighting.sun_color) = (dir, colour); }
         }
-        let (s, wind, light) = (&*self.settings, &*self.wind, &*self.lighting);
+        let (wind, light) = (&*self.wind, &*self.lighting);
         let strength = s.sway * (0.22 + wind.speed * 0.052).min(1.0) * 0.16 * 0.5;
         GrassParams {
             lattice: Vec4::new(s.radius, s.edge, s.min_scale, s.keep()),
@@ -227,7 +231,7 @@ impl GrassSync<'_, '_> {
             head: Vec4::new(s.head_radius, s.head_var, s.head_var_hi, s.plume_at),
             misc: Vec4::new(s.pad_lift, s.ivy_normal_bias, s.ivy_direct_mul, s.ivy_ground_tint),
             grad: Vec4::new(s.gradient_amount, s.gradient_alt, s.gradient_lo, s.gradient_hi),
-            grad2: Vec4::new(s.gradient_pow, self.species.species.len().min(MAX_SPECIES) as f32, 0.0, 0.0),
+            grad2: Vec4::new(s.gradient_pow, species.min(MAX_SPECIES) as f32, 0.0, 0.0),
             wind: Vec4::new(wind.direction.cos(), wind.direction.sin(), strength, s.gust),
             dark: lin(s.dark), mid: lin(s.mid), light: lin(s.light),
             sun_dir: light.sun_dir.extend(0.0), sun_color: light.sun_color.extend(0.0), ambient: light.ambient.extend(0.0), flat_scale: light.flat_scale.extend(0.0),
@@ -256,10 +260,15 @@ impl GrassSync<'_, '_> {
     pub fn run(&mut self, level: &Level) {
         let now = self.time.elapsed_secs_f64();
         let growers = sheets::growers(level);
-        let table = grower_table(level, &growers, &self.species);
-        let spacing = self.settings.spacing();
-        let base = self.shared_params();
-        let shared = (base.clone(), self.species.pack(), table);
+        // the level's reach and quality, and its species with the built-in ones
+        let settings = GrassSettings { radius: level.foliage.reach, tiles: level.foliage.tiles(), ..(*self.settings).clone() };
+        if self.state.species.as_ref().map(|s| s.0) != Some(level.foliage.stamp()) { self.state.species = Some((level.foliage.stamp(), GrassSpeciesRegistry::with(&level.foliage.species))); }
+        let species = self.state.species.take().expect("just made");
+        let table = grower_table(level, &growers, &species.1);
+        let spacing = settings.spacing();
+        let base = self.shared_params(&settings, species.1.species.len());
+        let shared = (base.clone(), species.1.pack(), table);
+        self.state.species = Some(species);
         let shared_changed = self.state.shared.as_ref() != Some(&shared);
         if self.state.gradients.is_none() {
             let mut atlas = Image::new(Extent3d { width: defaults::GRADIENT_W, height: defaults::GRADIENT_H, depth_or_array_layers: 1 }, TextureDimension::D2, defaults::GRADIENT_RGBA.to_vec(), TextureFormat::Rgba8Unorm, RenderAssetUsages::RENDER_WORLD);
@@ -275,7 +284,7 @@ impl GrassSync<'_, '_> {
         let gone: Vec<u64> = if look { self.state.parts.keys().filter(|id| !live.contains(id)).copied().collect() } else { vec![] };
         for id in gone { let g = self.state.parts.remove(&id).unwrap(); self.drop_part(g); }
         for p in level.parts.iter().filter(|_| look) {
-            let key = part_key(level, p, &growers, &shared.2);
+            let key = part_key(level, p, &growers, &shared.2, spacing);
             match self.state.parts.get(&p.id) {
                 Some(g) if g.key == key => continue,
                 Some(g) if now - g.made < SETTLE => { self.state.waiting = true; continue }
@@ -306,7 +315,7 @@ impl GrassSync<'_, '_> {
         }
         // the tiles within reach of the camera
         let Some(focus) = self.focus.iter().next().map(|t| t.translation()) else { return };
-        let reach = self.settings.radius;
+        let reach = settings.radius;
         let mut spawn: Vec<(u64, usize, (u32, u32), u32)> = vec![];
         let mut despawn = vec![];
         for (id, g) in self.state.parts.iter_mut() {

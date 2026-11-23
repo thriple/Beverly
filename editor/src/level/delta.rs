@@ -47,6 +47,7 @@ pub struct Delta {
     lighting: Pair<Lighting>,
     navigation: Pair<Navigation>,
     walker: Pair<WalkerSounds>,
+    foliage: Pair<Foliage>,
     materials: Entries<Material>,
     sounds: Entries<Sound>,
 }
@@ -65,6 +66,7 @@ impl Delta {
             lighting: if a.lighting.stamp() == b.lighting.stamp() { None } else { pair(&*a.lighting, &*b.lighting) },
             navigation: if a.navigation.stamp() == b.navigation.stamp() { None } else { pair(&*a.navigation, &*b.navigation) },
             walker: if a.walker.stamp() == b.walker.stamp() { None } else { pair(&*a.walker, &*b.walker) },
+            foliage: if a.foliage.stamp() == b.foliage.stamp() { None } else { pair(&*a.foliage, &*b.foliage) },
             ..Delta::default()
         };
         if a.materials.stamp() != b.materials.stamp() { d.materials = entries(&a.materials, &b.materials); }
@@ -83,7 +85,7 @@ impl Delta {
 
     pub fn is_empty(&self) -> bool {
         self.name.is_none() && self.next_id.is_none() && self.changed.is_empty() && self.removed.is_empty() && self.added.is_empty() && self.order.is_none()
-            && self.wires.is_none() && self.curves.is_none() && self.buckets.is_none() && self.ranges.is_none() && self.lighting.is_none() && self.navigation.is_none() && self.walker.is_none()
+            && self.wires.is_none() && self.curves.is_none() && self.buckets.is_none() && self.ranges.is_none() && self.lighting.is_none() && self.navigation.is_none() && self.walker.is_none() && self.foliage.is_none()
             && self.materials.is_empty() && self.sounds.is_empty()
     }
 
@@ -103,6 +105,7 @@ impl Delta {
         if let Some(v) = pick(&self.lighting, forward) { *level.lighting = v.clone(); }
         if let Some(v) = pick(&self.navigation, forward) { *level.navigation = v.clone(); }
         if let Some(v) = pick(&self.walker, forward) { *level.walker = v.clone(); }
+        if let Some(v) = pick(&self.foliage, forward) { *level.foliage = v.clone(); }
         if !self.materials.is_empty() { set(&mut level.materials, &self.materials, forward); }
         if !self.sounds.is_empty() { set(&mut level.sounds, &self.sounds, forward); }
         let (gone, come) = if forward { (&self.removed, &self.added) } else { (&self.added, &self.removed) };
