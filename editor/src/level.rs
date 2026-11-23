@@ -489,7 +489,7 @@ mod tests {
         lvl.get_mut(id).unwrap().surfaces.clear();
         lvl.materials.insert("assets/materials/mud.bev".into(), Material { sounds_like: Some(Ground::Dirt), ..Default::default() });
         lvl.materials.insert("assets/materials/meadow.bev".into(), Material { sounds_like: Some(Ground::Grass), ground: Some("assets/materials/mud.bev".into()), spread: 2.0, soft: 0.0, ..Default::default() });
-        lvl.get_mut(id).unwrap().strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 1.0, hardness: 1.0, strength: 1.0, points: vec![[0.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None }];
+        lvl.get_mut(id).unwrap().strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 1.0, hardness: 1.0, strength: 1.0, points: vec![[0.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None }];
         let at = |x: f32| Some(Vec3::new(x, 0.5, 0.0));
         assert_eq!(lvl.ground_at(id, at(0.1)), Some(Ground::Grass), "in the plants");
         assert_eq!(lvl.ground_at(id, at(0.8)), Some(Ground::Dirt), "in the ground past them");

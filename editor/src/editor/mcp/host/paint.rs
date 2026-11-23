@@ -61,9 +61,13 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                 Some("none") | Some("") => Some(String::new()),
                 Some(g) => Some(material_ref(ed, g)?),
             };
+            let look = match (args.get("ground_width").and_then(Value::as_f64), args.get("ground_strength").and_then(Value::as_f64)) {
+                (None, None) => (b.ground_width >= 1.0 || b.ground_strength < 1.0).then(|| crate::level::GroundLook { width: (b.ground_width >= 1.0).then_some(b.ground_width), strength: b.ground_strength }),
+                (w, st) => Some(crate::level::GroundLook { width: w.map(|w| (w as f32).clamp(1.0, 3.0)), strength: st.map_or(1.0, |v| (v as f32).clamp(0.0, 1.0)) }),
+            };
             let p = ed.level.get_mut(id).expect("found above");
             let local = points.iter().map(|w| p.to_local(*w).to_array()).collect();
-            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false, faces: vec![], bucket: None, ground: if erase { None } else { ground } });
+            p.strokes.push(crate::level::Stroke { material, size: num("size", b.size, 0.05, 500.0), hardness: num("hardness", b.hardness, 0.0, 1.0), strength: num("strength", b.strength, 0.0, 1.0), points: local, lays, rules, curve: None, fill: false, faces: vec![], bucket: None, ground: if erase { None } else { ground }, ground_look: look.filter(|_| !erase) });
             settle_instances(ed, args)?;
             ed.commit();
             Ok(describe(ed, ed.level.get(id).expect("found above")))

@@ -29,6 +29,8 @@
                 (material: "assets/materials/meadow.bev", size: 3.0, hardness: 0.6, strength: 1.0, points: [(-8.0, 0.05, 2.0), (-4.0, 0.05, 0.0), (0.0, 0.05, 0.0)]),
                 // the same Mix on bare stone (this stroke's ground is none)
                 (material: "assets/materials/meadow.bev", size: 3.0, hardness: 0.6, strength: 1.0, points: [(4.0, 0.05, 0.0), (8.0, 0.05, 2.0)], ground: Some("assets/materials/stone.bev")),
+                // and wide, faint soil for this stroke only
+                (material: "assets/materials/meadow.bev", size: 2.0, hardness: 0.6, strength: 1.0, points: [(-4.0, 0.05, 6.0), (4.0, 0.05, 6.0)], ground_look: Some((width: Some(3.0), strength: 0.5))),
             ],
         ),
     ],

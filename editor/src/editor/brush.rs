@@ -13,6 +13,8 @@ use bevy::reflect::std_traits::ReflectDefault;
 
 /// The brush's section in its panel.
 pub const BRUSH: &str = "BRUSH";
+/// Its ground section, for a Mix's plants.
+pub const GROUND: &str = "GROUND";
 
 /// The brush: what it paints and how.
 #[derive(Clone, PartialEq, Debug, Reflect)]
@@ -22,6 +24,11 @@ pub struct Brush {
     pub material: String,
     /// The ground under a Mix's plants when it isn't the Mix's own (`level::mix`): a material, or empty for none.
     pub ground: Option<String>,
+    /// How far a Mix's ground reaches past its plants for this brush (below 1: the Mix's own), and how strongly it is laid.
+    #[reflect(@Setting::feel("Ground width", &["Mix's own", "Past", "Far past"], 0.0, 3.0, "×").section(GROUND).help("How far the ground reaches past the plants, as many times the brush's width (the far left: as the Mix says)"))]
+    pub ground_width: f32,
+    #[reflect(@Setting::feel("Ground strength", &["Faint", "Half", "Full"], 0.0, 1.0, "").section(GROUND).help("How strongly the ground is laid under the plants"))]
+    pub ground_strength: f32,
     #[reflect(@Setting::feel("Size", &["Dab", "Small", "Large", "Forest"], 0.1, 500.0, "m").log().section(BRUSH).help("How wide it paints  ·  [ and ] smaller and larger"))]
     pub size: f32,
     #[reflect(@Setting::feel("Hardness", &["Soft", "Medium", "Hard"], 0.0, 1.0, "").section(BRUSH).help("Soft fades out to its edge; hard stops sharply  ·  Shift + [ and ]"))]
@@ -48,7 +55,7 @@ impl Default for Brush {
     fn default() -> Self {
         let p = |size| Preset { size, hardness: 0.6, strength: 1.0, lays: Lays::Add };
         let presets = [p(0.25), p(1.0), p(4.0), p(20.0)];
-        Brush { material: String::new(), ground: None, size: 1.0, hardness: 0.6, strength: 1.0, lays: Lays::Add, preset: 1, presets, rules: Rules::default() }
+        Brush { material: String::new(), ground: None, ground_width: 0.0, ground_strength: 1.0, size: 1.0, hardness: 0.6, strength: 1.0, lays: Lays::Add, preset: 1, presets, rules: Rules::default() }
     }
 }
 
@@ -143,7 +150,7 @@ pub fn input(ed: &mut Editor, view: &View, ray: Option<Ray3d>, mouse: &ButtonInp
         // a new stroke (or onto another part: a stroke of its own there)
         _ => {
             let lays = if alt { Lays::Add } else { b.lays };
-            p.strokes.push(Stroke { material, size: b.size, hardness: b.hardness, strength: b.strength, points: vec![local], lays, rules: b.rules, curve: None, fill: false, faces: vec![], bucket: None, ground: if alt { None } else { b.ground } });
+            p.strokes.push(Stroke { material, size: b.size, hardness: b.hardness, strength: b.strength, points: vec![local], lays, rules: b.rules, curve: None, fill: false, faces: vec![], bucket: None, ground: if alt { None } else { b.ground }, ground_look: (!alt && (b.ground_width >= 1.0 || b.ground_strength < 1.0)).then_some(crate::level::GroundLook { width: (b.ground_width >= 1.0).then_some(b.ground_width), strength: b.ground_strength }) });
             ed.painting.stroke = Some((id, p.strokes.len() - 1));
         }
     }

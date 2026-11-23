@@ -69,6 +69,19 @@ pub struct Stroke {
     /// The ground under its plants, when it isn't the material's own (`mix.rs`): a material, or empty for none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ground: Option<String>,
+    /// How this stroke's ground differs from the Mix's: how far it spreads, how strongly it is laid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ground_look: Option<GroundLook>,
+}
+
+/// A stroke's own say over its Mix's ground (`mix.rs`).
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug, Reflect)]
+pub struct GroundLook {
+    /// How far the ground reaches past the plants, as many times the stroke's width (none: the Mix's own).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    /// How strongly the ground is laid, 0..1.
+    pub strength: f32,
 }
 
 /// A bucket fill: the place clicked and a rule for what else counts as the same, with the layer it lays there. It stays

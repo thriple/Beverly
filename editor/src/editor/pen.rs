@@ -200,7 +200,7 @@ fn fill_strokes(curve: u64, fill: &curve::Fill, path: curve::Path, line: &[Vert]
             out.push((q.id, crate::level::Stroke {
                 material: fill.material.clone(), size: fill.feather, hardness: 1.0, strength: fill.strength, points: poly.iter().map(|p| q.to_local(*p).to_array()).collect(), lays: crate::level::Lays::Add,
                 // only on what is walkable, not the sides of things
-                rules: crate::level::Rules { slope: path.slope, ..Default::default() }, curve: Some(curve), fill: true, faces: vec![], bucket: None, ground: None,
+                rules: crate::level::Rules { slope: path.slope, ..Default::default() }, curve: Some(curve), fill: true, faces: vec![], bucket: None, ground: None, ground_look: None,
             }));
         }
     }
@@ -214,7 +214,7 @@ fn strip_strokes(curve: u64, strip: &curve::Strip, line: &[Vert], parts: &[Part]
     let mut run: Option<(u64, Vec<[f32; 3]>)> = None;
     let flush = |run: &mut Option<(u64, Vec<[f32; 3]>)>, out: &mut Vec<(u64, crate::level::Stroke)>| {
         if let Some((id, points)) = run.take() {
-            out.push((id, crate::level::Stroke { material: strip.material.clone(), size: strip.size, hardness: strip.hardness, strength: strip.strength, points, lays: crate::level::Lays::Add, rules: Default::default(), curve: Some(curve), fill: false, faces: vec![], bucket: None, ground: None }));
+            out.push((id, crate::level::Stroke { material: strip.material.clone(), size: strip.size, hardness: strip.hardness, strength: strip.strength, points, lays: crate::level::Lays::Add, rules: Default::default(), curve: Some(curve), fill: false, faces: vec![], bucket: None, ground: None, ground_look: None }));
         }
     };
     let step = (strip.size * 0.1).max(0.05);

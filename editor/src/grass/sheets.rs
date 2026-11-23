@@ -144,7 +144,7 @@ mod tests {
         level.materials.insert("assets/materials/meadow.bev".into(), meadow());
         let mut p = Part::placed(Shape::Box, None, "Floor".into(), [0.0, 0.5, 0.0], [0.0, 0.0, 0.0, 1.0], [10.0, 1.0, 10.0]);
         // a round dab of meadow 2 m across on the top, at x = -3
-        p.strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 2.0, hardness: 1.0, strength: 1.0, points: vec![[-3.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None }];
+        p.strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 2.0, hardness: 1.0, strength: 1.0, points: vec![[-3.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None }];
         let g = growers(&level);
         let s = sheets(&level, &p, &g);
         assert_eq!(s.len(), 1, "only the top: {:?}", s.iter().map(|s| s.face).collect::<Vec<_>>());

@@ -14,10 +14,11 @@ fn ground_stroke(level: &Level, s: &Stroke) -> Option<Stroke> {
     if !level.materials.contains_key(g) { return None; }
     Some(Stroke {
         material: g.into(),
-        size: s.size * m.spread.max(1.0),
+        size: s.size * s.ground_look.and_then(|l| l.width).unwrap_or(m.spread).max(1.0),
         hardness: s.hardness * (1.0 - m.soft.clamp(0.0, 1.0)),
-        strength: s.strength * if m.follows { m.grass_density.clamp(0.0, 1.0) } else { 1.0 },
+        strength: s.strength * s.ground_look.map_or(1.0, |l| l.strength.clamp(0.0, 1.0)) * if m.follows { m.grass_density.clamp(0.0, 1.0) } else { 1.0 },
         ground: None,
+        ground_look: None,
         ..s.clone()
     })
 }
@@ -33,7 +34,7 @@ mod tests {
     use super::*;
 
     fn stroke(m: &str) -> Stroke {
-        Stroke { material: m.into(), size: 2.0, hardness: 0.8, strength: 1.0, points: vec![[0.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None }
+        Stroke { material: m.into(), size: 2.0, hardness: 0.8, strength: 1.0, points: vec![[0.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None }
     }
 
     #[test]
@@ -53,10 +54,15 @@ mod tests {
         assert_eq!(shown(&level, &p).strokes[0].material, "mud");
         p.strokes[0].ground = Some(String::new());
         assert_eq!(shown(&level, &p).strokes[0].material, "meadow", "no ground: the material's own colour");
-        // thin plants lay thin ground when the Mix follows thickness
+        // this stroke's own width and strength
+        p.strokes[0].ground = None;
+        p.strokes[0].ground_look = Some(GroundLook { width: Some(3.0), strength: 0.5 });
+        let one = shown(&level, &p).strokes[0].clone();
+        assert_eq!((one.size, one.strength), (6.0, 0.5));
+        p.strokes[0].ground_look = None;
+        // sparse plants lay sparse ground when the Mix follows sparseness
         level.materials.get_mut("meadow").unwrap().follows = true;
         level.materials.get_mut("meadow").unwrap().grass_density = 0.25;
-        p.strokes[0].ground = None;
         assert_eq!(shown(&level, &p).strokes[0].strength, 0.25);
         // nothing a Mix: the part itself
         p.strokes = vec![stroke("soil")];

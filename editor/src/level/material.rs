@@ -65,7 +65,7 @@ pub struct Material {
     #[reflect(@Setting::feel("Soft edge", &["Brush's", "Soft", "Fades"], 0.0, 1.0, "").section(GROUND).help("How softly the ground's edge fades out (0: as soft as the brush)"))]
     pub soft: f32,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
-    #[reflect(@Setting::toggle("Follows thickness").section(GROUND).help("Thin plants lay thin ground: how much ground there is follows the Thickness of the plants"))]
+    #[reflect(@Setting::toggle("Follows sparseness").section(GROUND).help("Sparse plants lay sparse ground: how strongly the ground is laid follows the Thickness of the plants"))]
     pub follows: bool,
 }
 

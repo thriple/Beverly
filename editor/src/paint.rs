@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn later_strokes_cover_earlier_ones_and_erasing_uncovers() {
         let mut p = Part::placed(Shape::Plane, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [10.0, 0.1, 10.0]);
-        let s = |m: &str, x: f32, hard: f32| Stroke { material: m.into(), size: 2.0, hardness: hard, strength: 1.0, points: vec![[x - 1.0, 0.05, 0.0], [x, 0.05, 0.0], [x + 1.0, 0.05, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None };
+        let s = |m: &str, x: f32, hard: f32| Stroke { material: m.into(), size: 2.0, hardness: hard, strength: 1.0, points: vec![[x - 1.0, 0.05, 0.0], [x, 0.05, 0.0], [x + 1.0, 0.05, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None };
         p.strokes = vec![s("moss", 0.0, 1.0), s("sand", 3.0, 1.0), s("", -3.0, 1.0)];
         let pc = pieces(&p);
         let at = |x: f32, layer: i32| coverage(&pc, pc.len(), layer, Vec3::new(x, 0.05, 0.0), 0, 1.0, 0.0);
@@ -303,7 +303,7 @@ mod tests {
     fn subtract_takes_only_its_own_and_set_holds_its_strength() {
         use crate::level::{Lays, Rules};
         let mut p = Part::placed(Shape::Plane, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [10.0, 0.1, 10.0]);
-        let s = |m: &str, strength: f32, lays: Lays| Stroke { material: m.into(), size: 2.0, hardness: 1.0, strength, points: vec![[0.0, 0.05, 0.0]], lays, rules: Rules::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None };
+        let s = |m: &str, strength: f32, lays: Lays| Stroke { material: m.into(), size: 2.0, hardness: 1.0, strength, points: vec![[0.0, 0.05, 0.0]], lays, rules: Rules::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None };
         let at = |p: &Part, layer: i32, up: f32, y: f32| { let pc = pieces(p); coverage(&pc, pc.len(), layer, Vec3::new(0.0, 0.05, 0.0), 0, up, y) };
         // moss, then sand half over it, then half the moss taken away: the sand stays
         p.strokes = vec![s("moss", 1.0, Lays::Add), s("sand", 0.5, Lays::Add), s("moss", 0.5, Lays::Subtract)];

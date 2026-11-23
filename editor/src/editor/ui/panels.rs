@@ -442,8 +442,12 @@ pub(super) fn brush_body(ui: &mut Ui, ed: &mut Editor) {
             let mut k = b.preset;
             if theme::choices(ui, "brush-preset", &crate::editor::brush::PRESETS, &mut k) { b.pick(k); }
         });
-        // a Mix's ground, unless this stroke says otherwise
-        if ed.level.materials.get(&b.material).is_some_and(|m| m.ground.is_some() || !m.grass.is_empty()) {
+        ui.add_space(8.0);
+        settings::section(ui, &mut b, crate::editor::brush::BRUSH, &mut ctx);
+    });
+    // a Mix's ground under its plants: which, how far it reaches and how strongly it is laid
+    if ed.level.materials.get(&b.material).is_some_and(|m| m.ground.is_some() || !m.grass.is_empty()) {
+        column(ui, 0.0, crate::editor::brush::GROUND, |ui| {
             ui.horizontal(|ui| {
                 ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Ground").color(TEXT_2)).tip("What it lays under the plants: the Mix's own, none, or another material for these strokes"); });
                 let own = ed.level.materials.get(&b.material).and_then(|m| m.ground.as_deref()).map_or("None".to_string(), name);
@@ -454,10 +458,10 @@ pub(super) fn brush_body(ui: &mut Ui, ed: &mut Editor) {
                     for m in ed.level.materials.keys().filter(|m| **m != b.material) { ui.selectable_value(&mut b.ground, Some(m.clone()), name(m)); }
                 });
             });
-        }
-        ui.add_space(8.0);
-        settings::section(ui, &mut b, crate::editor::brush::BRUSH, &mut ctx);
-    });
+            ui.add_space(8.0);
+            settings::section(ui, &mut b, crate::editor::brush::GROUND, &mut ctx);
+        });
+    }
     column(ui, 0.0, level::RULES, |ui| {
         settings::section(ui, &mut b.rules, level::RULES, &mut ctx);
         ui.add_space(8.0);
