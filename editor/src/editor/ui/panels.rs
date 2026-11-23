@@ -269,6 +269,7 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
         LevelMode::Lighting => ("Lighting".into(), "bulb", theme::CAT_LIGHTS),
         LevelMode::Physics => ("Physics".into(), "feel", theme::CAT_FLOW),
         LevelMode::Cameras => ("Cameras".into(), "camera", theme::CAT_CAMERAS),
+        LevelMode::Foliage => ("Foliage".into(), "leaf", theme::CAT_FLOW),
     };
     let sub = if ed.level_mode == LevelMode::Build { format!("Level · {parts} part{}", if parts == 1 { "" } else { "s" }) } else { format!("Level · {}", ed.level.name) };
     identity(ui, colour, icon, Err(&name), &sub, &mut []);
@@ -328,6 +329,7 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 }
             });
         }
+        LevelMode::Foliage => {} // its own panel (`foliage.rs`)
         LevelMode::Cameras => {
             column(ui, 0.0, "LEVEL · CAMERAS", |ui| {
                 let cams: Vec<(u64, String)> = ed.level.parts.iter().filter(|p| p.shape.is_camera()).map(|p| (p.id, format!("{}  {}", p.shape.glyph(), p.name))).collect();
@@ -359,6 +361,8 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
     if let Some(c) = &cur {
         let mut strip = c.strip.clone();
         let mut fill = c.fill.clone();
+        let mut scatter = c.scatter.clone();
+        let mut turn = false;
         let mut path = c.path;
         // the selected point's stretch, when it is in the air: how far it sags
         let air = ed.pen.point.filter(|&i| i < c.segments() && c.stretch(i) == crate::curve::Stretch::Air);
@@ -391,13 +395,51 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
                 settings::section(ui, f, crate::curve::FILL, &mut ctx);
             }
         });
+        column(ui, 0.0, crate::curve::SCATTER, |ui| {
+            let mut on = scatter.is_some();
+            let mut none = false;
+            if settings::toggle_row(ui, "", "Scatter things", &mut on, "Places stumps, logs, boulders or anything you choose along the line or inside it, kept in step with the curve; they are ordinary parts", false, &mut none) {
+                scatter = on.then(crate::curve::Scatter::default);
+            }
+            if let Some(sc) = scatter.as_mut() {
+                settings::section(ui, sc, crate::curve::SCATTER, &mut ctx);
+                ui.add_space(8.0);
+                let (mut gone, total) = (None, sc.items.len());
+                for (k, it) in sc.items.iter_mut().enumerate() {
+                    ui.push_id(("scatter item", k), |ui| {
+                    ui.horizontal(|ui| {
+                        let w = ui.available_width() - 30.0;
+                        egui::ComboBox::from_id_salt(("scatter shape", k)).selected_text(format!("{}  ·  {}", it.name, it.shape.label())).width(w).show_ui(ui, |ui| {
+                            for sh in Shape::ALL { ui.selectable_value(&mut it.shape, sh, sh.label()); }
+                        });
+                        if total > 1 && super::audio_ui::trash(ui, "Remove this item") { gone = Some(k); }
+                    });
+                    theme::text_input(ui, &mut it.name, "Name", None, ui.available_width());
+                    settings::section(ui, it, crate::curve::ITEM, &mut ctx);
+                    ui.add_space(6.0);
+                    });
+                }
+                if let Some(k) = gone { sc.items.remove(k); }
+                if ui.button("+ Add item").tip("Another kind of thing to pick from").clicked() { sc.items.push(crate::curve::Item { name: format!("Item {}", sc.items.len() + 1), ..Default::default() }); }
+                if ui.button("Turn into items").tip("Makes them ordinary parts that stay where they are, for nudging or deleting one by one; the curve stops scattering").clicked() { turn = true; }
+            }
+        });
+        if let Some(sc) = scatter.as_mut() {
+            let y = c.points.first().map_or(0.0, |p| p.at[1]);
+            column(ui, 0.0, level::RULES, |ui| rules_body(ui, &mut sc.rules, "scatter only on", y, "Scatters", &mut ctx));
+        }
         if ctx.ranges_changed { ed.level.ranges = ranges; }
         if let Some(cm) = ed.level.curve_mut(c.id) {
+            if scatter != c.scatter { cm.scatter = scatter; }
             if strip != c.strip { cm.strip = strip; }
             if fill != c.fill { cm.fill = fill; }
             if path != c.path { cm.path = path; }
             if let Some(p) = air.and_then(|i| cm.points.get_mut(i)).filter(|p| p.sag != hang.sag) { p.sag = hang.sag; }
             if name != c.name && !name.is_empty() { cm.name = name; }
+        }
+        if turn {
+            let n = crate::editor::scatter::turn_into_items(ed, c.id);
+            ed.island.show("◇", format!("{n} items"), "They are ordinary parts now; the curve stops scattering", theme::Tone::Accent);
         }
     }
     column(ui, 0.0, "SHORTCUTS", |ui| {
@@ -412,11 +454,43 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
     if theme::main_button(ui, "Done").clicked() { ed.pen_on = false; ed.pen.reset(); }
 }
 
+/// A rules section (the brush's and a scatter's): the steepest slope, between which heights, on which tagged parts. `does`
+/// is what the thing does ("Paints", "Scatters"); `y` is where the heights start.
+fn rules_body(ui: &mut Ui, rules: &mut level::Rules, salt: &str, y: f32, does: &str, ctx: &mut settings::Ctx) {
+    settings::section(ui, rules, level::RULES, ctx);
+    ui.add_space(8.0);
+    // only between two heights in the world
+    let mut band = rules.band.is_some();
+    let mut none = false;
+    if settings::toggle_row(ui, "", "Only between heights", &mut band, &format!("{does} only between two heights in the world, wherever the part goes"), false, &mut none) {
+        rules.band = band.then(|| [y - 1.0, y + 1.0]);
+    }
+    if let Some([lo, hi]) = rules.band.as_mut() {
+        settings::row(ui, "", "From", "The lowest it goes (metres)", false, &mut none, |ui| settings::number(ui, lo, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
+        settings::row(ui, "", "To", "The highest it goes (metres)", false, &mut none, |ui| settings::number(ui, hi, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
+    }
+    // only on parts with a surface tag
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Only on").color(TEXT_2)).tip(format!("{does} only parts with this surface tag (their Tags, in Advanced)")); });
+        let label = |t: Option<level::Tag>| t.map_or("Any surface".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
+        egui::ComboBox::from_id_salt(salt).selected_text(label(rules.on)).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(&mut rules.on, None, label(None));
+            for t in level::Tag::ALL { ui.selectable_value(&mut rules.on, Some(t), label(Some(t))); }
+        });
+    });
+}
+
 /// The brush's panel (in Inspect while the brush is out): what it paints and how.
 pub(super) fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let sub = if ed.brush.material.is_empty() { "Pick a material to paint with".to_string() } else { format!("Brush · painting {}", name(&ed.brush.material)) };
     identity(ui, theme::VIOLET, "palette", Err("Brush"), &sub, &mut []);
+    brush_body(ui, ed);
+}
+
+/// The brush's settings, rules and shortcuts (the Foliage topic shows them under its Mixes).
+pub(super) fn brush_body(ui: &mut Ui, ed: &mut Editor) {
+    let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let mut b = ed.brush.clone();
     let mut ranges = ed.level.ranges.clone();
     let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
@@ -437,28 +511,26 @@ pub(super) fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
         ui.add_space(8.0);
         settings::section(ui, &mut b, crate::editor::brush::BRUSH, &mut ctx);
     });
-    column(ui, 0.0, level::RULES, |ui| {
-        settings::section(ui, &mut b.rules, level::RULES, &mut ctx);
-        ui.add_space(8.0);
-        // only between two heights in the world
-        let mut band = b.rules.band.is_some();
-        let mut none = false;
-        if settings::toggle_row(ui, "", "Only between heights", &mut band, "Paints only between two heights in the world, wherever the part goes", false, &mut none) {
-            b.rules.band = band.then(|| { let y = ed.painting.over.map_or(0.0, |o| o.1.y); [y - 1.0, y + 1.0] });
-        }
-        if let Some([lo, hi]) = b.rules.band.as_mut() {
-            settings::row(ui, "", "From", "The lowest it paints (metres)", false, &mut none, |ui| settings::number(ui, lo, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
-            settings::row(ui, "", "To", "The highest it paints (metres)", false, &mut none, |ui| settings::number(ui, hi, 0.05, -1e6, 1e6, " m", None, ui.available_width()));
-        }
-        // only on parts with a surface tag
-        ui.horizontal(|ui| {
-            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Only on").color(TEXT_2)).tip("Paints only parts with this surface tag (their Tags, in Advanced)"); });
-            let label = |t: Option<level::Tag>| t.map_or("Any surface".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
-            egui::ComboBox::from_id_salt("brush only on").selected_text(label(b.rules.on)).width(ui.available_width()).show_ui(ui, |ui| {
-                ui.selectable_value(&mut b.rules.on, None, label(None));
-                for t in level::Tag::ALL { ui.selectable_value(&mut b.rules.on, Some(t), label(Some(t))); }
+    // a Mix's ground under its plants: which, how far it reaches and how strongly it is laid
+    if ed.level.materials.get(&b.material).is_some_and(|m| m.ground.is_some() || !m.grass.is_empty()) {
+        column(ui, 0.0, crate::editor::brush::GROUND, |ui| {
+            ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Ground").color(TEXT_2)).tip("What it lays under the plants: the Mix's own, none, or another material for these strokes"); });
+                let own = ed.level.materials.get(&b.material).and_then(|m| m.ground.as_deref()).map_or("None".to_string(), name);
+                let shown = match b.ground.as_deref() { None => format!("{own} (the Mix's)"), Some("") => "None".to_string(), Some(g) => name(g) };
+                egui::ComboBox::from_id_salt("brush ground").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut b.ground, None, format!("{own} (the Mix's)"));
+                    ui.selectable_value(&mut b.ground, Some(String::new()), "None");
+                    for m in ed.level.materials.keys().filter(|m| **m != b.material) { ui.selectable_value(&mut b.ground, Some(m.clone()), name(m)); }
+                });
             });
+            ui.add_space(8.0);
+            settings::section(ui, &mut b, crate::editor::brush::GROUND, &mut ctx);
         });
+    }
+    column(ui, 0.0, level::RULES, |ui| {
+        let y = ed.painting.over.map_or(0.0, |o| o.1.y);
+        rules_body(ui, &mut b.rules, "brush only on", y, "Paints", &mut ctx);
     });
     column(ui, 0.0, "SHORTCUTS", |ui| {
         theme::hint(ui, "Presets S to XL", &["1", "2", "3", "4"]);
@@ -470,6 +542,74 @@ pub(super) fn brush_panel(ui: &mut Ui, ed: &mut Editor) {
     });
     if theme::main_button(ui, "Done").clicked() { ed.brush_on = false; }
     if ctx.ranges_changed { ed.level.ranges = ranges; }
+    if b != ed.brush { b.keep(); ed.brush = b; }
+}
+
+/// The bucket fill's panel (in Inspect while it is out): what it lays (the brush's material, strength and Lays), what
+/// it fills, and the fills in the level.
+pub(super) fn bucket_panel(ui: &mut Ui, ed: &mut Editor) {
+    let name = |p: &str| std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let sub = match &ed.filling.over {
+        Some((_, reach)) => format!("Bucket · a click fills {} part{}", reach.len(), if reach.len() == 1 { "" } else { "s" }),
+        None if ed.brush.material.is_empty() => "Pick a material to fill with".to_string(),
+        None => format!("Bucket · filling with {}", name(&ed.brush.material)),
+    };
+    identity(ui, theme::VIOLET, "palette", Err("Bucket fill"), &sub, &mut []);
+    let mut b = ed.brush.clone();
+    let mut t = ed.bucket.clone();
+    let mut ranges = ed.level.ranges.clone();
+    let mut ctx = settings::Ctx { replace: &[], ranges: &mut ranges, ranges_changed: false, palette: vec![] };
+    let tag_label = |t: Option<level::Tag>| t.map_or("The clicked part's".to_string(), |t| format!("{t:?}").chars().enumerate().flat_map(|(i, c)| if i > 0 && c.is_uppercase() { vec![' ', c.to_ascii_lowercase()] } else { vec![c] }).collect());
+    column(ui, 0.0, crate::editor::bucket::BUCKET, |ui| {
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Fills with").color(TEXT_2)).tip("The material it lays (the brush's)"); });
+            let shown = if b.material.is_empty() { "No material".to_string() } else { name(&b.material) };
+            egui::ComboBox::from_id_salt("bucket material").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+                for m in ed.level.materials.keys() { ui.selectable_value(&mut b.material, m.clone(), name(m)); }
+                if ed.level.materials.is_empty() { ui.label(egui::RichText::new("No materials yet: + New material in Assets").color(MUTED)); }
+            });
+        });
+        ui.add_space(8.0);
+        settings::section(ui, &mut t, crate::editor::bucket::BUCKET, &mut ctx);
+        if t.fills == level::Fills::Colour { settings::section(ui, &mut t, crate::editor::bucket::TOLERANCE, &mut ctx); }
+        if t.fills == level::Fills::Tag {
+            ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(vec2(76.0, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| { ui.set_min_width(76.0); ui.label(egui::RichText::new("Tag").color(TEXT_2)).tip("The surface tag it fills: every part with it"); });
+                egui::ComboBox::from_id_salt("bucket tag").selected_text(tag_label(t.tag)).width(ui.available_width()).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut t.tag, None, tag_label(None));
+                    for g in level::Tag::ALL { ui.selectable_value(&mut t.tag, Some(g), tag_label(Some(g))); }
+                });
+            });
+        }
+        ui.add_space(8.0);
+        let mut layer = crate::editor::bucket::Layer { strength: b.strength, lays: b.lays };
+        if settings::section(ui, &mut layer, crate::editor::bucket::LAYER, &mut ctx) { (b.strength, b.lays) = (layer.strength, layer.lays); }
+    });
+    // the fills in the level, newest last, each with its trash
+    if !ed.level.buckets.is_empty() {
+        let mut gone = None;
+        column(ui, 0.0, "IN THE LEVEL", |ui| {
+            for f in ed.level.buckets.iter() {
+                let on = ed.level.get(f.part).map_or("a part that is gone".to_string(), |p| p.name.clone());
+                let what = if f.material.is_empty() { "Erased".to_string() } else { name(&f.material) };
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(format!("{what} · {} from {on}", f.fills.word())).color(TEXT_2));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if super::audio_ui::trash(ui, "Take this fill out") { gone = Some(f.id); }
+                    });
+                });
+            }
+        });
+        if let Some(id) = gone { ed.level.buckets.retain(|f| f.id != id); }
+    }
+    column(ui, 0.0, "SHORTCUTS", |ui| {
+        theme::hint(ui, "Fill what matches", &["Click"]);
+        theme::hint(ui, "Erase what matches", &["Alt", "Click"]);
+        theme::hint(ui, "Put it away", &["Esc"]);
+    });
+    if theme::main_button(ui, "Done").clicked() { ed.bucket_on = false; }
+    if ctx.ranges_changed { ed.level.ranges = ranges; }
+    if t != ed.bucket { ed.bucket = t; }
     if b != ed.brush { b.keep(); ed.brush = b; }
 }
 
@@ -512,6 +652,7 @@ pub(super) fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
         LevelMode::Lighting => |p| p.shape.is_light(),
         LevelMode::Cameras => |p| p.shape.is_camera(),
         LevelMode::Physics => |p| crate::physics::kind(p).is_some(),
+        LevelMode::Foliage => |p| crate::paint::paintable(p),
     };
     // the search field
     let qid = Id::new("scene-find");
@@ -520,11 +661,13 @@ pub(super) fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
     ui.data_mut(|d| d.insert_temp(qid, q.clone()));
     let q = q.to_lowercase();
     if ed.level.parts.is_empty() { ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.5)); }
+    let scattered = ed.level.parts.iter().filter(|p| p.scatter.is_some()).count();
+    if scattered > 0 { ui.label(egui::RichText::new(format!("{scattered} scattered item{} (the pen's curves make them)", if scattered == 1 { "" } else { "s" })).color(MUTED).size(11.5)); }
     let over: Vec<u64> = { let w = crate::editor::light::budget(&ed.level); if w.len() > crate::editor::light::BUDGET { w } else { vec![] } };
     let mut pick = None;
     let mut flip = None;
     for sec in ["Shapes", "Models", "Triggers", "Game", "Lights", "Cameras"] {
-        let rows: Vec<&level::Part> = ed.level.parts.iter().filter(|p| shown(p) && kind(p.shape).0 == sec && (q.is_empty() || p.name.to_lowercase().contains(&q))).collect();
+        let rows: Vec<&level::Part> = ed.level.parts.iter().filter(|p| p.scatter.is_none() && shown(p) && kind(p.shape).0 == sec && (q.is_empty() || p.name.to_lowercase().contains(&q))).collect();
         if rows.is_empty() { continue; }
         ui.add_space(4.0);
         ui.label(egui::RichText::new(sec).size(11.5).color(MUTED));
@@ -640,6 +783,45 @@ pub(super) fn material_panel(ui: &mut Ui, ed: &mut Editor, path: &str) {
     column(ui, 0.0, "LOOK", |ui| {
         settings::section(ui, &mut m, level::MATERIAL, &mut ctx);
         ground_row(ui, "material sounds like", &mut m.sounds_like, "What it sounds like underfoot, wherever it's laid (else what the part says)");
+    });
+    column(ui, 0.0, "GRASS", |ui| {
+        // the species it grows, each with its share, then how thick
+        let names = crate::grass::species_names(&ed.level);
+        let mut gone = None;
+        for (i, g) in m.grass.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt(("grass species", i)).selected_text(g.species.replace('_', " ")).width(ui.available_width() * 0.5).show_ui(ui, |ui| {
+                    for n in &names { ui.selectable_value(&mut g.species, n.clone(), n.replace('_', " ")); }
+                });
+                let w = ui.available_width() - 30.0;
+                settings::number(ui, &mut g.share, 0.01, 0.0, 1.0, "", None, w).on_hover_text("Its share of the blades");
+                if super::audio_ui::trash(ui, "Grow none of this") { gone = Some(i); }
+            });
+        }
+        if let Some(i) = gone { m.grass.remove(i); }
+        if m.grass.len() < 4 && ui.button("+ Add grass").tip("Grass grows wherever this material is laid or painted").clicked() {
+            let next = names.iter().find(|n| !m.grass.iter().any(|g| &g.species == *n)).cloned().unwrap_or_default();
+            m.grass.push(level::Grows { species: next, share: if m.grass.is_empty() { 1.0 } else { 0.2 } });
+        }
+        if m.grass.is_empty() {
+            ui.label(egui::RichText::new("Grows nothing. Add grass and it grows wherever the material is laid or painted").color(MUTED).size(11.0));
+        } else {
+            settings::section(ui, &mut m, level::GRASS, &mut ctx);
+        }
+    });
+    column(ui, 0.0, "GROUND", |ui| {
+        // what it lays under its plants, then how far and how softly
+        let name = |p: &str| p.trim_start_matches("assets/materials/").trim_end_matches(".bev").to_string();
+        let shown = m.ground.as_deref().map_or("None (its own colour)".to_string(), name);
+        egui::ComboBox::from_id_salt("material ground").selected_text(shown).width(ui.available_width()).show_ui(ui, |ui| {
+            ui.selectable_value(&mut m.ground, None, "None (its own colour)");
+            for k in ed.level.materials.keys().filter(|k| k.as_str() != path) { ui.selectable_value(&mut m.ground, Some(k.clone()), name(k)); }
+        });
+        if m.ground.is_some() {
+            settings::section(ui, &mut m, level::GROUND, &mut ctx);
+        } else {
+            ui.label(egui::RichText::new("Pick a material and wherever this is painted it lays that ground under its plants, wider and softer than the plants").color(MUTED).size(11.0));
+        }
     });
     ranges_changed = ctx.ranges_changed;
     if m != before { ed.level.materials.insert(path.to_string(), m.clone()); }

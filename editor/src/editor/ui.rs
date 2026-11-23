@@ -14,6 +14,7 @@ use bevy_egui::{EguiContexts, egui::emath::TSTransform};
 
 mod assets;
 mod chrome;
+mod foliage;
 mod modals;
 mod overlays;
 mod panels;
@@ -22,6 +23,7 @@ mod widgets;
 mod audio_ui;
 use assets::*;
 use chrome::*;
+use foliage::*;
 use modals::*;
 use overlays::*;
 use panels::*;

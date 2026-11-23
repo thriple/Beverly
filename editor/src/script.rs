@@ -19,6 +19,8 @@ struct Moving {
     turn: Vec3,
     /// How fast it turns all the time (radians a second about x, y, z), and for how long it has.
     spin: Vec3,
+    /// How fast it travels all the time (metres a second along x, y, z).
+    drift: Vec3,
     age: f32,
     secs: f32,
     /// 0 at home, 1 at the end.
@@ -31,14 +33,14 @@ struct Moving {
 
 impl Moving {
     /// How far from home it is now (eased).
-    fn offset(&self) -> Vec3 { self.to * self.eased() }
+    fn offset(&self) -> Vec3 { self.to * self.eased() + self.drift * self.age }
     fn eased(&self) -> f32 { self.t * self.t * (3.0 - 2.0 * self.t) }
     /// Where it is and which way it faces now (the turn is about its own middle, in the world's axes).
     fn pose(&self) -> (Vec3, Quat) {
         let k = self.eased();
         let turn = Quat::from_euler(EulerRot::XYZ, self.turn.x * k, self.turn.y * k, self.turn.z * k);
         let spin = Quat::from_euler(EulerRot::XYZ, self.spin.x * self.age, self.spin.y * self.age, self.spin.z * self.age);
-        (self.home.translation + self.to * k, spin * turn * self.home.rotation)
+        (self.home.translation + self.to * k + self.drift * self.age, spin * turn * self.home.rotation)
     }
 }
 
@@ -86,7 +88,7 @@ impl Script {
             .iter()
             .filter_map(|p| {
                 let m: &Mover = p.mover.as_ref()?;
-                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), turn: Vec3::from(m.turn) * std::f32::consts::PI / 180.0, spin: Vec3::from(m.spin) * std::f32::consts::PI / 180.0, age: 0.0, secs: m.secs.max(0.05), t: 0.0, goal: 0.0, last: (part_transform(p).translation, part_transform(p).rotation) })
+                Some(Moving { id: p.id, home: part_transform(p), to: Vec3::from(m.to), turn: Vec3::from(m.turn) * std::f32::consts::PI / 180.0, spin: Vec3::from(m.spin) * std::f32::consts::PI / 180.0, drift: Vec3::from(m.drift), age: 0.0, secs: m.secs.max(0.05), t: 0.0, goal: 0.0, last: (part_transform(p).translation, part_transform(p).rotation) })
             })
             .collect();
         let carried = level.parts.iter().filter_map(|p| {
@@ -218,7 +220,7 @@ mod tests {
     use crate::level::{Collision, Part};
 
     fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
-        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None }
+        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None }
     }
 
     #[test]
@@ -274,6 +276,12 @@ mod tests {
         let (_, spun) = s.movers[0].pose();
         assert!((spun * Vec3::X - Vec3::NEG_X).length() < 1e-3, "half a turn in all, {:?}", spun * Vec3::X);
         s.movers[0].spin = Vec3::ZERO;
+        // drifting goes on too: 2 m a second along x for a second and a half
+        s.movers[0].drift = Vec3::new(2.0, 0.0, 0.0);
+        s.movers[0].age = 0.0;
+        for _ in 0..150 { s.tick(0.01); }
+        assert!((s.movers[0].offset() - Vec3::new(3.0, 3.0, 0.0)).length() < 1e-3 && (s.movers[0].pose().0.x - 3.0).abs() < 1e-3, "{:?}", s.movers[0].offset());
+        s.movers[0].drift = Vec3::ZERO;
         s.movers[0].age = 0.0;
         // the crate, where its carrier puts it
         let c = &s.carried[&2];

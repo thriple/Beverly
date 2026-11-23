@@ -51,10 +51,12 @@ impl Tris {
     }
 
     /// The triangles of the faces `keep` accepts, as a mesh whose UVs are metres on a part of this `size` (one
-    /// texture copy is 1 x 1 until the material scales it).
+    /// texture copy is 1 x 1 until the material scales it); its second UVs say which face each corner is on (for the
+    /// paint shader's strokes over whole faces).
     pub fn faces_mesh(&self, size: Vec3, keep: impl Fn(u8) -> bool) -> Mesh {
-        let (mut pos, mut nrm, mut uv) = (vec![], vec![], vec![]);
+        let (mut pos, mut nrm, mut uv, mut which) = (vec![], vec![], vec![], vec![]);
         for (t, &f) in self.face.iter().enumerate().filter(|(_, f)| keep(**f)) {
+            which.extend([[f as f32, 0.0]; 3]);
             let k = t * 3..t * 3 + 3;
             pos.extend_from_slice(&self.pos[k.clone()]);
             nrm.extend_from_slice(&self.nrm[k.clone()]);
@@ -65,6 +67,7 @@ impl Tris {
             .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, pos)
             .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, nrm)
             .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_1, which)
             .with_inserted_indices(Indices::U32((0..n).collect()))
     }
 
@@ -351,6 +354,7 @@ mod tests {
             let t = build(s);
             assert_eq!(t.face.len() * 3, t.pos.len(), "{s:?}: a face for every triangle");
             assert!(t.face.iter().all(|&f| (f as usize) < t.faces.len()), "{s:?}");
+            assert!(t.faces.len() <= 48, "{s:?}: a bucket fill reaches faces 0 to 47");
         }
         let mut names = build(Shape::Box).face_names();
         names.sort();

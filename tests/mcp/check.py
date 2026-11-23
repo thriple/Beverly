@@ -109,7 +109,7 @@ check("list_shapes lists it", [c["name"] for c in tool("list_shapes")] == ["Path
 check("a curve can be closed and redrawn by its name", tool("draw_shape", shape="Path", closed=True).get("closed") is True)
 check("and deleted", tool("draw_shape", shape="Path", delete=True).get("deleted") and tool("list_shapes") == [])
 st = tool("draw_shape", name="Rope", points=[{"at": [0, 3, 0], "stretch": "air"}, [6, 3, 0]])
-check("a point says how its stretch treats geometry (ground by default)", [p.get("stretch") for p in st.get("points", [])] == ["air", "ground"], st)
+check("a point says how its stretch treats geometry (the path's, ground by default, when it says nothing)", [p.get("stretch") for p in st.get("points", [])] == ["air", None] and st.get("stretch") == "ground", st)
 check("a stretch is ground, over, air or fall", "error" in tool("draw_shape", points=[{"at": [0, 0, 0], "stretch": "sideways"}, [1, 0, 0]]))
 tool("draw_shape", shape="Rope", delete=True)
 check("a strip needs a material to paint (the lift has none)", "error" in tool("draw_shape", points=[[0, 0, 0], [3, 0, 0]], strip={"width": 1}))
@@ -138,6 +138,61 @@ p_ = box(tool("pull", part="Loose box", toward=[4, 0.3, -6], force=400, secs=1.5
 check("a winch drags a loose part toward its point", p_.get("position", [0, 0, 9])[2] < b.get("position", [0, 0, 0])[2] - 1, p_)
 check("stop_test goes back to editing", tool("stop_test").get("testing") is False)
 tool("run_action", id="edit.undo")
+
+# scatter: debris along a curve is parts, made again when the curve changes, and gone with it
+before = tool("get_project")["parts"]
+steps = tool("get_project")["undo_steps"]
+sc = tool("draw_shape", name="Debris", points=[[-6, 0.1, 4], [6, 0.1, 4]], scatter={"settings": {"Spacing": 1.5, "Band": 2}})
+n = tool("get_project")["parts"] - before
+check("a scatter makes ordinary parts, one undo step", n >= 5 and tool("get_project")["undo_steps"] == steps + 1 and sc.get("scatter", {}).get("items"), (n, sc))
+ids = sorted(q["id"] for q in tool("list_parts") if q["name"].split(" ")[0] in ("Stump", "Log", "Boulder"))
+tool("draw_shape", shape="Debris", scatter={"settings": {"Seed": 5}})
+ids2 = sorted(q["id"] for q in tool("list_parts") if q["name"].split(" ")[0] in ("Stump", "Log", "Boulder"))
+check("a new seed lays them again and keeps their ids", ids == ids2 and len(ids) == n, (ids, ids2))
+tool("draw_shape", shape="Debris", scatter=None)
+check("taking the scatter away takes its items", tool("get_project")["parts"] == before)
+for _ in range(2): tool("run_action", id="edit.undo")
+check("two undos bring the scatter back, then the curve is gone with a third", tool("get_project")["parts"] - before == n)
+tool("run_action", id="edit.undo"); tool("run_action", id="edit.undo")
+check("undo takes the scatter back", tool("get_project")["parts"] == before and tool("get_project")["undo_steps"] == steps, tool("get_project"))
+
+# a volume: a debris field through the space above an outline, with spin and drift
+before = tool("get_project")["parts"]
+steps = tool("get_project")["undo_steps"]
+tool("draw_shape", name="Field", points=[[-4, 3, -4], [4, 3, -4], [4, 3, 4], [-4, 3, 4]], closed=True, scatter={"settings": {"Where": "Volume", "Spacing": 2, "Volume height": 4, "Falloff": 0.5, "Spin": 20, "Drift": 1}})
+n = tool("get_project")["parts"] - before
+check("a volume fills the space with parts", n >= 8, n)
+tool("run_action", id="edit.undo")
+check("one undo takes the field away", tool("get_project")["parts"] == before and tool("get_project")["undo_steps"] == steps, tool("get_project"))
+
+# rules and Turn into items: a height band keeps items off, and turning them into items leaves ordinary parts
+before = tool("get_project")["parts"]
+steps = tool("get_project")["undo_steps"]
+tool("draw_shape", name="Rubble", points=[[-6, 0.1, 6], [6, 0.1, 6]], scatter={"settings": {"Spacing": 1.5, "Band": 2}, "rules": {"band": [50, 60]}})
+check("a height band that is nowhere near keeps every item off", tool("get_project")["parts"] == before)
+r = tool("draw_shape", shape="Rubble", scatter={"rules": {"band": None, "slope": 45}})
+n = tool("get_project")["parts"] - before
+check("without the band they land again, and the rules are described", n >= 5 and r["scatter"]["rules"]["slope"] == 45 and r["scatter"]["rules"]["band"] is None, (n, r["scatter"]))
+t = tool("turn_into_items", shape="Rubble")
+check("turning them into items keeps the parts and the curve scatters no more", t["items"] == n and tool("get_project")["parts"] - before == n and next(c for c in tool("list_shapes") if c["name"] == "Rubble").get("scatter") is None, t)
+for _ in range(3): tool("run_action", id="edit.undo")
+check("undo takes it all back", tool("get_project")["parts"] == before, tool("get_project"))
+
+# foliage: the carpet, a new species, and a Mix (plants over a ground)
+f = tool("get_foliage")
+check("get_foliage lists the carpet, the species and the Mixes", {"settings", "species", "mixes"} <= set(f) and len(f["species"]) >= 17, f)
+steps = tool("get_project")["undo_steps"]
+r = tool("change_foliage", settings={"Reach": 60})
+check("change_foliage sets how far the grass grows", setting(r["foliage"], "reach") == 60, r)
+r = tool("new_species", name="tall_fern", copy_of="grass", settings={"Height": 2})
+check("new_species copies one and changes it", r.get("name") == "tall_fern" and r.get("changed_in_level") and setting(r, "h_scale") == 2, r)
+soil = tool("new_material", name="Soil")
+mix = tool("new_material", name="Meadow", grass=["tall_fern"], ground=soil["material"])
+check("a Mix grows the new species over a ground", mix.get("grass", [{}])[0].get("species") == "tall_fern" and mix.get("ground") == soil["material"], mix)
+check("a ground that doesn't exist is refused", "error" in tool("change_material", material=mix["material"], ground="nothing"))
+check("a species that doesn't exist is refused", "error" in tool("change_species", species="nothing", settings={"Height": 2}))
+for _ in range(4): tool("run_action", id="edit.undo")
+check("four undos take the foliage back", tool("get_project")["undo_steps"] == steps and setting(tool("get_foliage")["settings"] and tool("get_foliage"), "reach") != 60)
 
 j = tool("run_job", kind="test", test="lift")
 while "job" in j and (r := tool("get_job", id=j["job"]))["status"] == "running": time.sleep(1)

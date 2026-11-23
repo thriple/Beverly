@@ -56,14 +56,14 @@ pub fn run(extra: fn(&mut App)) {
     }));
     extra(&mut app);
     if let Some(t) = test { crate::scripted::add(&mut app, &dir, &t, &level, record); }
-    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
+    app.add_plugins((PlayPlugin, crate::paint::PaintPlugin, crate::grass::GrassPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, crate::bake::BakePlugin(crate::bake::Bakes::new(crate::bake::Bakes::default_root(), Some(dir.join("bakes"))))))
     .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
     .insert_resource(GlobalAmbientLight { color: Color::srgb(0.85, 0.88, 1.0), brightness: 500.0, ..default() })
     .init_resource::<ModelLib>()
     .init_resource::<crate::sound::Sounds>()
     .insert_resource(Game { level, geo: Geometry::default(), started: false })
     .add_systems(Startup, (shapes::setup, setup).chain())
-    .add_systems(Update, (models::build_geometry, stage, models::fill_models, start, cursor, hear, paint).chain());
+    .add_systems(Update, (models::build_geometry, stage, models::fill_models, scattered, start, cursor, hear, paint, grass).chain());
     // a scripted test that failed quits with code 1
     if let AppExit::Error(code) = app.run() { std::process::exit(code.get() as i32); }
 }
@@ -96,6 +96,33 @@ fn stage(game: Res<Game>, mut done: Local<bool>, mut sun: Query<(&mut Directiona
     *done = true;
 }
 
+/// The scatter items (the level file keeps only the curves): made once every model has loaded, so ground that is a
+/// model counts, then drawn like the rest.
+#[allow(clippy::too_many_arguments)]
+fn scattered(
+    mut commands: Commands,
+    mut game: ResMut<Game>,
+    lib: Res<ShapeLib>,
+    mut models: ResMut<ModelLib>,
+    server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut assets: ResMut<Assets<StandardMaterial>>,
+    mut shaded: ResMut<Assets<crate::shader::ShaderMaterial>>,
+    mut shaders: ResMut<crate::shader::Shaders>,
+    mats: Option<ResMut<world::Mats>>,
+    mut done: Local<bool>,
+) {
+    let Some(mut mats) = mats else { return };
+    if *done || models.pending() { return; }
+    *done = true;
+    let game = &mut *game;
+    game.geo.sync_models(&models);
+    let before = game.level.parts.len();
+    crate::editor::scatter::grow(&mut game.level, &game.geo);
+    let mut looks = world::Looks { lib: &lib, models: &mut models, server: &server, mats: &mut mats, assets: &mut assets, shaded: &mut shaded, shaders: &mut shaders, meshes: &mut meshes, materials: &game.level.materials, shadows: true };
+    for p in game.level.parts.iter().skip(before) { world::spawn_visual(&mut commands, p, &mut looks, false); }
+}
+
 /// Start playing once every model has loaded (so the walker collides with them too).
 fn start(mut commands: Commands, mut game: ResMut<Game>, lib: Res<ModelLib>, mut play: ResMut<Play>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
     if game.started || lib.pending() { return; }
@@ -111,6 +138,7 @@ fn start(mut commands: Commands, mut game: ResMut<Game>, lib: Res<ModelLib>, mut
 
 /// The brush strokes drawn on the parts.
 fn paint(game: Res<Game>, mut paint: crate::paint::PaintSync) { paint.run(&game.level); }
+fn grass(game: Res<Game>, mut grass: crate::grass::GrassSync) { grass.run(&game.level); }
 
 /// The sounds, heard from the camera.
 fn hear(mut sounds: ResMut<crate::sound::Sounds>, game: Res<Game>, mut play: ResMut<Play>, root: Res<ProjectRoot>, ear: Single<&GlobalTransform, With<PlayCamera>>) {

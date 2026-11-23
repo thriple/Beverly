@@ -147,7 +147,7 @@ fn warning(ui: &mut Ui, text: &str, tip: &str) {
 }
 
 /// A small trash button (24 points): takes something out of the list it's in.
-fn trash(ui: &mut Ui, tip: &str) -> bool {
+pub(super) fn trash(ui: &mut Ui, tip: &str) -> bool {
     let (b, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
     if resp.hovered() { ui.painter().rect_filled(b, CornerRadius::same(6), theme::FIELD_HOVER); }
     frame::paint_icon(ui.painter(), "trash", b.center(), 14.0, if resp.hovered() { TEXT } else { TEXT_2 });

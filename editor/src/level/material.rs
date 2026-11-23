@@ -3,6 +3,21 @@ use super::*;
 
 /// The material panel's section.
 pub const MATERIAL: &str = "MATERIAL";
+/// Its grass section: how thick the grass it grows is.
+pub const GRASS: &str = "GRASS";
+/// Its ground section: the ground it lays under its plants.
+pub const GROUND: &str = "GROUND";
+
+/// A grass species a material grows (`grass::species`, by name) and its share of the blades.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+pub struct Grows {
+    pub species: String,
+    pub share: f32,
+}
+
+fn full(v: &f32) -> bool { *v == 1.0 }
+fn spread_default(v: &f32) -> bool { *v == 1.5 }
+fn soft_default(v: &f32) -> bool { *v == 0.5 }
 
 /// A material file (assets/materials/NAME.bev): what every surface using it looks like.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
@@ -33,10 +48,29 @@ pub struct Material {
     pub shader: Option<String>,
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub shader_values: std::collections::BTreeMap<String, Vec<f32>>,
+    /// The grass it grows wherever it is laid (the grass carpet, `grass.rs`); none: bare.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub grass: Vec<Grows>,
+    #[serde(skip_serializing_if = "full")]
+    #[reflect(@Setting::feel("Thickness", &["Sparse", "Thin", "Thick", "Full"], 0.0, 1.0, "").section(GRASS).help("How many blades it grows where it is laid fully"))]
+    pub grass_density: f32,
+    /// The ground it lays under its plants, wherever it is painted (a material: soil, moss, leaf litter; none: its own
+    /// colour). With plants this makes it a Mix (`mix.rs`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ground: Option<String>,
+    #[serde(skip_serializing_if = "spread_default")]
+    #[reflect(@Setting::feel("Spread", &["Under", "Past", "Far past"], 1.0, 3.0, "×").section(GROUND).help("How far the ground reaches past the plants, as many times the brush's width"))]
+    pub spread: f32,
+    #[serde(skip_serializing_if = "soft_default")]
+    #[reflect(@Setting::feel("Soft edge", &["Brush's", "Soft", "Fades"], 0.0, 1.0, "").section(GROUND).help("How softly the ground's edge fades out (0: as soft as the brush)"))]
+    pub soft: f32,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[reflect(@Setting::toggle("Follows sparseness").section(GROUND).help("Sparse plants lay sparse ground: how strongly the ground is laid follows the Thickness of the plants"))]
+    pub follows: bool,
 }
 
 impl Default for Material {
-    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0, sounds_like: None, shader: None, shader_values: Default::default() } }
+    fn default() -> Self { Material { format: 0, texture: None, tint: [1.0; 3], opacity: 1.0, metal: 0.0, roughness: 0.75, glow: 0.0, sounds_like: None, shader: None, shader_values: Default::default(), grass: vec![], grass_density: 1.0, ground: None, spread: 1.5, soft: 0.5, follows: false } }
 }
 
 pub fn load_material(dir: &Path, path: &str) -> Result<Material, String> {

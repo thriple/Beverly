@@ -1,0 +1,1 @@
+(format: 1, tint: (0.42, 0.33, 0.22), roughness: 0.95, sounds_like: Some(Grass), grass: [(species: "grass", share: 0.7), (species: "tall_fern", share: 0.3)], ground: Some("assets/materials/soil.bev"), spread: 2.0, soft: 0.5)

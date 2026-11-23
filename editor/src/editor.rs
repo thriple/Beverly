@@ -3,7 +3,9 @@
 mod actions;
 mod audio;
 mod brush;
+mod bucket;
 mod pen;
+pub mod scatter;
 mod preview;
 mod thumbs;
 mod bev_type;
@@ -43,7 +45,7 @@ pub enum Pending { Quit, New, Open }
 
 /// What the Level tab shows: building (the plain tab), or one topic from its menu.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum LevelMode { Build, Physics, Cameras, Lighting }
+pub enum LevelMode { Build, Physics, Cameras, Lighting, Foliage }
 
 /// Trying a path on the navigation area: the start and end picked (clicks in the view) and the way found.
 #[derive(Default)]
@@ -118,6 +120,8 @@ pub struct Editor {
     pub tex_hot: Option<texture::Grip>,
     /// The material shown in the bottom panel instead of the selected part (clicked in Assets).
     pub material_open: Option<String>,
+    /// The grass species open in the Foliage topic.
+    pub species_open: Option<String>,
     /// The sound file shown in the bottom panel instead of the selected part (clicked in Assets or the part's panel).
     pub sound_open: Option<String>,
     /// A sound file to hear once (its panel's Play), on a surface, taken by `edit::hear`.
@@ -129,6 +133,10 @@ pub struct Editor {
     /// The pen (P): out or not, and what it is doing.
     pub pen_on: bool,
     pub pen: pen::Pen,
+    /// The bucket fill (G): out or not, how it fills, and what it is doing.
+    pub bucket_on: bool,
+    pub bucket: bucket::BucketTool,
+    pub filling: bucket::Filling,
     /// The Assets panel's search, and its pictures.
     pub assets_query: String,
     pub thumbs: thumbs::Thumbs,
@@ -192,7 +200,8 @@ impl Editor {
             found.next().is_none().then_some(one)
         };
         if let Some(dir) = std::env::args().nth(1).map(|a| level::project_dir_of(Path::new(&a))).or_else(beside) {
-            if let Ok((name, lvl)) = level::load(&dir) {
+            if let Ok((name, mut lvl)) = level::load(&dir) {
+                scatter::grow(&mut lvl, &default());
                 let mut ed = Self::at(dir);
                 ed.name = name;
                 ed.saved = lvl.clone();
@@ -249,6 +258,7 @@ impl Editor {
             tex_drag: None,
             tex_hot: None,
             material_open: None,
+            species_open: None,
             sound_open: None,
             preview_sound: None,
             brush_on: false,
@@ -256,6 +266,9 @@ impl Editor {
             painting: brush::Painting::default(),
             pen_on: false,
             pen: pen::Pen::default(),
+            bucket_on: false,
+            bucket: bucket::BucketTool::default(),
+            filling: bucket::Filling::default(),
             assets_query: String::new(),
             thumbs: thumbs::Thumbs::default(),
             tab: 0,
@@ -382,7 +395,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
             ..default()
         }));
     extra(&mut app);
-    app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, view::grid_plugin))
+    app.add_plugins((crate::bake::BakePlugin(ed.bakes.clone()), EguiPlugin::default(), vector::VectorPlugin, text::TextPlugin, play::PlayPlugin, crate::paint::PaintPlugin, crate::grass::GrassPlugin, crate::perf::PerfPlugin, crate::shader::ShaderPlugin, view::grid_plugin))
         .init_resource::<models::ModelLib>()
         .insert_resource(preview::Previews::new(ed.thumbs.asked.clone()))
         .insert_resource(ClearColor(Color::srgb(0.045, 0.04, 0.055)))
@@ -408,7 +421,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
                 edit::interact.run_if(audio::in_level),
                 edit::shortcuts,
                 edit::files,
-                (edit::follow_parents, edit::sync, edit::paint).chain(),
+                (edit::follow_parents, edit::sync, edit::paint, edit::grass).chain(),
                 (audio::follow_tab, audio::stage).chain(),
                 edit::hear,
                 edit::stage,

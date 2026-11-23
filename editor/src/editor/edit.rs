@@ -7,7 +7,7 @@ use crate::shapes::{self, ShapeLib};
 use super::theme::{self, Tone};
 use super::view::{MainCamera, Mode, View};
 use crate::world::{self, Hit, Mats, part_affine};
-use super::{actions, brush, camera, light, pen, texture, Editor, PathTry, Pending, Saved, TestRequest};
+use super::{actions, brush, bucket, camera, light, pen, texture, Editor, PathTry, Pending, Saved, TestRequest};
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use bevy::window::{FileDragAndDrop, WindowCloseRequested};
@@ -151,7 +151,8 @@ impl Editor {
         if self.dirty() { self.pending = Some(what) } else { self.run(what, exit) }
     }
 
-    fn load_into(&mut self, dir: std::path::PathBuf, lvl: Level) {
+    fn load_into(&mut self, dir: std::path::PathBuf, mut lvl: Level) {
+        super::scatter::grow(&mut lvl, &default());
         self.name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.dir = dir;
         self.saved = lvl.clone();
@@ -354,6 +355,7 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
     ed.refresh_dirty();
     pen::strips(&mut ed);
+    super::scatter::scatters(&mut ed);
     ed.commit();
 }
 
@@ -361,8 +363,9 @@ impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
     /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
-        // what was moved takes what is attached to it along, in the same step
+        // what was moved takes what is attached to it along, in the same step, and the bucket fills follow the change
         if self.level.parts.stamp() != self.followed { self.follow(); }
+        bucket::fills(self);
         // nothing was borrowed for change since the last look: nothing to compare
         let stamps = self.level.stamps();
         if stamps == self.checked && self.level.name == self.committed.name { return; }
@@ -407,7 +410,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -421,7 +424,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;

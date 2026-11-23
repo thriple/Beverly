@@ -79,6 +79,8 @@ const INSTRUCTIONS: &str = "Beverly is a 3D game editor. get_project describes t
 /// The tools, in a fixed order.
 pub fn tools() -> Value {
     let none = json!({"type": "object", "properties": {}});
+    #[allow(non_snake_case)]
+    let GRASS = json!({"type": ["array", "null"], "items": {"type": ["string", "object"]}, "description": format!("The grass it grows wherever it is laid or painted (the grass carpet): up to four species, each a name or {{\"species\", \"share\"}}, such as [\"grass\", {{\"species\": \"daisy_snow\", \"share\": 0.1}}]; null or []: none. Its Thickness setting says how many blades. Grass grows on flat faces only, standing out of tops, walls and ceilings (ivy lies on them). The species: {}.", crate::grass::species_names(&crate::level::Level::default()).join(", "))});
     let part = json!({
         "type": "object",
         "properties": {
@@ -277,6 +279,9 @@ pub fn tools() -> Value {
                     "hardness": {"type": "number"},
                     "strength": {"type": "number"},
                     "lays": {"type": "string", "enum": ["add", "subtract", "set"]},
+                    "ground_width": {"type": "number", "description": "For a Mix's plants: how far the ground reaches past them for this stroke, 1 to 3 times the stroke's width (the Mix's own when left out)."},
+                    "ground_strength": {"type": "number", "description": "For a Mix's plants: how strongly this stroke lays the ground, 0 to 1 (1 when left out)."},
+                    "ground": {"type": ["string", "null"], "description": "For a Mix's plants: the ground under them for this stroke, a material, or none; left out: the Mix's own."},
                     "rules": {"type": "object", "properties": {"slope": {"type": "number"}, "band": {"type": ["array", "null"], "items": {"type": "number"}}, "on": {"type": ["string", "null"]}}},
                     "erase": {"type": "boolean"},
                     "clear": {"type": "boolean"},
@@ -299,6 +304,7 @@ pub fn tools() -> Value {
                 "properties": {
                     "strip": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "width": {"type": "number"}, "edge": {"type": "number"}, "strength": {"type": "number"}}},
                     "fill": {"type": ["object", "null"], "properties": {"material": {"type": "string"}, "feather": {"type": "number"}, "strength": {"type": "number"}}},
+                    "scatter": {"type": ["object", "null"], "description": "Bits of debris (stumps, logs, boulders) along the line in a band, all over the ground the curve encloses, or through the space above its outline (a debris or asteroid field; the outline is the floor): {settings: {Where: Along, Inside or Volume, Spacing (m), Band (m), Size variation 0 to 1, Tilt (degrees), Sink 0 to 0.8, \"Volume height\" (m), Falloff 0 to 1 (thinning toward the edge), Spin and Drift (the fastest turn in degrees a second, and travel in metres a second, while playing), \"Keep clear\" (m from paths, other curves that lay a strip, and from water), Seed}, rules: {slope: steepest ground in degrees, band: [lowest, highest] heights or null, on: a surface tag or null}, items: [{name, shape: Box, Ramp, Stairs, Arch, Cylinder, Sphere or Plane, settings: {Size: [x, y, z], Colour: \"#6b4c33\", Share, \"On its side\": true}}]}. The items are ordinary parts, made again whenever the curve, the settings or the ground change, the same for one seed; with no items given it scatters stumps, logs and boulders. null takes the scatter away (and its items).", "properties": {"settings": {"type": "object"}, "items": {"type": "array", "items": {"type": "object"}}}},
                     "shape": {"type": ["integer", "string"], "description": "An existing curve's id or name, to redraw or delete."},
                     "name": {"type": "string", "description": "A new curve's name."},
                     "points": {"type": "array", "items": {"anyOf": [
@@ -311,6 +317,45 @@ pub fn tools() -> Value {
                     "steepest": {"type": "number", "description": "The steepest surface (degrees) ground lines lie on and fills paint; default 60."},
                 },
             },
+        },
+        {
+            "name": "turn_into_items",
+            "title": "Turn a scatter into items",
+            "description": "Make the items a curve's scatter placed into ordinary parts that stay where they are (move, change or delete them one by one); the curve stops scattering. One undo step. Returns how many.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"shape": {"type": ["integer", "string"], "description": "The curve's id or name (list_shapes shows them)."}},
+                "required": ["shape"],
+            },
+        },
+        {
+            "name": "bucket_fill",
+            "title": "Fill with the bucket",
+            "description": "Fill as the bucket (G) does: start from a part (id or name; point, a place on it in the world, and face, a face name such as Top or Front, say where; else its top) and lay a material over whole faces of everything that counts as the same: fills material (every face with the same material laid on it; with none laid there, the same colour), colour (every face of the same colour within tolerance, 0 exact to 1 any), tag (every part with the surface tag given, or the part's first), part (all of that part) or floor (the walkable faces at that height). connected: true keeps it to parts touching the one clicked, part to part. strength 0 to 1 and lays add, subtract or set, as the brush. material null or erase: true erases instead. The fill stays a rule: change what was clicked and what it fills follows. Filling the same faces again replaces the earlier fill; delete: a fill's id removes it. Visible basic shapes only. One undo step.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "point": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "face": {"type": "string"},
+                    "fills": {"type": "string", "enum": ["material", "colour", "tag", "part", "floor"]},
+                    "tolerance": {"type": "number"},
+                    "tag": {"type": "string"},
+                    "connected": {"type": "boolean"},
+                    "material": {"type": ["string", "null"]},
+                    "erase": {"type": "boolean"},
+                    "strength": {"type": "number"},
+                    "lays": {"type": "string", "enum": ["add", "subtract", "set"]},
+                    "delete": {"type": "integer"},
+                },
+            },
+        },
+        {
+            "name": "list_fills",
+            "title": "List the bucket fills",
+            "description": "Every bucket fill in the level, oldest first (later ones lie on top): its id, the part it started from, what it fills, its tolerance, tag and connected, the material it lays (empty: it erases), strength and lays, and the parts it reaches now with how many faces of each.",
+            "inputSchema": none,
         },
         {
             "name": "get_sound",
@@ -373,6 +418,8 @@ pub fn tools() -> Value {
                     "sounds_like": {"type": ["string", "null"], "description": "What it sounds like underfoot wherever it's laid (Stone, Wood, Metal, Grass…), over what the part says; null: nothing special."},
                     "shader": {"type": ["string", "null"], "description": "A shader in assets/shaders (list_assets) that draws the material, such as stripes or stripes.wesl; null: the standard look. Choosing one clears the old one's values."},
                     "shader_values": {"type": "object", "description": "The shader's settings (get_shader lists them) → value: a number, true/false for a toggle, or [r, g, b] (0 to 1) for a colour. A setting not given keeps the shader's default."},
+                    "grass": GRASS,
+                    "ground": {"type": ["string", "null"], "description": "The ground a Mix lays under its plants (a material, such as soil): wherever this material is painted the ground goes under, wider and softer than the plants (its Spread, Soft edge and Follows sparseness settings); null: its own colour. Every stroke of it changes."},
                 },
                 "required": ["material"],
             },
@@ -400,8 +447,34 @@ pub fn tools() -> Value {
                     "copy_of": {"type": "string"},
                     "texture": {"type": "string"},
                     "settings": {"type": "object"},
+                    "grass": GRASS,
+                    "ground": {"type": ["string", "null"], "description": "The ground a Mix lays under its plants (a material, such as soil): wherever this material is painted the ground goes under, wider and softer than the plants (its Spread, Soft edge and Follows sparseness settings)."},
                 },
             },
+        },
+        {
+            "name": "get_foliage",
+            "title": "Describe the foliage",
+            "description": "The level's foliage, as the Foliage topic shows it: the grass carpet's Reach and Quality (settings, as change_foliage takes them), every grass species with its settings and whether this level changed it (a material grows them: grass on change_material), and the Mixes (materials that grow grass or lay a ground) with their species, ground and how it spreads.",
+            "inputSchema": none,
+        },
+        {
+            "name": "change_foliage",
+            "title": "Change the grass carpet",
+            "description": "Change how far the grass grows from the camera (Reach, in metres) and how finely it is laid (Quality, 6 to 14: more costs the graphics card more), by setting label as get_foliage lists them. One undo step.",
+            "inputSchema": {"type": "object", "properties": {"settings": {"type": "object", "description": "Such as {\"Reach\": 60, \"Quality\": 12}."}}, "required": ["settings"]},
+        },
+        {
+            "name": "change_species",
+            "title": "Change a grass species",
+            "description": "Change a grass species' settings (Height, Width, Taper, Bend, Sway, Head size, Kind, Head, Grows, Dryness: get_foliage lists them with their values) for this level; every material growing it follows. Built-in species are kept as they were in the program: the level holds only what it changed.",
+            "inputSchema": {"type": "object", "properties": {"species": {"type": "string", "description": "Its name, such as grass or daisy_snow."}, "settings": {"type": "object", "description": "Setting label or field → new value, such as {\"Height\": 1.5, \"Kind\": \"Flower\"}."}}, "required": ["species", "settings"]},
+        },
+        {
+            "name": "new_species",
+            "title": "Make a grass species",
+            "description": "A new grass species for this level, a copy of another to change (copy_of; else a plain blade), with settings as change_species takes them. A material can then grow it by name. At most 32 species.",
+            "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "Its name (letters, digits and _), such as tall_fern."}, "copy_of": {"type": "string"}, "settings": {"type": "object"}}, "required": ["name"]},
         },
         {
             "name": "screenshot",
@@ -787,6 +860,9 @@ mod tests {
                 "paint_stroke",
                 "list_shapes",
                 "draw_shape",
+                "turn_into_items",
+                "bucket_fill",
+                "list_fills",
                 "get_sound",
                 "change_sound",
                 "new_sound",
@@ -796,6 +872,10 @@ mod tests {
                 "get_shader",
                 "write_shader",
                 "new_material",
+                "get_foliage",
+                "change_foliage",
+                "change_species",
+                "new_species",
                 "screenshot",
                 "get_camera",
                 "move_camera",

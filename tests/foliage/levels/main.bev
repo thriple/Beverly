@@ -1,0 +1,40 @@
+(
+    format: 1,
+    name: "main",
+    next_id: 3,
+    parts: [
+        (
+            id: 1,
+            name: "Player start 1",
+            shape: PlayerStart,
+            pos: (0.0, 1.0, 8.0),
+            rot: (0.0, 0.0, 0.0, 1.0),
+            size: (0.8, 1.8, 0.8),
+            color: (0.6, 0.6, 0.6),
+            visible: true,
+            collision: WalkThrough,
+        ),
+        (
+            id: 2,
+            name: "Floor",
+            shape: Plane,
+            pos: (0.0, 0.05, 0.0),
+            rot: (0.0, 0.0, 0.0, 1.0),
+            size: (40.0, 0.1, 40.0),
+            color: (0.5, 0.5, 0.52),
+            visible: true,
+            collision: Solid,
+            strokes: [
+                // the Mix: its plants on soil that reaches twice as far
+                (material: "assets/materials/meadow.bev", size: 3.0, hardness: 0.6, strength: 1.0, points: [(-8.0, 0.05, 2.0), (-4.0, 0.05, 0.0), (0.0, 0.05, 0.0)]),
+                // the same Mix on bare stone (this stroke's ground is none)
+                (material: "assets/materials/meadow.bev", size: 3.0, hardness: 0.6, strength: 1.0, points: [(4.0, 0.05, 0.0), (8.0, 0.05, 2.0)], ground: Some("assets/materials/stone.bev")),
+                // and wide, faint soil for this stroke only
+                (material: "assets/materials/meadow.bev", size: 2.0, hardness: 0.6, strength: 1.0, points: [(-4.0, 0.05, 6.0), (4.0, 0.05, 6.0)], ground_look: Some((width: Some(3.0), strength: 0.5))),
+            ],
+        ),
+    ],
+    foliage: (reach: 30.0, quality: 8.0, species: [
+        (name: "tall_fern", h_scale: 1.6, w_scale: 2.0, taper: 0.6, bend: 1.4, sway: 1.0, head_radius: 1.0, class: Blade, head_kind: Disc, orient: Upright, gradient: 0, tint_base: (0.6, 1.0, 0.6), tint_tip: (0.9, 1.0, 0.7), abs_color: (1.0, 1.0, 1.0), abs_amount: 0.0),
+    ]),
+)

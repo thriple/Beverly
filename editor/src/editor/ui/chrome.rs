@@ -8,7 +8,7 @@ pub(super) const TOPICS: [(&str, &str, Option<LevelMode>, &str); 7] = [
     ("Lighting", "bulb", Some(LevelMode::Lighting), ""),
     ("Cameras", "camera", Some(LevelMode::Cameras), ""),
     ("Water", "drop", None, "Coming soon: water comes with the Ocean"),
-    ("Foliage", "leaf", None, "Coming soon: foliage comes with foliage painting"),
+    ("Foliage", "leaf", Some(LevelMode::Foliage), ""),
     ("World", "globe", None, "Coming soon: World settings come next"),
 ];
 
@@ -231,8 +231,9 @@ pub(super) fn window_edges(ctx: &egui::Context, lay: &frame::Layout, window: &mu
 }
 
 /// What the mouse does in the view (the bottom notch's hints).
-pub(super) fn hints(mode: Mode, brush: bool, pen: bool, tab: usize) -> &'static [(&'static str, &'static [&'static str])] {
+pub(super) fn hints(mode: Mode, brush: bool, pen: bool, bucket: bool, tab: usize) -> &'static [(&'static str, &'static [&'static str])] {
     if pen { return &[("Point", &["Click"]), ("Curve", &["Drag"]), ("Break handle", &["Alt"]), ("Finish", &["Enter"]), ("Done", &["Esc"])]; }
+    if bucket { return &[("Fill", &["Click"]), ("Erase", &["Alt", "Click"]), ("Done", &["Esc"])]; }
     if brush { return &[("Size", &["[", "]"]), ("Hardness", &["Shift", "[", "]"]), ("Erase", &["Alt"]), ("Done", &["Esc"])]; }
     match mode {
         Mode::Editor if tab == audio::AUDIO => &[("Orbit", &["Middle-drag"]), ("Pan", &["Space"]), ("Zoom", &["Wheel"]), ("Play", &["P"])],
@@ -271,13 +272,13 @@ pub(super) fn notch_contents(ctx: &egui::Context, p: Option<(&egui::Painter, f32
 /// The bottom notch: Saved (click to save) and the hints.
 pub(super) fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, lay: &frame::Layout, exit: &mut MessageWriter<AppExit>) {
     let saved = !ed.dirty();
-    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on, ed.pen_on, ed.tab));
+    let w = notch_contents(ctx, None, saved, hints(view.mode, ed.brush_on, ed.pen_on, ed.bucket_on, ed.tab));
     let n = lay.bottom_notch;
     let cy = n.top() + 4.0 + 13.0;
     let x0 = n.center().x - w / 2.0;
     egui::Area::new(Id::new("bottom-notch")).order(egui::Order::Middle).fixed_pos(n.min).constrain(false).show(ctx, |ui| {
         ui.set_min_size(n.size());
-        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on, ed.pen_on, ed.tab));
+        notch_contents(ctx, Some((ui.painter(), x0, cy)), saved, hints(view.mode, ed.brush_on, ed.pen_on, ed.bucket_on, ed.tab));
         let sr = ERect::from_min_size(pos2(x0 - 4.0, cy - 12.0), vec2(20.0 + text_w(ctx, if saved { "Saved" } else { "Not saved" }, semi(12.0)) + 8.0, 24.0));
         let resp = ui.interact(sr, Id::new("save-state"), if saved { Sense::hover() } else { Sense::click() }).tip_keys(if saved { "Everything is saved" } else { "Save" }, &["Ctrl", "S"]);
         if resp.clicked() { let _ = actions::run(ed, None, "file.save", exit); }
@@ -286,7 +287,7 @@ pub(super) fn bottom_notch(ctx: &egui::Context, ed: &mut Editor, view: &View, la
 
 /// The notch's width for these contents (shoulders and a little air).
 pub(super) fn bottom_width(ctx: &egui::Context, ed: &Editor, view: &View) -> f32 {
-    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on, ed.pen_on, ed.tab)) + 2.0 * frame::SHOULDER + 16.0
+    notch_contents(ctx, None, !ed.dirty(), hints(view.mode, ed.brush_on, ed.pen_on, ed.bucket_on, ed.tab)) + 2.0 * frame::SHOULDER + 16.0
 }
 
 /// The dock's three views: (name, icon); the middle one is the tab's list.
@@ -377,8 +378,11 @@ pub(super) fn dock(ctx: &egui::Context, ed: &mut Editor, view: &mut View, lay: &
                 match ed.dock_view {
                     0 if ed.tab == audio::AUDIO => audio_ui::inspect(ui, ed, sounds),
                     1 if ed.tab == audio::AUDIO => audio_ui::list(ui, ed),
+                    0 if foliage_open(ed) && ed.material_open.is_some() => inspector(ui, ed, view, exit),
+                    0 if foliage_open(ed) => foliage_panel(ui, ed),
                     0 if ed.brush_on => brush_panel(ui, ed),
                     0 if ed.pen_on => pen_panel(ui, ed),
+                    0 if ed.bucket_on => bucket_panel(ui, ed),
                     0 => {
                         if ed.selected.is_some() || ed.material_open.is_some() { inspector(ui, ed, view, exit); } else { mode_panel(ui, ed); }
                     }

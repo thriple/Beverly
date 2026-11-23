@@ -5,9 +5,11 @@
 //! playing it, script parts (buttons, wires, moving parts) and sounds.
 pub mod bake;
 pub mod bench;
+pub mod bucket;
 pub mod curve;
 pub mod editor;
 pub mod gpu;
+pub mod grass;
 pub mod level;
 pub mod models;
 pub mod nav;

@@ -149,12 +149,16 @@ pub struct Mover {
     #[serde(default)]
     #[reflect(@Setting::number("Spins", "°/s", 1.0, -3600.0, 3600.0).section(MOVES).help("How fast it turns all the time while playing, about each axis"))]
     pub spin: [f32; 3],
+    /// How fast it travels all the time while playing (metres a second along each axis): drifting debris.
+    #[serde(default)]
+    #[reflect(@Setting::number("Drifts", "m/s", 0.05, -1000.0, 1000.0).section(MOVES).help("How fast it travels all the time while playing, along each axis"))]
+    pub drift: [f32; 3],
     #[reflect(@Setting::feel("Speed", &["Slow", "Steady", "Brisk", "Quick"], 20.0, 0.2, "s").log().section(MOVES).help("How long it takes to get there"))]
     pub secs: f32,
 }
 
 impl Default for Mover {
-    fn default() -> Self { Mover { to: [0.0, 3.0, 0.0], turn: [0.0; 3], spin: [0.0; 3], secs: 2.0 } }
+    fn default() -> Self { Mover { to: [0.0, 3.0, 0.0], turn: [0.0; 3], spin: [0.0; 3], drift: [0.0; 3], secs: 2.0 } }
 }
 
 /// A light part's light: Point light and Spot light (the cone is a spot's only).

@@ -20,8 +20,10 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod delta;
+mod foliage;
 mod hierarchy;
 mod material;
+mod mix;
 mod paint;
 mod project;
 mod shape;
@@ -29,8 +31,10 @@ mod sound;
 mod track;
 mod world;
 pub use delta::Delta;
+pub use foliage::*;
 pub use hierarchy::{beyond, frame, within};
 pub use material::*;
+pub use mix::shown;
 pub use paint::*;
 pub use project::*;
 pub use shape::*;
@@ -181,6 +185,9 @@ pub struct Part {
     /// position and turn here are still the world's; the file keeps them as offsets from the parent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<u64>,
+    /// The pen curve whose scatter made this part (`curve.rs`, `pen.rs`): it is made again when the curve changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scatter: Option<u64>,
 }
 
 impl Part {
@@ -195,7 +202,7 @@ impl Part {
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
-            sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
+            sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         }
     }
 
@@ -220,12 +227,15 @@ impl Part {
     }
 
     /// Whether two parts hold the same contents: what is inside the box (the shape or model, its colour, its
-    /// textures and how they lie, Visible, Collision, tags, Physics). The box itself (name, position, turn, size) is each part's
-    /// own, as an instance's placement is in SketchUp.
+    /// textures and how they lie, Visible, Collision, tags, Physics, strokes painted by hand). The box itself (name, position,
+    /// turn, size) is each part's own, as an instance's placement is in SketchUp, and so are the strokes a pen curve or
+    /// a bucket fill made on it (they come from where it stands).
     pub fn same_contents(&self, o: &Part) -> bool {
         self.shape == o.shape && self.model == o.model && self.color == o.color && self.surfaces == o.surfaces && self.visible == o.visible && self.collision == o.collision
-            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like && self.strokes == o.strokes
+            && self.tags == o.tags && self.loose == o.loose && self.sounds_like == o.sounds_like && self.own_strokes().eq(o.own_strokes())
     }
+    /// The strokes painted on it by hand (not made by a pen curve or a bucket fill).
+    pub fn own_strokes(&self) -> impl Iterator<Item = &Stroke> { self.strokes.iter().filter(|s| s.curve.is_none() && s.bucket.is_none()) }
     /// Take `from`'s contents, keeping this part's box.
     pub fn set_contents(&mut self, from: &Part) {
         self.shape = from.shape;
@@ -237,7 +247,9 @@ impl Part {
         self.tags = from.tags.clone();
         self.loose = from.loose.clone();
         self.sounds_like = from.sounds_like;
-        self.strokes = from.strokes.clone();
+        // its own made strokes stay; the ones painted by hand are the other's
+        let made: Vec<Stroke> = self.strokes.iter().filter(|s| s.curve.is_some() || s.bucket.is_some()).cloned().collect();
+        self.strokes = from.own_strokes().cloned().chain(made).collect();
     }
 }
 
@@ -254,6 +266,9 @@ pub struct Level {
     /// Pen curves (see `curve.rs`); their ids come from the same count as the parts'.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub curves: Tracked<Vec<crate::curve::Curve>>,
+    /// Bucket fills (see `bucket.rs`); their ids come from the same count as the parts'.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buckets: Tracked<Vec<Bucket>>,
     /// Slider range ends changed under More in the panels (see `settings`).
     #[serde(default, skip_serializing_if = "Ranges::is_empty")]
     pub ranges: Tracked<Ranges>,
@@ -263,6 +278,9 @@ pub struct Level {
     pub navigation: Tracked<Navigation>,
     #[serde(default, skip_serializing_if = "WalkerSounds::is_default")]
     pub walker: Tracked<WalkerSounds>,
+    /// The grass carpet's reach and quality, and the species this level changed or added.
+    #[serde(default, skip_serializing_if = "Foliage::is_default")]
+    pub foliage: Tracked<Foliage>,
     /// The project's materials, by path ("assets/materials/brick.bev"). Saved as their own files, not in the level;
     /// kept here so undo and the unsaved-changes dot cover them.
     #[serde(skip)]
@@ -275,7 +293,7 @@ pub struct Level {
 impl Level {
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {
-        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.materials.stamp(), self.sounds.stamp()]
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp()]
     }
 
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }
@@ -322,7 +340,7 @@ impl Level {
     pub fn add_curve(&mut self, points: Vec<crate::curve::PenPoint>, closed: bool) -> u64 {
         self.next_id += 1;
         let name = (1..).map(|n| format!("Curve {n}")).find(|n| !self.curves.iter().any(|c| &c.name == n)).expect("a free name");
-        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None, path: Default::default() });
+        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None, scatter: None, path: Default::default() });
         self.next_id
     }
     pub fn curve(&self, id: u64) -> Option<&crate::curve::Curve> { self.curves.iter().find(|c| c.id == id) }
@@ -470,6 +488,15 @@ mod tests {
         lvl.materials.insert("assets/materials/turf.bev".into(), Material { sounds_like: Some(Ground::Grass), ..Default::default() });
         lvl.get_mut(id).unwrap().lay(Surface { face: None, material: "assets/materials/turf.bev".into(), tile: [1.0, 1.0], offset: [0.0, 0.0] });
         assert_eq!(lvl.ground_under(id), Some(Ground::Grass));
+        // paint says what it sounds like where it covers: a Mix's plants, then its ground reaching past them
+        lvl.get_mut(id).unwrap().surfaces.clear();
+        lvl.materials.insert("assets/materials/mud.bev".into(), Material { sounds_like: Some(Ground::Dirt), ..Default::default() });
+        lvl.materials.insert("assets/materials/meadow.bev".into(), Material { sounds_like: Some(Ground::Grass), ground: Some("assets/materials/mud.bev".into()), spread: 2.0, soft: 0.0, ..Default::default() });
+        lvl.get_mut(id).unwrap().strokes = vec![Stroke { material: "assets/materials/meadow.bev".into(), size: 1.0, hardness: 1.0, strength: 1.0, points: vec![[0.0, 0.5, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None }];
+        let at = |x: f32| Some(Vec3::new(x, 0.5, 0.0));
+        assert_eq!(lvl.ground_at(id, at(0.1)), Some(Ground::Grass), "in the plants");
+        assert_eq!(lvl.ground_at(id, at(0.8)), Some(Ground::Dirt), "in the ground past them");
+        assert_eq!(lvl.ground_at(id, at(1.8)), Some(Ground::Wood), "off the paint: the part's own");
         // what can happen to a part: its outputs, Starts when it moves, Hit when it's loose
         let mut b = Part::placed(Shape::Interact, None, "B".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [0.5; 3]);
         assert_eq!(b.events(), ["Pressed"]);

@@ -1,0 +1,7 @@
+(
+    format: 1,
+    name: "Bucket fill test",
+    levels: [
+        "main",
+    ],
+)

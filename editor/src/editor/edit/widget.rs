@@ -120,6 +120,7 @@ pub fn draw(mut ed: ResMut<Editor>, view: Res<View>, mut g: Gizmos, mut w: Gizmo
     pen::lay(ed.bypass_change_detection());
     texture::draw(&ed, &view, &mut w);
     brush::draw(&ed, &mut w);
+    bucket::draw(&ed, &mut w);
     pen::draw(&ed, &view, &mut w);
     light::draw(&ed, &view, &mut w);
     camera::draw(&ed, &view, &mut g, &mut w);

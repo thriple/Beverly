@@ -93,6 +93,7 @@ impl Level {
         for old in all {
             let mut c = self.get(old)?.clone();
             c.name = self.fresh_name(c.shape.label());
+            c.scatter = None;
             if old == id { for k in 0..3 { c.pos[k] += shift[k]; } }
             else { c.parent = c.parent.and_then(|p| made.get(&p).copied()); c.pos = (Vec3::from(c.pos) + Vec3::from(shift)).to_array(); }
             made.insert(old, self.add(c));
@@ -119,9 +120,11 @@ impl Level {
         }
     }
 
-    /// The level as the file keeps it: a child's position and turn as offsets from its parent.
+    /// The level as the file keeps it: a child's position and turn as offsets from its parent, and no scattered items
+    /// (the curves make them again when the level opens).
     pub fn to_file(&self) -> Level {
         let mut out = self.clone();
+        out.parts.retain(|p| p.scatter.is_none());
         for p in &mut out.parts {
             if let Some(par) = p.parent.and_then(|pid| self.get(pid)) { set_frame(p, within(frame(par), frame(p))); }
         }
