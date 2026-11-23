@@ -185,6 +185,9 @@ pub struct Part {
     /// position and turn here are still the world's; the file keeps them as offsets from the parent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<u64>,
+    /// The pen curve whose scatter made this part (`curve.rs`, `pen.rs`): it is made again when the curve changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scatter: Option<u64>,
 }
 
 impl Part {
@@ -199,7 +202,7 @@ impl Part {
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
-            sounds: vec![], sounds_like: None, strokes: vec![], parent: None,
+            sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         }
     }
 
@@ -337,7 +340,7 @@ impl Level {
     pub fn add_curve(&mut self, points: Vec<crate::curve::PenPoint>, closed: bool) -> u64 {
         self.next_id += 1;
         let name = (1..).map(|n| format!("Curve {n}")).find(|n| !self.curves.iter().any(|c| &c.name == n)).expect("a free name");
-        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None, path: Default::default() });
+        self.curves.push(crate::curve::Curve { id: self.next_id, name, points, closed, strip: None, fill: None, scatter: None, path: Default::default() });
         self.next_id
     }
     pub fn curve(&self, id: u64) -> Option<&crate::curve::Curve> { self.curves.iter().find(|c| c.id == id) }

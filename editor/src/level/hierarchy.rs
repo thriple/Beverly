@@ -93,6 +93,7 @@ impl Level {
         for old in all {
             let mut c = self.get(old)?.clone();
             c.name = self.fresh_name(c.shape.label());
+            c.scatter = None;
             if old == id { for k in 0..3 { c.pos[k] += shift[k]; } }
             else { c.parent = c.parent.and_then(|p| made.get(&p).copied()); c.pos = (Vec3::from(c.pos) + Vec3::from(shift)).to_array(); }
             made.insert(old, self.add(c));

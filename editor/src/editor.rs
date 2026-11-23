@@ -5,6 +5,7 @@ mod audio;
 mod brush;
 mod bucket;
 mod pen;
+pub mod scatter;
 mod preview;
 mod thumbs;
 mod bev_type;

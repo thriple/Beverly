@@ -147,6 +147,84 @@ impl Default for Fill {
     fn default() -> Self { Fill { material: String::new(), feather: 0.5, strength: 1.0 } }
 }
 
+/// The scatter's section in the pen's panel, and each item's.
+pub const SCATTER: &str = "SCATTER";
+pub const ITEM: &str = "ITEM";
+
+/// One kind of thing a scatter places: a basic shape of a size and colour (a stump is a short cylinder, a boulder a
+/// squashed ball), picked at random by its weight.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+pub struct Item {
+    pub name: String,
+    pub shape: crate::level::Shape,
+    #[reflect(@Setting::number("Size", "m", 0.02, 0.02, 1000.0).section(ITEM).bare().help("How big one is, before the scatter's size variation"))]
+    pub size: [f32; 3],
+    /// sRGB, 0..1.
+    #[reflect(@Setting::colour("Colour").section(ITEM))]
+    pub colour: [f32; 3],
+    #[reflect(@Setting::feel("Share", &["Rare", "Some", "Often"], 0.0, 4.0, "").section(ITEM).help("How often it is picked, against the other items"))]
+    pub weight: f32,
+    /// Lying on its side (a log), its long axis along the ground.
+    #[reflect(@Setting::toggle("On its side").section(ITEM).help("Lies along the ground, as a log does"))]
+    pub on_side: bool,
+}
+
+impl Default for Item {
+    fn default() -> Self { Item { name: "Boulder".into(), shape: crate::level::Shape::Sphere, size: [1.2, 0.8, 1.0], colour: [0.5, 0.5, 0.52], weight: 1.0, on_side: false } }
+}
+
+/// Where a scatter puts its items.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
+pub enum Place {
+    /// In a band along the line.
+    #[default]
+    #[reflect(@Label("Along"))]
+    Along,
+    /// Over the ground the curve encloses (an open curve is closed by a straight line).
+    #[reflect(@Label("Inside"))]
+    Inside,
+}
+
+/// Bits of debris placed along or inside a curve, picked at random from a set of items: stumps, logs, boulders. The
+/// items are ordinary parts (marked with the curve), made again when the curve, the settings or the ground change, the
+/// same way every time for one seed.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
+#[reflect(Default)]
+pub struct Scatter {
+    #[reflect(@Setting::choice("Where").section(SCATTER).help("In a band along the line, or all over the ground it encloses"))]
+    pub place: Place,
+    #[reflect(@Setting::feel("Spacing", &["Packed", "Close", "Spread", "Sparse"], 0.3, 30.0, "m").log().section(SCATTER).help("About how far apart they are"))]
+    pub spacing: f32,
+    #[reflect(@Setting::feel("Band", &["Narrow", "Wide", "Broad"], 0.0, 40.0, "m").section(SCATTER).help("Along: how far either side of the line they go (all of it, across)"))]
+    pub band: f32,
+    #[reflect(@Setting::feel("Size variation", &["Alike", "Varied", "Mixed"], 0.0, 1.0, "").section(SCATTER).help("How much bigger or smaller than its item each one is"))]
+    pub size_var: f32,
+    #[reflect(@Setting::feel("Tilt", &["Level", "Leaning", "Tumbled"], 0.0, 45.0, "°").section(SCATTER).help("How far each may lean over from upright"))]
+    pub tilt: f32,
+    #[reflect(@Setting::feel("Sink", &["Sitting", "Half in", "Buried"], 0.0, 0.8, "").section(SCATTER).help("How far into the ground each sits, as a share of its height"))]
+    pub sink: f32,
+    #[reflect(@Setting::number("Seed", "", 1.0, 0.0, 99999.0).section(SCATTER).help("Another number: another random layout of the same things"))]
+    pub seed: f32,
+    #[reflect(ignore)]
+    pub items: Vec<Item>,
+}
+
+impl Default for Scatter {
+    fn default() -> Self {
+        let item = |name: &str, shape, size: [f32; 3], colour: [f32; 3], weight: f32, on_side| Item { name: name.into(), shape, size, colour, weight, on_side };
+        use crate::level::Shape;
+        Scatter {
+            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, seed: 1.0,
+            items: vec![
+                item("Stump", Shape::Cylinder, [0.7, 0.5, 0.7], [0.42, 0.3, 0.2], 1.0, false),
+                item("Log", Shape::Cylinder, [0.4, 2.0, 0.4], [0.38, 0.27, 0.18], 1.0, true),
+                item("Boulder", Shape::Sphere, [1.2, 0.8, 1.0], [0.5, 0.5, 0.52], 1.0, false),
+            ],
+        }
+    }
+}
+
 /// A pen curve: open, or closed back on its first point.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub struct Curve {
@@ -161,6 +239,9 @@ pub struct Curve {
     /// What it paints inside itself, if anything.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fill: Option<Fill>,
+    /// What it scatters along or inside itself, if anything.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scatter: Option<Scatter>,
     /// What holds for the whole path.
     #[serde(default, skip_serializing_if = "is_default_path")]
     pub path: Path,
@@ -318,7 +399,7 @@ mod tests {
     use bevy::prelude::Dir3;
 
     fn two() -> Curve {
-        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: None, sag: 0.0 }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: None, sag: 0.0 }], closed: false, strip: None, fill: None, path: Path::default() }
+        Curve { id: 1, name: "C".into(), points: vec![PenPoint { at: [0.0, 0.0, 0.0], into: [0.0; 3], out: [1.0, 0.0, 1.0], stretch: None, sag: 0.0 }, PenPoint { at: [4.0, 0.0, 0.0], into: [-1.0, 0.0, 1.0], out: [0.0; 3], stretch: None, sag: 0.0 }], closed: false, strip: None, fill: None, scatter: None, path: Path::default() }
     }
 
     #[test]
@@ -358,14 +439,14 @@ mod tests {
 
     #[test]
     fn a_closed_curve_has_one_more_segment_and_points_come_out() {
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None, path: Path::default() };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None, scatter: None, path: Path::default() };
         assert_eq!(c.segments(), 3);
         assert_eq!(*c.sample().last().unwrap(), Vec3::ZERO);
         c.remove(2);
         assert!(!c.closed, "two points can't be a loop");
         assert_eq!(c.segments(), 1);
         // splitting the segment that closes the loop puts the new point at the end
-        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None, path: Path::default() };
+        let mut c = Curve { id: 1, name: "L".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::X), PenPoint::corner(Vec3::Z)], closed: true, strip: None, fill: None, scatter: None, path: Path::default() };
         let i = c.split(2, 0.5);
         assert_eq!(i, 3);
         assert_eq!(c.points[3].pos(), Vec3::new(0.0, 0.0, 0.5));
@@ -387,7 +468,7 @@ mod tests {
     }
 
     fn flat(stretch: Stretch) -> Curve {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None, fill: None, path: Path::default() };
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::ZERO), PenPoint::corner(Vec3::new(6.0, 0.0, 0.0))], closed: false, strip: None, fill: None, scatter: None, path: Path::default() };
         c.points[0].stretch = Some(stretch);
         c
     }
@@ -405,7 +486,7 @@ mod tests {
 
     #[test]
     fn a_fall_ends_where_it_lands() {
-        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None, fill: None, path: Path::default() };
+        let mut c = Curve { id: 1, name: "F".into(), points: vec![PenPoint::corner(Vec3::new(0.0, 4.0, 0.0)), PenPoint::corner(Vec3::new(0.0, 0.0, 0.0))], closed: false, strip: None, fill: None, scatter: None, path: Path::default() };
         c.points[0].stretch = Some(Stretch::Fall);
         // the floor is 1 m up: the line comes down to it and stops there, then rests on the second point
         let line = c.laid(|p, _, _| (p.y <= 1.0).then(|| Vec3::new(p.x, 1.0, p.z)));

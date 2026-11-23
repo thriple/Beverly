@@ -361,6 +361,7 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
     if let Some(c) = &cur {
         let mut strip = c.strip.clone();
         let mut fill = c.fill.clone();
+        let mut scatter = c.scatter.clone();
         let mut path = c.path;
         // the selected point's stretch, when it is in the air: how far it sags
         let air = ed.pen.point.filter(|&i| i < c.segments() && c.stretch(i) == crate::curve::Stretch::Air);
@@ -393,8 +394,37 @@ pub(super) fn pen_panel(ui: &mut Ui, ed: &mut Editor) {
                 settings::section(ui, f, crate::curve::FILL, &mut ctx);
             }
         });
+        column(ui, 0.0, crate::curve::SCATTER, |ui| {
+            let mut on = scatter.is_some();
+            let mut none = false;
+            if settings::toggle_row(ui, "", "Scatter things", &mut on, "Places stumps, logs, boulders or anything you choose along the line or inside it, kept in step with the curve; they are ordinary parts", false, &mut none) {
+                scatter = on.then(crate::curve::Scatter::default);
+            }
+            if let Some(sc) = scatter.as_mut() {
+                settings::section(ui, sc, crate::curve::SCATTER, &mut ctx);
+                ui.add_space(8.0);
+                let (mut gone, total) = (None, sc.items.len());
+                for (k, it) in sc.items.iter_mut().enumerate() {
+                    ui.push_id(("scatter item", k), |ui| {
+                    ui.horizontal(|ui| {
+                        let w = ui.available_width() - 30.0;
+                        egui::ComboBox::from_id_salt(("scatter shape", k)).selected_text(format!("{}  ·  {}", it.name, it.shape.label())).width(w).show_ui(ui, |ui| {
+                            for sh in Shape::ALL { ui.selectable_value(&mut it.shape, sh, sh.label()); }
+                        });
+                        if total > 1 && super::audio_ui::trash(ui, "Remove this item") { gone = Some(k); }
+                    });
+                    theme::text_input(ui, &mut it.name, "Name", None, ui.available_width());
+                    settings::section(ui, it, crate::curve::ITEM, &mut ctx);
+                    ui.add_space(6.0);
+                    });
+                }
+                if let Some(k) = gone { sc.items.remove(k); }
+                if ui.button("+ Add item").tip("Another kind of thing to pick from").clicked() { sc.items.push(crate::curve::Item { name: format!("Item {}", sc.items.len() + 1), ..Default::default() }); }
+            }
+        });
         if ctx.ranges_changed { ed.level.ranges = ranges; }
         if let Some(cm) = ed.level.curve_mut(c.id) {
+            if scatter != c.scatter { cm.scatter = scatter; }
             if strip != c.strip { cm.strip = strip; }
             if fill != c.fill { cm.fill = fill; }
             if path != c.path { cm.path = path; }
@@ -614,11 +644,13 @@ pub(super) fn scene_panel(ui: &mut Ui, ed: &mut Editor) {
     ui.data_mut(|d| d.insert_temp(qid, q.clone()));
     let q = q.to_lowercase();
     if ed.level.parts.is_empty() { ui.label(egui::RichText::new("Nothing placed yet. Press Tab.").color(MUTED).size(12.5)); }
+    let scattered = ed.level.parts.iter().filter(|p| p.scatter.is_some()).count();
+    if scattered > 0 { ui.label(egui::RichText::new(format!("{scattered} scattered item{} (the pen's curves make them)", if scattered == 1 { "" } else { "s" })).color(MUTED).size(11.5)); }
     let over: Vec<u64> = { let w = crate::editor::light::budget(&ed.level); if w.len() > crate::editor::light::BUDGET { w } else { vec![] } };
     let mut pick = None;
     let mut flip = None;
     for sec in ["Shapes", "Models", "Triggers", "Game", "Lights", "Cameras"] {
-        let rows: Vec<&level::Part> = ed.level.parts.iter().filter(|p| shown(p) && kind(p.shape).0 == sec && (q.is_empty() || p.name.to_lowercase().contains(&q))).collect();
+        let rows: Vec<&level::Part> = ed.level.parts.iter().filter(|p| p.scatter.is_none() && shown(p) && kind(p.shape).0 == sec && (q.is_empty() || p.name.to_lowercase().contains(&q))).collect();
         if rows.is_empty() { continue; }
         ui.add_space(4.0);
         ui.label(egui::RichText::new(sec).size(11.5).color(MUTED));

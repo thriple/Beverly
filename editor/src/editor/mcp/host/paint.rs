@@ -84,6 +84,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                 ed.level.curves.retain(|c| c.id != id);
                 if ed.pen.curve == Some(id) { ed.pen.curve = None; ed.pen.drawing = false; }
                 crate::editor::pen::strips(ed);
+                crate::editor::scatter::scatters(ed);
                 ed.commit();
                 return Ok(json!({"deleted": id}));
             }
@@ -146,6 +147,27 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     Some(Some(f))
                 }
             };
+            // a scatter: {settings: {Where, Spacing, Band, Size variation, Tilt, Sink, Seed}, items: [{name, shape, settings: {Size, Colour, Share, On its side}}]}, or null
+            let scatter: Option<Option<crate::curve::Scatter>> = match args.get("scatter") {
+                None => None,
+                Some(Value::Null) => Some(None),
+                Some(v) => {
+                    let mut sc = existing.and_then(|id| ed.level.curve(id)).and_then(|c| c.scatter.clone()).unwrap_or_default();
+                    if let Some(set) = v.get("settings") { settings::apply(&mut sc, set)?; }
+                    if let Some(items) = v.get("items").and_then(Value::as_array) {
+                        sc.items = items.iter().enumerate().map(|(k, i)| {
+                            let mut it = crate::curve::Item { name: format!("Item {}", k + 1), ..Default::default() };
+                            if let Some(n) = i.get("name").and_then(Value::as_str) { it.name = n.to_string(); }
+                            if let Some(w) = i.get("shape").and_then(Value::as_str) {
+                                it.shape = crate::level::Shape::ALL.into_iter().find(|s| s.label().eq_ignore_ascii_case(w)).ok_or_else(|| format!("No shape {w:?} (Box, Ramp, Stairs, Arch, Cylinder, Sphere, Plane)"))?;
+                            }
+                            if let Some(set) = i.get("settings") { settings::apply(&mut it, set)?; }
+                            Ok(it)
+                        }).collect::<Result<_, String>>()?;
+                    }
+                    Some(Some(sc))
+                }
+            };
             let id = match existing {
                 Some(id) => {
                     let c = ed.level.curve_mut(id).expect("found above");
@@ -156,6 +178,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     if let Some(s) = steepest { c.path.slope = s; }
                     if let Some(st) = strip { c.strip = st; }
                     if let Some(f) = fill { c.fill = f; }
+                    if let Some(sc) = scatter.clone() { c.scatter = sc; }
                     id
                 }
                 None => {
@@ -167,12 +190,14 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     if let Some(n) = args.get("name").and_then(Value::as_str).filter(|n| !n.is_empty()) { c.name = n.to_string(); }
                     if let Some(st) = strip { c.strip = st; }
                     if let Some(f) = fill { c.fill = f; }
+                    if let Some(sc) = scatter.clone() { c.scatter = sc; }
                     id
                 }
             };
             // the strip's and fill's strokes are made now, so the curve and they are one undo step
             crate::editor::pen::lay(ed);
             crate::editor::pen::strips(ed);
+            crate::editor::scatter::scatters(ed);
             ed.commit();
             Ok(describe_curve(ed.level.curve(id).expect("found")))
         }

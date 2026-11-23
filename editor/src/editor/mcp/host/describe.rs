@@ -65,6 +65,7 @@ pub(super) fn describe_curve(c: &crate::curve::Curve) -> Value {
     let round = |v: Vec3| settings::nums(&v.to_array());
     json!({
         "id": c.id, "name": c.name, "closed": c.closed, "strip": c.strip.as_ref().map(|s| json!({"material": s.material, "width": settings::num(s.size), "edge": settings::num(s.hardness), "strength": settings::num(s.strength)})), "fill": c.fill.as_ref().map(|f| json!({"material": f.material, "feather": settings::num(f.feather), "strength": settings::num(f.strength)})), "length": settings::num((c.length() * 100.0).round() / 100.0),
+        "scatter": c.scatter.as_ref().map(|s| json!({"settings": settings::describe(s), "items": s.items.iter().map(|i| json!({"name": i.name, "shape": i.shape.label(), "settings": settings::describe(i)})).collect::<Vec<_>>()})),
         "stretch": stretch_word(c.path.stretch), "steepest": settings::num(c.path.slope),
         "points": c.points.iter().map(|p| json!({"at": round(p.pos()), "handle_in": round(p.into_handle()), "handle_out": round(p.out_handle()), "stretch": p.stretch.map(stretch_word), "sag": settings::num(p.sag)})).collect::<Vec<_>>(),
     })

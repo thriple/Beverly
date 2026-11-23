@@ -139,6 +139,23 @@ check("a winch drags a loose part toward its point", p_.get("position", [0, 0, 9
 check("stop_test goes back to editing", tool("stop_test").get("testing") is False)
 tool("run_action", id="edit.undo")
 
+# scatter: debris along a curve is parts, made again when the curve changes, and gone with it
+before = tool("get_project")["parts"]
+steps = tool("get_project")["undo_steps"]
+sc = tool("draw_shape", name="Debris", points=[[-6, 0.1, 4], [6, 0.1, 4]], scatter={"settings": {"Spacing": 1.5, "Band": 2}})
+n = tool("get_project")["parts"] - before
+check("a scatter makes ordinary parts, one undo step", n >= 5 and tool("get_project")["undo_steps"] == steps + 1 and sc.get("scatter", {}).get("items"), (n, sc))
+ids = sorted(q["id"] for q in tool("list_parts") if q["name"].split(" ")[0] in ("Stump", "Log", "Boulder"))
+tool("draw_shape", shape="Debris", scatter={"settings": {"Seed": 5}})
+ids2 = sorted(q["id"] for q in tool("list_parts") if q["name"].split(" ")[0] in ("Stump", "Log", "Boulder"))
+check("a new seed lays them again and keeps their ids", ids == ids2 and len(ids) == n, (ids, ids2))
+tool("draw_shape", shape="Debris", scatter=None)
+check("taking the scatter away takes its items", tool("get_project")["parts"] == before)
+for _ in range(2): tool("run_action", id="edit.undo")
+check("two undos bring the scatter back, then the curve is gone with a third", tool("get_project")["parts"] - before == n)
+tool("run_action", id="edit.undo"); tool("run_action", id="edit.undo")
+check("undo takes the scatter back", tool("get_project")["parts"] == before and tool("get_project")["undo_steps"] == steps, tool("get_project"))
+
 # foliage: the carpet, a new species, and a Mix (plants over a ground)
 f = tool("get_foliage")
 check("get_foliage lists the carpet, the species and the Mixes", {"settings", "species", "mixes"} <= set(f) and len(f["species"]) >= 17, f)
