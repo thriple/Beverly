@@ -178,6 +178,17 @@ check("turning them into items keeps the parts and the curve scatters no more", 
 for _ in range(3): tool("run_action", id="edit.undo")
 check("undo takes it all back", tool("get_project")["parts"] == before, tool("get_project"))
 
+# controls: the input map, one undo step per change
+c = tool("get_controls")
+check("get_controls lists Beverly's actions with their inputs", c["defaults"] and next(a for a in c["actions"] if a["action"] == "Jump")["inputs"] == ["Space", "Pad South"], c)
+steps = tool("get_project")["undo_steps"]
+c = tool("change_controls", action="Jump", inputs=["k", "Pad East"])
+check("change_controls sets an action's inputs, by their names", next(a for a in c["actions"] if a["action"] == "Jump")["inputs"] == ["K", "Pad East"] and not c["defaults"] and tool("get_project")["undo_steps"] == steps + 1, c)
+bad = tool("change_controls", action="Jump", inputs=["Nope"])
+check("an unknown input is refused", "Nope" in bad.get("error", ""), bad)
+tool("run_action", id="edit.undo")
+check("undo brings the defaults back", tool("get_controls")["defaults"] and tool("get_project")["undo_steps"] == steps)
+
 # foliage: the carpet, a new species, and a Mix (plants over a ground)
 f = tool("get_foliage")
 check("get_foliage lists the carpet, the species and the Mixes", {"settings", "species", "mixes"} <= set(f) and len(f["species"]) >= 17, f)

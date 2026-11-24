@@ -1,0 +1,18 @@
+// The project moves Forward to I, Jump to K and Use to U (project.bev): the old keys do nothing, the new ones walk,
+// jump and press the button that raises the gate. The rest of the actions keep Beverly's defaults.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0, 0), 0.1)]),
+        (at: 0.5, press: ["W", "Space", "E"]),
+        (at: 1.0, release: ["W", "Space", "E"], expect: [Feet((0, 0, 0), 0.1)]),
+        (at: 1.2, press: ["K"]),
+        (at: 1.45, expect: [Feet((0, 1.2, 0), 0.6)]),
+        (at: 1.6, release: ["K"]),
+        (at: 2.5, press: ["U"]),
+        (at: 2.6, release: ["U"]),
+        (at: 4.0, shot: "gate-up", expect: [Part("Gate 1", (5, 4, 5), 0.05)]),
+        (at: 4.1, press: ["I"]),
+        (at: 5.1, release: ["I"]),
+        (at: 5.6, shot: "walked", expect: [Feet((0, 0, -5), 0.9)]),
+    ],
+)

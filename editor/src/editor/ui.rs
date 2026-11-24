@@ -99,6 +99,7 @@ pub fn ui(
     if ed.updates_open { updates_modal(&ctx, &mut ed); }
     if ed.features_open { features_modal(&ctx, &mut ed); }
     if ed.mcp_open { mcp_modal(&ctx, &mut ed); }
+    if ed.controls_open { controls_modal(&ctx, &mut ed); }
     theme::focus_ring(&ctx);
     Ok(())
 }

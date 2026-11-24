@@ -1,6 +1,7 @@
 //! Playing a level: the plain walker (a stand-in character until the real characters exist), a floating character
 //! (bevy_tnua) in the physics world (`physics.rs`): it walks up steps and slopes and rides moving parts. Used by the
 //! editor's test mode (`) and by the game player.
+use crate::input::{Actions, Controls};
 use crate::level::{Level, Tag};
 use crate::physics::PartBody;
 use crate::script::Script;
@@ -90,6 +91,8 @@ pub struct Play {
     pub script: Script,
     /// Finds paths on the level's navigation area (worked out when play starts) for characters that walk on their own.
     pub nav: Option<crate::nav::Finder>,
+    /// The game's controls for this run (the project's, see `input.rs`).
+    pub controls: Controls,
 }
 
 #[derive(Component)]
@@ -102,7 +105,8 @@ impl Plugin for PlayPlugin {
         let playing = |p: Res<Play>| p.on;
         let walking = |p: Res<Play>| p.on && p.custom.is_none();
         app.init_resource::<Play>()
-            .add_plugins((crate::physics::PhysicsPlugin, TnuaControllerPlugin::<Moves>::new(PhysicsSchedule), TnuaAvian3dPlugin::new(PhysicsSchedule)))
+            .add_systems(PreUpdate, hand_controls.before(crate::input::read))
+            .add_plugins((crate::input::InputMapPlugin, crate::physics::PhysicsPlugin, TnuaControllerPlugin::<Moves>::new(PhysicsSchedule), TnuaAvian3dPlugin::new(PhysicsSchedule)))
             .add_systems(Startup, feel)
             .add_systems(Update, (keys.run_if(playing), follow.run_if(walking)))
             .add_systems(FixedUpdate, (sense.run_if(walking), knocks.run_if(playing), crate::script::run.run_if(playing), controls.run_if(walking)).chain());
@@ -123,6 +127,7 @@ impl Play {
     pub fn start(&mut self, commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>, level: &Level, geo: &Geometry, feet: Vec3, yaw: f32) {
         self.stop(commands);
         self.script = Script::new(level);
+        self.controls = (*level.controls).clone();
         self.bodies = crate::physics::spawn(commands, level, geo);
         self.nav = crate::nav::build(level, geo).ok().and_then(|m| crate::nav::Finder::new(&m, &level.navigation).ok());
         self.homes = level.parts.iter().filter(|p| crate::physics::kind(p).is_some_and(|k| !k.is_static()) || level.carrier(p.id).is_some()).map(|p| (p.id, part_transform(p))).collect();
@@ -180,14 +185,30 @@ impl Play {
     }
 }
 
-/// Keys that act once (E) are caught every frame and used on the next step; the mouse turns the view.
-fn keys(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, motion: Res<AccumulatedMouseMotion>) {
-    if keys.just_pressed(KeyCode::KeyE) { play.press = true; }
-    if play.custom.is_none() && motion.delta != Vec2::ZERO {
+/// The input map reads the controls of this run.
+fn hand_controls(play: Res<Play>, mut actions: ResMut<Actions>) {
+    if play.is_changed() && actions.controls != play.controls { actions.controls = play.controls.clone(); }
+}
+
+/// How fast the look actions (a gamepad's right stick) turn the view, in radians a second when fully over.
+const LOOK: f32 = 2.6;
+
+/// Actions that act once (Use) are caught every frame and used on the next step; the mouse and the look actions turn
+/// the view.
+fn keys(mut play: ResMut<Play>, actions: Res<Actions>, motion: Res<AccumulatedMouseMotion>, time: Res<Time>) {
+    if actions.just_pressed("Use") { play.press = true; }
+    let look = actions.stick("Look left", "Look right", "Look down", "Look up") * LOOK * time.delta_secs();
+    if play.custom.is_none() && (motion.delta != Vec2::ZERO || look != Vec2::ZERO) {
         let w = &mut play.walker;
-        w.yaw -= motion.delta.x * 0.0025;
-        w.pitch = (w.pitch - motion.delta.y * 0.0025).clamp(-1.2, 0.9);
+        w.yaw -= motion.delta.x * 0.0025 + look.x;
+        w.pitch = (w.pitch - motion.delta.y * 0.0025 + look.y).clamp(-1.2, 0.9);
     }
+}
+
+/// Where the move actions point, on the ground, from the camera's yaw: as long as the stick leans (keys are all the way).
+fn walk_dir(actions: &Actions, yaw: f32) -> Vec3 {
+    let s = actions.stick("Left", "Right", "Back", "Forward");
+    Quat::from_rotation_y(yaw) * Vec3::new(s.x, 0.0, -s.y)
 }
 
 /// At the start of each step: where the walker's body got to and what it stands on; a Step each stride on the
@@ -229,40 +250,28 @@ fn knocks(mut play: ResMut<Play>, time: Res<Time>, bodies: Query<(&PartBody, &Li
     }
 }
 
-/// The walker's controls for this step: walk where the keys say (Shift runs), jump while Space is held; slippery
-/// ground gives less grip.
-fn controls(play: Res<Play>, keys: Res<ButtonInput<KeyCode>>, mut body: Query<(&mut TnuaController<Moves>, &mut TnuaConfig<Moves>), With<WalkerBody>>) {
+/// The walker's controls for this step: walk where the move actions say (Run runs), jump while Jump is held;
+/// slippery ground gives less grip.
+fn controls(play: Res<Play>, actions: Res<Actions>, mut body: Query<(&mut TnuaController<Moves>, &mut TnuaConfig<Moves>), With<WalkerBody>>) {
     let Ok((mut c, mut config)) = body.single_mut() else { return };
     let w = &play.walker;
-    let rot = Quat::from_rotation_y(w.yaw);
-    let (f, r) = (rot * Vec3::NEG_Z, rot * Vec3::X);
-    let mut dir = Vec3::ZERO;
-    if keys.pressed(KeyCode::KeyW) { dir += f; }
-    if keys.pressed(KeyCode::KeyS) { dir -= f; }
-    if keys.pressed(KeyCode::KeyD) { dir += r; }
-    if keys.pressed(KeyCode::KeyA) { dir -= r; }
-    let dir = dir.normalize_or_zero();
-    let speed = if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) { RUN } else { WALK };
+    let dir = walk_dir(&actions, w.yaw);
+    let speed = if actions.pressed("Run") { RUN } else { WALK };
     c.basis = TnuaBuiltinWalk { desired_motion: dir * speed, desired_forward: None };
     c.initiate_action_feeding();
-    if keys.pressed(KeyCode::Space) { c.action(Moves::Jump(default())); }
+    if actions.pressed("Jump") { c.action(Moves::Jump(default())); }
     if let Some(feel) = play.feel.as_ref() {
         let want = if w.on.is_some_and(|id| play.slippery.contains(&id)) { &feel.slippery } else { &feel.grip };
         if config.0 != *want { config.0 = want.clone(); }
     }
 }
 
-fn follow(mut play: ResMut<Play>, keys: Res<ButtonInput<KeyCode>>, ray: SpatialQuery, body: Query<&Transform, (With<WalkerBody>, Without<PlayCamera>)>, mut shown: Query<&mut Transform, (Without<WalkerBody>, Without<PlayCamera>)>, mut cam: Query<&mut Transform, (With<PlayCamera>, Without<WalkerBody>)>) {
+fn follow(mut play: ResMut<Play>, actions: Res<Actions>, ray: SpatialQuery, body: Query<&Transform, (With<WalkerBody>, Without<PlayCamera>)>, mut shown: Query<&mut Transform, (Without<WalkerBody>, Without<PlayCamera>)>, mut cam: Query<&mut Transform, (With<PlayCamera>, Without<WalkerBody>)>) {
     let Some(b) = play.body else { return };
     // the body as drawn (smoothed between steps); facing the way it walks
     let Ok(at) = body.get(b).map(|t| t.translation - Vec3::Y * FLOAT) else { return };
     let w = &mut play.walker;
-    let rot = Quat::from_rotation_y(w.yaw);
-    let mut dir = Vec3::ZERO;
-    if keys.pressed(KeyCode::KeyW) { dir += rot * Vec3::NEG_Z; }
-    if keys.pressed(KeyCode::KeyS) { dir -= rot * Vec3::NEG_Z; }
-    if keys.pressed(KeyCode::KeyD) { dir += rot * Vec3::X; }
-    if keys.pressed(KeyCode::KeyA) { dir -= rot * Vec3::X; }
+    let dir = walk_dir(&actions, w.yaw);
     if dir != Vec3::ZERO { w.facing = (-dir.x).atan2(-dir.z); }
     if let Some(Ok(mut t)) = play.shown.map(|s| shown.get_mut(s)) {
         t.translation = at;

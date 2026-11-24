@@ -100,7 +100,7 @@ pub fn serve(mut ed: ResMut<Editor>, mut view: ResMut<View>, mut exit: MessageWr
 /// One tool call. The answer is JSON (sent as text); `Err` is a tool error the assistant sees.
 pub fn call(ed: &mut Editor, view: &mut View, name: &str, args: &Value, exit: &mut MessageWriter<AppExit>) -> Result<Value, String> {
     match name {
-        "get_project" | "get_level" | "find_path" | "change_level" | "list_parts" | "get_part" | "get_selection" | "select" | "list_wires" | "list_assets" | "get_log" | "list_part_kinds" => project_tools(ed, name, args),
+        "get_project" | "get_level" | "find_path" | "change_level" | "get_controls" | "change_controls" | "list_parts" | "get_part" | "get_selection" | "select" | "list_wires" | "list_assets" | "get_log" | "list_part_kinds" => project_tools(ed, name, args),
         "add_part" | "change_part" | "delete_part" | "wire" | "lay_texture" => parts_tools(ed, view, name, args),
         "get_sound" | "change_sound" | "new_sound" | "play_sound" => sounds_tools(ed, name, args),
         "paint_stroke" | "list_shapes" | "draw_shape" | "turn_into_items" | "bucket_fill" | "list_fills" => paint_tools(ed, name, args),

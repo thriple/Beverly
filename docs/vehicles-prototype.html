@@ -1,0 +1,990 @@
+<title>Vehicle Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap">
+<style>
+/* Layout: the 3D stage fills the window. Top centre: play buttons left of the readouts. Bottom centre: a dock with
+   the tuning tabs. Right: the vehicle's files and model (below the stage on phones).
+   Colours are Beverly's own tokens (docs/ui/tokens), Vehicles tab: lime frame, violet accent. */
+:root {
+  --ink: #0E0E10; --glass: rgba(18,18,21,0.86); --field: #1F1F23; --line: #2E2E33;
+  --text: #F3F3F1; --text-2: #B0B0B6; --text-3: #8E8E95;
+  --frame: #C6FF1A; --accent: #B34DFF; --warn: #FF5A4E;
+  --sans: "Roboto", system-ui, sans-serif; --mono: "Roboto Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--text); font-family: var(--sans); overflow: hidden; }
+#app { height: 100%; display: grid; grid-template-columns: 1fr 260px; }
+#stage { position: relative; min-width: 0; outline: none; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+#tab { position: absolute; top: 12px; left: 12px; background: var(--frame); color: var(--ink);
+  font: 700 12px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 7px 10px; border-radius: 8px; }
+#panel { background: var(--glass); border-left: 1px solid var(--line); overflow-y: auto;
+  padding-block: 16px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; gap: 18px; }
+h1 { margin: 0; font-size: 16px; font-weight: 700; }
+h2 { margin: 0 0 8px; font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: .08em; text-transform: uppercase; }
+.speed { display: flex; align-items: baseline; gap: 6px; }
+.speed b { font: 500 44px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.speed span { color: var(--text-2); }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+#top { position: absolute; top: 12px; left: 110px; right: 110px; display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: start; gap: 12px; pointer-events: none; }
+#top > * { pointer-events: auto; }
+#readout { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; pointer-events: none; }
+#top .hud-row { justify-self: end; }
+#top .hud-row.view { justify-self: start; }
+#top .speed { padding: 6px 14px; border-radius: 12px; background: var(--glass); }
+#state { margin: 0; font-size: 12px; color: var(--text-2); text-shadow: 0 1px 3px var(--ink); }
+#top .chip { background: var(--glass); }
+#top .chip.on { background: var(--accent); }
+#top .chip.on.warn { background: var(--warn); }
+.chip { font-size: 12px; padding: 4px 8px; border-radius: 999px; background: var(--field); color: var(--text-3); }
+.chip.on { background: var(--accent); color: var(--text); }
+.chip.on.warn { background: var(--warn); }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
+dt { color: var(--text-2); }
+dd { margin: 0; text-align: right; }
+kbd { font: 500 11px var(--mono); background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+#log { margin: 0; padding: 0; list-style: none; font: 12px/1.6 var(--mono); color: var(--text-2); min-height: 6em; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font: 500 13px var(--sans); color: var(--ink); background: var(--frame); border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+#turn, .btn.quiet { background: var(--field); color: var(--text); }
+#tune { display: flex; flex-direction: column; gap: 18px; }
+.set { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; margin-bottom: 10px; }
+.set label { font-size: 13px; color: var(--text); }
+.set output { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.set output b { color: var(--frame); font-weight: 500; }
+.set input { grid-column: 1 / -1; width: 100%; accent-color: var(--frame); margin: 2px 0 0; }
+.seg { grid-column: 1 / -1; display: flex; gap: 4px; }
+.seg button { flex: 1; font: 500 12px var(--sans); padding: 6px 0; border-radius: 6px; border: 0; background: var(--field); color: var(--text-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--frame); color: var(--ink); }
+.keys { grid-column: 1 / -1; }
+.keys dd button { font: 500 11px var(--mono); background: var(--field); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; cursor: pointer; }
+.keys dd button.wait { border-color: var(--frame); color: var(--frame); }
+.note { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-3); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
+pre { font: 11px/1.45 var(--mono); color: var(--text-2); background: var(--field); border-radius: 8px; padding: 10px; overflow-x: auto; }
+#pad { position: absolute; inset: auto 0 0 0; display: none; justify-content: space-between; gap: 8px;
+  padding: 12px max(12px, env(safe-area-inset-left, 0px)) 12px max(12px, env(safe-area-inset-right, 0px)); }
+#pad div { display: flex; gap: 8px; }
+#pad button { width: 58px; height: 58px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass);
+  color: var(--text); font: 500 13px var(--sans); touch-action: none; user-select: none; -webkit-user-select: none; }
+#pad button:active { background: var(--accent); }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#dock { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(940px, calc(100% - 24px));
+  background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+#dock-tabs { display: flex; gap: 4px; overflow-x: auto; }
+#dock-tabs button { flex: none; font: 500 12px var(--sans); padding: 6px 12px; border-radius: 999px; border: 0;
+  background: transparent; color: var(--text-2); cursor: pointer; }
+#dock-tabs button:hover { color: var(--text); }
+#dock-tabs button[aria-selected="true"] { background: var(--frame); color: var(--ink); }
+#dock-body { max-height: 190px; overflow-y: auto; padding: 4px 6px 0; }
+.pane { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 24px; }
+.pane .keys { grid-column: 1 / -1; grid-template-columns: repeat(auto-fill, minmax(140px, auto) minmax(60px, 1fr)); }
+#xray[aria-pressed="true"] { background: var(--accent); color: var(--text); }
+#hint { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--glass); color: var(--text); font-size: 13px; text-align: center; }
+.hud-row { display: flex; align-items: center; gap: 8px; }
+.hud-btn { font: 500 13px var(--sans); color: var(--text); background: var(--glass); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px 14px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hud-btn:hover { border-color: var(--text-3); }
+.hud-btn:active { background: var(--accent); }
+.hud-btn.play { display: flex; align-items: center; gap: 8px; font: 700 15px var(--sans); padding: 11px 20px;
+  background: var(--frame); color: var(--ink); border-color: var(--frame); }
+.hud-btn.play.on { background: var(--field); color: var(--text); border-color: var(--line); }
+.hud-btn.play svg { width: 16px; height: 16px; fill: currentColor; }
+#cam[aria-pressed="true"] { border-color: var(--frame); color: var(--frame); }
+.hud-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) { #pad { display: flex; } #dock { bottom: 84px; } }
+@media (max-width: 720px) {
+  #app { grid-template-columns: 1fr; grid-template-rows: 1fr 38%; }
+  #panel { border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 1000px) {
+  #top { top: 48px; left: 12px; right: 12px; grid-template-columns: 1fr; justify-items: center; }
+  #top .hud-row, #top .hud-row.view { justify-self: center; }
+}
+</style>
+
+<div id="app">
+  <div id="stage" tabindex="0" aria-label="Driving view">
+    <div id="tab">Vehicles</div>
+    <div id="top">
+      <div class="hud-row">
+        <button id="reset-pos" class="hud-btn" title="Reset position (R)">Reset</button>
+        <button id="play" class="hud-btn play"><svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg><span id="play-text">Play</span></button>
+        <button data-act="Power" class="hud-btn" title="Tap to step Off, Accessory, On. Hold to switch off.">Power</button>
+      </div>
+      <div id="readout">
+      <div class="speed"><b id="kmh">0</b><span>km/h</span></div>
+      <p id="state">Off</p>
+      <div class="chips">
+        <span class="chip" id="c-brake">Braking</span>
+        <span class="chip" id="c-rev">Reversing</span>
+        <span class="chip warn" id="c-hand">Handbrake</span>
+        <span class="chip" id="c-air">In the air</span>
+      </div>
+      <p id="hint">Press Play, then tap F twice to start the engine.</p>
+      </div>
+      <div class="hud-row view"><button id="cam" class="hud-btn" aria-pressed="false" title="Free camera: drag to orbit, right-drag to pan, wheel to zoom. Key: V">Follow camera</button></div>
+    </div>
+    <div id="dock">
+      <div id="dock-tabs" role="tablist" aria-label="Tuning"></div>
+      <div id="dock-body"></div>
+    </div>
+    <div id="pad">
+      <div><button data-act="SteerLeft">Left</button><button data-act="SteerRight">Right</button></div>
+      <div><button data-act="Power">Power</button><button data-act="Handbrake">Hand</button><button data-act="Brake">Brake</button><button data-act="Throttle">Gas</button></div>
+    </div>
+  </div>
+  <aside id="panel">
+    <h1 id="name">Runabout</h1>
+    <div>
+      <h2>Vehicle file</h2>
+      <div class="row">
+        <button id="save" class="btn">Save</button>
+        <label class="btn quiet" for="load">Load</label>
+        <input id="load" type="file" accept=".json" hidden>
+      </div>
+      <p id="file-note" class="note" hidden></p>
+    </div>
+    <div>
+      <h2>Model</h2>
+      <div class="row">
+        <label class="btn" for="glb">Load Prism model</label>
+        <input id="glb" type="file" accept=".glb" hidden>
+        <button id="turn" class="btn" hidden>Turn around</button>
+        <button id="xray" class="btn quiet" aria-pressed="false" title="See through the body: the collision box, the centre of mass and the suspension rays. Key: X">X-ray</button>
+      </div>
+      <p id="model-note" class="note">A box stand-in. Load a GLB from Prism: groups named "wheel" become wheels; "headlight", "tail light", "brake light", "reverse light" and "exhaust" are used too.</p>
+    </div>
+    <details>
+      <summary>Vehicle file</summary>
+      <pre id="file"></pre>
+    </details>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Wiring that carries over to Beverly (docs/vehicles-prototype.md):
+//   vehicle        -> vehicles/NAME.bev (same field names, snake_case)
+//   ACTIONS        -> input-map (named actions with bindings)
+//   effective()    -> the one step that turns settings (and later parts and upgrades) into numbers
+//   step()         -> a FixedUpdate system applying forces, 60 Hz
+//   emit()/on()    -> Bevy events; the panel, lights, puffs and rumble listen, never drive.
+// Units: metres, kilograms, seconds. Y up, forward is -Z (as in Bevy).
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+
+// ---------- The vehicle (the file) ----------
+const vehicle = {
+  format: 1, name: "Runabout", kind: "Ground",
+  body: { weight: 1200, size: [1.8, 0.7, 4.0], centre_of_mass: [0, -0.15, 0], drag: 0.42, paint: "#C6FF1A" },
+  drive: {
+    moves_on: "Wheels",
+    wheel_radius: 0.36,
+    axles: [
+      { at: -1.35, track: 1.6, steers: "Yes", driven: false },
+      { at: 1.3, track: 1.6, steers: "No", driven: true },
+    ],
+    top_speed: 34,      // m/s
+    pickup: 0.55,       // 0 gentle .. 1 instant
+    grip: 1.15,         // tyre friction
+    steering: 34,       // degrees at standstill
+    less_steering_at_speed: true,
+    ride_height: 0.32,  // m, body bottom to ground at rest
+    stiffness: 0.5,     // 0 soft .. 1 firm
+    damping: 0.5,       // 0 bouncy .. 1 stiff
+    brakes: 1.0,
+    reverse_speed: 8,   // m/s
+  },
+  power: { start_time: 0.6 },   // s from tapping F at Accessory to the engine running
+  controls: {
+    scheme: "Hold",             // Hold, Auto-forward or Lever
+    advanced: false,            // shows the action table to rebind keys
+    actions: {
+      Throttle: ["KeyW", "ArrowUp"], Brake: ["KeyS", "ArrowDown"],
+      SteerLeft: ["KeyA", "ArrowLeft"], SteerRight: ["KeyD", "ArrowRight"],
+      Handbrake: ["Space"], Power: ["KeyF"], Reset: ["KeyR"],
+    },
+  },
+  camera: { rumble: 0.5, lag: 0.4, look_ahead: 0.5, wider_at_speed: 0.5 },   // follow camera, 0 .. 1
+  signals: [                    // what each effect follows
+    { part: "Headlights", follows: "Powered" },
+    { part: "Tail lights", follows: "Powered" },
+    { part: "Brake lights", follows: "Braking" },
+    { part: "Reverse lights", follows: "Reversing" },
+    { part: "Exhaust", follows: "Running", amount: 0.5 },
+  ],
+};
+const DEFAULTS = structuredClone(vehicle);   // fills in what older files leave out
+
+// ---------- Named actions (input-map) ----------
+const held = new Set();
+let rebinding = null;                                          // an action waiting for its new key
+const actions = () => vehicle.controls.actions;
+const down = (a) => (actions()[a] || []).some((k) => held.has(k)) || held.has("Pad." + a);
+addEventListener("keydown", (e) => {
+  if (rebinding) { e.preventDefault(); rebinding(e.code); return; }
+  if (Object.values(actions()).flat().includes(e.code)) { e.preventDefault(); held.add(e.code); }
+});
+addEventListener("keyup", (e) => held.delete(e.code));
+addEventListener("blur", () => held.clear());
+document.querySelectorAll("[data-act]").forEach((b) => {
+  const k = "Pad." + b.dataset.act;
+  b.addEventListener("pointerdown", (e) => { e.preventDefault(); held.add(k); });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => held.delete(k));
+});
+
+// ---------- Events ----------
+const listeners = {};
+const on = (name, fn) => (listeners[name] ||= []).push(fn);
+const emit = (name, data) => (listeners[name] || []).forEach((fn) => fn(data));
+
+// ---------- effective(): settings to physics numbers ----------
+const G = 9.81;
+function effective(v) {
+  const d = v.drive, b = v.body;
+  const mass = b.weight, [w, h, l] = b.size;
+  const wheels = d.axles.length * 2;
+  const share = mass / wheels;                                 // mass each spring carries
+  const freq = 1.1 + d.stiffness * 1.4;                        // Hz: soft 1.1 .. firm 2.5
+  const k = share * (2 * Math.PI * freq) ** 2;
+  const c = (0.15 + d.damping * 0.75) * 2 * Math.sqrt(k * share);
+  const sag = share * G / k;                                   // how far it settles under its weight
+  return {
+    mass, size: b.size, com: V(...b.centre_of_mass), drag: b.drag,
+    inertia: V(mass / 12 * (h * h + l * l), mass / 12 * (w * w + l * l), mass / 12 * (w * w + h * h)),
+    k, c, share, radius: d.wheel_radius,
+    reach: d.ride_height + sag,                                // spring fully out, attach point to tyre bottom
+    grip: d.grip, steer: d.steering * Math.PI / 180, lessAtSpeed: d.less_steering_at_speed,
+    top: d.top_speed, reverse: d.reverse_speed,
+    push: mass * (3 + d.pickup * 9),                           // N of drive at standstill
+    brake: mass * 9 * d.brakes,
+    wheels: d.axles.flatMap((a) => [-1, 1].map((s) => ({
+      at: V(s * a.track / 2, -h / 2, a.at), steers: a.steers, driven: a.driven, rear: a.at > 0,
+    }))),
+  };
+}
+
+// ---------- Ground (swap for terrain later) ----------
+// Flat inside 72 m (the track), rolling hills beyond; a kicker ramp on the track at x -52; an ice patch at z -52.
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const hills = (x, z) => smooth(72, 115, Math.hypot(x, z)) * (5 + 3 * Math.sin(x * 0.045) * Math.cos(z * 0.05) + 2 * Math.sin(x * 0.11 + z * 0.07));
+const RAMP = { x0: -58, x1: -46, z0: -6, z1: 6, top: 1.6 };
+const ramp = (x, z) => x >= RAMP.x0 && x <= RAMP.x1 && z >= RAMP.z0 && z <= RAMP.z1 ? RAMP.top * (z - RAMP.z0) / (RAMP.z1 - RAMP.z0) : 0;
+const ICE = { x0: -7, x1: 7, z0: -58, z1: -46 };
+const ground = {
+  height: (x, z) => hills(x, z) + ramp(x, z),
+  normalAt(x, z) {
+    const e = 0.25, h = ground.height;
+    return V(h(x - e, z) - h(x + e, z), 2 * e, h(x, z - e) - h(x, z + e)).normalize();
+  },
+  grip: (x, z) => (x >= ICE.x0 && x <= ICE.x1 && z >= ICE.z0 && z <= ICE.z1 ? 0.25 : 1),   // the surface's grip
+};
+
+// ---------- The car's state (what play would sync) ----------
+const car = {
+  pos: V(), vel: V(), rot: new THREE.Quaternion(), spin: V(),
+  steer: 0, wheels: [], braking: false, reversing: false, handbrake: false, air: false,
+  power: "Off", powerHeld: 0, starting: 0, lever: 0, drive: 0,
+};
+function reset() {
+  const e = effective(vehicle);
+  car.pos.set(52, e.size[1] / 2 + vehicle.drive.ride_height + 0.05, 6);
+  car.vel.set(0, 0, 0); car.spin.set(0, 0, 0); car.rot.identity(); car.steer = 0;
+  car.wheels = e.wheels.map(() => ({ out: e.reach, roll: 0, contact: false }));
+}
+
+// ---------- control(): actions to driving input, in the fixed tick ----------
+// Power (one key): tap F to step Off, Accessory, On; hold it to switch off.
+function setPower(state) {
+  if (car.power === state) return;
+  car.power = state; car.starting = 0;
+  emit("Power", state);
+}
+function control(raw, dt) {
+  if (raw.Power) {
+    car.powerHeld += dt;
+    if (car.powerHeld >= 0.5) setPower("Off");
+  } else {
+    if (car.powerHeld > 0 && car.powerHeld < 0.5) setPower({ Off: "Accessory", Accessory: "Starting" }[car.power] || car.power);
+    car.powerHeld = 0;
+  }
+  if (car.power === "Starting" && (car.starting += dt) >= vehicle.power.start_time) setPower("On");
+
+  const scheme = vehicle.controls.scheme;
+  let throttle = 0, brake = raw.Brake;
+  if (scheme === "Hold") throttle = raw.Throttle ? 1 : 0;
+  else if (scheme === "Auto-forward") throttle = raw.Brake ? 0 : 1;
+  else {                                                       // Lever: W and S move it, it stays put
+    car.lever = Math.min(1, Math.max(0, car.lever + ((raw.Throttle ? 1 : 0) - (raw.Brake ? 1 : 0)) * dt * 0.8));
+    throttle = car.lever; brake = raw.Brake && car.lever === 0;
+  }
+  const running = car.power === "On";
+  return {
+    throttle: running ? throttle : 0, brake, running, handbrake: raw.Handbrake,
+    steer: (raw.SteerLeft ? 1 : 0) - (raw.SteerRight ? 1 : 0),
+  };
+}
+
+// ---------- step(): one fixed 60 Hz tick ----------
+const curve = (slip) => Math.sin(1.5 * Math.atan(7 * slip));   // rises to a peak, eases into a slide
+const tmp = { q: new THREE.Quaternion() };
+function step(v, input, dt) {
+  const e = effective(v);
+  const up = V(0, 1, 0).applyQuaternion(car.rot);
+  const fwd = V(0, 0, -1).applyQuaternion(car.rot);
+  const comW = e.com.clone().applyQuaternion(car.rot).add(car.pos);
+  const speed = car.vel.dot(fwd);
+
+  // Arcade throttle: S brakes while rolling forward, then reverses; W brakes while rolling back.
+  let throttle = 0, brake = 0;
+  if (input.throttle) speed < -0.5 ? (brake = 1) : (throttle = input.throttle);
+  if (input.brake) speed > 0.5 || !input.running ? (brake = 1) : (throttle = -1);
+  car.drive = Math.abs(throttle);
+  const idle = !input.throttle && !input.brake;
+
+  const lean = e.lessAtSpeed ? 1 / (1 + Math.abs(speed) / 14) : 1;
+  car.steer += ((input.steer || 0) * e.steer * lean - car.steer) * Math.min(1, dt * 10);
+
+  const force = V(0, -G * e.mass, 0), torque = V();
+  const add = (f, at) => { force.add(f); torque.add(at.clone().sub(comW).cross(f)); };
+  const driven = e.wheels.filter((w) => w.driven).length;
+  let contacts = 0;
+
+  e.wheels.forEach((w, i) => {
+    const st = car.wheels[i];
+    const at = w.at.clone().applyQuaternion(car.rot).add(car.pos);
+    const n = ground.normalAt(at.x, at.z), gy = ground.height(at.x, at.z);
+    const facing = up.dot(n);                                  // how squarely the downward ray meets the ground
+    const dist = facing > 0.3 ? (at.y - gy) / facing : Infinity;
+    if (dist > e.reach) { st.out = e.reach; st.contact = false; return; }
+    st.out = Math.max(dist, 0.05); st.contact = true; contacts++;
+
+    const r = at.clone().sub(comW);
+    const pv = car.vel.clone().add(car.spin.clone().cross(r));
+    const squeeze = e.reach - dist;
+    const load = Math.max(0, e.k * squeeze - e.c * pv.dot(up) + (squeeze > e.reach * 0.8 ? 4 * e.k * (squeeze - e.reach * 0.8) : 0));
+    add(up.clone().multiplyScalar(load), at);
+
+    const steerAngle = w.steers === "Yes" ? car.steer : w.steers === "Opposite" ? -car.steer : 0;
+    tmp.q.setFromAxisAngle(up, steerAngle);
+    const wf = fwd.clone().applyQuaternion(tmp.q).projectOnPlane(n).normalize();
+    const ws = wf.clone().cross(n);
+    const vl = pv.dot(wf), vs = pv.dot(ws);
+    const locked = input.handbrake && w.rear;
+    const grip = e.grip * (locked ? 0.45 : 1) * ground.grip(at.x, at.z);
+    const stop = e.share / dt;                                 // force that stops this corner in one tick
+
+    let side = -grip * load * curve(Math.atan2(vs, Math.max(Math.abs(vl), 1.5)));
+    side = Math.sign(side) * Math.min(Math.abs(side), stop * Math.abs(vs));
+
+    let along = 0;
+    if (w.driven && throttle > 0) along += e.push / driven * throttle * Math.max(0, 1 - (speed / e.top) ** 2);
+    if (w.driven && throttle < 0) along -= e.push / driven * 0.6 * Math.max(0, 1 - (-speed / e.reverse) ** 2);
+    const stopping = brake && Math.abs(speed) > 0.5 ? e.brake / 4 : brake ? e.brake / 8 : locked ? e.brake / 2 : idle && Math.abs(vl) < 0.6 ? e.brake / 8 : 0;
+    along -= Math.sign(vl) * Math.min(stopping, stop * Math.abs(vl));
+    along -= vl * 12;                                           // rolling resistance
+
+    const most = grip * load * 1.05, total = Math.hypot(side, along);
+    if (total > most) { side *= most / total; along *= most / total; }
+    add(wf.clone().multiplyScalar(along).add(ws.clone().multiplyScalar(side)), at);
+    if (!locked) st.roll += vl / e.radius * dt;
+  });
+
+  // Body corners keep it from sinking into the ground when it rolls over.
+  const [bw, bh, bl] = e.size;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+    const p = V(sx * bw / 2, sy * bh / 2, sz * bl / 2).applyQuaternion(car.rot).add(car.pos);
+    const deep = ground.height(p.x, p.z) - p.y;
+    if (deep <= 0) continue;
+    const pv = car.vel.clone().add(car.spin.clone().cross(p.clone().sub(comW)));
+    const f = V(-pv.x * e.mass * 0.6, Math.max(0, deep * e.mass * 400 - pv.y * e.mass * 8), -pv.z * e.mass * 0.6);
+    add(f.multiplyScalar(1 / 8), p);
+  }
+
+  force.add(car.vel.clone().multiplyScalar(-e.drag * car.vel.length()));
+
+  // Integrate (semi-implicit Euler).
+  car.vel.addScaledVector(force, dt / e.mass);
+  const inv = car.rot.clone().invert();
+  const tl = torque.applyQuaternion(inv);
+  car.spin.add(V(tl.x / e.inertia.x, tl.y / e.inertia.y, tl.z / e.inertia.z).applyQuaternion(car.rot).multiplyScalar(dt));
+  car.spin.multiplyScalar(1 - 0.5 * dt);
+  car.pos.addScaledVector(car.vel, dt);
+  const a = car.spin.length();
+  if (a > 1e-6) car.rot.premultiply(tmp.q.setFromAxisAngle(car.spin.clone().divideScalar(a), a * dt)).normalize();
+
+  // Events: state changes only.
+  const flag = (key, now, name) => { if (car[key] !== now) { car[key] = now; emit(name, now); } };
+  flag("braking", brake > 0 && Math.abs(speed) > 0.5, "Braking");
+  flag("reversing", throttle < 0 && speed < -0.3, "Reversing");
+  flag("handbrake", input.handbrake, "Handbrake");
+  flag("air", contacts === 0, "Airborne");
+}
+
+// ---------- The stage ----------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#16161a");
+scene.fog = new THREE.Fog("#16161a", 90, 260);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 600);
+scene.add(new THREE.HemisphereLight("#d8dcff", "#2a2a30", 0.7));
+const sun = new THREE.DirectionalLight("#fff1dc", 1.15);
+sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12 });
+scene.add(sun, sun.target);
+
+const land = new THREE.PlaneGeometry(800, 800, 200, 200).rotateX(-Math.PI / 2);
+const lp = land.attributes.position;
+for (let i = 0; i < lp.count; i++) lp.setY(i, hills(lp.getX(i), lp.getZ(i)));
+land.computeVertexNormals();
+const floor = new THREE.Mesh(land, new THREE.MeshStandardMaterial({ color: "#2a2a32", roughness: 1 }));
+floor.receiveShadow = true; scene.add(floor);
+{
+  const len = Math.hypot(RAMP.z1 - RAMP.z0, RAMP.top), tilt = Math.atan2(RAMP.top, RAMP.z1 - RAMP.z0);
+  const r = new THREE.Mesh(new THREE.BoxGeometry(RAMP.x1 - RAMP.x0, 0.2, len), new THREE.MeshStandardMaterial({ color: "#B34DFF", roughness: 0.7 }));
+  r.rotation.x = -tilt; r.position.set((RAMP.x0 + RAMP.x1) / 2, RAMP.top / 2 - 0.1, (RAMP.z0 + RAMP.z1) / 2);
+  r.castShadow = r.receiveShadow = true; scene.add(r);
+  const ice = new THREE.Mesh(new THREE.PlaneGeometry(ICE.x1 - ICE.x0, ICE.z1 - ICE.z0), new THREE.MeshStandardMaterial({ color: "#bfe6ff", roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.7 }));
+  ice.rotation.x = -Math.PI / 2; ice.position.set((ICE.x0 + ICE.x1) / 2, 0.03, (ICE.z0 + ICE.z1) / 2); ice.receiveShadow = true; scene.add(ice);
+}
+const grid = new THREE.GridHelper(800, 160, "#3a3a42", "#2c2c33"); grid.position.y = 0.01; scene.add(grid);
+const track = new THREE.Mesh(new THREE.RingGeometry(46, 58, 96), new THREE.MeshStandardMaterial({ color: "#34343c", roughness: 0.9 }));
+track.rotation.x = -Math.PI / 2; track.position.y = 0.02; track.receiveShadow = true; scene.add(track);
+const line = new THREE.Mesh(new THREE.PlaneGeometry(12, 0.6), new THREE.MeshBasicMaterial({ color: "#F3F3F1" }));
+line.rotation.x = -Math.PI / 2; line.position.set(52, 0.03, 0); scene.add(line);
+for (let i = 0; i < 24; i++) {                                 // cones to read speed by (no collision yet)
+  const a = i / 24 * Math.PI * 2, r = i % 2 ? 44 : 60;
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 12), new THREE.MeshStandardMaterial({ color: "#B34DFF" }));
+  cone.position.set(Math.cos(a) * r, 0.4, Math.sin(a) * r); cone.castShadow = true; scene.add(cone);
+}
+
+const model = new THREE.Group(); scene.add(model);
+const wheelMeshes = [];
+function buildModel() {
+  model.clear(); wheelMeshes.length = 0;
+  const e = effective(vehicle), [w, h, l] = e.size;
+  const paint = new THREE.MeshStandardMaterial({ color: vehicle.body.paint, roughness: 0.45, metalness: 0.1 });
+  const dark = new THREE.MeshStandardMaterial({ color: "#1A1A1E", roughness: 0.6 });
+  if (prism) model.add(prism.holder);
+  else {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), paint);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(w * 0.82, h * 0.8, l * 0.45), dark);
+    cabin.position.set(0, h * 0.9, l * 0.06);
+    for (const m of [body, cabin]) { m.castShadow = true; model.add(m); }
+  }
+  const tyre = new THREE.CylinderGeometry(e.radius, e.radius, 0.26, 20).rotateZ(Math.PI / 2);
+  const rubber = new THREE.MeshStandardMaterial({ color: "#0E0E10", roughness: 0.9 });
+  const hub = new THREE.MeshStandardMaterial({ color: "#8E8E95", metalness: 0.6, roughness: 0.4 });
+  const free = prism ? [...prism.wheels] : [];
+  for (const wd of e.wheels) {
+    const pivot = new THREE.Group(), spinner = new THREE.Group();
+    if (free.length) {                                          // the model's own wheel nearest this spot
+      free.sort((a, b) => a.at.distanceToSquared(wd.at) - b.at.distanceToSquared(wd.at));
+      spinner.add(free.shift().obj);
+    } else if (!prism || !prism.wheels.length) {
+      const t = new THREE.Mesh(tyre, rubber); t.castShadow = true;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.28, e.radius * 1.5, 0.12), hub);
+      spinner.add(t, spoke);
+    }
+    pivot.add(spinner); model.add(pivot);
+    wheelMeshes.push({ pivot, spinner, wd });
+  }
+  fitSignals(e);
+  buildXray(e);
+}
+
+// ---------- X-ray: see-through body with the physics drawn on top ----------
+let xray = false, xrayLines = null, rays = [];
+function buildXray(e) {
+  xrayLines = new THREE.Group(); rays = [];
+  const top = (m) => Object.assign(m, { depthTest: false, transparent: true });
+  const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(...e.size)), top(new THREE.LineBasicMaterial({ color: "#B0B0B6" })));
+  const com = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), top(new THREE.MeshBasicMaterial({ color: "#B34DFF" })));
+  com.position.copy(e.com); xrayLines.add(box, com);
+  for (const w of e.wheels) {
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w.at, w.at]), top(new THREE.LineBasicMaterial({ color: "#C6FF1A" })));
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 6), top(new THREE.MeshBasicMaterial({ color: "#C6FF1A" })));
+    xrayLines.add(line, dot); rays.push({ line, dot, at: w.at });
+  }
+  xrayLines.traverse((o) => { o.renderOrder = 10; o.userData.helper = true; });
+  model.add(xrayLines); applyXray();
+}
+function applyXray() {
+  const inWheel = (o) => wheelMeshes.some(({ spinner }) => { for (let p = o; p; p = p.parent) if (p === spinner) return true; return false; });
+  model.traverse((o) => {
+    if (!o.isMesh || o.userData.helper || inWheel(o)) return;
+    for (const m of [].concat(o.material)) {
+      const s = (m.userData.solid ||= { transparent: m.transparent, opacity: m.opacity, depthWrite: m.depthWrite });
+      Object.assign(m, xray ? { transparent: true, opacity: 0.15, depthWrite: false } : s);
+      m.needsUpdate = true;
+    }
+  });
+  xrayLines.visible = xray;
+  const b = document.getElementById("xray"); if (b) b.setAttribute("aria-pressed", xray);
+}
+function drawXray() {                                          // suspension rays: lime on the ground, grey in the air
+  if (!xray) return;
+  rays.forEach((r, i) => {
+    const st = car.wheels[i], end = r.at.clone().add(V(0, -st.out, 0));
+    r.line.geometry.setFromPoints([r.at, end]);
+    r.dot.position.copy(end); r.dot.visible = st.contact;
+    r.line.material.color.set(st.contact ? "#C6FF1A" : "#8E8E95");
+  });
+}
+document.getElementById("xray").addEventListener("click", () => { xray = !xray; applyXray(); });
+addEventListener("keydown", (e) => {
+  if (e.code === "KeyX" && !rebinding && !e.repeat && !Object.values(actions()).flat().includes("KeyX")) { xray = !xray; applyXray(); }
+});
+
+// ---------- Lights and exhaust: the model's own named pieces, or stand-ins ----------
+// signalParts[part] = { mats: [[material, on-colour, strength]], spots: [SpotLight] }; exhaustAt is in the body frame.
+let signalParts = {}, exhaustAt = V();
+const ROLES = {
+  "Headlights": (w) => w.includes("headlight") || w.includes("headlights") || (w.includes("head") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+  "Tail lights": (w) => w.includes("taillight") || w.includes("taillights") || (w.includes("tail") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+  "Brake lights": (w) => w.includes("brakelight") || w.includes("brakelights") || (w.includes("brake") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+  "Reverse lights": (w) => w.includes("reverselight") || w.includes("reverselights") || (w.includes("reverse") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+};
+const LOOK = { "Headlights": ["#fff4d6", 2.2], "Tail lights": ["#ff2a1a", 0.7], "Brake lights": ["#ff2a1a", 2.6], "Reverse lights": ["#ffffff", 2] };
+function fitSignals(e) {
+  signalParts = {};
+  const [w, h, l] = e.size;
+  const named = {};
+  let exhaustObj = null;
+  if (prism) prism.holder.traverse((o) => {
+    const ws = wordsOf(o);
+    for (const role in ROLES) if (ROLES[role](ws)) (named[role] ||= []).push(o);
+    if (!exhaustObj && ws.includes("exhaust")) exhaustObj = o;
+  });
+  const stand = {                                              // stand-in lamps: x list, y, z, size
+    "Headlights": [[-w * 0.32, w * 0.32], h * 0.1, -l / 2 - 0.01, [0.34, 0.14, 0.04]],
+    "Tail lights": [[-w * 0.38, w * 0.38], h * 0.15, l / 2 + 0.01, [0.2, 0.12, 0.04]],
+    "Brake lights": [[-w * 0.24, w * 0.24], h * 0.15, l / 2 + 0.01, [0.14, 0.12, 0.04]],
+    "Reverse lights": [[0], h * 0.15, l / 2 + 0.01, [0.22, 0.1, 0.04]],
+  };
+  for (const role in ROLES) {
+    const [colour, strength] = LOOK[role], mats = [];
+    if (named[role]) {
+      for (const o of named[role]) o.traverse((m) => {
+        if (!m.isMesh) return;
+        m.material = m.material.clone(); m.material.emissive = new THREE.Color(colour); m.material.emissiveIntensity = 0;
+        mats.push([m.material, strength]);
+      });
+    } else {
+      const [xs, y, z, size] = stand[role];
+      const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(colour).multiplyScalar(0.25), emissive: colour, emissiveIntensity: 0 });
+      for (const x of xs) { const m = new THREE.Mesh(new THREE.BoxGeometry(...size), mat); m.position.set(x, y, z); model.add(m); }
+      mats.push([mat, strength]);
+    }
+    signalParts[role] = { mats, spots: [] };
+  }
+  for (const x of [-w * 0.32, w * 0.32]) {                     // the beams
+    const spot = new THREE.SpotLight("#fff4d6", 0, 45, 0.42, 0.5, 1.2);
+    spot.position.set(x, h * 0.1, -l / 2); spot.target.position.set(x, -h, -l / 2 - 12);
+    model.add(spot, spot.target); signalParts["Headlights"].spots.push(spot);
+  }
+  if (exhaustObj) exhaustAt = new THREE.Box3().setFromObject(exhaustObj).getCenter(V());
+  else {
+    exhaustAt = V(-w * 0.3, -h / 2 + 0.08, l / 2 + 0.05);
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: "#8E8E95", metalness: 0.7, roughness: 0.4 }));
+    pipe.position.copy(exhaustAt).add(V(0, 0, -0.05)); model.add(pipe);
+  }
+  showSignals();
+}
+// Effects listen to events and read the state; they never drive the car.
+const isOn = (follows) => ({ Powered: car.power !== "Off", Running: car.power === "On", Braking: car.braking, Reversing: car.reversing }[follows] || false);
+function showSignals() {
+  for (const sig of vehicle.signals) {
+    const part = signalParts[sig.part]; if (!part) continue;
+    const lit = isOn(sig.follows);
+    for (const [mat, strength] of part.mats) mat.emissiveIntensity = lit ? strength : 0;
+    for (const spot of part.spots) spot.intensity = lit ? 2.2 : 0;
+  }
+}
+for (const ev of ["Power", "Braking", "Reversing"]) on(ev, showSignals);
+
+// Exhaust puffs: a small pool in world space, more and faster with throttle.
+const puffs = [], puffGeo = new THREE.SphereGeometry(0.13, 8, 6);
+let puffClock = 0;
+function exhaust(dt) {
+  const sig = vehicle.signals.find((s) => s.part === "Exhaust");
+  if (sig && isOn(sig.follows) && sig.amount > 0) {
+    puffClock += dt * (2 + car.drive * 16) * sig.amount * 2;
+    while (puffClock >= 1) {
+      puffClock -= 1;
+      let p = puffs.find((x) => !x.visible);
+      if (!p && puffs.length < 90) {
+        p = new THREE.Mesh(puffGeo, new THREE.MeshBasicMaterial({ color: "#b8b8c0", transparent: true, depthWrite: false }));
+        scene.add(p); puffs.push(p);
+      }
+      if (!p) break;
+      const back = V(0, 0, 1).applyQuaternion(car.rot);
+      p.visible = true; p.userData = { age: 0, life: 0.9 + Math.random() * 0.6,
+        vel: back.multiplyScalar(1 + car.drive * 2.5).add(V(Math.random() - 0.5, 0.4 + Math.random() * 0.4, Math.random() - 0.5).multiplyScalar(0.6)).addScaledVector(car.vel, 0.85) };
+      p.position.copy(exhaustAt).applyQuaternion(car.rot).add(car.pos);
+    }
+  }
+  for (const p of puffs) {
+    if (!p.visible) continue;
+    const u = p.userData; u.age += dt;
+    if (u.age >= u.life) { p.visible = false; continue; }
+    p.position.addScaledVector(u.vel, dt); u.vel.multiplyScalar(1 - 1.5 * dt); u.vel.y += 0.6 * dt;
+    p.scale.setScalar(1 + u.age * 3);
+    p.material.opacity = 0.28 * (1 - u.age / u.life) * (0.5 + 0.5 * Math.min(1, sig ? sig.amount * 2 : 0));
+  }
+}
+
+// ---------- Prism model (GLB, docs/prism-glb.md) ----------
+// Words come from names (split at space _ - .), Prism roles and Prism tags. A group with the word "wheel"
+// (or tyre / tire) is a wheel; a "Wheels" group holding several is opened up. Collider, node, editor and lod
+// pieces are hidden. The model's front is -Z, as in Beverly; "Turn around" flips it.
+let prism = null, prismSource = null;
+const wordsOf = (o) => {
+  const p = (o.userData && o.userData.prism) || {};
+  const split = (s) => s.toLowerCase().split(/[\s_.\-]+/).filter(Boolean);
+  return [...split(o.name || ""), ...(p.roles || []).flatMap(split), ...split(p.tag || "")];
+};
+const has = (o, re) => wordsOf(o).some((w) => re.test(w));
+const WHEEL = /^(wheel|tyre|tire)s?$/, HIDDEN = /^(collider|node|editor|lod1|lod2|trigger|nocollide)$/;
+function findWheels(o, out) {
+  if (has(o, WHEEL)) {
+    const inner = [];
+    o.children.forEach((c) => findWheels(c, inner));
+    if (inner.length >= 2) out.push(...inner); else out.push(o);
+    return;
+  }
+  o.children.forEach((c) => findWheels(c, out));
+}
+function useModel(source, turned) {
+  prismSource = source;
+  const root = source.scene.clone(true);
+  root.traverse((o) => { if (has(o, HIDDEN)) o.visible = false; if (o.isMesh) o.castShadow = true; });
+  root.rotation.y = turned ? Math.PI : 0;
+  const holder = new THREE.Group(); holder.add(root); holder.updateMatrixWorld(true);
+
+  const wheelObjs = []; findWheels(root, wheelObjs);
+  const inWheel = (o) => { for (let p = o; p; p = p.parent) if (wheelObjs.includes(p)) return true; return false; };
+  const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+  const bodyBox = new THREE.Box3();
+  root.traverse((o) => { if (o.isMesh && shown(o) && !inWheel(o)) bodyBox.expandByObject(o); });
+  if (bodyBox.isEmpty()) wheelObjs.forEach((o) => bodyBox.expandByObject(o));
+  const centre = bodyBox.getCenter(V()), size = bodyBox.getSize(V());
+  holder.position.copy(centre).negate(); holder.updateMatrixWorld(true);
+
+  const wheels = wheelObjs.map((obj) => {
+    const box = new THREE.Box3().setFromObject(obj), at = box.getCenter(V());   // already centred by the holder
+    const m = obj.matrixWorld.clone().premultiply(new THREE.Matrix4().makeTranslation(-at.x, -at.y, -at.z));
+    obj.parent.remove(obj); m.decompose(obj.position, obj.quaternion, obj.scale);
+    return { obj, at, radius: box.getSize(V()).y / 2 };
+  });
+  prism = { holder, wheels, turned };
+
+  const d = vehicle.drive;
+  vehicle.model = source.file;
+  vehicle.body.size = [size.x, size.y, size.z].map((n) => +n.toFixed(3));
+  if (wheels.length >= 2) {
+    const sorted = [...wheels].sort((a, b) => a.at.z - b.at.z), axles = [];
+    for (const w of sorted) {
+      const a = axles[axles.length - 1];
+      if (a && Math.abs(w.at.z - a[0].at.z) < 0.4) a.push(w); else axles.push([w]);
+    }
+    const avg = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+    d.wheel_radius = +Math.max(...wheels.map((w) => w.radius)).toFixed(3);
+    d.axles = axles.map((a, i) => ({
+      at: +avg(a.map((w) => w.at.z)).toFixed(3),
+      track: +(2 * avg(a.map((w) => Math.abs(w.at.x)))).toFixed(3),
+      steers: i === 0 ? "Yes" : "No", driven: i === axles.length - 1,
+    }));
+    const wy = avg(wheels.map((w) => w.at.y));
+    d.ride_height = +Math.max(0.05, -size.y / 2 - (wy - d.wheel_radius)).toFixed(3);
+  }
+  modelNote.textContent = wheels.length >= 2
+    ? `${source.file}: ${wheels.length} wheels on ${d.axles.length} axles. The front axle steers, the back one drives.`
+    : `${source.file}: no groups named "wheel" found, so it rolls on stand-in wheels. Name the wheel groups "Wheel ..." in Prism.`;
+  turnBtn.hidden = false;
+  reset(); buildModel(); buildPanel(); showFile();
+}
+const modelNote = document.getElementById("model-note"), turnBtn = document.getElementById("turn");
+document.getElementById("glb").addEventListener("change", (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  f.arrayBuffer().then((buf) => new THREE.GLTFLoader().parse(buf, "", (g) => useModel({ scene: g.scene, file: f.name }, false),
+    (err) => { modelNote.textContent = `Couldn't read ${f.name}: ${err.message || err}. Export it from Prism as a GLB.`; }));
+  ev.target.value = "";
+});
+turnBtn.addEventListener("click", () => useModel(prismSource, !prism.turned));
+
+function draw() {
+  model.position.copy(car.pos); model.quaternion.copy(car.rot);
+  const e = effective(vehicle);
+  wheelMeshes.forEach(({ pivot, spinner, wd }, i) => {
+    const st = car.wheels[i];
+    pivot.position.set(wd.at.x, wd.at.y - st.out + e.radius, wd.at.z);
+    const how = e.wheels[i].steers;
+    pivot.rotation.y = how === "Yes" ? car.steer : how === "Opposite" ? -car.steer : 0;
+    spinner.rotation.x = -st.roll;
+  });
+  drawXray();
+}
+
+// Follow camera: chases with lag, swings toward where the car is going, looks into turns, pulls back at speed.
+function cameraWant() {
+  const c = vehicle.camera, [, h, l] = vehicle.body.size;      // bigger models get a wider view
+  const ahead = V(0, 0, -1).applyQuaternion(car.rot).setY(0);
+  if (ahead.lengthSq() < 1e-4) ahead.set(0, 0, -1);
+  ahead.normalize();
+  const travel = car.vel.clone().setY(0);
+  if (travel.length() > 4 && travel.dot(ahead) > 0) ahead.lerp(travel.normalize(), 0.5).normalize();
+  const speed = car.vel.length();
+  const want = car.pos.clone().addScaledVector(ahead, -Math.max(7.5, l * 1.8) * (1 + c.wider_at_speed * Math.min(speed, 40) / 50))
+    .add(V(0, Math.max(3, h * 2), 0));
+  want.y = Math.max(want.y, ground.height(want.x, want.z) + 1.2);
+  const look = car.pos.clone().add(V(0, 0.8, 0)).addScaledVector(car.vel, c.look_ahead * 0.35);
+  return { want, look, fov: 60 + c.wider_at_speed * Math.min(18, speed * 0.5) };
+}
+function snapCamera() { const w = cameraWant(); camBase.copy(w.want); camLook.copy(w.look); }
+function follow(dt) {
+  const c = vehicle.camera, w = cameraWant();
+  const ease = 1 - 0.8 * glide; glide = Math.max(0, glide - dt / 1.2);  // after Play, glide in over about a second
+  camBase.lerp(w.want, 1 - Math.exp(-dt * (1.5 + (1 - c.lag) * 10) * ease));
+  camLook.lerp(w.look, 1 - Math.exp(-dt * 8 * ease));
+  if (Math.abs(camera.fov - w.fov) > 0.05) { camera.fov += (w.fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
+  // Rumble: an idle shiver when the engine runs, stronger with throttle, a kick while it starts.
+  const t = performance.now() / 1000, r = vehicle.camera.rumble;
+  const amp = !playing ? 0 : r * (car.power === "On" ? 0.012 + car.drive * 0.05 : car.power === "Starting" ? 0.05 : 0);
+  camera.position.copy(camBase).add(V(Math.sin(t * 53) + Math.sin(t * 31), Math.sin(t * 47) + Math.sin(t * 23), 0).multiplyScalar(amp));
+  camera.lookAt(camLook);
+}
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(r.height, 1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+// ---------- Panel listens to events ----------
+const say = (text) => { const li = document.createElement("li"); li.textContent = text; log.prepend(li); while (log.children.length > 6) log.lastChild.remove(); };
+const chip = (id, onoff) => document.getElementById(id).classList.toggle("on", onoff);
+on("Braking", (v) => { chip("c-brake", v); if (v) say("Braking"); });
+on("Reversing", (v) => { chip("c-rev", v); if (v) say("Reversing"); });
+on("Handbrake", (v) => { chip("c-hand", v); if (v) say("Handbrake"); });
+on("Airborne", (v) => { chip("c-air", v); say(v ? "Left the ground" : "Landed"); });
+on("Reset", () => say("Reset"));
+on("Power", (p) => say({ Off: "Switched off", Accessory: "Accessory", Starting: "Starting", On: "Started" }[p]));
+const POWER_TEXT = { Off: "Off · tap F for accessory power", Accessory: "Accessory · tap F to start", Starting: "Starting…", On: "Engine on · hold F to switch off" };
+const showFile = () => {
+  document.getElementById("file").textContent = JSON.stringify(vehicle, null, 2);
+  document.getElementById("name").textContent = vehicle.name;
+};
+
+// ---------- Settings table (Beverly: Setting attributes -> auto panels and MCP) ----------
+// Values live in the file in metres, kilograms, seconds; `show` only formats them for people.
+const pct = (v) => Math.round(v * 100) + "%";
+const SETTINGS = [
+  { section: "Speed", label: "Top speed", key: "drive.top_speed", words: ["Slow", "Brisk", "Fast", "Blistering"], low: 8, high: 60, step: 0.5, unit: "km/h", show: (v) => Math.round(v * 3.6), help: "The most it can do on flat ground." },
+  { section: "Speed", label: "Pickup", key: "drive.pickup", words: ["Gentle", "Punchy", "Instant"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How hard it pulls away." },
+  { section: "Handling", label: "Grip", key: "drive.grip", words: ["Icy", "Loose", "Firm", "Glued"], low: 0.2, high: 2.2, step: 0.05, unit: "", show: (v) => v.toFixed(2), help: "How much the tyres hold before they slide." },
+  { section: "Handling", label: "Steering", key: "drive.steering", words: ["Lazy", "Normal", "Sharp"], low: 10, high: 50, step: 1, unit: "°", show: (v) => v, help: "The most the wheels turn, at a standstill. Less at speed." },
+  { section: "Body", label: "Weight", key: "body.weight", words: ["Light", "Medium", "Heavy"], low: 300, high: 4000, step: 50, unit: "kg", show: (v) => v, help: "Heavier is slower to start, stop and turn." },
+  { section: "Suspension", label: "Ride height", key: "drive.ride_height", words: ["Low", "Normal", "Tall"], low: 0.05, high: 1, step: 0.01, unit: "m", show: (v) => v.toFixed(2), help: "From the bottom of the body to the ground, at rest." },
+  { section: "Suspension", label: "Stiffness", key: "drive.stiffness", words: ["Soft", "Medium", "Firm"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "Soft springs soak up bumps and lean more." },
+  { section: "Feel", label: "Start time", key: "power.start_time", words: ["Instant", "Quick", "Slow"], low: 0, high: 2, step: 0.1, unit: "s", show: (v) => v.toFixed(1), help: "How long it cranks before the engine runs." },
+  { section: "Camera", label: "Rumble", key: "camera.rumble", words: ["Off", "Light", "Strong"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How much the camera shakes with the engine and throttle." },
+  { section: "Camera", label: "Lag", key: "camera.lag", words: ["Tight", "Smooth", "Floaty"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How far the camera trails behind when the car moves." },
+  { section: "Camera", label: "Look into turns", key: "camera.look_ahead", words: ["Off", "Some", "Lots"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How far ahead of the car the camera aims." },
+  { section: "Camera", label: "Wider at speed", key: "camera.wider_at_speed", words: ["Off", "Some", "Lots"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How much the camera pulls back and widens as you go faster." },
+  { section: "Feel", label: "Exhaust", key: "signals.4.amount", words: ["None", "Light", "Smoky"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How many puffs come out of the exhaust." },
+  { section: "Suspension", label: "Damping", key: "drive.damping", words: ["Bouncy", "Settled", "Stiff"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How quickly bouncing dies away." },
+];
+const getAt = (key) => key.split(".").reduce((o, k) => o[k], vehicle);
+const setAt = (key, v) => { const ks = key.split("."), last = ks.pop(); ks.reduce((o, k) => o[k], vehicle)[last] = v; };
+const wordFor = (s, v) => s.words[Math.min(s.words.length - 1, Math.floor((v - s.low) / (s.high - s.low) * s.words.length))];
+const axleName = (i, n) => i === 0 ? "Front axle" : i === n - 1 ? "Back axle" : `Axle ${i + 1}`;
+
+function buildPanel() {
+  const sections = {};
+  const section = (name) => sections[name] ||= Object.assign(document.createElement("div"), { className: "pane" });
+  const choice = (label, help, options, get, set) => {
+    const row = document.createElement("div"), lab = document.createElement("label"), seg = document.createElement("div");
+    row.className = "set"; row.title = help; lab.textContent = label; seg.className = "seg";
+    for (const opt of options) {
+      const b = document.createElement("button");
+      b.textContent = opt; b.setAttribute("aria-pressed", get() === opt);
+      b.addEventListener("click", () => { set(opt); seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); showFile(); });
+      seg.append(b);
+    }
+    row.append(lab, seg); return row;
+  };
+  // Controls: Basic shows the scheme and the keys; Advanced lets you rebind each action.
+  const c = vehicle.controls, controls = section("Controls");
+  controls.append(choice("Controls", "Advanced lets you change the key for each action.", ["Basic", "Advanced"],
+    () => (c.advanced ? "Advanced" : "Basic"), (v) => { c.advanced = v === "Advanced"; buildPanel(); }));
+  controls.append(choice("Throttle", "Hold: drive while W is held. Auto-forward: always drives, S brakes. Lever: W and S move a lever that stays where you leave it.",
+    ["Hold", "Auto-forward", "Lever"], () => c.scheme, (v) => { c.scheme = v; car.lever = 0; }));
+  const NAMES = { Throttle: "Throttle", Brake: "Brake, then reverse", SteerLeft: "Steer left", SteerRight: "Steer right", Handbrake: "Handbrake", Power: "Power (tap, or hold for off)", Reset: "Reset" };
+  const keyName = (k) => ({ ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Space: "Space" }[k] || k.replace(/^(Key|Digit)/, ""));
+  const keys = document.createElement("dl"); keys.className = "keys";
+  for (const a in NAMES) {
+    const dt = document.createElement("dt"), dd = document.createElement("dd"), codes = c.actions[a] || [];
+    dt.textContent = NAMES[a];
+    if (c.advanced) {
+      const b = document.createElement("button");
+      b.textContent = codes.map(keyName).join(" ") || "None";
+      b.title = "Click, then press the new key. Esc keeps the old one.";
+      b.addEventListener("click", () => {
+        b.textContent = "Press a key…"; b.classList.add("wait");
+        rebinding = (code) => { rebinding = null; if (code !== "Escape") c.actions[a] = [code]; held.clear(); buildPanel(); showFile(); };
+      });
+      dd.append(b);
+    } else for (const k of codes) { const kb = document.createElement("kbd"); kb.textContent = keyName(k); dd.append(kb, " "); }
+    keys.append(dt, dd);
+  }
+  controls.append(keys);
+  for (const st of SETTINGS) {
+    const row = document.createElement("div"), id = "set-" + st.key.replaceAll(".", "-");
+    row.className = "set"; row.title = st.help;
+    const label = document.createElement("label"), out = document.createElement("output"), input = document.createElement("input");
+    label.textContent = st.label; label.htmlFor = id;
+    Object.assign(input, { id, type: "range", min: st.low, max: st.high, step: st.step, value: getAt(st.key) });
+    const paint = () => {
+      const v = getAt(st.key), word = document.createElement("b");
+      word.textContent = wordFor(st, v);
+      out.replaceChildren(word, ` · ${st.show(v)}${/^\w/.test(st.unit) ? " " : ""}${st.unit}`);
+    };
+    input.addEventListener("input", () => { setAt(st.key, +input.value); paint(); showFile(); });
+    paint(); row.append(label, out, input); section(st.section).append(row);
+  }
+  // Which axles steer: No, Yes or Opposite (rear wheels turning against the front).
+  const n = vehicle.drive.axles.length;
+  vehicle.drive.axles.forEach((axle, i) => section("Handling").append(choice(axleName(i, n) + " steers",
+    "Opposite turns these wheels against the front ones, for tight turns.", ["No", "Yes", "Opposite"], () => axle.steers, (v) => { axle.steers = v; })));
+  sections.Events = logPane;
+  dockPanes = sections; showDock();
+}
+
+// ---------- The dock: one tab per settings section, plus Events. Clicking the open tab folds it away. ----------
+const log = document.createElement("ul"); log.id = "log";
+const logPane = document.createElement("div"); logPane.append(log);
+let dockPanes = {}, dockTab = "Controls", dockOpen = !matchMedia("(pointer: coarse)").matches;
+function showDock() {
+  const tabs = document.getElementById("dock-tabs"), body = document.getElementById("dock-body");
+  tabs.replaceChildren(...Object.keys(dockPanes).map((name) => {
+    const b = document.createElement("button");
+    b.textContent = name; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", dockOpen && name === dockTab);
+    b.addEventListener("click", () => { dockOpen = !(dockOpen && name === dockTab); dockTab = name; showDock(); });
+    return b;
+  }));
+  body.replaceChildren(dockPanes[dockTab]); body.hidden = !dockOpen;
+}
+
+// ---------- Save and load the vehicle file ----------
+const fileNote = document.getElementById("file-note");
+const note = (text) => { fileNote.textContent = text; fileNote.hidden = false; };
+document.getElementById("save").addEventListener("click", async () => {
+  const text = JSON.stringify(vehicle, null, 2), filename = vehicle.name.replace(/[^\w -]+/g, "") + ".vehicle.json";
+  const downloads = await window.claude?.use?.("downloads");
+  if (downloads) {
+    try { await downloads.save({ filename, data: text }); note(`Saved ${filename}.`); }
+    catch (err) { note(err.code === "declined" ? "Not saved." : `Couldn't save: ${err.message}`); }
+    return;
+  }
+  try { await navigator.clipboard.writeText(text); note("Saving files isn't available here, so the file was copied. Paste it into a .json file."); }
+  catch { document.querySelector("details").open = true; getSelection().selectAllChildren(document.getElementById("file")); note("Copy the selected text below into a .json file."); }
+});
+document.getElementById("load").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0]; ev.target.value = "";
+  if (!f) return;
+  try {
+    const v = JSON.parse(await f.text());
+    if (v.kind !== "Ground" || !v.drive || !v.body || !Array.isArray(v.drive.axles)) throw new Error("it isn't a ground vehicle file");
+    for (const k of Object.keys(vehicle)) delete vehicle[k];
+    const base = structuredClone(DEFAULTS);
+    for (const k in v) base[k] = base[k] && typeof base[k] === "object" && !Array.isArray(base[k]) ? { ...base[k], ...v[k] } : v[k];
+    Object.assign(vehicle, base);
+    if (prism && v.model !== prismSource.file) { prism = null; prismSource = null; turnBtn.hidden = true; modelNote.textContent = "A box stand-in."; }
+    note(v.model && !prism ? `Loaded ${f.name}. It was made for ${v.model}: load that model too to see it.` : `Loaded ${f.name}.`);
+    reset(); buildModel(); buildPanel(); showFile();
+  } catch (err) { note(`Couldn't load ${f.name}: ${err.message}.`); }
+});
+showFile(); buildPanel();
+
+// ---------- Loop: fixed 60 Hz physics, draw every frame ----------
+const DT = 1 / 60;
+let last = performance.now(), acc = 0, resetHeld = false, playing = false, glide = 0;
+reset(); buildModel(); resize();
+const camBase = V(), camLook = V(); snapCamera();
+// V switches the camera, playing or paused. Free: orbit (left drag), pan (right drag), zoom (wheel), and it rides
+// along with the car. Back to Follow, it glides into place from wherever it is.
+const orbit = new THREE.OrbitControls(camera, renderer.domElement);
+Object.assign(orbit, { enabled: false, enableDamping: true, dampingFactor: 0.12, minDistance: 2, maxDistance: 120, maxPolarAngle: Math.PI * 0.495 });
+camera.position.copy(camBase); camera.lookAt(camLook);
+let freeCam = false;
+const carWas = car.pos.clone();
+const camBtn = document.getElementById("cam");
+function setFreeCam(on) {
+  freeCam = on; orbit.enabled = on;
+  if (on) orbit.target.copy(camLook);
+  else { camBase.copy(camera.position); camLook.copy(orbit.target); glide = 1; }
+  camBtn.textContent = on ? "Free camera" : "Follow camera";
+  camBtn.setAttribute("aria-pressed", on);
+}
+camBtn.addEventListener("click", () => { setFreeCam(!freeCam); stage.focus(); });
+const playBtn = document.getElementById("play");
+function setPlaying(on) {
+  playing = on; held.clear();
+  playBtn.classList.toggle("on", on);
+  document.getElementById("play-text").textContent = on ? "Pause" : "Play";
+  document.getElementById("play-icon").setAttribute("d", on ? "M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" : "M4 2.5v11l9-5.5z");
+  stage.focus();
+}
+const resetPosition = () => {
+  reset(); snapCamera(); emit("Reset");
+};
+playBtn.addEventListener("click", () => setPlaying(!playing));
+document.getElementById("reset-pos").addEventListener("click", () => { resetPosition(); stage.focus(); });
+stage.addEventListener("pointerdown", (e) => { if (e.target === renderer.domElement) stage.focus(); });
+addEventListener("keydown", (e) => {                           // P plays and pauses, Esc pauses
+  if (rebinding || e.repeat) return;
+  if (e.code === "KeyP" && !Object.values(actions()).flat().includes("KeyP")) setPlaying(!playing);
+  if (e.code === "Escape" && playing) setPlaying(false);
+  if (e.code === "KeyV" && !Object.values(actions()).flat().includes("KeyV")) setFreeCam(!freeCam);
+});
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.1); last = now; acc += dt;
+  if (playing && down("Reset") && !resetHeld) resetPosition();
+  resetHeld = down("Reset");
+  if (playing) {
+    const raw = Object.fromEntries(Object.keys(vehicle.controls.actions).map((a) => [a, down(a)]));
+    while (acc >= DT) { step(vehicle, control(raw, DT), DT); acc -= DT; }
+    exhaust(dt);
+  } else acc = 0;
+  draw();
+  if (freeCam) {                                               // ride along: keep the view where it is relative to the car
+    const moved = car.pos.clone().sub(carWas);
+    camera.position.add(moved); orbit.target.add(moved); orbit.update();
+  } else follow(dt);
+  carWas.copy(car.pos);
+  sun.position.copy(car.pos).add(V(25, 30, 10)); sun.target.position.copy(car.pos);
+  const hint = !playing ? "Paused. Press Play (or P) to drive; you can tune either way. V: free camera."
+    : car.power === "Off" ? "Tap F twice: once for accessory power, again to start the engine."
+    : car.power === "Accessory" ? "Tap F again to start the engine." : "";
+  const hintEl = document.getElementById("hint");
+  if (hintEl.textContent !== hint) hintEl.textContent = hint;
+  hintEl.hidden = !hint;
+  document.getElementById("state").textContent = POWER_TEXT[car.power] + (vehicle.controls.scheme === "Lever" ? ` · lever ${Math.round(car.lever * 100)}%` : "");
+  document.getElementById("kmh").textContent = Math.round(Math.abs(car.vel.dot(V(0, 0, -1).applyQuaternion(car.rot))) * 3.6);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+stage.focus();
+</script>

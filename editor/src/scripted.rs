@@ -84,27 +84,13 @@ pub enum Expect {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Input { Key(KeyCode), Mouse(MouseButton) }
 
+/// A key or mouse button a test can press, by the names the input map uses (`input.rs`); not gamepads.
 pub(crate) fn input(name: &str) -> Option<Input> {
-    use KeyCode::*;
-    let k = match name {
-        "Space" => Space, "Shift" => ShiftLeft, "Ctrl" => ControlLeft, "Alt" => AltLeft, "Tab" => Tab,
-        "Enter" => Enter, "Escape" => Escape, "Up" => ArrowUp, "Down" => ArrowDown, "Left" => ArrowLeft,
-        "Right" => ArrowRight,
-        "MouseLeft" => return Some(Input::Mouse(MouseButton::Left)),
-        "MouseRight" => return Some(Input::Mouse(MouseButton::Right)),
-        _ => {
-            let c = name.chars().next().filter(|_| name.len() == 1)?.to_ascii_uppercase();
-            const LETTERS: [KeyCode; 26] = [KeyA, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM,
-                KeyN, KeyO, KeyP, KeyQ, KeyR, KeyS, KeyT, KeyU, KeyV, KeyW, KeyX, KeyY, KeyZ];
-            const DIGITS: [KeyCode; 10] = [Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9];
-            match c {
-                'A'..='Z' => LETTERS[(c as u8 - b'A') as usize],
-                '0'..='9' => DIGITS[(c as u8 - b'0') as usize],
-                _ => return None,
-            }
-        }
-    };
-    Some(Input::Key(k))
+    match crate::input::parse(name)? {
+        crate::input::Input::Key(k) => Some(Input::Key(k)),
+        crate::input::Input::Mouse(b) => Some(Input::Mouse(b)),
+        _ => None,
+    }
 }
 
 /// A test being run.
@@ -198,7 +184,7 @@ pub fn add(app: &mut App, dir: &Path, file: &Path, level: &Level, record: bool) 
     };
     app.insert_resource(run)
         .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(1.0 / HZ)))
-        .add_systems(PreUpdate, drive.after(InputSystems))
+        .add_systems(PreUpdate, drive.after(InputSystems).before(crate::input::read))
         .add_systems(PostUpdate, (record_step, finish).chain());
 }
 

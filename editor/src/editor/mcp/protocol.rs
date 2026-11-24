@@ -128,6 +128,25 @@ pub fn tools() -> Value {
             },
         },
         {
+            "name": "get_controls",
+            "title": "The game's controls",
+            "description": "The input map: each action (Forward, Back, Left, Right, Run, Jump, Use, Look left / right / up / down, and any the game added) with the inputs that do it, by name: keys (\"W\", \"Space\", \"Shift\", \"F1\", \"Up\"), mouse buttons (\"MouseLeft\", \"MouseRight\", \"MouseMiddle\"), gamepad buttons (\"Pad South\", \"Pad West\", \"Pad LeftBumper\", \"Pad RightTrigger\", \"Pad Start\", \"Pad DPadUp\", \"Pad LeftThumb\") and stick directions (\"Pad LeftStick Up\", \"Pad RightStick Left\"). Test mode and the exported game read these; the mouse always turns the view as well. Also whether they are Beverly's defaults.",
+            "inputSchema": none,
+        },
+        {
+            "name": "change_controls",
+            "title": "Change the game's controls",
+            "description": "Set the inputs of one action (replacing its list; an action the game doesn't have yet is added, for a game's own code to read), or reset: true to go back to Beverly's defaults. Input names as get_controls lists them. Saved in the project file. One undo step. Returns the controls.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "The action's name, such as Jump."},
+                    "inputs": {"type": "array", "items": {"type": "string"}, "description": "Its inputs, such as [\"Space\", \"Pad South\"]; [] leaves it with none."},
+                    "reset": {"type": "boolean", "description": "Go back to Beverly's default controls."},
+                },
+            },
+        },
+        {
             "name": "list_parts",
             "title": "List the level's parts",
             "description": "The level's parts: id, name, kind (shape), position, size (or scale for models), the model file for models, whether it moves, and its surface tags if it has any. Filter with an optional query matched against the name and kind.",
@@ -844,6 +863,8 @@ mod tests {
                 "get_level",
                 "find_path",
                 "change_level",
+                "get_controls",
+                "change_controls",
                 "list_parts",
                 "get_part",
                 "get_selection",

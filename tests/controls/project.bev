@@ -1,0 +1,10 @@
+(
+    format: 1,
+    name: "Controls test",
+    levels: ["main"],
+    controls: Some([
+        (name: "Forward", inputs: ["I", "Up"]),
+        (name: "Jump", inputs: ["K"]),
+        (name: "Use", inputs: ["U"]),
+    ]),
+)

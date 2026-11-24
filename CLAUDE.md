@@ -11,6 +11,9 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   merged into main part by part after review. Unattended runs never push to main, never release, and stop on taste
   questions (they go in JOBS.md). On that branch only the `tessera` entry of `editor/features.json` is edited
   and `tools/roadmap.py` is not run; main reruns it after each merge.
+  A second exception (user, 2026-11-24): the vehicle editor is built on the branch `vehicles` (spec `docs/vehicles.md`),
+  merged into main chunk by chunk after review, with the same rules: main's checks pass at every merge, only the
+  `vehicles` entry of `editor/features.json` is edited there, and main runs `tools/roadmap.py`.
 - **The editor's look (user, 2026-11-17):** the user's redesign in `docs/ui/` is the source of truth: `HANDOFF.md`
   (frame, tab colours, type, panels, controls, icons, checklists for new tabs and controls), the boards in
   `docs/ui/design/boards` (live canvas linked in HANDOFF.md), `tokens/` and `icons/`. Every new window, panel, control

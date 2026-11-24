@@ -700,6 +700,24 @@
    "stage": "Author the world: land, sea and sky"
   },
   {
+   "id": "input-map",
+   "name": "Input map",
+   "area": "Editor foundations",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
+   "chunks": [],
+   "note": "Built 2026-11-24: input.rs. Play reads named actions (Forward, Back, Left, Right, Run, Jump, Use, Look left / right / up / down), never keys; each lists its inputs by name: keys, mouse buttons, gamepad buttons and stick directions (\"Pad South\", \"Pad LeftStick Up\"), read once a frame into Actions (0 to 1, so a stick partly over walks slower; just_pressed for Use). Gamepads through Bevy's gilrs. A game's controls are saved in project.bev (left out while they are the defaults; actions a file leaves out get theirs) and kept on the level for undo. Play > Controls: keycaps per action, click one to take it off, + then press a key, mouse button or gamepad button, Beverly's defaults. MCP: get_controls, change_controls (an action the game doesn't have yet is added, for its own code). Scripted tests press keys by the same names. Test project tests/controls (Forward on I, Jump on K, Use on U). A players' own controls screen inside a game comes with the Screens tab; vehicles, mounts and control targets add their actions to the same list. Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
+   "order": 38,
+   "first_game": true,
+   "stage": "Foundations",
+   "built": "2026-11-24",
+   "build": 133
+  },
+  {
    "id": "shaders",
    "name": "Custom shaders",
    "area": "Engine budgets",
@@ -715,24 +733,7 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "planned",
    "first_game": true,
-   "order": 38,
-   "next": true,
-   "stage": "Foundations"
-  },
-  {
-   "id": "input-map",
-   "name": "Input map",
-   "area": "Editor foundations",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "test-mode"
-   ],
-   "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
-   "chunks": [],
-   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
    "order": 39,
-   "first_game": true,
    "next": true,
    "stage": "Foundations"
   },
@@ -3342,19 +3343,25 @@
    "status": "planned",
    "effort": "XL",
    "needs": [
-    "char-modes",
     "physics",
     "assemblies",
-    "control-target"
+    "control-target",
+    "input-map",
+    "sockets",
+    "joints"
    ],
-   "what": "Arcade driving: steering, traction, suspension, drift with handbrake, boost; seats; enter and exit; vehicle as a character or entered by one.",
+   "what": "The Vehicles tab makes ground vehicles: body from parts with pivots and paint slots, wheels, tracks, hover or rails, power off, accessory and on, lights inside and out driven by the driving, rigging, grip, suspension, speed and throttle schemes, basic and advanced controls, seats, cargo racks and cameras, exhaust plumes and camera rumble that follow power and throttle; placed in the Level and driven in play.",
    "chunks": [
-    "Raycast wheels: suspension, steering limited by speed, traction, braking",
-    "Drift and handbrake, boost (refilled by drifting), air control, reset when flipped",
-    "Seats: enter and exit with E, driver takes the controls, passengers, empty vehicles roll",
-    "Other vehicle kinds: hover craft, boats; NPC drivers through the Brain"
+    "The vehicle file and the Vehicles tab (kinds Ground, Air, Water, Space; topics Body, Drive, Power, Controls, Seats, Camera), the Garage, the stage and Drive it; Body: parts, pivots, paint slots, wheel sockets; one effective-settings step (ready for upgrades); placing in the Level; MCP basics",
+    "Wheels: raycast suspension, tyre slip forces, steering (which axles, opposite, less at speed), grip and grip by surface, engine curve, gears, brakes, handbrake, speed control; buggy and truck starters",
+    "Power (off, accessory, starting, on; ignition as one key or as an ignition with switch parts wired on the vehicle) and signals: lights driven by brake, reverse, indicators and power; the rig (wheels, steering wheel, needles, doors); cargo racks (strapped); sounds; camera rumble from throttle and impacts",
+    "Controls: schemes (hold, auto-forward, lever, cruise; keys, mouse, camera-relative), basic view and advanced action table, assists; seats, entering and leaving, passengers; cameras",
+    "Other drives: tracks with skid steering, hover, rails along a pen curve; tank, hover sled and tram starters",
+    "Livery and effects: brush and pen decals on the body, image stickers, exhaust plumes, dust and skid marks, loose cargo that can fall out, boost, air control, reset when flipped",
+    "Legs (Last Ascent's mech, which the user provides): legged walking on the character leg solver (joints), gaits by speed, feet planted on uneven ground, footstep events",
+    "Later: point and click (navmesh), NPC drivers along routes, fuel, damage, trailers, legs with wheels"
    ],
-   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent. Built as assemblies from the part hierarchy, sockets and physical joints (review 2026-11-20); the Vehicles tab is the assembler; entering and leaving go through control handover. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): capital ships with many independently aimed turrets, run by AI, for large enemy fleets; and ship stats derived from parts with a mass limit.",
+   "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent. Built as assemblies from the part hierarchy, sockets and physical joints (review 2026-11-20); the Vehicles tab is the assembler; entering and leaving go through control handover. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): capital ships with many independently aimed turrets, run by AI, for large enemy fleets; and ship stats derived from parts with a mass limit. Spec written 2026-11-24 from the user's list (docs/vehicles.md): answers (moves on Wheels, Tracks, Hover, Rails, later Legs; any number of wheels in axles; which axles steer; WASD by default with throttle and steering schemes, point and click later), the gaps filled in, cargo racks, the file format, MCP, checks, the build order and how a separate session plugs it in on a `vehicles` branch (proposed). char-modes dropped as a need (a vehicle is not a character; control handover covers it). Kept ready for games where players build vehicles and buy upgrades (sections 10 and 10b: stats come from parts, and one effective-settings step applies upgrades). Decisions (user, 2026-11-24): the vehicles branch is the second exception to main only; main builds input-map and sockets first; ignition as one key (F steps off, accessory, on) or ignition and switches (an accessory switch anywhere on the vehicle, wired); forgiving by default; Last Ascent's mech is a legged vehicle (chunk 7, needs joints); each game builds its own upgrade shop; building in games first for Gates of Heaven, not scheduled. Prototype (2026-11-24): a standalone page to feel the direction early (docs/vehicles-prototype.md, bookmarked there): a drivable, tunable car with the same file fields, settings table, named actions, fixed step and events as the plan; it loads Prism GLBs (wheels, lights and exhaust found by name). Waiting on the user's test vehicle from Prism.",
    "order": 179,
    "first_game": false,
    "stage": "Build and ride"
@@ -3436,6 +3443,25 @@
    "order": 183
   },
   {
+   "id": "vehicles-air",
+   "name": "Air vehicles",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "vehicles",
+    "flight"
+   ],
+   "what": "Planes, helicopters and VTOL in the Vehicles tab's Air kind: lift, thrust, stalls, landing gear.",
+   "chunks": [
+    "To plan with the user first"
+   ],
+   "note": "Placeholder (user, 2026-11-24): the user has designs in mind; planned in its own pass. Reuses the vehicle file, tab, power, signals, rig, controls, seats and camera (docs/vehicles.md). Overlaps flight's manoeuvres.",
+   "first_game": false,
+   "stage": "Build and ride",
+   "order": 184
+  },
+  {
    "id": "game-editors",
    "name": "In-game editors: ship, base and character builders",
    "area": "Building, vehicles and riding",
@@ -3459,7 +3485,45 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): each game's editor has to look like its own game, not like Beverly's or a cookie-cutter kit (user), so Beverly gives the behaviour and the creator gives the look. Gates of Heaven's ship editor sits over a holographic desk in the hangar: three physical buttons (Intel, Cargo, Modify Ship), the parts strip on the right, the readouts top right. Nodes come from Prism as a 0.25 m cube named Node (docs/prism-glb.md). Gates of Heaven builds only through holo desks (user, 2026-11-22): the ship from the hangar's desk or the one inside the ship, base tiles from the starter base's desk onto its hex rings (a starter hex with a ring of open slots, every new tile opening the same ring unless taken, connectors two tiles wide joined only at their ends); placing in the world (build-mode) can come later. Its parts list needs no mask. MCP: settings come free from their descriptions; its named actions are part of the feature. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): the ship editor has a hotkeys window: hotkeys in a column, then what each can activate (several functions allowed), then toggle or press (toggle by default); these are the player's own bindings, saved with the ship.",
    "first_game": false,
    "stage": "Build and ride",
-   "order": 184
+   "order": 185
+  },
+  {
+   "id": "vehicles-water",
+   "name": "Water vehicles",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "vehicles",
+    "water-play"
+   ],
+   "what": "Boats and submarines in the Vehicles tab's Water kind: buoyancy, hull drag, propellers and rudders, depth and ballast.",
+   "chunks": [
+    "To plan with the user first"
+   ],
+   "note": "Placeholder (user, 2026-11-24): the user has designs in mind; planned in its own pass. Reuses docs/vehicles.md; with water-play, sailing and ocean.",
+   "first_game": false,
+   "stage": "Build and ride",
+   "order": 186
+  },
+  {
+   "id": "vehicles-space",
+   "name": "Space vehicles",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "vehicles",
+    "space"
+   ],
+   "what": "Ships in the Vehicles tab's Space kind: six-way thrusters, Newtonian drift with flight assist, docking through sockets.",
+   "chunks": [
+    "To plan with the user first"
+   ],
+   "note": "Placeholder (user, 2026-11-24): the user has designs in mind; planned in its own pass. Reuses docs/vehicles.md; with space (Gates of Heaven's controls are noted there).",
+   "first_game": false,
+   "stage": "Build and ride",
+   "order": 187
   },
   {
    "id": "sailing",
@@ -3475,7 +3539,7 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 185,
+   "order": 188,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3499,7 +3563,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the robot swarm that builds the gate (exponential growth to a self-sustaining point) and the backup ships. build-mode says armies come much later; this game needs it earlier. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): enemy sides build bases with the same work orders as the player's robots. Plants make units, ammo, drones, robots and ship modules from a production queue paid in Resource Units. A move order on a single unit shows its range as a circle from the ship to the cursor, red when out of range. Robots carry to the nearest base or to the player's ship, and all stores count as one. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Homeworld-style move orders with height: a selected unit shows a grid on its plane and a line from the cursor's circle to it; Shift raises or lowers the target off the plane (the line splits into a triangle); an order-received mark and sound; orders given from a holographic map mode (Tab) that works on foot and while flying, in first or third person.",
    "stage": "Build and ride",
    "first_game": false,
-   "order": 186
+   "order": 189
   },
   {
    "id": "animatics",
@@ -3519,7 +3583,7 @@
     "Character recordings into editable keys; letterbox and skippable"
    ],
    "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. The creator chooses, per animatic, how it starts and ends (user, 2026-11-18: a choice, not hardwired): blend in from the player's camera or cut (and how long the blend takes), and on the way out blend or cut back to the mode the player was in, or to a mode the creator picks. A cinematic sets the cinematic control lock (controls off, skippable, letterbox, subtitles); its end is a wire output that can start a transition, and the next level can load behind it (user, 2026-11-20).",
-   "order": 187,
+   "order": 190,
    "first_game": true,
    "stage": "Story and flow"
   },
@@ -3536,7 +3600,7 @@
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
    "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): short lore fragments (plaques, records, monitors, loading screens) are drawn from one table of records, so a line is written once and shown wherever it fits.",
-   "order": 188,
+   "order": 191,
    "first_game": true,
    "stage": "Story and flow"
   },
@@ -3552,7 +3616,7 @@
    "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
-   "order": 189,
+   "order": 192,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3572,7 +3636,7 @@
     "Quest log, markers on the map and compass"
    ],
    "note": "",
-   "order": 190,
+   "order": 193,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3589,7 +3653,7 @@
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the same screen style also serves a hand-plotted route of levels (a galactic map); see level-map.",
-   "order": 191,
+   "order": 194,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3610,7 +3674,7 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): two resources: Resource Units, mined by robots and spent on everything (ship parts, base tiles, production), and a gate resource only robots harvest and only the gate uses. Cargo containers of Resource Units are bought from the same budget. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Resource Units also convert into fuel and power; solar panels add power; base tiles draw power except connectors, and the starter base makes a little of its own; efficiency tiers may come later. Loot caches of Resource Units and special equipment inside derelicts, found on foot (Gates of Heaven).",
-   "order": 192,
+   "order": 195,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3627,9 +3691,29 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 193,
+   "order": 196,
    "first_game": false,
    "stage": "Story and flow"
+  },
+  {
+   "id": "vehicle-upgrades",
+   "name": "Vehicle upgrades in games",
+   "area": "Building, vehicles and riding",
+   "status": "planned",
+   "effort": "L",
+   "needs": [
+    "vehicles",
+    "runtime-edits",
+    "economy"
+   ],
+   "what": "Players upgrade vehicles in a game: engine, tyres, suspension, armour, paint and cargo slots with tiers; setting changes or parts swapped onto sockets; saved in the player's save; an Upgrades topic with costs and a before-and-after test drive.",
+   "chunks": [
+    "To plan with the user first"
+   ],
+   "note": "Asked for by the user 2026-11-24 (not needed yet; the vehicle code is built ready for it: docs/vehicles.md section 10b).",
+   "first_game": false,
+   "stage": "Story and flow",
+   "order": 197
   },
   {
    "id": "dialog-trees",
@@ -3647,7 +3731,7 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 194,
+   "order": 198,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3680,7 +3764,7 @@
    ],
    "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): the demo sets its characters to switch between first and third person while in control, and its rocket animatics to blend in and back out to the player's mode; these are the creator's choices in the character camera and animatics settings, not built in.",
    "first_game": false,
-   "order": 195,
+   "order": 199,
    "stage": "Story and flow"
   },
   {
@@ -3698,7 +3782,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Intel map shows major bodies always, hides small ones (behind larger ones, say), and shows authored resources and enemy bases only when marked as known; the route map is the levels in the order the author chose. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the galactic map is a 3D hologram above the station's desk and the Intel map a 2D projection above it, so the maps must draw in the world, not only full screen. Orders can be given on the map: pick a point and a unit goes there (Gates of Heaven's probe flies out about 50 m, then heads straight for the point picked, with no range limit).",
    "stage": "Story and flow",
    "first_game": false,
-   "order": 196
+   "order": 200
   },
   {
    "id": "export-hardening",
@@ -3712,7 +3796,7 @@
    "what": "A friendly error window when the game can't load or the card is unsuitable; a log file in the user's folder; the game's icon, name and version; window mode and quality saved in the user's folder; third-party licence notices; unused and editor-only files left out and the rest packed.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review: the player exits silently on a load failure, has no icon or version, a fixed 1600 by 900 window and no notices. Decided with the user 2026-11-20: logs stay local with no analytics at all; the unsigned-exe warning (code signing needs a paid certificate) is a static message on the export window, not a planned feature.",
-   "order": 197,
+   "order": 201,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3735,7 +3819,7 @@
    "note": "Planned 2026-11-18, for later: only worth it once levels are dense enough that cached shadows aren’t enough.",
    "status": "planned",
    "first_game": true,
-   "order": 198,
+   "order": 202,
    "stage": "Ship and scale"
   },
   {
@@ -3751,7 +3835,7 @@
    "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
    "chunks": [],
    "note": "Presets choose virtual geometry, cached shadows, baked lighting and realtime GI where the card allows (2026-11-18). Split 2026-11-20: tiers and presets come early as quality-tiers; this is their settings screen.",
-   "order": 199,
+   "order": 203,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3768,7 +3852,7 @@
    "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
    "chunks": [],
    "note": "",
-   "order": 200,
+   "order": 204,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3784,7 +3868,7 @@
    "what": "Our test projects become starter games (Empty, First-person, Third-person, a base-building and a vehicle one later) offered when Beverly opens, so the first hour has something to play.",
    "chunks": [],
    "note": "The launcher's start screen comes later; this gives it something to show.",
-   "order": 201,
+   "order": 205,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3801,7 +3885,7 @@
    "what": "Make Windows zip: the instant prebuilt player is the default; Build on GitHub is for games with their own code; pre-export checks from the Problems panel; a static note that the exe is unsigned and what that means (code signing costs a yearly certificate).",
    "chunks": [],
    "note": "",
-   "order": 202,
+   "order": 206,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3819,7 +3903,7 @@
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 203,
+   "order": 207,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3845,7 +3929,7 @@
     "A headless dedicated-server build of the player"
    ],
    "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction. Review 2026-11-20: keep the editor friendly to an authoritative server (fixed step, commands as data); decide on lockstep (which needs deterministic maths) only if an RTS pack is wanted.",
-   "order": 204,
+   "order": 208,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3862,7 +3946,7 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 205,
+   "order": 209,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3881,7 +3965,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool. Includes the first export of a game.",
-   "order": 206,
+   "order": 210,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3897,7 +3981,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 207,
+   "order": 211,
    "first_game": false,
    "stage": "Ship and scale"
   }

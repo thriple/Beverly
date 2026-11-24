@@ -309,6 +309,67 @@ pub(super) fn mcp_modal(ctx: &egui::Context, ed: &mut Editor) {
     if close { ed.mcp_open = false; }
 }
 
+/// Play > Controls: each action and the inputs that do it, as keycaps. Click a keycap to take it off; + waits for the
+/// next key, mouse button or gamepad button pressed (see `capture_input`). Saved with the project; undo covers it.
+pub(super) fn controls_modal(ctx: &egui::Context, ed: &mut Editor) {
+    let mut close = false;
+    let mut c = (*ed.level.controls).clone();
+    let waiting = ed.controls_capture.clone();
+    egui::Modal::new(Id::new("controls")).frame(dialog_frame()).show(ctx, |ui| {
+        ui.set_width(560.0);
+        ui.label(egui::RichText::new("Controls").font(semi(17.0)).color(TEXT));
+        ui.add(egui::Label::new(egui::RichText::new("What players press for each action: keys, mouse buttons and a gamepad all work. Test mode and the exported game use these; the mouse always turns the view too.").color(MUTED)).wrap());
+        ui.add_space(12.0);
+        egui::Grid::new("controls-grid").num_columns(2).spacing(vec2(16.0, 8.0)).show(ui, |ui| {
+            for a in &mut c.0 {
+                let help = crate::input::Controls::help(&a.name);
+                let name = ui.label(egui::RichText::new(&a.name).font(semi(13.0)).color(TEXT));
+                if !help.is_empty() { name.tip(help); }
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    let mut gone = None;
+                    for (i, n) in a.inputs.iter().enumerate() {
+                        let size = theme::kbd_size(ui, n);
+                        let (r, resp) = ui.allocate_exact_size(size, Sense::click());
+                        theme::paint_kbd(ui.painter(), r, n, if resp.hovered() { theme::DANGER } else { TEXT });
+                        if resp.tip("Click to take it off").clicked() { gone = Some(i); }
+                    }
+                    if let Some(i) = gone { a.inputs.remove(i); }
+                    if waiting.as_deref() == Some(a.name.as_str()) {
+                        ui.label(egui::RichText::new("Press a key, mouse button or gamepad button…").color(look().accent));
+                        theme::kbd(ui, "Esc");
+                    } else if ui.small_button("+").tip("Add an input: click, then press it").clicked() {
+                        ed.controls_capture = Some(a.name.clone());
+                    }
+                });
+                ui.end_row();
+            }
+        });
+        ui.add_space(14.0);
+        ui.horizontal(|ui| {
+            if ui.add_enabled(!c.is_default(), egui::Button::new("Beverly's defaults")).tip("Every action back to the inputs Beverly starts with").clicked() {
+                c = crate::input::Controls::default();
+                ed.controls_capture = None;
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                theme::kbd(ui, "Esc");
+                if ui.add(egui::Button::new("Close").min_size(vec2(80.0, 32.0))).clicked() { close = true; }
+            });
+        });
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if waiting.is_some() { ed.controls_capture = None; } else { close = true; }
+        }
+    });
+    if c != *ed.level.controls {
+        *ed.level.controls = c;
+        ed.commit();
+    }
+    if close {
+        ed.controls_open = false;
+        ed.controls_capture = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
