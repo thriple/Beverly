@@ -36,6 +36,13 @@ translates one to one when the real tab is built (`docs/vehicles.md`).
 - Camera rumble from throttle.
 - Simple exhaust puffs.
 - The Basic and Advanced toggle for controls.
+- Built (2026-11-24): `control()` runs in the fixed tick and turns named actions into driving input: power (tap F
+  steps Off, Accessory, On after `power.start_time`; hold F switches off) and the throttle scheme. Lights and the
+  exhaust come from `signals` (each names what it follows: Powered, Running, Braking, Reversing) and update on the
+  Power, Braking and Reversing events. A Prism model's pieces named headlight, tail light, brake light, reverse light
+  and exhaust are used; stand-ins otherwise. Rumble (`camera.rumble`) shakes the camera with the engine and throttle.
+  Controls: Basic shows the scheme and keys, Advanced rebinds each action (`controls.actions`, saved in the file).
+  Older files load with the new fields filled in from the defaults.
 
 **Follow-ups** (only if the 3 turns run out first):
 - A follow camera: chase with lag, looking into turns, wider at speed.

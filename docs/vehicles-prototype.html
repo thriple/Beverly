@@ -46,6 +46,9 @@ kbd { font: 500 11px var(--mono); background: var(--field); border: 1px solid va
 .seg { grid-column: 1 / -1; display: flex; gap: 4px; }
 .seg button { flex: 1; font: 500 12px var(--sans); padding: 6px 0; border-radius: 6px; border: 0; background: var(--field); color: var(--text-2); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--frame); color: var(--ink); }
+.keys { grid-column: 1 / -1; }
+.keys dd button { font: 500 11px var(--mono); background: var(--field); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; cursor: pointer; }
+.keys dd button.wait { border-color: var(--frame); color: var(--frame); }
 .note { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-3); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 details summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
@@ -69,13 +72,14 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
     <div id="tab">Vehicles</div>
     <div id="pad">
       <div><button data-act="SteerLeft">Left</button><button data-act="SteerRight">Right</button></div>
-      <div><button data-act="Handbrake">Hand</button><button data-act="Brake">Brake</button><button data-act="Throttle">Gas</button></div>
+      <div><button data-act="Power">Power</button><button data-act="Handbrake">Hand</button><button data-act="Brake">Brake</button><button data-act="Throttle">Gas</button></div>
     </div>
   </div>
   <aside id="panel">
     <div>
       <h1 id="name">Runabout</h1>
       <div class="speed"><b id="kmh">0</b><span>km/h</span></div>
+      <p id="state" class="note">Off</p>
       <div class="chips">
         <span class="chip" id="c-brake">Braking</span>
         <span class="chip" id="c-rev">Reversing</span>
@@ -100,17 +104,7 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
         <input id="glb" type="file" accept=".glb" hidden>
         <button id="turn" class="btn" hidden>Turn around</button>
       </div>
-      <p id="model-note" class="note">A box stand-in. Load a GLB from Prism: groups with "wheel" in their name, role or tag become the wheels.</p>
-    </div>
-    <div>
-      <h2>Keys</h2>
-      <dl>
-        <dt>Throttle</dt><dd><kbd>W</kbd> <kbd>↑</kbd></dd>
-        <dt>Brake, then reverse</dt><dd><kbd>S</kbd> <kbd>↓</kbd></dd>
-        <dt>Steer</dt><dd><kbd>A</kbd> <kbd>D</kbd></dd>
-        <dt>Handbrake</dt><dd><kbd>Space</kbd></dd>
-        <dt>Reset</dt><dd><kbd>R</kbd></dd>
-      </dl>
+      <p id="model-note" class="note">A box stand-in. Load a GLB from Prism: groups named "wheel" become wheels; "headlight", "tail light", "brake light", "reverse light" and "exhaust" are used too.</p>
     </div>
     <div>
       <h2>Events</h2>
@@ -157,18 +151,36 @@ const vehicle = {
     brakes: 1.0,
     reverse_speed: 8,   // m/s
   },
+  power: { start_time: 0.6 },   // s from tapping F at Accessory to the engine running
+  controls: {
+    scheme: "Hold",             // Hold, Auto-forward or Lever
+    advanced: false,            // shows the action table to rebind keys
+    actions: {
+      Throttle: ["KeyW", "ArrowUp"], Brake: ["KeyS", "ArrowDown"],
+      SteerLeft: ["KeyA", "ArrowLeft"], SteerRight: ["KeyD", "ArrowRight"],
+      Handbrake: ["Space"], Power: ["KeyF"], Reset: ["KeyR"],
+    },
+  },
+  camera: { rumble: 0.5 },
+  signals: [                    // what each effect follows
+    { part: "Headlights", follows: "Powered" },
+    { part: "Tail lights", follows: "Powered" },
+    { part: "Brake lights", follows: "Braking" },
+    { part: "Reverse lights", follows: "Reversing" },
+    { part: "Exhaust", follows: "Running", amount: 0.5 },
+  ],
 };
+const DEFAULTS = structuredClone(vehicle);   // fills in what older files leave out
 
 // ---------- Named actions (input-map) ----------
-const ACTIONS = {
-  Throttle: ["KeyW", "ArrowUp"], Brake: ["KeyS", "ArrowDown"],
-  SteerLeft: ["KeyA", "ArrowLeft"], SteerRight: ["KeyD", "ArrowRight"],
-  Handbrake: ["Space"], Reset: ["KeyR"],
-};
 const held = new Set();
-const bound = new Set(Object.values(ACTIONS).flat());
-const down = (a) => ACTIONS[a].some((k) => held.has(k)) || held.has("Pad." + a);
-addEventListener("keydown", (e) => { if (bound.has(e.code)) { e.preventDefault(); held.add(e.code); } });
+let rebinding = null;                                          // an action waiting for its new key
+const actions = () => vehicle.controls.actions;
+const down = (a) => (actions()[a] || []).some((k) => held.has(k)) || held.has("Pad." + a);
+addEventListener("keydown", (e) => {
+  if (rebinding) { e.preventDefault(); rebinding(e.code); return; }
+  if (Object.values(actions()).flat().includes(e.code)) { e.preventDefault(); held.add(e.code); }
+});
 addEventListener("keyup", (e) => held.delete(e.code));
 addEventListener("blur", () => held.clear());
 document.querySelectorAll("#pad button").forEach((b) => {
@@ -215,12 +227,45 @@ const ground = { height: () => 0, normal: V(0, 1, 0) };
 const car = {
   pos: V(), vel: V(), rot: new THREE.Quaternion(), spin: V(),
   steer: 0, wheels: [], braking: false, reversing: false, handbrake: false, air: false,
+  power: "Off", powerHeld: 0, starting: 0, lever: 0, drive: 0,
 };
 function reset() {
   const e = effective(vehicle);
   car.pos.set(52, e.size[1] / 2 + vehicle.drive.ride_height + 0.05, 6);
   car.vel.set(0, 0, 0); car.spin.set(0, 0, 0); car.rot.identity(); car.steer = 0;
   car.wheels = e.wheels.map(() => ({ out: e.reach, roll: 0, contact: false }));
+}
+
+// ---------- control(): actions to driving input, in the fixed tick ----------
+// Power (one key): tap F to step Off, Accessory, On; hold it to switch off.
+function setPower(state) {
+  if (car.power === state) return;
+  car.power = state; car.starting = 0;
+  emit("Power", state);
+}
+function control(raw, dt) {
+  if (raw.Power) {
+    car.powerHeld += dt;
+    if (car.powerHeld >= 0.5) setPower("Off");
+  } else {
+    if (car.powerHeld > 0 && car.powerHeld < 0.5) setPower({ Off: "Accessory", Accessory: "Starting" }[car.power] || car.power);
+    car.powerHeld = 0;
+  }
+  if (car.power === "Starting" && (car.starting += dt) >= vehicle.power.start_time) setPower("On");
+
+  const scheme = vehicle.controls.scheme;
+  let throttle = 0, brake = raw.Brake;
+  if (scheme === "Hold") throttle = raw.Throttle ? 1 : 0;
+  else if (scheme === "Auto-forward") throttle = raw.Brake ? 0 : 1;
+  else {                                                       // Lever: W and S move it, it stays put
+    car.lever = Math.min(1, Math.max(0, car.lever + ((raw.Throttle ? 1 : 0) - (raw.Brake ? 1 : 0)) * dt * 0.8));
+    throttle = car.lever; brake = raw.Brake && car.lever === 0;
+  }
+  const running = car.power === "On";
+  return {
+    throttle: running ? throttle : 0, brake, running, handbrake: raw.Handbrake,
+    steer: (raw.SteerLeft ? 1 : 0) - (raw.SteerRight ? 1 : 0),
+  };
 }
 
 // ---------- step(): one fixed 60 Hz tick ----------
@@ -235,8 +280,9 @@ function step(v, input, dt) {
 
   // Arcade throttle: S brakes while rolling forward, then reverses; W brakes while rolling back.
   let throttle = 0, brake = 0;
-  if (input.throttle) speed < -0.5 ? (brake = 1) : (throttle = 1);
-  if (input.brake) speed > 0.5 ? (brake = 1) : (throttle = -1);
+  if (input.throttle) speed < -0.5 ? (brake = 1) : (throttle = input.throttle);
+  if (input.brake) speed > 0.5 || !input.running ? (brake = 1) : (throttle = -1);
+  car.drive = Math.abs(throttle);
   const idle = !input.throttle && !input.brake;
 
   const lean = e.lessAtSpeed ? 1 / (1 + Math.abs(speed) / 14) : 1;
@@ -275,9 +321,9 @@ function step(v, input, dt) {
     side = Math.sign(side) * Math.min(Math.abs(side), stop * Math.abs(vs));
 
     let along = 0;
-    if (w.driven && throttle > 0) along += e.push / driven * Math.max(0, 1 - (speed / e.top) ** 2);
+    if (w.driven && throttle > 0) along += e.push / driven * throttle * Math.max(0, 1 - (speed / e.top) ** 2);
     if (w.driven && throttle < 0) along -= e.push / driven * 0.6 * Math.max(0, 1 - (-speed / e.reverse) ** 2);
-    const stopping = brake ? e.brake / 4 : locked ? e.brake / 2 : idle && Math.abs(vl) < 0.6 ? e.brake / 8 : 0;
+    const stopping = brake && Math.abs(speed) > 0.5 ? e.brake / 4 : brake ? e.brake / 8 : locked ? e.brake / 2 : idle && Math.abs(vl) < 0.6 ? e.brake / 8 : 0;
     along -= Math.sign(vl) * Math.min(stopping, stop * Math.abs(vl));
     along -= vl * 12;                                           // rolling resistance
 
@@ -377,6 +423,105 @@ function buildModel() {
     }
     pivot.add(spinner); model.add(pivot);
     wheelMeshes.push({ pivot, spinner, wd });
+  }
+  fitSignals(e);
+}
+
+// ---------- Lights and exhaust: the model's own named pieces, or stand-ins ----------
+// signalParts[part] = { mats: [[material, on-colour, strength]], spots: [SpotLight] }; exhaustAt is in the body frame.
+let signalParts = {}, exhaustAt = V();
+const ROLES = {
+  "Headlights": (w) => w.includes("headlight") || w.includes("headlights") || (w.includes("head") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+  "Tail lights": (w) => w.includes("taillight") || w.includes("taillights") || (w.includes("tail") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+  "Brake lights": (w) => w.includes("brakelight") || w.includes("brakelights") || (w.includes("brake") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+  "Reverse lights": (w) => w.includes("reverselight") || w.includes("reverselights") || (w.includes("reverse") && (w.includes("light") || w.includes("lights") || w.includes("lamp"))),
+};
+const LOOK = { "Headlights": ["#fff4d6", 2.2], "Tail lights": ["#ff2a1a", 0.7], "Brake lights": ["#ff2a1a", 2.6], "Reverse lights": ["#ffffff", 2] };
+function fitSignals(e) {
+  signalParts = {};
+  const [w, h, l] = e.size;
+  const named = {};
+  let exhaustObj = null;
+  if (prism) prism.holder.traverse((o) => {
+    const ws = wordsOf(o);
+    for (const role in ROLES) if (ROLES[role](ws)) (named[role] ||= []).push(o);
+    if (!exhaustObj && ws.includes("exhaust")) exhaustObj = o;
+  });
+  const stand = {                                              // stand-in lamps: x list, y, z, size
+    "Headlights": [[-w * 0.32, w * 0.32], h * 0.1, -l / 2 - 0.01, [0.34, 0.14, 0.04]],
+    "Tail lights": [[-w * 0.38, w * 0.38], h * 0.15, l / 2 + 0.01, [0.2, 0.12, 0.04]],
+    "Brake lights": [[-w * 0.24, w * 0.24], h * 0.15, l / 2 + 0.01, [0.14, 0.12, 0.04]],
+    "Reverse lights": [[0], h * 0.15, l / 2 + 0.01, [0.22, 0.1, 0.04]],
+  };
+  for (const role in ROLES) {
+    const [colour, strength] = LOOK[role], mats = [];
+    if (named[role]) {
+      for (const o of named[role]) o.traverse((m) => {
+        if (!m.isMesh) return;
+        m.material = m.material.clone(); m.material.emissive = new THREE.Color(colour); m.material.emissiveIntensity = 0;
+        mats.push([m.material, strength]);
+      });
+    } else {
+      const [xs, y, z, size] = stand[role];
+      const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(colour).multiplyScalar(0.25), emissive: colour, emissiveIntensity: 0 });
+      for (const x of xs) { const m = new THREE.Mesh(new THREE.BoxGeometry(...size), mat); m.position.set(x, y, z); model.add(m); }
+      mats.push([mat, strength]);
+    }
+    signalParts[role] = { mats, spots: [] };
+  }
+  for (const x of [-w * 0.32, w * 0.32]) {                     // the beams
+    const spot = new THREE.SpotLight("#fff4d6", 0, 45, 0.42, 0.5, 1.2);
+    spot.position.set(x, h * 0.1, -l / 2); spot.target.position.set(x, -h, -l / 2 - 12);
+    model.add(spot, spot.target); signalParts["Headlights"].spots.push(spot);
+  }
+  if (exhaustObj) exhaustAt = new THREE.Box3().setFromObject(exhaustObj).getCenter(V());
+  else {
+    exhaustAt = V(-w * 0.3, -h / 2 + 0.08, l / 2 + 0.05);
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: "#8E8E95", metalness: 0.7, roughness: 0.4 }));
+    pipe.position.copy(exhaustAt).add(V(0, 0, -0.05)); model.add(pipe);
+  }
+  showSignals();
+}
+// Effects listen to events and read the state; they never drive the car.
+const isOn = (follows) => ({ Powered: car.power !== "Off", Running: car.power === "On", Braking: car.braking, Reversing: car.reversing }[follows] || false);
+function showSignals() {
+  for (const sig of vehicle.signals) {
+    const part = signalParts[sig.part]; if (!part) continue;
+    const lit = isOn(sig.follows);
+    for (const [mat, strength] of part.mats) mat.emissiveIntensity = lit ? strength : 0;
+    for (const spot of part.spots) spot.intensity = lit ? 2.2 : 0;
+  }
+}
+for (const ev of ["Power", "Braking", "Reversing"]) on(ev, showSignals);
+
+// Exhaust puffs: a small pool in world space, more and faster with throttle.
+const puffs = [], puffGeo = new THREE.SphereGeometry(0.13, 8, 6);
+let puffClock = 0;
+function exhaust(dt) {
+  const sig = vehicle.signals.find((s) => s.part === "Exhaust");
+  if (sig && isOn(sig.follows) && sig.amount > 0) {
+    puffClock += dt * (2 + car.drive * 16) * sig.amount * 2;
+    while (puffClock >= 1) {
+      puffClock -= 1;
+      let p = puffs.find((x) => !x.visible);
+      if (!p && puffs.length < 90) {
+        p = new THREE.Mesh(puffGeo, new THREE.MeshBasicMaterial({ color: "#b8b8c0", transparent: true, depthWrite: false }));
+        scene.add(p); puffs.push(p);
+      }
+      if (!p) break;
+      const back = V(0, 0, 1).applyQuaternion(car.rot);
+      p.visible = true; p.userData = { age: 0, life: 0.9 + Math.random() * 0.6,
+        vel: back.multiplyScalar(1 + car.drive * 2.5).add(V(Math.random() - 0.5, 0.4 + Math.random() * 0.4, Math.random() - 0.5).multiplyScalar(0.6)).addScaledVector(car.vel, 0.85) };
+      p.position.copy(exhaustAt).applyQuaternion(car.rot).add(car.pos);
+    }
+  }
+  for (const p of puffs) {
+    if (!p.visible) continue;
+    const u = p.userData; u.age += dt;
+    if (u.age >= u.life) { p.visible = false; continue; }
+    p.position.addScaledVector(u.vel, dt); u.vel.multiplyScalar(1 - 1.5 * dt); u.vel.y += 0.6 * dt;
+    p.scale.setScalar(1 + u.age * 3);
+    p.material.opacity = 0.28 * (1 - u.age / u.life) * (0.5 + 0.5 * Math.min(1, sig ? sig.amount * 2 : 0));
   }
 }
 
@@ -478,7 +623,11 @@ function follow(dt) {
   back.normalize();
   const [, h, l] = vehicle.body.size;                         // bigger models get a wider view
   const want = car.pos.clone().addScaledVector(back, Math.max(7.5, l * 1.8)).add(V(0, Math.max(3, h * 2), 0));
-  camera.position.lerp(want, 1 - Math.exp(-dt * 6));
+  camBase.lerp(want, 1 - Math.exp(-dt * 6));
+  // Rumble: an idle shiver when the engine runs, stronger with throttle, a kick while it starts.
+  const t = performance.now() / 1000, r = vehicle.camera.rumble;
+  const amp = r * (car.power === "On" ? 0.012 + car.drive * 0.05 : car.power === "Starting" ? 0.05 : 0);
+  camera.position.copy(camBase).add(V(Math.sin(t * 53) + Math.sin(t * 31), Math.sin(t * 47) + Math.sin(t * 23), 0).multiplyScalar(amp));
   camera.lookAt(car.pos.x, car.pos.y + 0.8, car.pos.z);
   sun.position.copy(car.pos).add(V(12, 20, 8)); sun.target.position.copy(car.pos);
 }
@@ -499,6 +648,8 @@ on("Reversing", (v) => { chip("c-rev", v); if (v) say("Reversing"); });
 on("Handbrake", (v) => { chip("c-hand", v); if (v) say("Handbrake"); });
 on("Airborne", (v) => { chip("c-air", v); say(v ? "Left the ground" : "Landed"); });
 on("Reset", () => say("Reset"));
+on("Power", (p) => say({ Off: "Switched off", Accessory: "Accessory", Starting: "Starting", On: "Started" }[p]));
+const POWER_TEXT = { Off: "Off · tap F for accessory power", Accessory: "Accessory · tap F to start", Starting: "Starting…", On: "Engine on · hold F to switch off" };
 const showFile = () => {
   document.getElementById("file").textContent = JSON.stringify(vehicle, null, 2);
   document.getElementById("name").textContent = vehicle.name;
@@ -515,6 +666,9 @@ const SETTINGS = [
   { section: "Body", label: "Weight", key: "body.weight", words: ["Light", "Medium", "Heavy"], low: 300, high: 4000, step: 50, unit: "kg", show: (v) => v, help: "Heavier is slower to start, stop and turn." },
   { section: "Suspension", label: "Ride height", key: "drive.ride_height", words: ["Low", "Normal", "Tall"], low: 0.05, high: 1, step: 0.01, unit: "m", show: (v) => v.toFixed(2), help: "From the bottom of the body to the ground, at rest." },
   { section: "Suspension", label: "Stiffness", key: "drive.stiffness", words: ["Soft", "Medium", "Firm"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "Soft springs soak up bumps and lean more." },
+  { section: "Feel", label: "Start time", key: "power.start_time", words: ["Instant", "Quick", "Slow"], low: 0, high: 2, step: 0.1, unit: "s", show: (v) => v.toFixed(1), help: "How long it cranks before the engine runs." },
+  { section: "Feel", label: "Rumble", key: "camera.rumble", words: ["Off", "Light", "Strong"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How much the camera shakes with the engine and throttle." },
+  { section: "Feel", label: "Exhaust", key: "signals.4.amount", words: ["None", "Light", "Smoky"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How many puffs come out of the exhaust." },
   { section: "Suspension", label: "Damping", key: "drive.damping", words: ["Bouncy", "Settled", "Stiff"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How quickly bouncing dies away." },
 ];
 const getAt = (key) => key.split(".").reduce((o, k) => o[k], vehicle);
@@ -530,8 +684,44 @@ function buildPanel() {
     const div = document.createElement("div"), h = document.createElement("h2");
     h.textContent = name; div.append(h); tune.append(div); return div;
   })();
+  const choice = (label, help, options, get, set) => {
+    const row = document.createElement("div"), lab = document.createElement("label"), seg = document.createElement("div");
+    row.className = "set"; row.title = help; lab.textContent = label; seg.className = "seg";
+    for (const opt of options) {
+      const b = document.createElement("button");
+      b.textContent = opt; b.setAttribute("aria-pressed", get() === opt);
+      b.addEventListener("click", () => { set(opt); seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); showFile(); });
+      seg.append(b);
+    }
+    row.append(lab, seg); return row;
+  };
+  // Controls: Basic shows the scheme and the keys; Advanced lets you rebind each action.
+  const c = vehicle.controls, controls = section("Controls");
+  controls.append(choice("Controls", "Advanced lets you change the key for each action.", ["Basic", "Advanced"],
+    () => (c.advanced ? "Advanced" : "Basic"), (v) => { c.advanced = v === "Advanced"; buildPanel(); }));
+  controls.append(choice("Throttle", "Hold: drive while W is held. Auto-forward: always drives, S brakes. Lever: W and S move a lever that stays where you leave it.",
+    ["Hold", "Auto-forward", "Lever"], () => c.scheme, (v) => { c.scheme = v; car.lever = 0; }));
+  const NAMES = { Throttle: "Throttle", Brake: "Brake, then reverse", SteerLeft: "Steer left", SteerRight: "Steer right", Handbrake: "Handbrake", Power: "Power (tap, or hold for off)", Reset: "Reset" };
+  const keyName = (k) => ({ ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Space: "Space" }[k] || k.replace(/^(Key|Digit)/, ""));
+  const keys = document.createElement("dl"); keys.className = "keys";
+  for (const a in NAMES) {
+    const dt = document.createElement("dt"), dd = document.createElement("dd"), codes = c.actions[a] || [];
+    dt.textContent = NAMES[a];
+    if (c.advanced) {
+      const b = document.createElement("button");
+      b.textContent = codes.map(keyName).join(" ") || "None";
+      b.title = "Click, then press the new key. Esc keeps the old one.";
+      b.addEventListener("click", () => {
+        b.textContent = "Press a key…"; b.classList.add("wait");
+        rebinding = (code) => { rebinding = null; if (code !== "Escape") c.actions[a] = [code]; held.clear(); buildPanel(); showFile(); };
+      });
+      dd.append(b);
+    } else for (const k of codes) { const kb = document.createElement("kbd"); kb.textContent = keyName(k); dd.append(kb, " "); }
+    keys.append(dt, dd);
+  }
+  controls.append(keys);
   for (const st of SETTINGS) {
-    const row = document.createElement("div"), id = "set-" + st.key.replace(".", "-");
+    const row = document.createElement("div"), id = "set-" + st.key.replaceAll(".", "-");
     row.className = "set"; row.title = st.help;
     const label = document.createElement("label"), out = document.createElement("output"), input = document.createElement("input");
     label.textContent = st.label; label.htmlFor = id;
@@ -546,20 +736,8 @@ function buildPanel() {
   }
   // Which axles steer: No, Yes or Opposite (rear wheels turning against the front).
   const n = vehicle.drive.axles.length;
-  vehicle.drive.axles.forEach((axle, i) => {
-    const row = document.createElement("div"), label = document.createElement("label"), seg = document.createElement("div");
-    row.className = "set"; row.title = "Opposite turns these wheels against the front ones, for tight turns.";
-    label.textContent = axleName(i, n) + " steers"; seg.className = "seg";
-    for (const opt of ["No", "Yes", "Opposite"]) {
-      const b = document.createElement("button");
-      b.textContent = opt; b.setAttribute("aria-pressed", axle.steers === opt);
-      b.addEventListener("click", () => {
-        axle.steers = opt; seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); showFile();
-      });
-      seg.append(b);
-    }
-    row.append(label, seg); section("Handling").append(row);
-  });
+  vehicle.drive.axles.forEach((axle, i) => section("Handling").append(choice(axleName(i, n) + " steers",
+    "Opposite turns these wheels against the front ones, for tight turns.", ["No", "Yes", "Opposite"], () => axle.steers, (v) => { axle.steers = v; })));
 }
 
 // ---------- Save and load the vehicle file ----------
@@ -583,7 +761,7 @@ document.getElementById("load").addEventListener("change", async (ev) => {
     const v = JSON.parse(await f.text());
     if (v.kind !== "Ground" || !v.drive || !v.body || !Array.isArray(v.drive.axles)) throw new Error("it isn't a ground vehicle file");
     for (const k of Object.keys(vehicle)) delete vehicle[k];
-    Object.assign(vehicle, v);
+    Object.assign(vehicle, structuredClone(DEFAULTS), v);
     if (prism && v.model !== prismSource.file) { prism = null; prismSource = null; turnBtn.hidden = true; modelNote.textContent = "A box stand-in."; }
     note(v.model && !prism ? `Loaded ${f.name}. It was made for ${v.model}: load that model too to see it.` : `Loaded ${f.name}.`);
     reset(); buildModel(); buildPanel(); showFile();
@@ -595,17 +773,15 @@ showFile(); buildPanel();
 const DT = 1 / 60;
 let last = performance.now(), acc = 0, resetHeld = false;
 reset(); buildModel(); resize();
-camera.position.copy(car.pos).add(V(0, 3, 7.5));
+const camBase = car.pos.clone().add(V(0, 3, 7.5));
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.1); last = now; acc += dt;
   if (down("Reset") && !resetHeld) { reset(); emit("Reset"); }
   resetHeld = down("Reset");
-  const input = {
-    throttle: down("Throttle"), brake: down("Brake"), handbrake: down("Handbrake"),
-    steer: (down("SteerLeft") ? 1 : 0) - (down("SteerRight") ? 1 : 0),
-  };
-  while (acc >= DT) { step(vehicle, input, DT); acc -= DT; }
-  draw(); follow(dt);
+  const raw = Object.fromEntries(Object.keys(vehicle.controls.actions).map((a) => [a, down(a)]));
+  while (acc >= DT) { step(vehicle, control(raw, DT), DT); acc -= DT; }
+  draw(); follow(dt); exhaust(dt);
+  document.getElementById("state").textContent = POWER_TEXT[car.power] + (vehicle.controls.scheme === "Lever" ? ` · lever ${Math.round(car.lever * 100)}%` : "");
   document.getElementById("kmh").textContent = Math.round(Math.abs(car.vel.dot(V(0, 0, -1).applyQuaternion(car.rot))) * 3.6);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
