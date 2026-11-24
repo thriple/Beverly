@@ -57,7 +57,8 @@ translates one to one when the real tab is built (`docs/vehicles.md`).
 - Top centre: Reset, Play / Pause and Power to the left of the readouts and tips. Bottom centre: a dock with one tab
   per settings section (Controls, Speed, Handling, Body, Suspension, Feel, Camera) plus Events; clicking the open tab
   folds it. Right: only the vehicle file and the model (assets).
-- Paused: orbit (left drag), pan (right drag), zoom (wheel) around the car; Play glides back into the follow camera.
+- V (or the camera button) switches Follow and Free camera, playing or paused. Free: orbit (left drag), pan (right
+  drag), zoom (wheel), riding along with the car; back to Follow it glides into place.
 - X-ray (button or X): the body turns see-through and shows the collision box, the centre of mass and each wheel's
   suspension ray (lime on the ground, grey in the air).
 

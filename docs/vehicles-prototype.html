@@ -32,6 +32,7 @@ h2 { margin: 0 0 8px; font-size: 11px; font-weight: 500; color: var(--text-3); l
 #top > * { pointer-events: auto; }
 #readout { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; pointer-events: none; }
 #top .hud-row { justify-self: end; }
+#top .hud-row.view { justify-self: start; }
 #top .speed { padding: 6px 14px; border-radius: 12px; background: var(--glass); }
 #state { margin: 0; font-size: 12px; color: var(--text-2); text-shadow: 0 1px 3px var(--ink); }
 #top .chip { background: var(--glass); }
@@ -92,6 +93,7 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
   background: var(--frame); color: var(--ink); border-color: var(--frame); }
 .hud-btn.play.on { background: var(--field); color: var(--text); border-color: var(--line); }
 .hud-btn.play svg { width: 16px; height: 16px; fill: currentColor; }
+#cam[aria-pressed="true"] { border-color: var(--frame); color: var(--frame); }
 .hud-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (pointer: coarse) { #pad { display: flex; } #dock { bottom: 84px; } }
 @media (max-width: 720px) {
@@ -100,7 +102,7 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
 }
 @media (max-width: 1000px) {
   #top { top: 48px; left: 12px; right: 12px; grid-template-columns: 1fr; justify-items: center; }
-  #top .hud-row { justify-self: center; }
+  #top .hud-row, #top .hud-row.view { justify-self: center; }
 }
 </style>
 
@@ -124,6 +126,7 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
       </div>
       <p id="hint">Press Play, then tap F twice to start the engine.</p>
       </div>
+      <div class="hud-row view"><button id="cam" class="hud-btn" aria-pressed="false" title="Free camera: drag to orbit, right-drag to pan, wheel to zoom. Key: V">Follow camera</button></div>
     </div>
     <div id="dock">
       <div id="dock-tabs" role="tablist" aria-label="Tuning"></div>
@@ -919,17 +922,25 @@ const DT = 1 / 60;
 let last = performance.now(), acc = 0, resetHeld = false, playing = false, glide = 0;
 reset(); buildModel(); resize();
 const camBase = V(), camLook = V(); snapCamera();
-// Paused: orbit (left drag), pan (right drag), zoom (wheel) around the car. Play hands the view back to the
-// follow camera from wherever it is, so it glides into place.
+// V switches the camera, playing or paused. Free: orbit (left drag), pan (right drag), zoom (wheel), and it rides
+// along with the car. Back to Follow, it glides into place from wherever it is.
 const orbit = new THREE.OrbitControls(camera, renderer.domElement);
-Object.assign(orbit, { enableDamping: true, dampingFactor: 0.12, minDistance: 2, maxDistance: 120, maxPolarAngle: Math.PI * 0.495 });
-camera.position.copy(camBase); orbit.target.copy(camLook); orbit.update();
+Object.assign(orbit, { enabled: false, enableDamping: true, dampingFactor: 0.12, minDistance: 2, maxDistance: 120, maxPolarAngle: Math.PI * 0.495 });
+camera.position.copy(camBase); camera.lookAt(camLook);
+let freeCam = false;
+const carWas = car.pos.clone();
+const camBtn = document.getElementById("cam");
+function setFreeCam(on) {
+  freeCam = on; orbit.enabled = on;
+  if (on) orbit.target.copy(camLook);
+  else { camBase.copy(camera.position); camLook.copy(orbit.target); glide = 1; }
+  camBtn.textContent = on ? "Free camera" : "Follow camera";
+  camBtn.setAttribute("aria-pressed", on);
+}
+camBtn.addEventListener("click", () => { setFreeCam(!freeCam); stage.focus(); });
 const playBtn = document.getElementById("play");
 function setPlaying(on) {
   playing = on; held.clear();
-  orbit.enabled = !on;
-  if (on) { camBase.copy(camera.position); camLook.copy(orbit.target); glide = 1; }
-  else orbit.target.copy(camLook);
   playBtn.classList.toggle("on", on);
   document.getElementById("play-text").textContent = on ? "Pause" : "Play";
   document.getElementById("play-icon").setAttribute("d", on ? "M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" : "M4 2.5v11l9-5.5z");
@@ -937,7 +948,6 @@ function setPlaying(on) {
 }
 const resetPosition = () => {
   reset(); snapCamera(); emit("Reset");
-  if (!playing) { camera.position.copy(camBase); orbit.target.copy(camLook); }
 };
 playBtn.addEventListener("click", () => setPlaying(!playing));
 document.getElementById("reset-pos").addEventListener("click", () => { resetPosition(); stage.focus(); });
@@ -946,6 +956,7 @@ addEventListener("keydown", (e) => {                           // P plays and pa
   if (rebinding || e.repeat) return;
   if (e.code === "KeyP" && !Object.values(actions()).flat().includes("KeyP")) setPlaying(!playing);
   if (e.code === "Escape" && playing) setPlaying(false);
+  if (e.code === "KeyV" && !Object.values(actions()).flat().includes("KeyV")) setFreeCam(!freeCam);
 });
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.1); last = now; acc += dt;
@@ -957,9 +968,13 @@ function frame(now) {
     exhaust(dt);
   } else acc = 0;
   draw();
-  if (playing) follow(dt); else orbit.update();
+  if (freeCam) {                                               // ride along: keep the view where it is relative to the car
+    const moved = car.pos.clone().sub(carWas);
+    camera.position.add(moved); orbit.target.add(moved); orbit.update();
+  } else follow(dt);
+  carWas.copy(car.pos);
   sun.position.copy(car.pos).add(V(25, 30, 10)); sun.target.position.copy(car.pos);
-  const hint = !playing ? "Paused. Press Play (or P) to drive; you can tune either way."
+  const hint = !playing ? "Paused. Press Play (or P) to drive; you can tune either way. V: free camera."
     : car.power === "Off" ? "Tap F twice: once for accessory power, again to start the engine."
     : car.power === "Accessory" ? "Tap F again to start the engine." : "";
   const hintEl = document.getElementById("hint");
