@@ -7184,6 +7184,7 @@ dependencies = [
  "bevy_mesh",
  "bevy_pbr",
  "bevy_tasks",
+ "bytemuck",
 ]
 
 [[package]]
