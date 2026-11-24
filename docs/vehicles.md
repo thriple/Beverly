@@ -23,14 +23,14 @@ recommendation; the user can change any of them per vehicle or per game.
 | Is it WASD? | Yes by default: W throttle, S brake then reverse, A and D steer, Space handbrake, E enter and leave. All of it goes through named actions (`input-map`), so gamepads, rebinding and other schemes use the same actions. | WASD |
 | How many wheels does it have? | Any number from 1 to 16, in **axles** (a pair) or single wheels (a trike's front, a motorbike, a unicycle). A wheel is a socket on the body; the Body topic adds and mirrors them. | 4 (2 axles) |
 | Which wheels steer? | Each axle has a **Steers** setting: *No*, *Yes* or *Opposite* (rear wheels that steer against the front, for tight turns). Wheels on the same axle steer at slightly different angles so they don't scrub (Ackermann; on by default, under Advanced). | Front axle steers |
-| Does it have legs? | A **Moves on** choice, *Legs*, comes later. A legged vehicle walks with the same leg solver as characters (`joints`: foot placement, gait), so it waits for that. Last Ascent's mech is planned as a character file; if it becomes a vehicle, it uses this. | — |
+| Does it have legs? | A **Moves on** choice, *Legs*. A legged vehicle walks with the same leg solver as characters (`joints`: foot placement, gait), so it waits for that. **Last Ascent's mech is a legged vehicle** (user, 2026-11-24: the user provides the model), so Legs is a chunk of its own, not "later". | — |
 | Legs and wheels? | *Legs and wheels* (wheels at the ends of legs that drive on flat ground and step over obstacles) comes after *Legs*. | — |
 | Tank treads? | *Tracks*: two tracks, each driven on its own (skid steering: turning slows one side or runs it backward, so a tank turns on the spot). The tracks are drawn as a loop of links that moves with speed; the physics is a row of wheels hidden under each track. | — |
 | Does it hover? | *Hover*: thrusters push it up to a ride height over ground and water, with little grip (it slides). Strafing and a drift setting under Advanced. | — |
 | Is it on rails? | *Rails*: it follows a pen curve (the Level's pen draws the track). Throttle and brake only; steering picks the branch at a junction. Trams, mine carts, roller coasters, rail shooters. | — |
 
-So **Moves on** has five choices for ground vehicles: Wheels, Tracks, Hover, Rails (all in this spec) and Legs, then
-Legs and wheels (later, after `joints`). The board already shows Wheels, Hover and Tracks.
+So **Moves on** has five choices for ground vehicles: Wheels, Tracks, Hover, Rails and Legs (all in this spec; Legs
+after `joints`), then Legs and wheels (later). The board already shows Wheels, Hover and Tracks.
 
 ---
 
@@ -190,7 +190,16 @@ A small state machine. Each change is an **event** that sounds, lights, exhausts
 | **Starting** | A short crank (*Start time*: Instant, Quick, Slow). Can fail when out of fuel or charge. | Start sound, a cough of exhaust, a rumble kick. |
 | **On** | Engine running. | Idle exhaust, idle rumble, headlights if the switch is on, everything else. |
 
-- **Keys:** one *Power* action steps through Off, Accessory and On. Tap it to go up one state; hold it to switch off.
+- **Ignition** (user, 2026-11-24), two choices per vehicle:
+  - *One key* (the default): tapping the *Power* action (F) steps Off, Accessory (if the vehicle has it), On, then
+    Off again. Holding it switches straight off from any state.
+  - *Ignition and switches*: F only starts and stops the engine (Off and On). Accessory power comes from a switch
+    part placed anywhere on the vehicle (a dashboard button, a toggle on the back, a lever in the cargo bay), joined
+    to the vehicle's *Accessory* input with a wire. Any switch can be wired to *Power on* and *Power off* too, so a
+    starter button or a kill switch is a wire, not a setting.
+- **Switch parts in a vehicle:** today's button parts (*Interact*), attached to the body. They are pressed in person
+  (walk up, E) or from a seat (aim at it in the cockpit view, E). The vehicle file keeps its own wires between its
+  parts, drawn as noodles; they move to the patchbay's springy noodles once `readouts` brings them.
 - **Entering:** the driver getting in can power it on (*Start when entered*: on by default, off for "find the keys"
   games).
 - **Wiring:** inputs *Power on*, *Power off* and *Accessory*; outputs *Started*, *Stopped* and *Stalled*. A gate can
@@ -396,13 +405,15 @@ The `vehicles` entry in `editor/features.json` is XL. These chunks replace its f
 5. **Other drives:** tracks (the tank), hover (the hover sled), rails (the tram).
 6. **Livery and effects:** brush and pen decals on the body, image stickers, exhaust plumes, dust and skid marks,
    boost, air control, reset when flipped.
-7. **Later:**
+7. **Legs** (Last Ascent's mech): legged walking on the character leg solver (needs `joints`), gaits by speed, feet
+   that plant on uneven ground, a body that sways and settles, footstep events for sound, dust and camera thumps.
+8. **Later:**
    - point and click (needs `navmesh`);
    - NPC drivers along routes;
    - fuel, damage and trailers;
-   - legs and legs with wheels (need `joints`).
+   - legs with wheels.
 
-About 7 to 10 sessions for chunks 1 to 6.
+About 7 to 10 sessions for chunks 1 to 6, and 2 or 3 for Legs.
 
 ### What must exist on main first
 
@@ -420,12 +431,13 @@ About 7 to 10 sessions for chunks 1 to 6.
 
 ---
 
-## 9. How it plugs in (proposed; the user decides)
+## 9. How it plugs in (decided 2026-11-24)
 
 Built the way Tessera is, so main never breaks:
 
-- **A branch, `vehicles`**, merged into main part by part after review (each finished chunk). CLAUDE.md needs one
-  line adding it as the second agreed exception to "main only".
+- **A branch, `vehicles`**, merged into main part by part after review (each finished chunk). It is the second
+  agreed exception to "main only" in CLAUDE.md (user, 2026-11-24).
+- **Before it starts, main builds `input-map` (named actions) and `sockets`** (user, 2026-11-24).
 - **Its own folders:**
   - `editor/src/vehicle/` for what plays: the file, the physics, power, signals and rig, used by both the editor and
     the game player;
@@ -454,8 +466,9 @@ Built the way Tessera is, so main never breaks:
 ## 10. Building vehicles inside a game (later, kept possible now)
 
 This spec is for making vehicles in Beverly's editor. Some games will want players to build their own (Trailmakers,
-Besiege, Kerbal Space Program, Gates of Heaven's ship desk). Nothing extra is built now, but these rules keep that
-open:
+Besiege, Kerbal Space Program). **Gates of Heaven needs it first** (user, 2026-11-24): its ship desk builds ships
+from parts, cargo and modules (`docs/games/gates-of-heaven.md`). It isn't scheduled; that game waits on Beverly, and
+another may come first. Nothing extra is built now, but these rules keep it open:
 
 - **A vehicle is parts on sockets, and its stats come from the parts.** Weight, centre of mass, grip, top speed and
   seats are worked out from what is attached (a wheel part brings its wheel, an engine part its power, a seat its
@@ -513,6 +526,9 @@ shaped so upgrades drop in:
   A slot holds one upgrade at a time; tiers can require the tier below.
 - **Saved as edits:** a player's vehicle is the vehicle file plus a list of upgrade names, in the player's save
   (`runtime-edits`). Upgrading never changes the authored file, and test mode throws upgrades away.
+- **Each game builds its own shop** (user, 2026-11-24) with the Screens tab. Beverly gives it the pieces: the
+  upgrade data, *Apply upgrade* and *Remove upgrade* actions for buttons and wires, and readouts for costs and for
+  the stats before and after.
 - **Later, in the editor:** an *Upgrades* topic in the Vehicles tab lists them, with costs (from `economy`) and a
   before-and-after on the stage: live stats and a test drive with the upgrade on. Building vehicles in a game
   (section 10) and upgrades share the same `effective` step: an attached part is an upgrade without a shop.
@@ -534,17 +550,16 @@ The user has these designs in mind; each gets its own planning pass first.
 
 ---
 
-## 12. Open questions for the user
+## 12. Decisions (user, 2026-11-24)
 
-1. **The branch:** OK to make `vehicles` a second exception to "main only", as Tessera is?
-2. **Order:** build `input-map` and `sockets` on main before the vehicle session starts (recommended), or let the
-   vehicle session build them on main's terms?
-3. **Power key:** one key that steps through the states (proposed: F), or separate keys for accessory and start?
-4. **Physics feel:** arcade by default (forgiving grip, assists on) with sim-like settings under Advanced, or the
-   other way round? Proposed: arcade.
-5. **The mech:** stays a character file (current plan), or becomes the first legged vehicle?
-6. **Upgrades:** a shop screen in each game, or one shared Beverly screen that games restyle?
-7. **Building in games:** which game wants it first (Gates of Heaven's ship desk, Last Ascent, another)? That decides when `vehicle-building` comes.
+1. **The branch:** `vehicles` is the second exception to "main only", like Tessera (CLAUDE.md).
+2. **Order:** main builds `input-map` and `sockets` before the vehicle session starts.
+3. **Power:** both ignition choices. *One key* (F taps step Off, Accessory, On) and *Ignition and switches* (F starts
+   and stops; an accessory switch anywhere on the vehicle, wired with noodles).
+4. **Feel:** forgiving by default (arcade grip, assists on), realistic settings under Advanced.
+5. **The mech:** a legged vehicle; the user provides it. Legs is chunk 7.
+6. **Upgrades:** each game builds its own shop screen; Beverly gives the data, actions and readouts.
+7. **Building in games:** Gates of Heaven first, not scheduled.
 
 ## Sources
 
