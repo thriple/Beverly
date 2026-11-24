@@ -2,7 +2,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap">
 <style>
-/* Layout: the 3D stage fills the window, a Beverly glass panel on the right (below it on phones).
+/* Layout: the 3D stage fills the window. Top centre: play buttons left of the readouts. Bottom centre: a dock with
+   the tuning tabs. Right: the vehicle's files and model (below the stage on phones).
    Colours are Beverly's own tokens (docs/ui/tokens), Vehicles tab: lime frame, violet accent. */
 :root {
   --ink: #0E0E10; --glass: rgba(18,18,21,0.86); --field: #1F1F23; --line: #2E2E33;
@@ -13,7 +14,7 @@
 }
 html, body { height: 100%; }
 body { background: var(--ink); color: var(--text); font-family: var(--sans); overflow: hidden; }
-#app { height: 100%; display: grid; grid-template-columns: 1fr 300px; }
+#app { height: 100%; display: grid; grid-template-columns: 1fr 260px; }
 #stage { position: relative; min-width: 0; outline: none; }
 #stage canvas { display: block; width: 100%; height: 100%; }
 #tab { position: absolute; top: 12px; left: 12px; background: var(--frame); color: var(--ink);
@@ -26,8 +27,11 @@ h2 { margin: 0 0 8px; font-size: 11px; font-weight: 500; color: var(--text-3); l
 .speed b { font: 500 44px/1 var(--mono); font-variant-numeric: tabular-nums; }
 .speed span { color: var(--text-2); }
 .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-#top { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
-  align-items: center; gap: 6px; width: max-content; max-width: calc(100% - 24px); pointer-events: none; text-align: center; }
+#top { position: absolute; top: 12px; left: 110px; right: 110px; display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: start; gap: 12px; pointer-events: none; }
+#top > * { pointer-events: auto; }
+#readout { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; pointer-events: none; }
+#top .hud-row { justify-self: end; }
 #top .speed { padding: 6px 14px; border-radius: 12px; background: var(--glass); }
 #state { margin: 0; font-size: 12px; color: var(--text-2); text-shadow: 0 1px 3px var(--ink); }
 #top .chip { background: var(--glass); }
@@ -67,24 +71,36 @@ pre { font: 11px/1.45 var(--mono); color: var(--text-2); background: var(--field
   color: var(--text); font: 500 13px var(--sans); touch-action: none; user-select: none; -webkit-user-select: none; }
 #pad button:active { background: var(--accent); }
 button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-#hud { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; flex-direction: column;
-  align-items: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); }
+#dock { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: min(940px, calc(100% - 24px));
+  background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+#dock-tabs { display: flex; gap: 4px; overflow-x: auto; }
+#dock-tabs button { flex: none; font: 500 12px var(--sans); padding: 6px 12px; border-radius: 999px; border: 0;
+  background: transparent; color: var(--text-2); cursor: pointer; }
+#dock-tabs button:hover { color: var(--text); }
+#dock-tabs button[aria-selected="true"] { background: var(--frame); color: var(--ink); }
+#dock-body { max-height: 190px; overflow-y: auto; padding: 4px 6px 0; }
+.pane { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 24px; }
+.pane .keys { grid-column: 1 / -1; grid-template-columns: repeat(auto-fill, minmax(140px, auto) minmax(60px, 1fr)); }
+#xray[aria-pressed="true"] { background: var(--accent); color: var(--text); }
 #hint { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--glass); color: var(--text); font-size: 13px; text-align: center; }
 .hud-row { display: flex; align-items: center; gap: 8px; }
 .hud-btn { font: 500 13px var(--sans); color: var(--text); background: var(--glass); border: 1px solid var(--line);
   border-radius: 12px; padding: 10px 14px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
 .hud-btn:hover { border-color: var(--text-3); }
 .hud-btn:active { background: var(--accent); }
-.hud-btn.play { display: flex; align-items: center; gap: 8px; font: 700 16px var(--sans); padding: 14px 26px;
+.hud-btn.play { display: flex; align-items: center; gap: 8px; font: 700 15px var(--sans); padding: 11px 20px;
   background: var(--frame); color: var(--ink); border-color: var(--frame); }
 .hud-btn.play.on { background: var(--field); color: var(--text); border-color: var(--line); }
 .hud-btn.play svg { width: 16px; height: 16px; fill: currentColor; }
 .hud-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (pointer: coarse) { #pad { display: flex; } #hud { bottom: 84px; } }
+@media (pointer: coarse) { #pad { display: flex; } #dock { bottom: 84px; } }
 @media (max-width: 720px) {
   #app { grid-template-columns: 1fr; grid-template-rows: 1fr 38%; }
   #panel { border-left: 0; border-top: 1px solid var(--line); }
-  #top { top: 48px; }
+}
+@media (max-width: 1000px) {
+  #top { top: 48px; left: 12px; right: 12px; grid-template-columns: 1fr; justify-items: center; }
+  #top .hud-row { justify-self: center; }
 }
 </style>
 
@@ -92,6 +108,12 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
   <div id="stage" tabindex="0" aria-label="Driving view">
     <div id="tab">Vehicles</div>
     <div id="top">
+      <div class="hud-row">
+        <button id="reset-pos" class="hud-btn" title="Reset position (R)">Reset</button>
+        <button id="play" class="hud-btn play"><svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg><span id="play-text">Play</span></button>
+        <button data-act="Power" class="hud-btn" title="Tap to step Off, Accessory, On. Hold to switch off.">Power</button>
+      </div>
+      <div id="readout">
       <div class="speed"><b id="kmh">0</b><span>km/h</span></div>
       <p id="state">Off</p>
       <div class="chips">
@@ -101,13 +123,11 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
         <span class="chip" id="c-air">In the air</span>
       </div>
       <p id="hint">Press Play, then tap F twice to start the engine.</p>
-    </div>
-    <div id="hud">
-      <div class="hud-row">
-        <button id="reset-pos" class="hud-btn">Reset position</button>
-        <button id="play" class="hud-btn play"><svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg><span id="play-text">Play</span></button>
-        <button data-act="Power" class="hud-btn" title="Tap to step Off, Accessory, On. Hold to switch off.">Power</button>
       </div>
+    </div>
+    <div id="dock">
+      <div id="dock-tabs" role="tablist" aria-label="Tuning"></div>
+      <div id="dock-body"></div>
     </div>
     <div id="pad">
       <div><button data-act="SteerLeft">Left</button><button data-act="SteerRight">Right</button></div>
@@ -125,19 +145,15 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
       </div>
       <p id="file-note" class="note" hidden></p>
     </div>
-    <div id="tune"></div>
     <div>
       <h2>Model</h2>
       <div class="row">
         <label class="btn" for="glb">Load Prism model</label>
         <input id="glb" type="file" accept=".glb" hidden>
         <button id="turn" class="btn" hidden>Turn around</button>
+        <button id="xray" class="btn quiet" aria-pressed="false" title="See through the body: the collision box, the centre of mass and the suspension rays. Key: X">X-ray</button>
       </div>
       <p id="model-note" class="note">A box stand-in. Load a GLB from Prism: groups named "wheel" become wheels; "headlight", "tail light", "brake light", "reverse light" and "exhaust" are used too.</p>
-    </div>
-    <div>
-      <h2>Events</h2>
-      <ul id="log"></ul>
     </div>
     <details>
       <summary>Vehicle file</summary>
@@ -148,6 +164,7 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 // Wiring that carries over to Beverly (docs/vehicles-prototype.md):
 //   vehicle        -> vehicles/NAME.bev (same field names, snake_case)
@@ -479,7 +496,51 @@ function buildModel() {
     wheelMeshes.push({ pivot, spinner, wd });
   }
   fitSignals(e);
+  buildXray(e);
 }
+
+// ---------- X-ray: see-through body with the physics drawn on top ----------
+let xray = false, xrayLines = null, rays = [];
+function buildXray(e) {
+  xrayLines = new THREE.Group(); rays = [];
+  const top = (m) => Object.assign(m, { depthTest: false, transparent: true });
+  const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(...e.size)), top(new THREE.LineBasicMaterial({ color: "#B0B0B6" })));
+  const com = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), top(new THREE.MeshBasicMaterial({ color: "#B34DFF" })));
+  com.position.copy(e.com); xrayLines.add(box, com);
+  for (const w of e.wheels) {
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w.at, w.at]), top(new THREE.LineBasicMaterial({ color: "#C6FF1A" })));
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 6), top(new THREE.MeshBasicMaterial({ color: "#C6FF1A" })));
+    xrayLines.add(line, dot); rays.push({ line, dot, at: w.at });
+  }
+  xrayLines.traverse((o) => { o.renderOrder = 10; o.userData.helper = true; });
+  model.add(xrayLines); applyXray();
+}
+function applyXray() {
+  const inWheel = (o) => wheelMeshes.some(({ spinner }) => { for (let p = o; p; p = p.parent) if (p === spinner) return true; return false; });
+  model.traverse((o) => {
+    if (!o.isMesh || o.userData.helper || inWheel(o)) return;
+    for (const m of [].concat(o.material)) {
+      const s = (m.userData.solid ||= { transparent: m.transparent, opacity: m.opacity, depthWrite: m.depthWrite });
+      Object.assign(m, xray ? { transparent: true, opacity: 0.15, depthWrite: false } : s);
+      m.needsUpdate = true;
+    }
+  });
+  xrayLines.visible = xray;
+  const b = document.getElementById("xray"); if (b) b.setAttribute("aria-pressed", xray);
+}
+function drawXray() {                                          // suspension rays: lime on the ground, grey in the air
+  if (!xray) return;
+  rays.forEach((r, i) => {
+    const st = car.wheels[i], end = r.at.clone().add(V(0, -st.out, 0));
+    r.line.geometry.setFromPoints([r.at, end]);
+    r.dot.position.copy(end); r.dot.visible = st.contact;
+    r.line.material.color.set(st.contact ? "#C6FF1A" : "#8E8E95");
+  });
+}
+document.getElementById("xray").addEventListener("click", () => { xray = !xray; applyXray(); });
+addEventListener("keydown", (e) => {
+  if (e.code === "KeyX" && !rebinding && !e.repeat && !Object.values(actions()).flat().includes("KeyX")) { xray = !xray; applyXray(); }
+});
 
 // ---------- Lights and exhaust: the model's own named pieces, or stand-ins ----------
 // signalParts[part] = { mats: [[material, on-colour, strength]], spots: [SpotLight] }; exhaustAt is in the body frame.
@@ -668,6 +729,7 @@ function draw() {
     pivot.rotation.y = how === "Yes" ? car.steer : how === "Opposite" ? -car.steer : 0;
     spinner.rotation.x = -st.roll;
   });
+  drawXray();
 }
 
 // Follow camera: chases with lag, swings toward where the car is going, looks into turns, pulls back at speed.
@@ -688,15 +750,15 @@ function cameraWant() {
 function snapCamera() { const w = cameraWant(); camBase.copy(w.want); camLook.copy(w.look); }
 function follow(dt) {
   const c = vehicle.camera, w = cameraWant();
-  camBase.lerp(w.want, 1 - Math.exp(-dt * (1.5 + (1 - c.lag) * 10)));
-  camLook.lerp(w.look, 1 - Math.exp(-dt * 8));
+  const ease = 1 - 0.8 * glide; glide = Math.max(0, glide - dt / 1.2);  // after Play, glide in over about a second
+  camBase.lerp(w.want, 1 - Math.exp(-dt * (1.5 + (1 - c.lag) * 10) * ease));
+  camLook.lerp(w.look, 1 - Math.exp(-dt * 8 * ease));
   if (Math.abs(camera.fov - w.fov) > 0.05) { camera.fov += (w.fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   // Rumble: an idle shiver when the engine runs, stronger with throttle, a kick while it starts.
   const t = performance.now() / 1000, r = vehicle.camera.rumble;
   const amp = !playing ? 0 : r * (car.power === "On" ? 0.012 + car.drive * 0.05 : car.power === "Starting" ? 0.05 : 0);
   camera.position.copy(camBase).add(V(Math.sin(t * 53) + Math.sin(t * 31), Math.sin(t * 47) + Math.sin(t * 23), 0).multiplyScalar(amp));
   camera.lookAt(camLook);
-  sun.position.copy(car.pos).add(V(25, 30, 10)); sun.target.position.copy(car.pos);
 }
 
 function resize() {
@@ -707,7 +769,6 @@ function resize() {
 new ResizeObserver(resize).observe(stage);
 
 // ---------- Panel listens to events ----------
-const log = document.getElementById("log");
 const say = (text) => { const li = document.createElement("li"); li.textContent = text; log.prepend(li); while (log.children.length > 6) log.lastChild.remove(); };
 const chip = (id, onoff) => document.getElementById(id).classList.toggle("on", onoff);
 on("Braking", (v) => { chip("c-brake", v); if (v) say("Braking"); });
@@ -747,13 +808,8 @@ const wordFor = (s, v) => s.words[Math.min(s.words.length - 1, Math.floor((v - s
 const axleName = (i, n) => i === 0 ? "Front axle" : i === n - 1 ? "Back axle" : `Axle ${i + 1}`;
 
 function buildPanel() {
-  const tune = document.getElementById("tune");
-  tune.replaceChildren();
   const sections = {};
-  const section = (name) => sections[name] ||= (() => {
-    const div = document.createElement("div"), h = document.createElement("h2");
-    h.textContent = name; div.append(h); tune.append(div); return div;
-  })();
+  const section = (name) => sections[name] ||= Object.assign(document.createElement("div"), { className: "pane" });
   const choice = (label, help, options, get, set) => {
     const row = document.createElement("div"), lab = document.createElement("label"), seg = document.createElement("div");
     row.className = "set"; row.title = help; lab.textContent = label; seg.className = "seg";
@@ -808,6 +864,23 @@ function buildPanel() {
   const n = vehicle.drive.axles.length;
   vehicle.drive.axles.forEach((axle, i) => section("Handling").append(choice(axleName(i, n) + " steers",
     "Opposite turns these wheels against the front ones, for tight turns.", ["No", "Yes", "Opposite"], () => axle.steers, (v) => { axle.steers = v; })));
+  sections.Events = logPane;
+  dockPanes = sections; showDock();
+}
+
+// ---------- The dock: one tab per settings section, plus Events. Clicking the open tab folds it away. ----------
+const log = document.createElement("ul"); log.id = "log";
+const logPane = document.createElement("div"); logPane.append(log);
+let dockPanes = {}, dockTab = "Controls", dockOpen = !matchMedia("(pointer: coarse)").matches;
+function showDock() {
+  const tabs = document.getElementById("dock-tabs"), body = document.getElementById("dock-body");
+  tabs.replaceChildren(...Object.keys(dockPanes).map((name) => {
+    const b = document.createElement("button");
+    b.textContent = name; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", dockOpen && name === dockTab);
+    b.addEventListener("click", () => { dockOpen = !(dockOpen && name === dockTab); dockTab = name; showDock(); });
+    return b;
+  }));
+  body.replaceChildren(dockPanes[dockTab]); body.hidden = !dockOpen;
 }
 
 // ---------- Save and load the vehicle file ----------
@@ -843,18 +916,29 @@ showFile(); buildPanel();
 
 // ---------- Loop: fixed 60 Hz physics, draw every frame ----------
 const DT = 1 / 60;
-let last = performance.now(), acc = 0, resetHeld = false, playing = false;
+let last = performance.now(), acc = 0, resetHeld = false, playing = false, glide = 0;
 reset(); buildModel(); resize();
 const camBase = V(), camLook = V(); snapCamera();
+// Paused: orbit (left drag), pan (right drag), zoom (wheel) around the car. Play hands the view back to the
+// follow camera from wherever it is, so it glides into place.
+const orbit = new THREE.OrbitControls(camera, renderer.domElement);
+Object.assign(orbit, { enableDamping: true, dampingFactor: 0.12, minDistance: 2, maxDistance: 120, maxPolarAngle: Math.PI * 0.495 });
+camera.position.copy(camBase); orbit.target.copy(camLook); orbit.update();
 const playBtn = document.getElementById("play");
 function setPlaying(on) {
   playing = on; held.clear();
+  orbit.enabled = !on;
+  if (on) { camBase.copy(camera.position); camLook.copy(orbit.target); glide = 1; }
+  else orbit.target.copy(camLook);
   playBtn.classList.toggle("on", on);
   document.getElementById("play-text").textContent = on ? "Pause" : "Play";
   document.getElementById("play-icon").setAttribute("d", on ? "M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" : "M4 2.5v11l9-5.5z");
   stage.focus();
 }
-const resetPosition = () => { reset(); snapCamera(); emit("Reset"); };
+const resetPosition = () => {
+  reset(); snapCamera(); emit("Reset");
+  if (!playing) { camera.position.copy(camBase); orbit.target.copy(camLook); }
+};
 playBtn.addEventListener("click", () => setPlaying(!playing));
 document.getElementById("reset-pos").addEventListener("click", () => { resetPosition(); stage.focus(); });
 stage.addEventListener("pointerdown", (e) => { if (e.target === renderer.domElement) stage.focus(); });
@@ -872,7 +956,9 @@ function frame(now) {
     while (acc >= DT) { step(vehicle, control(raw, DT), DT); acc -= DT; }
     exhaust(dt);
   } else acc = 0;
-  draw(); follow(dt);
+  draw();
+  if (playing) follow(dt); else orbit.update();
+  sun.position.copy(car.pos).add(V(25, 30, 10)); sun.target.position.copy(car.pos);
   const hint = !playing ? "Paused. Press Play (or P) to drive; you can tune either way."
     : car.power === "Off" ? "Tap F twice: once for accessory power, again to start the engine."
     : car.power === "Accessory" ? "Tap F again to start the engine." : "";

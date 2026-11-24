@@ -53,6 +53,14 @@ translates one to one when the real tab is built (`docs/vehicles.md`).
 - Ground: flat around the track, rolling hills beyond, a kicker ramp on the track and an ice patch (grip by surface,
   `ground.grip`), warmer sunlight with shadows.
 
+**Turn 5: layout, orbit view, x-ray** (built 2026-11-24)
+- Top centre: Reset, Play / Pause and Power to the left of the readouts and tips. Bottom centre: a dock with one tab
+  per settings section (Controls, Speed, Handling, Body, Suspension, Feel, Camera) plus Events; clicking the open tab
+  folds it. Right: only the vehicle file and the model (assets).
+- Paused: orbit (left drag), pan (right drag), zoom (wheel) around the car; Play glides back into the follow camera.
+- X-ray (button or X): the body turns see-through and shows the collision box, the centre of mass and each wheel's
+  suspension ray (lime on the ground, grey in the air).
+
 **Follow-ups** (only if the 3 turns run out first):
 - A follow camera: chase with lag, looking into turns, wider at speed.
 - Simple terrain: rolling hills, a ramp, an ice patch, sunlight and shadows.
