@@ -65,6 +65,16 @@ impl MeshletMesh {
         mesh: &Mesh,
         vertex_position_quantization_factor: u8,
     ) -> Result<Self, MeshToMeshletMeshConversionError> {
+        Self::from_mesh_with_proxy(mesh, vertex_position_quantization_factor).map(|(meshlet, _)| meshlet)
+    }
+
+    /// Tessera: [`MeshletMesh::from_mesh`], also returning the coarsest level of detail as an ordinary
+    /// triangle-list [`Mesh`] (positions, normals and UVs): the meshlets that no simpler group was made from, which
+    /// together cover the whole mesh. A low-poly stand-in for ray tracing or far backdrops.
+    pub fn from_mesh_with_proxy(
+        mesh: &Mesh,
+        vertex_position_quantization_factor: u8,
+    ) -> Result<(Self, Mesh), MeshToMeshletMeshConversionError> {
         let s = debug_span!("build meshlet mesh");
         let _e = s.enter();
 
@@ -91,6 +101,8 @@ impl MeshletMesh {
         let mut all_groups = Vec::new();
         let mut simplification_queue: Vec<_> = (0..meshlets.len() as u32).collect();
         let mut stuck = Vec::new();
+        // Tessera: meshlets a simpler group was made from (the rest are the coarsest level)
+        let mut has_parent = Vec::new();
         while !simplification_queue.is_empty() {
             let s = debug_span!("simplify lod", meshlets = simplification_queue.len());
             let _e = s.enter();
@@ -167,6 +179,12 @@ impl MeshletMesh {
             for group in simplified {
                 match group {
                     Ok((group, (new_meshlets, new_cull_data))) => {
+                        for &id in group.meshlets.iter() {
+                            if has_parent.len() <= id as usize {
+                                has_parent.resize(id as usize + 1, false);
+                            }
+                            has_parent[id as usize] = true;
+                        }
                         let start = meshlets.len();
                         merge_meshlets(&mut meshlets, new_meshlets);
                         cull_data.extend(new_cull_data);
@@ -201,6 +219,9 @@ impl MeshletMesh {
             bvh.add_lod(first_group, &all_groups);
         }
 
+        // Tessera: before the BVH reorders the meshlets
+        let proxy = coarsest_level_mesh(&meshlets, &has_parent, &vertex_buffer, vertex_stride);
+
         let (bvh, aabb, depth) = bvh.build(&mut meshlets, all_groups, &mut cull_data);
 
         // Copy vertex attributes per meshlet and compress
@@ -223,7 +244,7 @@ impl MeshletMesh {
         }
         vertex_positions.set_uninitialized(false);
 
-        Ok(Self {
+        Ok((Self {
             vertex_positions: vertex_positions.into_vec().into(),
             vertex_normals: vertex_normals.into(),
             vertex_uvs: vertex_uvs.into(),
@@ -239,8 +260,43 @@ impl MeshletMesh {
                 .collect(),
             aabb,
             bvh_depth: depth,
-        })
+        }, proxy))
     }
+}
+
+/// Tessera: the meshlets without a parent as one ordinary mesh, its vertices taken from the packed vertex buffer
+/// of the validated input (position, normal, UV: 12 + 12 + 8 bytes).
+fn coarsest_level_mesh(
+    meshlets: &Meshlets,
+    has_parent: &[bool],
+    vertex_buffer: &[u8],
+    vertex_stride: usize,
+) -> Mesh {
+    let mut remap: HashMap<u32, u32> = HashMap::default();
+    let (mut positions, mut normals, mut uvs, mut indices) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let read = |v: u32, offset: usize, n: usize| -> Vec<f32> {
+        let at = v as usize * vertex_stride + offset;
+        bytemuck::pod_collect_to_vec(&vertex_buffer[at..at + n * 4])
+    };
+    for i in (0..meshlets.len()).filter(|&i| !has_parent.get(i).copied().unwrap_or(false)) {
+        let meshlet = meshlets.get(i);
+        for &local in meshlet.triangles {
+            let v = meshlet.vertices[local as usize];
+            let index = *remap.entry(v).or_insert_with(|| {
+                let (p, n, uv) = (read(v, 0, 3), read(v, 12, 3), read(v, 24, 2));
+                positions.push([p[0], p[1], p[2]]);
+                normals.push([n[0], n[1], n[2]]);
+                uvs.push([uv[0], uv[1]]);
+                positions.len() as u32 - 1
+            });
+            indices.push(index);
+        }
+    }
+    Mesh::new(PrimitiveTopology::TriangleList, bevy_asset::RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_indices(Indices::U32(indices))
 }
 
 fn validate_input_mesh(mesh: &Mesh) -> Result<Cow<'_, [u32]>, MeshToMeshletMeshConversionError> {

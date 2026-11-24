@@ -12,6 +12,8 @@ bevy_asset = { version = "=0.20.1", default-features = false }
 bevy_mesh = { version = "=0.20.1", default-features = false }
 # the fork of Bevy's meshlet renderer (crates/bevy_pbr): MeshletMesh and its builder
 bevy_pbr = { version = "=0.20.1", default-features = false, features = ["meshlet_processor"] }
+# the baked bytes (the version Bevy uses)
+bytemuck = "1"
 # a bake outside an app needs Bevy's task pools
 bevy_tasks = { version = "=0.20.1" }
 

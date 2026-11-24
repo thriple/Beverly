@@ -1,6 +1,6 @@
 //! Tessera's bake check: bakes the test mesh (`tessera::test_mesh`, 1,310,720 triangles) with `tessera::bake`, saves
-//! it in a plain temp folder under its cache key (`beverly::bake::key`), reads it back, and prints the time, the
-//! bytes and the bytes per triangle. `vg-bake [LEVELS]` (default 8).
+//! it in a plain temp folder under its cache key (`beverly::bake::key`), reads it and its proxy back, and prints the
+//! time, the bytes, the bytes per triangle and the proxy's triangles. `vg-bake [LEVELS]` (default 8).
 use std::time::Instant;
 use tessera::bake::{self, BakeSettings, KIND};
 
@@ -31,16 +31,24 @@ fn main() -> std::process::ExitCode {
     }
 
     let start = Instant::now();
-    let loaded = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|b| bake::load(&b).map_err(|e| e.to_string()));
+    let loaded = std::fs::read(&path).map_err(|e| e.to_string()).and_then(|b| {
+        let meshlet = bake::load(&b).map_err(|e| e.to_string())?;
+        let proxy = bake::proxy_mesh(&b).map_err(|e| e.to_string())?;
+        Ok((meshlet, proxy))
+    });
     let read = start.elapsed();
-    if let Err(e) = loaded {
-        eprintln!("reading {} back failed: {e}", path.display());
-        return std::process::ExitCode::FAILURE;
-    }
+    let proxy_triangles = match loaded {
+        Ok((_, proxy)) => proxy.indices().map_or(0, |i| i.len() / 3),
+        Err(e) => {
+            eprintln!("reading {} back failed: {e}", path.display());
+            return std::process::ExitCode::FAILURE;
+        }
+    };
 
     println!("test mesh: {triangles} triangles");
     println!("baked in {baked:.2?}, read back in {read:.2?}");
     println!("{} bytes, {:.1} bytes per triangle", bytes.len(), bytes.len() as f64 / triangles as f64);
+    println!("proxy (coarsest level): {proxy_triangles} triangles");
     println!("saved {}", path.display());
     std::process::ExitCode::SUCCESS
 }

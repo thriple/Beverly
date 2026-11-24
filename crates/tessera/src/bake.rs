@@ -2,6 +2,10 @@
 //!
 //! The cache is the editor's (`editor/src/bake.rs`, `Bakes`): this module names the bake's [`KIND`] and the
 //! [`key_parts`] it depends on, and turns meshes into bytes; the editor stores them.
+//!
+//! The bytes: `TSRA`, [`FORMAT_VERSION`] (u32), then Bevy's `.meshlet_mesh` bytes (u64 length first), then the
+//! proxy mesh ([`proxy_mesh`]): vertex count (u64), positions, normals and UVs as f32s, index count (u64) and u32
+//! indices. Little-endian, as Bevy's format is.
 use bevy_asset::RenderAssetUsages;
 use bevy_mesh::{Indices, Mesh, PrimitiveTopology, VertexAttributeValues};
 use bevy_pbr::experimental::meshlet::{
@@ -14,8 +18,11 @@ use std::collections::HashMap;
 /// The bake cache's kind for these bakes.
 pub const KIND: &str = "meshlet";
 
-/// What this module does to a mesh before Bevy's builder; bumped when that changes, so old bakes are made again.
-pub const PREPARE_VERSION: u32 = 1;
+/// The version of these bytes and of what this module does to a mesh before Bevy's builder; bumped when either
+/// changes, so old bakes are made again.
+pub const FORMAT_VERSION: u32 = 2;
+
+const MAGIC: &[u8; 4] = b"TSRA";
 
 /// How a mesh is baked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,8 +47,10 @@ pub enum BakeError {
     NoPositions,
     /// Bevy's builder refused the prepared mesh.
     Build(MeshToMeshletMeshConversionError),
-    /// Writing or reading the bytes failed, or they are of another format version.
+    /// Writing or reading Bevy's part of the bytes failed, or it is of another version.
     Bytes(MeshletMeshSaveOrLoadError),
+    /// The bytes aren't a bake, are cut short, or are of another [`FORMAT_VERSION`] (the number found).
+    Format(Option<u32>),
 }
 
 impl std::fmt::Display for BakeError {
@@ -51,6 +60,8 @@ impl std::fmt::Display for BakeError {
             Self::NoPositions => write!(f, "the mesh has no positions"),
             Self::Build(e) => write!(f, "{e}"),
             Self::Bytes(e) => write!(f, "{e}"),
+            Self::Format(Some(found)) => write!(f, "a bake of format {found}, not {FORMAT_VERSION}"),
+            Self::Format(None) => write!(f, "not a bake, or cut short"),
         }
     }
 }
@@ -59,30 +70,88 @@ impl std::error::Error for BakeError {}
 
 /// What a bake depends on besides its kind, in order, for the cache key (`bake::key(KIND, parts)` in the editor):
 /// the source bytes (e.g. the model file), the settings, and the format version (Bevy's asset version and
-/// [`PREPARE_VERSION`]).
+/// [`FORMAT_VERSION`]).
 pub fn key_parts(source: &[u8], settings: &BakeSettings) -> [Vec<u8>; 3] {
-    let version = [MESHLET_MESH_ASSET_VERSION.to_le_bytes().as_slice(), &PREPARE_VERSION.to_le_bytes()].concat();
+    let version = [MESHLET_MESH_ASSET_VERSION.to_le_bytes().as_slice(), &FORMAT_VERSION.to_le_bytes()].concat();
     [source.to_vec(), vec![settings.position_quantization], version]
 }
 
-/// Bakes a mesh into the bytes the cache keeps.
+/// Bakes a mesh into the bytes the cache keeps (the `MeshletMesh` and its proxy).
 pub fn bake(mesh: &Mesh, settings: &BakeSettings) -> Result<Vec<u8>, BakeError> {
-    let meshlet = bake_mesh(mesh, settings)?;
-    let mut bytes = Vec::new();
-    meshlet.write(&mut bytes).map_err(BakeError::Bytes)?;
+    let (meshlet, proxy) = bake_mesh(mesh, settings)?;
+    let mut meshlet_bytes = Vec::new();
+    meshlet.write(&mut meshlet_bytes).map_err(BakeError::Bytes)?;
+
+    let mut bytes = Vec::with_capacity(meshlet_bytes.len() + 64);
+    bytes.extend_from_slice(MAGIC);
+    bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+    bytes.extend_from_slice(&(meshlet_bytes.len() as u64).to_le_bytes());
+    bytes.extend_from_slice(&meshlet_bytes);
+    let float3 = |id| proxy.attribute(id).and_then(|a: &VertexAttributeValues| a.as_float3()).unwrap_or(&[]);
+    let positions = float3(Mesh::ATTRIBUTE_POSITION);
+    let uvs = match proxy.attribute(Mesh::ATTRIBUTE_UV_0) {
+        Some(VertexAttributeValues::Float32x2(uvs)) => uvs.as_slice(),
+        _ => &[],
+    };
+    let indices: Vec<u32> = proxy.indices().map_or(vec![], |i| i.iter().map(|i| i as u32).collect());
+    bytes.extend_from_slice(&(positions.len() as u64).to_le_bytes());
+    bytes.extend_from_slice(bytemuck::cast_slice(positions));
+    bytes.extend_from_slice(bytemuck::cast_slice(float3(Mesh::ATTRIBUTE_NORMAL)));
+    bytes.extend_from_slice(bytemuck::cast_slice(uvs));
+    bytes.extend_from_slice(&(indices.len() as u64).to_le_bytes());
+    bytes.extend_from_slice(bytemuck::cast_slice(&indices));
     Ok(bytes)
 }
 
-/// Bakes a mesh into a `MeshletMesh`.
-pub fn bake_mesh(mesh: &Mesh, settings: &BakeSettings) -> Result<MeshletMesh, BakeError> {
+/// Bakes a mesh into a `MeshletMesh` and its proxy (see [`proxy_mesh`]).
+pub fn bake_mesh(mesh: &Mesh, settings: &BakeSettings) -> Result<(MeshletMesh, Mesh), BakeError> {
     // Bevy's builder runs on its task pools, which only exist inside an app
     AsyncComputeTaskPool::get_or_init(TaskPool::default);
-    MeshletMesh::from_mesh(&prepare(mesh)?, settings.position_quantization).map_err(BakeError::Build)
+    MeshletMesh::from_mesh_with_proxy(&prepare(mesh)?, settings.position_quantization).map_err(BakeError::Build)
 }
 
-/// Reads baked bytes back; bytes of another format version are an error (bake again).
+/// Reads the `MeshletMesh` back from baked bytes; bytes of another format version are an error (bake again).
 pub fn load(bytes: &[u8]) -> Result<MeshletMesh, BakeError> {
-    MeshletMesh::read(&mut &bytes[..]).map_err(BakeError::Bytes)
+    let (meshlet_bytes, _) = split(bytes)?;
+    MeshletMesh::read(&mut &meshlet_bytes[..]).map_err(BakeError::Bytes)
+}
+
+/// Reads the proxy back from baked bytes: the coarsest level of the cluster hierarchy as an ordinary triangle mesh
+/// (positions, normals, UVs; indexed), covering the whole model with few triangles. For ray tracing against a
+/// stand-in (`realtime-gi`) and far, low-poly backdrops (`backdrops`).
+pub fn proxy_mesh(bytes: &[u8]) -> Result<Mesh, BakeError> {
+    let (_, mut rest) = split(bytes)?;
+    let mut take = |n: usize| -> Result<&[u8], BakeError> {
+        let (head, tail) = rest.split_at_checked(n).ok_or(BakeError::Format(None))?;
+        rest = tail;
+        Ok(head)
+    };
+    let count = |b: &[u8]| u64::from_le_bytes(b.try_into().unwrap()) as usize;
+    let vertices = count(take(8)?);
+    let positions: Vec<[f32; 3]> = bytemuck::pod_collect_to_vec(take(vertices * 12)?);
+    let normals: Vec<[f32; 3]> = bytemuck::pod_collect_to_vec(take(vertices * 12)?);
+    let uvs: Vec<[f32; 2]> = bytemuck::pod_collect_to_vec(take(vertices * 8)?);
+    let index_count = count(take(8)?);
+    let indices: Vec<u32> = bytemuck::pod_collect_to_vec(take(index_count * 4)?);
+    Ok(Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+        .with_inserted_indices(Indices::U32(indices)))
+}
+
+/// Checks the header and splits baked bytes into Bevy's `.meshlet_mesh` bytes and the proxy's.
+fn split(bytes: &[u8]) -> Result<(&[u8], &[u8]), BakeError> {
+    let header = bytes.get(..16).ok_or(BakeError::Format(None))?;
+    if &header[..4] != MAGIC {
+        return Err(BakeError::Format(None));
+    }
+    let version = u32::from_le_bytes(header[4..8].try_into().unwrap());
+    if version != FORMAT_VERSION {
+        return Err(BakeError::Format(Some(version)));
+    }
+    let length = u64::from_le_bytes(header[8..16].try_into().unwrap()) as usize;
+    bytes[16..].split_at_checked(length).ok_or(BakeError::Format(None))
 }
 
 /// The mesh as Bevy's builder takes it: exactly positions, normals and UVs, indexed, with identical vertices welded.
@@ -158,17 +227,42 @@ mod tests {
     #[test]
     fn save_load_round_trip() {
         let bytes = bake(&test_mesh(3, 2), &BakeSettings::default()).unwrap();
+        let (meshlet_bytes, _) = split(&bytes).unwrap();
         let mut again = Vec::new();
         load(&bytes).unwrap().write(&mut again).unwrap();
-        assert_eq!(bytes, again);
+        assert_eq!(meshlet_bytes, again.as_slice());
     }
 
     #[test]
     fn wrong_version_is_rejected() {
-        let mut bytes = bake(&test_mesh(3, 2), &BakeSettings::default()).unwrap();
-        // the version follows the 8-byte magic number
-        bytes[8..16].copy_from_slice(&(MESHLET_MESH_ASSET_VERSION + 1).to_le_bytes());
-        assert!(matches!(load(&bytes), Err(BakeError::Bytes(MeshletMeshSaveOrLoadError::WrongVersion { .. }))));
+        let bytes = bake(&test_mesh(3, 2), &BakeSettings::default()).unwrap();
+        // ours: after the 4-byte magic
+        let mut ours = bytes.clone();
+        ours[4..8].copy_from_slice(&(FORMAT_VERSION + 1).to_le_bytes());
+        assert!(matches!(load(&ours), Err(BakeError::Format(Some(_)))));
+        assert!(matches!(proxy_mesh(&ours), Err(BakeError::Format(Some(_)))));
+        // Bevy's: after its own 8-byte magic, inside ours (16 bytes of header)
+        let mut bevys = bytes.clone();
+        bevys[24..32].copy_from_slice(&(MESHLET_MESH_ASSET_VERSION + 1).to_le_bytes());
+        assert!(matches!(load(&bevys), Err(BakeError::Bytes(MeshletMeshSaveOrLoadError::WrongVersion { .. }))));
+        // cut short
+        assert!(matches!(proxy_mesh(&bytes[..bytes.len() - 1]), Err(BakeError::Format(None))));
+    }
+
+    #[test]
+    fn proxy_is_coarse_and_covers_the_mesh() {
+        let mesh = test_mesh(6, 4);
+        let source_triangles = mesh.indices().unwrap().len() / 3;
+        let proxy = proxy_mesh(&bake(&mesh, &BakeSettings::default()).unwrap()).unwrap();
+        let triangles = proxy.indices().unwrap().len() / 3;
+        assert!(triangles > 0 && triangles * 10 < source_triangles, "{triangles} of {source_triangles}");
+        // about the same size: the proxy's furthest point from the centre is near the source's
+        let radius = |m: &Mesh| {
+            let p = m.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap();
+            p.iter().map(|p| (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt()).fold(0.0f32, f32::max)
+        };
+        assert!((radius(&proxy) / radius(&mesh) - 1.0).abs() < 0.1);
+        assert_eq!(proxy.attributes().count(), 3);
     }
 
     #[test]
