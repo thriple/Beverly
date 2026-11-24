@@ -13,6 +13,11 @@ translates one to one when the real tab is built (`docs/vehicles.md`).
   60 Hz step. Its own small code, no physics library.
 - Keys: W, A, S, D, Space (handbrake), R (reset).
 - A plain camera behind the car.
+- **Prism models** (user, 2026-11-24): *Load Prism model* takes a GLB from Prism (`docs/prism-glb.md`). Groups whose
+  name, role or tag has the word *wheel* (or tyre, tire) become the wheels; a *Wheels* group holding several is opened
+  up. Axles, track, wheel size, ride height and body size come from the model; the front axle steers, the back one
+  drives. Collider, node, editor and lod pieces are hidden. The front is -Z as in Beverly, with *Turn around* to flip it.
+  Later turns read more words the same way (lights, exhausts, seats).
 
 **Turn 2: tune it**
 - The panel is drawn from a settings table with word sliders: Top speed, Pickup, Grip, Weight, Stiffness, Damping,

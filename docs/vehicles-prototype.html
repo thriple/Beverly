@@ -1,0 +1,506 @@
+<title>Vehicle Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap">
+<style>
+/* Layout: the 3D stage fills the window, a Beverly glass panel on the right (below it on phones).
+   Colours are Beverly's own tokens (docs/ui/tokens), Vehicles tab: lime frame, violet accent. */
+:root {
+  --ink: #0E0E10; --glass: rgba(18,18,21,0.86); --field: #1F1F23; --line: #2E2E33;
+  --text: #F3F3F1; --text-2: #B0B0B6; --text-3: #8E8E95;
+  --frame: #C6FF1A; --accent: #B34DFF; --warn: #FF5A4E;
+  --sans: "Roboto", system-ui, sans-serif; --mono: "Roboto Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--text); font-family: var(--sans); overflow: hidden; }
+#app { height: 100%; display: grid; grid-template-columns: 1fr 300px; }
+#stage { position: relative; min-width: 0; outline: none; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+#tab { position: absolute; top: 12px; left: 12px; background: var(--frame); color: var(--ink);
+  font: 700 12px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 7px 10px; border-radius: 8px; }
+#panel { background: var(--glass); border-left: 1px solid var(--line); overflow-y: auto;
+  padding-block: 16px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; gap: 18px; }
+h1 { margin: 0; font-size: 16px; font-weight: 700; }
+h2 { margin: 0 0 8px; font-size: 11px; font-weight: 500; color: var(--text-3); letter-spacing: .08em; text-transform: uppercase; }
+.speed { display: flex; align-items: baseline; gap: 6px; }
+.speed b { font: 500 44px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.speed span { color: var(--text-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font-size: 12px; padding: 4px 8px; border-radius: 999px; background: var(--field); color: var(--text-3); }
+.chip.on { background: var(--accent); color: var(--text); }
+.chip.on.warn { background: var(--warn); }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
+dt { color: var(--text-2); }
+dd { margin: 0; text-align: right; }
+kbd { font: 500 11px var(--mono); background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+#log { margin: 0; padding: 0; list-style: none; font: 12px/1.6 var(--mono); color: var(--text-2); min-height: 6em; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font: 500 13px var(--sans); color: var(--ink); background: var(--frame); border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+#turn { background: var(--field); color: var(--text); }
+.note { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-3); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
+pre { font: 11px/1.45 var(--mono); color: var(--text-2); background: var(--field); border-radius: 8px; padding: 10px; overflow-x: auto; }
+#pad { position: absolute; inset: auto 0 0 0; display: none; justify-content: space-between; gap: 8px;
+  padding: 12px max(12px, env(safe-area-inset-left, 0px)) 12px max(12px, env(safe-area-inset-right, 0px)); }
+#pad div { display: flex; gap: 8px; }
+#pad button { width: 58px; height: 58px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass);
+  color: var(--text); font: 500 13px var(--sans); touch-action: none; user-select: none; -webkit-user-select: none; }
+#pad button:active { background: var(--accent); }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) { #pad { display: flex; } }
+@media (max-width: 720px) {
+  #app { grid-template-columns: 1fr; grid-template-rows: 1fr 38%; }
+  #panel { border-left: 0; border-top: 1px solid var(--line); }
+}
+</style>
+
+<div id="app">
+  <div id="stage" tabindex="0" aria-label="Driving view">
+    <div id="tab">Vehicles</div>
+    <div id="pad">
+      <div><button data-act="SteerLeft">Left</button><button data-act="SteerRight">Right</button></div>
+      <div><button data-act="Handbrake">Hand</button><button data-act="Brake">Brake</button><button data-act="Throttle">Gas</button></div>
+    </div>
+  </div>
+  <aside id="panel">
+    <div>
+      <h1 id="name">Runabout</h1>
+      <div class="speed"><b id="kmh">0</b><span>km/h</span></div>
+      <div class="chips">
+        <span class="chip" id="c-brake">Braking</span>
+        <span class="chip" id="c-rev">Reversing</span>
+        <span class="chip warn" id="c-hand">Handbrake</span>
+        <span class="chip" id="c-air">In the air</span>
+      </div>
+    </div>
+    <div>
+      <h2>Model</h2>
+      <div class="row">
+        <label class="btn" for="glb">Load Prism model</label>
+        <input id="glb" type="file" accept=".glb" hidden>
+        <button id="turn" class="btn" hidden>Turn around</button>
+      </div>
+      <p id="model-note" class="note">A box stand-in. Load a GLB from Prism: groups with "wheel" in their name, role or tag become the wheels.</p>
+    </div>
+    <div>
+      <h2>Keys</h2>
+      <dl>
+        <dt>Throttle</dt><dd><kbd>W</kbd> <kbd>↑</kbd></dd>
+        <dt>Brake, then reverse</dt><dd><kbd>S</kbd> <kbd>↓</kbd></dd>
+        <dt>Steer</dt><dd><kbd>A</kbd> <kbd>D</kbd></dd>
+        <dt>Handbrake</dt><dd><kbd>Space</kbd></dd>
+        <dt>Reset</dt><dd><kbd>R</kbd></dd>
+      </dl>
+    </div>
+    <div>
+      <h2>Events</h2>
+      <ul id="log"></ul>
+    </div>
+    <details>
+      <summary>Vehicle file</summary>
+      <pre id="file"></pre>
+    </details>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+// Wiring that carries over to Beverly (docs/vehicles-prototype.md):
+//   vehicle        -> vehicles/NAME.bev (same field names, snake_case)
+//   ACTIONS        -> input-map (named actions with bindings)
+//   effective()    -> the one step that turns settings (and later parts and upgrades) into numbers
+//   step()         -> a FixedUpdate system applying forces, 60 Hz
+//   emit()/on()    -> Bevy events; the panel, lights, puffs and rumble listen, never drive.
+// Units: metres, kilograms, seconds. Y up, forward is -Z (as in Bevy).
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+
+// ---------- The vehicle (the file) ----------
+const vehicle = {
+  format: 1, name: "Runabout", kind: "Ground",
+  body: { weight: 1200, size: [1.8, 0.7, 4.0], centre_of_mass: [0, -0.15, 0], drag: 0.42, paint: "#C6FF1A" },
+  drive: {
+    moves_on: "Wheels",
+    wheel_radius: 0.36,
+    axles: [
+      { at: -1.35, track: 1.6, steers: "Yes", driven: false },
+      { at: 1.3, track: 1.6, steers: "No", driven: true },
+    ],
+    top_speed: 34,      // m/s
+    pickup: 0.55,       // 0 gentle .. 1 instant
+    grip: 1.15,         // tyre friction
+    steering: 34,       // degrees at standstill
+    less_steering_at_speed: true,
+    ride_height: 0.32,  // m, body bottom to ground at rest
+    stiffness: 0.5,     // 0 soft .. 1 firm
+    damping: 0.5,       // 0 bouncy .. 1 stiff
+    brakes: 1.0,
+    reverse_speed: 8,   // m/s
+  },
+};
+
+// ---------- Named actions (input-map) ----------
+const ACTIONS = {
+  Throttle: ["KeyW", "ArrowUp"], Brake: ["KeyS", "ArrowDown"],
+  SteerLeft: ["KeyA", "ArrowLeft"], SteerRight: ["KeyD", "ArrowRight"],
+  Handbrake: ["Space"], Reset: ["KeyR"],
+};
+const held = new Set();
+const bound = new Set(Object.values(ACTIONS).flat());
+const down = (a) => ACTIONS[a].some((k) => held.has(k)) || held.has("Pad." + a);
+addEventListener("keydown", (e) => { if (bound.has(e.code)) { e.preventDefault(); held.add(e.code); } });
+addEventListener("keyup", (e) => held.delete(e.code));
+addEventListener("blur", () => held.clear());
+document.querySelectorAll("#pad button").forEach((b) => {
+  const k = "Pad." + b.dataset.act;
+  b.addEventListener("pointerdown", (e) => { e.preventDefault(); held.add(k); });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => held.delete(k));
+});
+
+// ---------- Events ----------
+const listeners = {};
+const on = (name, fn) => (listeners[name] ||= []).push(fn);
+const emit = (name, data) => (listeners[name] || []).forEach((fn) => fn(data));
+
+// ---------- effective(): settings to physics numbers ----------
+const G = 9.81;
+function effective(v) {
+  const d = v.drive, b = v.body;
+  const mass = b.weight, [w, h, l] = b.size;
+  const wheels = d.axles.length * 2;
+  const share = mass / wheels;                                 // mass each spring carries
+  const freq = 1.1 + d.stiffness * 1.4;                        // Hz: soft 1.1 .. firm 2.5
+  const k = share * (2 * Math.PI * freq) ** 2;
+  const c = (0.15 + d.damping * 0.75) * 2 * Math.sqrt(k * share);
+  const sag = share * G / k;                                   // how far it settles under its weight
+  return {
+    mass, size: b.size, com: V(...b.centre_of_mass), drag: b.drag,
+    inertia: V(mass / 12 * (h * h + l * l), mass / 12 * (w * w + l * l), mass / 12 * (w * w + h * h)),
+    k, c, share, radius: d.wheel_radius,
+    reach: d.ride_height + sag,                                // spring fully out, attach point to tyre bottom
+    grip: d.grip, steer: d.steering * Math.PI / 180, lessAtSpeed: d.less_steering_at_speed,
+    top: d.top_speed, reverse: d.reverse_speed,
+    push: mass * (3 + d.pickup * 9),                           // N of drive at standstill
+    brake: mass * 9 * d.brakes,
+    wheels: d.axles.flatMap((a) => [-1, 1].map((s) => ({
+      at: V(s * a.track / 2, -h / 2, a.at), steers: a.steers, driven: a.driven, rear: a.at > 0,
+    }))),
+  };
+}
+
+// ---------- Ground (swap for terrain later) ----------
+const ground = { height: () => 0, normal: V(0, 1, 0) };
+
+// ---------- The car's state (what play would sync) ----------
+const car = {
+  pos: V(), vel: V(), rot: new THREE.Quaternion(), spin: V(),
+  steer: 0, wheels: [], braking: false, reversing: false, handbrake: false, air: false,
+};
+function reset() {
+  const e = effective(vehicle);
+  car.pos.set(52, e.size[1] / 2 + vehicle.drive.ride_height + 0.05, 6);
+  car.vel.set(0, 0, 0); car.spin.set(0, 0, 0); car.rot.identity(); car.steer = 0;
+  car.wheels = e.wheels.map(() => ({ out: e.reach, roll: 0, contact: false }));
+}
+
+// ---------- step(): one fixed 60 Hz tick ----------
+const curve = (slip) => Math.sin(1.5 * Math.atan(7 * slip));   // rises to a peak, eases into a slide
+const tmp = { q: new THREE.Quaternion() };
+function step(v, input, dt) {
+  const e = effective(v);
+  const up = V(0, 1, 0).applyQuaternion(car.rot);
+  const fwd = V(0, 0, -1).applyQuaternion(car.rot);
+  const comW = e.com.clone().applyQuaternion(car.rot).add(car.pos);
+  const speed = car.vel.dot(fwd);
+
+  // Arcade throttle: S brakes while rolling forward, then reverses; W brakes while rolling back.
+  let throttle = 0, brake = 0;
+  if (input.throttle) speed < -0.5 ? (brake = 1) : (throttle = 1);
+  if (input.brake) speed > 0.5 ? (brake = 1) : (throttle = -1);
+  const idle = !input.throttle && !input.brake;
+
+  const lean = e.lessAtSpeed ? 1 / (1 + Math.abs(speed) / 14) : 1;
+  car.steer += ((input.steer || 0) * e.steer * lean - car.steer) * Math.min(1, dt * 10);
+
+  const force = V(0, -G * e.mass, 0), torque = V();
+  const add = (f, at) => { force.add(f); torque.add(at.clone().sub(comW).cross(f)); };
+  const driven = e.wheels.filter((w) => w.driven).length;
+  let contacts = 0;
+
+  e.wheels.forEach((w, i) => {
+    const st = car.wheels[i];
+    const at = w.at.clone().applyQuaternion(car.rot).add(car.pos);
+    const n = ground.normal, gy = ground.height(at.x, at.z);
+    const facing = up.dot(n);                                  // how squarely the downward ray meets the ground
+    const dist = facing > 0.3 ? (at.y - gy) / facing : Infinity;
+    if (dist > e.reach) { st.out = e.reach; st.contact = false; return; }
+    st.out = Math.max(dist, 0.05); st.contact = true; contacts++;
+
+    const r = at.clone().sub(comW);
+    const pv = car.vel.clone().add(car.spin.clone().cross(r));
+    const squeeze = e.reach - dist;
+    const load = Math.max(0, e.k * squeeze - e.c * pv.dot(up) + (squeeze > e.reach * 0.8 ? 4 * e.k * (squeeze - e.reach * 0.8) : 0));
+    add(up.clone().multiplyScalar(load), at);
+
+    const steerAngle = w.steers === "Yes" ? car.steer : w.steers === "Opposite" ? -car.steer : 0;
+    tmp.q.setFromAxisAngle(up, steerAngle);
+    const wf = fwd.clone().applyQuaternion(tmp.q).projectOnPlane(n).normalize();
+    const ws = wf.clone().cross(n);
+    const vl = pv.dot(wf), vs = pv.dot(ws);
+    const locked = input.handbrake && w.rear;
+    const grip = e.grip * (locked ? 0.45 : 1);
+    const stop = e.share / dt;                                 // force that stops this corner in one tick
+
+    let side = -grip * load * curve(Math.atan2(vs, Math.max(Math.abs(vl), 1.5)));
+    side = Math.sign(side) * Math.min(Math.abs(side), stop * Math.abs(vs));
+
+    let along = 0;
+    if (w.driven && throttle > 0) along += e.push / driven * Math.max(0, 1 - (speed / e.top) ** 2);
+    if (w.driven && throttle < 0) along -= e.push / driven * 0.6 * Math.max(0, 1 - (-speed / e.reverse) ** 2);
+    const stopping = brake ? e.brake / 4 : locked ? e.brake / 2 : idle && Math.abs(vl) < 0.6 ? e.brake / 8 : 0;
+    along -= Math.sign(vl) * Math.min(stopping, stop * Math.abs(vl));
+    along -= vl * 12;                                           // rolling resistance
+
+    const most = grip * load * 1.05, total = Math.hypot(side, along);
+    if (total > most) { side *= most / total; along *= most / total; }
+    add(wf.clone().multiplyScalar(along).add(ws.clone().multiplyScalar(side)), at);
+    if (!locked) st.roll += vl / e.radius * dt;
+  });
+
+  // Body corners keep it from sinking into the ground when it rolls over.
+  const [bw, bh, bl] = e.size;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+    const p = V(sx * bw / 2, sy * bh / 2, sz * bl / 2).applyQuaternion(car.rot).add(car.pos);
+    const deep = ground.height(p.x, p.z) - p.y;
+    if (deep <= 0) continue;
+    const pv = car.vel.clone().add(car.spin.clone().cross(p.clone().sub(comW)));
+    const f = V(-pv.x * e.mass * 0.6, Math.max(0, deep * e.mass * 400 - pv.y * e.mass * 8), -pv.z * e.mass * 0.6);
+    add(f.multiplyScalar(1 / 8), p);
+  }
+
+  force.add(car.vel.clone().multiplyScalar(-e.drag * car.vel.length()));
+
+  // Integrate (semi-implicit Euler).
+  car.vel.addScaledVector(force, dt / e.mass);
+  const inv = car.rot.clone().invert();
+  const tl = torque.applyQuaternion(inv);
+  car.spin.add(V(tl.x / e.inertia.x, tl.y / e.inertia.y, tl.z / e.inertia.z).applyQuaternion(car.rot).multiplyScalar(dt));
+  car.spin.multiplyScalar(1 - 0.5 * dt);
+  car.pos.addScaledVector(car.vel, dt);
+  const a = car.spin.length();
+  if (a > 1e-6) car.rot.premultiply(tmp.q.setFromAxisAngle(car.spin.clone().divideScalar(a), a * dt)).normalize();
+
+  // Events: state changes only.
+  const flag = (key, now, name) => { if (car[key] !== now) { car[key] = now; emit(name, now); } };
+  flag("braking", brake > 0 && Math.abs(speed) > 0.5, "Braking");
+  flag("reversing", throttle < 0 && speed < -0.3, "Reversing");
+  flag("handbrake", input.handbrake, "Handbrake");
+  flag("air", contacts === 0, "Airborne");
+}
+
+// ---------- The stage ----------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#16161a");
+scene.fog = new THREE.Fog("#16161a", 90, 260);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 600);
+scene.add(new THREE.HemisphereLight("#d8dcff", "#2a2a30", 0.7));
+const sun = new THREE.DirectionalLight("#ffffff", 0.9);
+sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12 });
+scene.add(sun, sun.target);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: "#23232a", roughness: 1 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const grid = new THREE.GridHelper(800, 160, "#3a3a42", "#2c2c33"); grid.position.y = 0.01; scene.add(grid);
+const track = new THREE.Mesh(new THREE.RingGeometry(46, 58, 96), new THREE.MeshStandardMaterial({ color: "#34343c", roughness: 0.9 }));
+track.rotation.x = -Math.PI / 2; track.position.y = 0.02; track.receiveShadow = true; scene.add(track);
+const line = new THREE.Mesh(new THREE.PlaneGeometry(12, 0.6), new THREE.MeshBasicMaterial({ color: "#F3F3F1" }));
+line.rotation.x = -Math.PI / 2; line.position.set(52, 0.03, 0); scene.add(line);
+for (let i = 0; i < 24; i++) {                                 // cones to read speed by (no collision yet)
+  const a = i / 24 * Math.PI * 2, r = i % 2 ? 44 : 60;
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 12), new THREE.MeshStandardMaterial({ color: "#B34DFF" }));
+  cone.position.set(Math.cos(a) * r, 0.4, Math.sin(a) * r); cone.castShadow = true; scene.add(cone);
+}
+
+const model = new THREE.Group(); scene.add(model);
+const wheelMeshes = [];
+function buildModel() {
+  model.clear(); wheelMeshes.length = 0;
+  const e = effective(vehicle), [w, h, l] = e.size;
+  const paint = new THREE.MeshStandardMaterial({ color: vehicle.body.paint, roughness: 0.45, metalness: 0.1 });
+  const dark = new THREE.MeshStandardMaterial({ color: "#1A1A1E", roughness: 0.6 });
+  if (prism) model.add(prism.holder);
+  else {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), paint);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(w * 0.82, h * 0.8, l * 0.45), dark);
+    cabin.position.set(0, h * 0.9, l * 0.06);
+    for (const m of [body, cabin]) { m.castShadow = true; model.add(m); }
+  }
+  const tyre = new THREE.CylinderGeometry(e.radius, e.radius, 0.26, 20).rotateZ(Math.PI / 2);
+  const rubber = new THREE.MeshStandardMaterial({ color: "#0E0E10", roughness: 0.9 });
+  const hub = new THREE.MeshStandardMaterial({ color: "#8E8E95", metalness: 0.6, roughness: 0.4 });
+  const free = prism ? [...prism.wheels] : [];
+  for (const wd of e.wheels) {
+    const pivot = new THREE.Group(), spinner = new THREE.Group();
+    if (free.length) {                                          // the model's own wheel nearest this spot
+      free.sort((a, b) => a.at.distanceToSquared(wd.at) - b.at.distanceToSquared(wd.at));
+      spinner.add(free.shift().obj);
+    } else if (!prism || !prism.wheels.length) {
+      const t = new THREE.Mesh(tyre, rubber); t.castShadow = true;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.28, e.radius * 1.5, 0.12), hub);
+      spinner.add(t, spoke);
+    }
+    pivot.add(spinner); model.add(pivot);
+    wheelMeshes.push({ pivot, spinner, wd });
+  }
+}
+
+// ---------- Prism model (GLB, docs/prism-glb.md) ----------
+// Words come from names (split at space _ - .), Prism roles and Prism tags. A group with the word "wheel"
+// (or tyre / tire) is a wheel; a "Wheels" group holding several is opened up. Collider, node, editor and lod
+// pieces are hidden. The model's front is -Z, as in Beverly; "Turn around" flips it.
+let prism = null, prismSource = null;
+const wordsOf = (o) => {
+  const p = (o.userData && o.userData.prism) || {};
+  const split = (s) => s.toLowerCase().split(/[\s_.\-]+/).filter(Boolean);
+  return [...split(o.name || ""), ...(p.roles || []).flatMap(split), ...split(p.tag || "")];
+};
+const has = (o, re) => wordsOf(o).some((w) => re.test(w));
+const WHEEL = /^(wheel|tyre|tire)s?$/, HIDDEN = /^(collider|node|editor|lod1|lod2|trigger|nocollide)$/;
+function findWheels(o, out) {
+  if (has(o, WHEEL)) {
+    const inner = [];
+    o.children.forEach((c) => findWheels(c, inner));
+    if (inner.length >= 2) out.push(...inner); else out.push(o);
+    return;
+  }
+  o.children.forEach((c) => findWheels(c, out));
+}
+function useModel(source, turned) {
+  prismSource = source;
+  const root = source.scene.clone(true);
+  root.traverse((o) => { if (has(o, HIDDEN)) o.visible = false; if (o.isMesh) o.castShadow = true; });
+  root.rotation.y = turned ? Math.PI : 0;
+  const holder = new THREE.Group(); holder.add(root); holder.updateMatrixWorld(true);
+
+  const wheelObjs = []; findWheels(root, wheelObjs);
+  const inWheel = (o) => { for (let p = o; p; p = p.parent) if (wheelObjs.includes(p)) return true; return false; };
+  const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+  const bodyBox = new THREE.Box3();
+  root.traverse((o) => { if (o.isMesh && shown(o) && !inWheel(o)) bodyBox.expandByObject(o); });
+  if (bodyBox.isEmpty()) wheelObjs.forEach((o) => bodyBox.expandByObject(o));
+  const centre = bodyBox.getCenter(V()), size = bodyBox.getSize(V());
+  holder.position.copy(centre).negate(); holder.updateMatrixWorld(true);
+
+  const wheels = wheelObjs.map((obj) => {
+    const box = new THREE.Box3().setFromObject(obj), at = box.getCenter(V());   // already centred by the holder
+    const m = obj.matrixWorld.clone().premultiply(new THREE.Matrix4().makeTranslation(-at.x, -at.y, -at.z));
+    obj.parent.remove(obj); m.decompose(obj.position, obj.quaternion, obj.scale);
+    return { obj, at, radius: box.getSize(V()).y / 2 };
+  });
+  prism = { holder, wheels, turned };
+
+  const d = vehicle.drive;
+  vehicle.model = source.file;
+  vehicle.body.size = [size.x, size.y, size.z].map((n) => +n.toFixed(3));
+  if (wheels.length >= 2) {
+    const sorted = [...wheels].sort((a, b) => a.at.z - b.at.z), axles = [];
+    for (const w of sorted) {
+      const a = axles[axles.length - 1];
+      if (a && Math.abs(w.at.z - a[0].at.z) < 0.4) a.push(w); else axles.push([w]);
+    }
+    const avg = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+    d.wheel_radius = +Math.max(...wheels.map((w) => w.radius)).toFixed(3);
+    d.axles = axles.map((a, i) => ({
+      at: +avg(a.map((w) => w.at.z)).toFixed(3),
+      track: +(2 * avg(a.map((w) => Math.abs(w.at.x)))).toFixed(3),
+      steers: i === 0 ? "Yes" : "No", driven: i === axles.length - 1,
+    }));
+    const wy = avg(wheels.map((w) => w.at.y));
+    d.ride_height = +Math.max(0.05, -size.y / 2 - (wy - d.wheel_radius)).toFixed(3);
+  }
+  modelNote.textContent = wheels.length >= 2
+    ? `${source.file}: ${wheels.length} wheels on ${d.axles.length} axles. The front axle steers, the back one drives.`
+    : `${source.file}: no groups named "wheel" found, so it rolls on stand-in wheels. Name the wheel groups "Wheel ..." in Prism.`;
+  turnBtn.hidden = false;
+  reset(); buildModel(); showFile();
+}
+const modelNote = document.getElementById("model-note"), turnBtn = document.getElementById("turn");
+document.getElementById("glb").addEventListener("change", (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  f.arrayBuffer().then((buf) => new THREE.GLTFLoader().parse(buf, "", (g) => useModel({ scene: g.scene, file: f.name }, false),
+    (err) => { modelNote.textContent = `Couldn't read ${f.name}: ${err.message || err}. Export it from Prism as a GLB.`; }));
+  ev.target.value = "";
+});
+turnBtn.addEventListener("click", () => useModel(prismSource, !prism.turned));
+
+function draw() {
+  model.position.copy(car.pos); model.quaternion.copy(car.rot);
+  const e = effective(vehicle);
+  wheelMeshes.forEach(({ pivot, spinner, wd }, i) => {
+    const st = car.wheels[i];
+    pivot.position.set(wd.at.x, wd.at.y - st.out + e.radius, wd.at.z);
+    pivot.rotation.y = wd.steers === "Yes" ? car.steer : wd.steers === "Opposite" ? -car.steer : 0;
+    spinner.rotation.x = -st.roll;
+  });
+}
+
+// Plain chase camera: behind and above, following the car's heading.
+function follow(dt) {
+  const back = V(0, 0, 1).applyQuaternion(car.rot); back.y = 0;
+  if (back.lengthSq() < 1e-4) back.set(0, 0, 1);
+  back.normalize();
+  const [, h, l] = vehicle.body.size;                         // bigger models get a wider view
+  const want = car.pos.clone().addScaledVector(back, Math.max(7.5, l * 1.8)).add(V(0, Math.max(3, h * 2), 0));
+  camera.position.lerp(want, 1 - Math.exp(-dt * 6));
+  camera.lookAt(car.pos.x, car.pos.y + 0.8, car.pos.z);
+  sun.position.copy(car.pos).add(V(12, 20, 8)); sun.target.position.copy(car.pos);
+}
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(r.height, 1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+// ---------- Panel listens to events ----------
+const log = document.getElementById("log");
+const say = (text) => { const li = document.createElement("li"); li.textContent = text; log.prepend(li); while (log.children.length > 6) log.lastChild.remove(); };
+const chip = (id, onoff) => document.getElementById(id).classList.toggle("on", onoff);
+on("Braking", (v) => { chip("c-brake", v); if (v) say("Braking"); });
+on("Reversing", (v) => { chip("c-rev", v); if (v) say("Reversing"); });
+on("Handbrake", (v) => { chip("c-hand", v); if (v) say("Handbrake"); });
+on("Airborne", (v) => { chip("c-air", v); say(v ? "Left the ground" : "Landed"); });
+on("Reset", () => say("Reset"));
+const showFile = () => (document.getElementById("file").textContent = JSON.stringify(vehicle, null, 2));
+showFile();
+
+// ---------- Loop: fixed 60 Hz physics, draw every frame ----------
+const DT = 1 / 60;
+let last = performance.now(), acc = 0, resetHeld = false;
+reset(); buildModel(); resize();
+camera.position.copy(car.pos).add(V(0, 3, 7.5));
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.1); last = now; acc += dt;
+  if (down("Reset") && !resetHeld) { reset(); emit("Reset"); }
+  resetHeld = down("Reset");
+  const input = {
+    throttle: down("Throttle"), brake: down("Brake"), handbrake: down("Handbrake"),
+    steer: (down("SteerLeft") ? 1 : 0) - (down("SteerRight") ? 1 : 0),
+  };
+  while (acc >= DT) { step(vehicle, input, DT); acc -= DT; }
+  draw(); follow(dt);
+  document.getElementById("kmh").textContent = Math.round(Math.abs(car.vel.dot(V(0, 0, -1).applyQuaternion(car.rot))) * 3.6);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+stage.focus();
+</script>
