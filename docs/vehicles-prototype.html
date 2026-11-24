@@ -36,7 +36,16 @@ kbd { font: 500 11px var(--mono); background: var(--field); border: 1px solid va
 #log { margin: 0; padding: 0; list-style: none; font: 12px/1.6 var(--mono); color: var(--text-2); min-height: 6em; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn { font: 500 13px var(--sans); color: var(--ink); background: var(--frame); border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
-#turn { background: var(--field); color: var(--text); }
+#turn, .btn.quiet { background: var(--field); color: var(--text); }
+#tune { display: flex; flex-direction: column; gap: 18px; }
+.set { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; margin-bottom: 10px; }
+.set label { font-size: 13px; color: var(--text); }
+.set output { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.set output b { color: var(--frame); font-weight: 500; }
+.set input { grid-column: 1 / -1; width: 100%; accent-color: var(--frame); margin: 2px 0 0; }
+.seg { grid-column: 1 / -1; display: flex; gap: 4px; }
+.seg button { flex: 1; font: 500 12px var(--sans); padding: 6px 0; border-radius: 6px; border: 0; background: var(--field); color: var(--text-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--frame); color: var(--ink); }
 .note { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-3); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 details summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
@@ -74,6 +83,16 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
         <span class="chip" id="c-air">In the air</span>
       </div>
     </div>
+    <div>
+      <h2>Vehicle file</h2>
+      <div class="row">
+        <button id="save" class="btn">Save</button>
+        <label class="btn quiet" for="load">Load</label>
+        <input id="load" type="file" accept=".json" hidden>
+      </div>
+      <p id="file-note" class="note" hidden></p>
+    </div>
+    <div id="tune"></div>
     <div>
       <h2>Model</h2>
       <div class="row">
@@ -429,7 +448,7 @@ function useModel(source, turned) {
     ? `${source.file}: ${wheels.length} wheels on ${d.axles.length} axles. The front axle steers, the back one drives.`
     : `${source.file}: no groups named "wheel" found, so it rolls on stand-in wheels. Name the wheel groups "Wheel ..." in Prism.`;
   turnBtn.hidden = false;
-  reset(); buildModel(); showFile();
+  reset(); buildModel(); buildPanel(); showFile();
 }
 const modelNote = document.getElementById("model-note"), turnBtn = document.getElementById("turn");
 document.getElementById("glb").addEventListener("change", (ev) => {
@@ -446,7 +465,8 @@ function draw() {
   wheelMeshes.forEach(({ pivot, spinner, wd }, i) => {
     const st = car.wheels[i];
     pivot.position.set(wd.at.x, wd.at.y - st.out + e.radius, wd.at.z);
-    pivot.rotation.y = wd.steers === "Yes" ? car.steer : wd.steers === "Opposite" ? -car.steer : 0;
+    const how = e.wheels[i].steers;
+    pivot.rotation.y = how === "Yes" ? car.steer : how === "Opposite" ? -car.steer : 0;
     spinner.rotation.x = -st.roll;
   });
 }
@@ -479,8 +499,97 @@ on("Reversing", (v) => { chip("c-rev", v); if (v) say("Reversing"); });
 on("Handbrake", (v) => { chip("c-hand", v); if (v) say("Handbrake"); });
 on("Airborne", (v) => { chip("c-air", v); say(v ? "Left the ground" : "Landed"); });
 on("Reset", () => say("Reset"));
-const showFile = () => (document.getElementById("file").textContent = JSON.stringify(vehicle, null, 2));
-showFile();
+const showFile = () => {
+  document.getElementById("file").textContent = JSON.stringify(vehicle, null, 2);
+  document.getElementById("name").textContent = vehicle.name;
+};
+
+// ---------- Settings table (Beverly: Setting attributes -> auto panels and MCP) ----------
+// Values live in the file in metres, kilograms, seconds; `show` only formats them for people.
+const pct = (v) => Math.round(v * 100) + "%";
+const SETTINGS = [
+  { section: "Speed", label: "Top speed", key: "drive.top_speed", words: ["Slow", "Brisk", "Fast", "Blistering"], low: 8, high: 60, step: 0.5, unit: "km/h", show: (v) => Math.round(v * 3.6), help: "The most it can do on flat ground." },
+  { section: "Speed", label: "Pickup", key: "drive.pickup", words: ["Gentle", "Punchy", "Instant"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How hard it pulls away." },
+  { section: "Handling", label: "Grip", key: "drive.grip", words: ["Icy", "Loose", "Firm", "Glued"], low: 0.2, high: 2.2, step: 0.05, unit: "", show: (v) => v.toFixed(2), help: "How much the tyres hold before they slide." },
+  { section: "Handling", label: "Steering", key: "drive.steering", words: ["Lazy", "Normal", "Sharp"], low: 10, high: 50, step: 1, unit: "°", show: (v) => v, help: "The most the wheels turn, at a standstill. Less at speed." },
+  { section: "Body", label: "Weight", key: "body.weight", words: ["Light", "Medium", "Heavy"], low: 300, high: 4000, step: 50, unit: "kg", show: (v) => v, help: "Heavier is slower to start, stop and turn." },
+  { section: "Suspension", label: "Ride height", key: "drive.ride_height", words: ["Low", "Normal", "Tall"], low: 0.05, high: 1, step: 0.01, unit: "m", show: (v) => v.toFixed(2), help: "From the bottom of the body to the ground, at rest." },
+  { section: "Suspension", label: "Stiffness", key: "drive.stiffness", words: ["Soft", "Medium", "Firm"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "Soft springs soak up bumps and lean more." },
+  { section: "Suspension", label: "Damping", key: "drive.damping", words: ["Bouncy", "Settled", "Stiff"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How quickly bouncing dies away." },
+];
+const getAt = (key) => key.split(".").reduce((o, k) => o[k], vehicle);
+const setAt = (key, v) => { const ks = key.split("."), last = ks.pop(); ks.reduce((o, k) => o[k], vehicle)[last] = v; };
+const wordFor = (s, v) => s.words[Math.min(s.words.length - 1, Math.floor((v - s.low) / (s.high - s.low) * s.words.length))];
+const axleName = (i, n) => i === 0 ? "Front axle" : i === n - 1 ? "Back axle" : `Axle ${i + 1}`;
+
+function buildPanel() {
+  const tune = document.getElementById("tune");
+  tune.replaceChildren();
+  const sections = {};
+  const section = (name) => sections[name] ||= (() => {
+    const div = document.createElement("div"), h = document.createElement("h2");
+    h.textContent = name; div.append(h); tune.append(div); return div;
+  })();
+  for (const st of SETTINGS) {
+    const row = document.createElement("div"), id = "set-" + st.key.replace(".", "-");
+    row.className = "set"; row.title = st.help;
+    const label = document.createElement("label"), out = document.createElement("output"), input = document.createElement("input");
+    label.textContent = st.label; label.htmlFor = id;
+    Object.assign(input, { id, type: "range", min: st.low, max: st.high, step: st.step, value: getAt(st.key) });
+    const paint = () => {
+      const v = getAt(st.key), word = document.createElement("b");
+      word.textContent = wordFor(st, v);
+      out.replaceChildren(word, ` · ${st.show(v)}${/^\w/.test(st.unit) ? " " : ""}${st.unit}`);
+    };
+    input.addEventListener("input", () => { setAt(st.key, +input.value); paint(); showFile(); });
+    paint(); row.append(label, out, input); section(st.section).append(row);
+  }
+  // Which axles steer: No, Yes or Opposite (rear wheels turning against the front).
+  const n = vehicle.drive.axles.length;
+  vehicle.drive.axles.forEach((axle, i) => {
+    const row = document.createElement("div"), label = document.createElement("label"), seg = document.createElement("div");
+    row.className = "set"; row.title = "Opposite turns these wheels against the front ones, for tight turns.";
+    label.textContent = axleName(i, n) + " steers"; seg.className = "seg";
+    for (const opt of ["No", "Yes", "Opposite"]) {
+      const b = document.createElement("button");
+      b.textContent = opt; b.setAttribute("aria-pressed", axle.steers === opt);
+      b.addEventListener("click", () => {
+        axle.steers = opt; seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); showFile();
+      });
+      seg.append(b);
+    }
+    row.append(label, seg); section("Handling").append(row);
+  });
+}
+
+// ---------- Save and load the vehicle file ----------
+const fileNote = document.getElementById("file-note");
+const note = (text) => { fileNote.textContent = text; fileNote.hidden = false; };
+document.getElementById("save").addEventListener("click", async () => {
+  const text = JSON.stringify(vehicle, null, 2), filename = vehicle.name.replace(/[^\w -]+/g, "") + ".vehicle.json";
+  const downloads = await window.claude?.use?.("downloads");
+  if (downloads) {
+    try { await downloads.save({ filename, data: text }); note(`Saved ${filename}.`); }
+    catch (err) { note(err.code === "declined" ? "Not saved." : `Couldn't save: ${err.message}`); }
+    return;
+  }
+  try { await navigator.clipboard.writeText(text); note("Saving files isn't available here, so the file was copied. Paste it into a .json file."); }
+  catch { document.querySelector("details").open = true; getSelection().selectAllChildren(document.getElementById("file")); note("Copy the selected text below into a .json file."); }
+});
+document.getElementById("load").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0]; ev.target.value = "";
+  if (!f) return;
+  try {
+    const v = JSON.parse(await f.text());
+    if (v.kind !== "Ground" || !v.drive || !v.body || !Array.isArray(v.drive.axles)) throw new Error("it isn't a ground vehicle file");
+    for (const k of Object.keys(vehicle)) delete vehicle[k];
+    Object.assign(vehicle, v);
+    if (prism && v.model !== prismSource.file) { prism = null; prismSource = null; turnBtn.hidden = true; modelNote.textContent = "A box stand-in."; }
+    note(v.model && !prism ? `Loaded ${f.name}. It was made for ${v.model}: load that model too to see it.` : `Loaded ${f.name}.`);
+    reset(); buildModel(); buildPanel(); showFile();
+  } catch (err) { note(`Couldn't load ${f.name}: ${err.message}.`); }
+});
+showFile(); buildPanel();
 
 // ---------- Loop: fixed 60 Hz physics, draw every frame ----------
 const DT = 1 / 60;

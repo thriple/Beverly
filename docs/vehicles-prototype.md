@@ -24,6 +24,10 @@ translates one to one when the real tab is built (`docs/vehicles.md`).
   Ride height, Steering, and which axles steer.
 - Changes apply live while driving.
 - Save and load the vehicle as a file, plus a speed readout.
+- Built (2026-11-24): a settings table (label, key, words, low, high, step, unit, help) draws the panel in sections
+  Speed, Handling, Body, Suspension; each axle has No / Yes / Opposite steering. Save asks to save
+  `NAME.vehicle.json` (copies it where saving isn't allowed); Load takes a vehicle file back. Loading a model rebuilds
+  the panel for its axles.
 
 **Turn 3: power and feel**
 - Power with F: Off, Accessory, On.
