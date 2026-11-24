@@ -44,6 +44,7 @@ pub const ACTIONS: &[Action] = &[
     a("view.stats", "Performance meter", "View", ""),
     a("view.look_through", "Look through the camera", "Part panel", "L"),
     a("play.test", "Test from the player start", "Play menu", "Shift+`"),
+    a("game.controls", "Controls…", "Play menu", ""),
     a("level.build_navigation", "Build navigation", "Level panel", ""),
     a("tool.place", "Place (the last thing placed or picked)", "Tools", "V"),
     a("tool.brush", "Brush", "Tools", "B"),
@@ -201,6 +202,7 @@ pub fn run(ed: &mut Editor, view: Option<&mut View>, id: &str, exit: &mut Messag
         }
         "help.features" => ed.features_open = true,
         "help.mcp" => ed.mcp_open = true,
+        "game.controls" => ed.controls_open = true,
         _ => unreachable!("every action in ACTIONS is handled"),
     }
     Ok(())

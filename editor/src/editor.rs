@@ -184,6 +184,9 @@ pub struct Editor {
     /// Help > MCP Server: the window, and the server (off unless the user turned it on).
     pub mcp_open: bool,
     pub mcp: mcp::Mcp,
+    /// Play > Controls: the window, and the action waiting for the input to add to it (press it).
+    pub controls_open: bool,
+    pub controls_capture: Option<String>,
     /// "Change all 12, or make this one Unique?": the part whose contents were just changed, and its instances
     /// that kept theirs (see `Level::split_from`).
     pub ask: Option<(u64, Vec<u64>)>,
@@ -298,6 +301,8 @@ impl Editor {
             updater: default(),
             mcp_open: false,
             mcp: mcp::Mcp::off(),
+            controls_open: false,
+            controls_capture: None,
             ask: None,
         };
         ed.refresh_assets();
@@ -327,7 +332,7 @@ impl Editor {
     }
 
     /// A window over the editor (the unsaved-changes question, Help's windows): the 3D view ignores the keys.
-    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open || self.mcp_open }
+    pub fn dialog_open(&self) -> bool { self.pending.is_some() || self.about_open || self.updates_open || self.features_open || self.mcp_open || self.controls_open }
 
     /// Work out the level's navigation area (Build navigation).
     pub fn build_navigation(&mut self) {
@@ -408,6 +413,7 @@ pub fn run(title: &str, player: &'static str, extra: fn(&mut App)) {
         .add_systems(Startup, (shapes::setup, view::setup, view::spawn_grid, edit::setup, caps::startup))
         .init_resource::<mcp::host::Injected>()
         .add_systems(PreUpdate, mcp::host::inject.after(bevy::input::InputSystems))
+        .add_systems(Update, capture_input.run_if(|ed: Res<Editor>| ed.controls_capture.is_some()))
         .add_systems(Update, (window_icon, mcp::host::serve, models::fill_models, shader_sync, preview::run))
         .add_systems(
             Update,
@@ -451,4 +457,15 @@ fn window_icon(mut done: Local<bool>, window: Query<Entity, With<bevy::window::P
         let (wd, ht) = img.dimensions();
         if let Ok(icon) = winit::window::Icon::from_rgba(img.into_raw(), wd, ht) { win.set_window_icon(Some(icon)); }
     });
+}
+
+/// Play > Controls is waiting for an input: the first key, mouse button or gamepad button pressed joins the action
+/// (Esc cancels, in the window).
+fn capture_input(mut ed: ResMut<Editor>, keys: Res<ButtonInput<KeyCode>>, mouse: Res<ButtonInput<MouseButton>>, pads: Query<&Gamepad>) {
+    let Some(n) = crate::input::first_pressed(&keys, &mouse, &pads).filter(|n| n != "Escape") else { return };
+    let Some(action) = ed.controls_capture.take() else { return };
+    if ed.level.controls.get(&action).is_some_and(|a| !a.inputs.contains(&n)) {
+        if let Some(a) = ed.level.controls.get_mut(&action) { a.inputs.push(n); }
+        ed.commit();
+    }
 }

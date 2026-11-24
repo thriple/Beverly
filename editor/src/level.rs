@@ -288,12 +288,15 @@ pub struct Level {
     /// The project's sound files, by path ("assets/sounds/birds.bev"), kept and saved as the materials are.
     #[serde(skip)]
     pub sounds: Tracked<std::collections::BTreeMap<String, Sound>>,
+    /// The game's controls (see `input.rs`). Saved in the project file, not the level; kept here for undo.
+    #[serde(skip)]
+    pub controls: Tracked<crate::input::Controls>,
 }
 
 impl Level {
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {
-        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp()]
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp(), self.controls.stamp()]
     }
 
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }

@@ -872,7 +872,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <li><b>Paths tool</b> for rails, patrols, camera paths and roads, drawn with the pen.</li>
       <li><b>Brush and pen:</b> a round brush (size, hardness soft to hard as in Photoshop, strength, spacing) and a Bezier pen that draw on terrain, water and parts. They lay textures, raise and carve terrain, or scatter props, and are stored as strokes and curves, never paint images.</li>
       <li><b>Asset library:</b> rename, duplicate, delete (to a trash folder undo can bring back) and move assets; everything using one follows it; used-by counts and Find in level.</li>
-      <li><b>Input map:</b> actions such as Jump or Fire mapped to keys and gamepad, editable in Settings.</li>
+      <li><b>Input map</b> (built): play reads named actions (Forward, Back, Left, Right, Run, Jump, Use, Look left / right / up / down), never keys. Play &gt; Controls lists each action with its inputs as keycaps: click one to take it off, + and press a key, mouse button or gamepad button to add one, and Beverly&#x27;s defaults to go back. A gamepad works out of the box (left stick walks, partly over walks slower; right stick looks; South jumps, West uses). Saved in the project file; test mode, the exported game and the scripted tests all use them; the MCP has get_controls and change_controls. Vehicles, mounts and games with their own code add their actions to the same list. A players&#x27; own controls screen inside a game comes with the Screens tab.</li>
       <li><b>Save system:</b> what a save point stores (player, variables, which parts already fired).</li>
     </ul></div>
     <div class="card"><span class="tag">Sound and shipping</span><ul>

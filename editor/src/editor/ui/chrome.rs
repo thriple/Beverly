@@ -95,7 +95,7 @@ pub(super) fn top_bar(ctx: &egui::Context, ed: &mut Editor, lay: &frame::Layout,
                 ("File", &["file.new", "file.open", "", "file.save", "file.save_as", "file.export", "file.show_folder", "file.clear_bakes", "", "file.quit"]),
                 ("Edit", &["edit.undo", "edit.redo", "", "edit.duplicate", "edit.delete", "edit.make_unique", "edit.deselect", "", "edit.snap"]),
                 ("View", &["view.parts", "view.frame", "view.look_through", "", "view.stats"]),
-                ("Play", &["play.test", "", "file.export"]),
+                ("Play", &["play.test", "game.controls", "", "file.export"]),
                 ("Help", &["help.about", "help.updates", "help.features", "help.mcp"]),
             ];
             for (name, ids) in menus {

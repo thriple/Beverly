@@ -700,6 +700,24 @@
    "stage": "Author the world: land, sea and sky"
   },
   {
+   "id": "input-map",
+   "name": "Input map",
+   "area": "Editor foundations",
+   "status": "done",
+   "effort": "M",
+   "needs": [
+    "test-mode"
+   ],
+   "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
+   "chunks": [],
+   "note": "Built 2026-11-24: input.rs. Play reads named actions (Forward, Back, Left, Right, Run, Jump, Use, Look left / right / up / down), never keys; each lists its inputs by name: keys, mouse buttons, gamepad buttons and stick directions (\"Pad South\", \"Pad LeftStick Up\"), read once a frame into Actions (0 to 1, so a stick partly over walks slower; just_pressed for Use). Gamepads through Bevy's gilrs. A game's controls are saved in project.bev (left out while they are the defaults; actions a file leaves out get theirs) and kept on the level for undo. Play > Controls: keycaps per action, click one to take it off, + then press a key, mouse button or gamepad button, Beverly's defaults. MCP: get_controls, change_controls (an action the game doesn't have yet is added, for its own code). Scripted tests press keys by the same names. Test project tests/controls (Forward on I, Jump on K, Use on U). A players' own controls screen inside a game comes with the Screens tab; vehicles, mounts and control targets add their actions to the same list. Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
+   "order": 38,
+   "first_game": true,
+   "stage": "Foundations",
+   "built": "2026-11-24",
+   "build": 133
+  },
+  {
    "id": "shaders",
    "name": "Custom shaders",
    "area": "Engine budgets",
@@ -715,24 +733,7 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "planned",
    "first_game": true,
-   "order": 38,
-   "next": true,
-   "stage": "Foundations"
-  },
-  {
-   "id": "input-map",
-   "name": "Input map",
-   "area": "Editor foundations",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "test-mode"
-   ],
-   "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
-   "chunks": [],
-   "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
    "order": 39,
-   "first_game": true,
    "next": true,
    "stage": "Foundations"
   },

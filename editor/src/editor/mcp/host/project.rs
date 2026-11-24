@@ -1,6 +1,13 @@
 //! The tools that read the project and the level: what is in it, what is selected, and the paths and wires.
 use super::*;
 
+fn describe_controls(ed: &Editor) -> Value {
+    json!({
+        "actions": ed.level.controls.0.iter().map(|a| json!({"action": a.name, "inputs": a.inputs, "does": crate::input::Controls::help(&a.name)})).collect::<Vec<_>>(),
+        "defaults": ed.level.controls.is_default(),
+    })
+}
+
 pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<Value, String> {
     match name {
         "get_project" => Ok(json!({
@@ -19,6 +26,28 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
             "beverly": crate::update::this_build().map_or("a build made by hand".into(), |n| format!("build {n}")),
         })),
         "get_level" => Ok(describe_level(ed)),
+        "get_controls" => Ok(describe_controls(ed)),
+        "change_controls" => {
+            editable(ed)?;
+            if args.get("reset").and_then(Value::as_bool) == Some(true) {
+                if !ed.level.controls.is_default() { *ed.level.controls = Default::default(); }
+            } else {
+                let action = args.get("action").and_then(Value::as_str).ok_or("Give action and inputs, such as {\"action\": \"Jump\", \"inputs\": [\"Space\", \"Pad South\"]}, or reset: true")?;
+                let inputs: Vec<String> = args.get("inputs").and_then(Value::as_array).ok_or("inputs is a list of input names, such as [\"Space\", \"Pad South\"]")?
+                    .iter().map(|v| v.as_str().map(str::to_owned).ok_or("Each input is a name such as \"Space\"")).collect::<Result<_, _>>()?;
+                if let Some(bad) = inputs.iter().find(|n| crate::input::parse(n).is_none()) { return Err(format!("No input called \"{bad}\" (get_controls lists the names)")); }
+                let inputs: Vec<String> = inputs.iter().filter_map(|n| crate::input::parse(n).and_then(crate::input::name)).collect();
+                if ed.level.controls.get(action).map(|a| &a.inputs) != Some(&inputs) {
+                    let c = &mut ed.level.controls;
+                    match c.get_mut(action) {
+                        Some(a) => a.inputs = inputs,
+                        None => c.0.push(crate::input::Action { name: action.into(), inputs }),
+                    }
+                }
+            }
+            ed.commit();
+            Ok(describe_controls(ed))
+        }
         "find_path" => {
             let a = args.get("from").and_then(vec3_of).ok_or("from is [x, y, z]")?;
             let b = args.get("to").and_then(vec3_of).ok_or("to is [x, y, z]")?;

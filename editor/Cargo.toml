@@ -15,6 +15,7 @@ bevy = { version = "=0.20.1", default-features = false, features = [
     "default_app", "3d_bevy_render", "scene", "std", "bevy_winit", "webgl2", "free_camera",
     "png", "jpeg",  # textures (and the ones inside models)
     "sysinfo_plugin",  # the meter's memory (perf.rs)
+    "bevy_gilrs",  # gamepads (input.rs)
 ] }
 # the graphics card check before the app starts (gpu.rs); the version Bevy uses
 wgpu = { version = "=30.0.1", default-features = false }

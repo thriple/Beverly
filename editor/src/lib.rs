@@ -9,6 +9,7 @@ pub mod bucket;
 pub mod curve;
 pub mod editor;
 pub mod gpu;
+pub mod input;
 pub mod grass;
 pub mod level;
 pub mod models;
