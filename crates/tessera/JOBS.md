@@ -70,7 +70,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
    - the cluster-slot cost in the doc comment
 
    One commit per fix, each message saying why. A top-left fill rule in fixed point for the software rasterizer, if GPU-testable here; otherwise ⏸ with a note.
-4. ⬜ **Baking library** (`tessera::bake`):
+4. ✅ **Baking library** (`tessera::bake`): (2026-11-25)
    - Any Bevy `Mesh` (a glTF primitive) to `MeshletMesh`. Fill in missing normals (smooth by angle) and UVs (zero), drop extra attributes, weld and index.
    - The cache is main's, already built (`editor/src/bake.rs`: `Bakes`, `bake::key(kind, parts)`, the folder from `Bakes::default_root()`; exports carry the entries they used). Don't make a cache folder or a hash of your own: `tessera::bake` turns a mesh into bytes (and bytes back into a `MeshletMesh`) and names the `kind` ("meshlet") and the key `parts` (source bytes, bake settings, format version); the editor-side glue stores them with `Bakes`. `vg-bake` may use a plain temp folder.
    - Keep the coarsest level of the cluster hierarchy reachable as an ordinary mesh (`proxy_mesh`): main's `realtime-gi` (ray tracing against a proxy, as Nanite does) and `backdrops` (a far, low-poly stand-in) both want it.
@@ -124,6 +124,13 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
   caps.virtual_geometry() }`, with `caps` the `GpuCaps` that `gpu::render_plugin` put in the app (as `vg-render` does).
   With `supported` false nothing is added on the render side and meshlet meshes aren't drawn (the fallback is
   later work). No `GpuCaps` change was needed for this job.
+- **Baking through main's cache (job 4):** the editor-side glue (not written yet; it belongs with drawing models
+  through split meshes) bakes a model's mesh with `tessera::bake::bake(mesh, &BakeSettings::default())` inside
+  `Bakes::request(tessera::bake::KIND, key, label, ...)`, where
+  `key = bake::key(KIND, &tessera::bake::key_parts(source_bytes, &settings))` (as `vg-bake` does), and reads it back with
+  `tessera::bake::load(bytes)` (the `MeshletMesh`) and `tessera::bake::proxy_mesh(bytes)` (the coarsest level as
+  an ordinary mesh, for `realtime-gi` and `backdrops`). A `BakeError::Format` or `Bytes` error on reading means the
+  entry is from another version: bake again.
 - **Merging job 1 into main:** `editor/Cargo.toml` gains the `[patch.crates-io] bevy_pbr` (path `../crates/bevy_pbr`),
   the off-by-default `tessera` feature, the optional `tessera` dependency (`../crates/tessera`) and the `vg-render`
   binary (`required-features = ["tessera"]`, so default builds and the release zip don't contain it). Main's
@@ -139,6 +146,51 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-24 and 2026-11-25 (Guam): job 4, baking library ✅
+The 2026-11-24 run ended before its log entry; its work is described here with tonight's.
+- **Merges:** main merged in cleanly both nights.
+- **Fork:**
+  - `MeshletMesh::write` / `read` write and read the `.meshlet_mesh` format without async. Bevy's saver and loader
+    use them too, so there is one format path.
+  - `MeshletMesh::from_mesh_with_proxy` also returns the coarsest level: the meshlets no simpler group was made
+    from, taken before the BVH reorders them, as one ordinary mesh. `from_mesh` calls it and drops the proxy.
+  - **Fixed: bakes differed whenever two ran at once.** METIS keeps its random generator in global state
+    (GKlib's `random.c`: `static mt[]`, seeded at the start of each call), so concurrent bakes interleaved its
+    draws. Found because the same-bytes test failed whenever `cargo test` ran in parallel and passed on one
+    thread. Now one METIS call runs at a time (`metis_lock`). The editor's bake jobs run on threads, so this would
+    have hit real use.
+- **`tessera::bake`:**
+  - `prepare`: triangle lists only; keeps positions, normals and UVs; fills missing normals with angle-weighted
+    smooth ones (Bevy's `compute_smooth_normals`) and missing UVs with zeros; drops other attributes; welds
+    identical vertices and indexes.
+  - `bake` → bytes; `load` → `MeshletMesh`; `proxy_mesh` → the coarse `Mesh`.
+  - `KIND` ("meshlet") and `key_parts(source, settings)`: the source bytes, the settings, and the versions
+    (Bevy's asset version and `FORMAT_VERSION`). No cache folder or hash of its own: main's `Bakes` keeps them.
+  - The bytes: `TSRA`, `FORMAT_VERSION` 2, Bevy's bytes (length first), then the proxy.
+- **The crate** now depends on the fork's `bevy_pbr` (`meshlet_processor`), `bevy_tasks` (a bake outside an app
+  makes its own task pool) and `bytemuck`. It carries the same `[patch.crates-io]` as the editor, so it builds and
+  tests on its own.
+- **`vg-bake`** (editor binary, `tessera` feature): bakes the test mesh into a temp folder under its
+  `bake::key`, reads it and the proxy back, and prints:
+  - 1,310,720 triangles baked in 23.5 s (24.0 s the night before), read back in 17–35 ms
+  - 20,759,233 bytes: **15.8 bytes per triangle**, under the 20–30 B estimate in `docs/tessera.md`
+  - proxy: 78 triangles
+- **Tests** (`crates/tessera`, 9; all pass, repeatedly and in parallel):
+  - the same bytes every time, including four bakes on four threads at once
+  - a save/load round trip
+  - both version numbers checked: a changed `FORMAT_VERSION` or Bevy asset version is rejected, and so are bytes
+    cut short
+  - missing attributes filled in and extra ones dropped, from an unindexed mesh
+  - the key parts change with the settings
+  - the proxy has under a tenth of the triangles and the same size
+- **Checks:**
+  - `vg-render`: the picture looks as before; grid 0 holes
+  - feature off: `cargo build` ✅, `cargo test` ✅ (98)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (98)
+  - `tools/run-tests.sh` ✅ (all 24)
+- **Only the RTX card / the user's machine can show:** bake time on the user's CPU (here 4 cores, debug build with
+  dependencies at opt-level 3).
 
 ### 2026-11-23 (Guam): job 3, the fill rule ✅ (job 3 done)
 - **Merge:** main merged in cleanly.
