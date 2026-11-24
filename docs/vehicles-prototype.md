@@ -4,6 +4,16 @@ A small, playable stand-in for the Vehicles tab, so the user can feel the direct
 file, built in about 3 turns, published as a private page to try in the browser. Its pieces mirror Beverly's, so it
 translates one to one when the real tab is built (`docs/vehicles.md`).
 
+## Bookmark (2026-11-24)
+
+Where it stands: turns 1 to 5 are built and published as a private page
+(https://claude.ai/artifact/9XR7kQGiL1ggvmQJ8PDrLn, source `docs/vehicles-prototype.html`). The user found the
+feel good with little tweaking. Waiting on: the user's test vehicle from Prism, which needs Prism's hinges (a couple of
+Prism sessions). When it arrives: load it with *Load Prism model*, check the wheel, light and exhaust names are found,
+and tune. Open questions to bring back then: a slider for how strongly steering lessens at speed (today half at about
+50 km/h, a third at 100); whether the mouse should do more in Follow camera. The real Vehicles tab is built on the
+`vehicles` branch after `input-map` and `sockets` on main (docs/vehicles.md).
+
 ## Scope: a drivable 4-wheeled car you can tune
 
 **Turn 1: drive it**
