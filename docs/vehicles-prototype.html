@@ -60,7 +60,20 @@ pre { font: 11px/1.45 var(--mono); color: var(--text-2); background: var(--field
   color: var(--text); font: 500 13px var(--sans); touch-action: none; user-select: none; -webkit-user-select: none; }
 #pad button:active { background: var(--accent); }
 button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (pointer: coarse) { #pad { display: flex; } }
+#hud { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; flex-direction: column;
+  align-items: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); }
+#hint { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--glass); color: var(--text); font-size: 13px; text-align: center; }
+.hud-row { display: flex; align-items: center; gap: 8px; }
+.hud-btn { font: 500 13px var(--sans); color: var(--text); background: var(--glass); border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px 14px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hud-btn:hover { border-color: var(--text-3); }
+.hud-btn:active { background: var(--accent); }
+.hud-btn.play { display: flex; align-items: center; gap: 8px; font: 700 16px var(--sans); padding: 14px 26px;
+  background: var(--frame); color: var(--ink); border-color: var(--frame); }
+.hud-btn.play.on { background: var(--field); color: var(--text); border-color: var(--line); }
+.hud-btn.play svg { width: 16px; height: 16px; fill: currentColor; }
+.hud-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) { #pad { display: flex; } #hud { bottom: 84px; } }
 @media (max-width: 720px) {
   #app { grid-template-columns: 1fr; grid-template-rows: 1fr 38%; }
   #panel { border-left: 0; border-top: 1px solid var(--line); }
@@ -70,6 +83,14 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); 
 <div id="app">
   <div id="stage" tabindex="0" aria-label="Driving view">
     <div id="tab">Vehicles</div>
+    <div id="hud">
+      <p id="hint">Press Play, then tap F twice to start the engine.</p>
+      <div class="hud-row">
+        <button id="reset-pos" class="hud-btn">Reset position</button>
+        <button id="play" class="hud-btn play"><svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg><span id="play-text">Play</span></button>
+        <button data-act="Power" class="hud-btn" title="Tap to step Off, Accessory, On. Hold to switch off.">Power</button>
+      </div>
+    </div>
     <div id="pad">
       <div><button data-act="SteerLeft">Left</button><button data-act="SteerRight">Right</button></div>
       <div><button data-act="Power">Power</button><button data-act="Handbrake">Hand</button><button data-act="Brake">Brake</button><button data-act="Throttle">Gas</button></div>
@@ -161,7 +182,7 @@ const vehicle = {
       Handbrake: ["Space"], Power: ["KeyF"], Reset: ["KeyR"],
     },
   },
-  camera: { rumble: 0.5 },
+  camera: { rumble: 0.5, lag: 0.4, look_ahead: 0.5, wider_at_speed: 0.5 },   // follow camera, 0 .. 1
   signals: [                    // what each effect follows
     { part: "Headlights", follows: "Powered" },
     { part: "Tail lights", follows: "Powered" },
@@ -183,7 +204,7 @@ addEventListener("keydown", (e) => {
 });
 addEventListener("keyup", (e) => held.delete(e.code));
 addEventListener("blur", () => held.clear());
-document.querySelectorAll("#pad button").forEach((b) => {
+document.querySelectorAll("[data-act]").forEach((b) => {
   const k = "Pad." + b.dataset.act;
   b.addEventListener("pointerdown", (e) => { e.preventDefault(); held.add(k); });
   for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => held.delete(k));
@@ -221,7 +242,20 @@ function effective(v) {
 }
 
 // ---------- Ground (swap for terrain later) ----------
-const ground = { height: () => 0, normal: V(0, 1, 0) };
+// Flat inside 72 m (the track), rolling hills beyond; a kicker ramp on the track at x -52; an ice patch at z -52.
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const hills = (x, z) => smooth(72, 115, Math.hypot(x, z)) * (5 + 3 * Math.sin(x * 0.045) * Math.cos(z * 0.05) + 2 * Math.sin(x * 0.11 + z * 0.07));
+const RAMP = { x0: -58, x1: -46, z0: -6, z1: 6, top: 1.6 };
+const ramp = (x, z) => x >= RAMP.x0 && x <= RAMP.x1 && z >= RAMP.z0 && z <= RAMP.z1 ? RAMP.top * (z - RAMP.z0) / (RAMP.z1 - RAMP.z0) : 0;
+const ICE = { x0: -7, x1: 7, z0: -58, z1: -46 };
+const ground = {
+  height: (x, z) => hills(x, z) + ramp(x, z),
+  normalAt(x, z) {
+    const e = 0.25, h = ground.height;
+    return V(h(x - e, z) - h(x + e, z), 2 * e, h(x, z - e) - h(x, z + e)).normalize();
+  },
+  grip: (x, z) => (x >= ICE.x0 && x <= ICE.x1 && z >= ICE.z0 && z <= ICE.z1 ? 0.25 : 1),   // the surface's grip
+};
 
 // ---------- The car's state (what play would sync) ----------
 const car = {
@@ -296,7 +330,7 @@ function step(v, input, dt) {
   e.wheels.forEach((w, i) => {
     const st = car.wheels[i];
     const at = w.at.clone().applyQuaternion(car.rot).add(car.pos);
-    const n = ground.normal, gy = ground.height(at.x, at.z);
+    const n = ground.normalAt(at.x, at.z), gy = ground.height(at.x, at.z);
     const facing = up.dot(n);                                  // how squarely the downward ray meets the ground
     const dist = facing > 0.3 ? (at.y - gy) / facing : Infinity;
     if (dist > e.reach) { st.out = e.reach; st.contact = false; return; }
@@ -314,7 +348,7 @@ function step(v, input, dt) {
     const ws = wf.clone().cross(n);
     const vl = pv.dot(wf), vs = pv.dot(ws);
     const locked = input.handbrake && w.rear;
-    const grip = e.grip * (locked ? 0.45 : 1);
+    const grip = e.grip * (locked ? 0.45 : 1) * ground.grip(at.x, at.z);
     const stop = e.share / dt;                                 // force that stops this corner in one tick
 
     let side = -grip * load * curve(Math.atan2(vs, Math.max(Math.abs(vl), 1.5)));
@@ -375,13 +409,25 @@ scene.background = new THREE.Color("#16161a");
 scene.fog = new THREE.Fog("#16161a", 90, 260);
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 600);
 scene.add(new THREE.HemisphereLight("#d8dcff", "#2a2a30", 0.7));
-const sun = new THREE.DirectionalLight("#ffffff", 0.9);
+const sun = new THREE.DirectionalLight("#fff1dc", 1.15);
 sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
 Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12 });
 scene.add(sun, sun.target);
 
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: "#23232a", roughness: 1 }));
-floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const land = new THREE.PlaneGeometry(800, 800, 200, 200).rotateX(-Math.PI / 2);
+const lp = land.attributes.position;
+for (let i = 0; i < lp.count; i++) lp.setY(i, hills(lp.getX(i), lp.getZ(i)));
+land.computeVertexNormals();
+const floor = new THREE.Mesh(land, new THREE.MeshStandardMaterial({ color: "#2a2a32", roughness: 1 }));
+floor.receiveShadow = true; scene.add(floor);
+{
+  const len = Math.hypot(RAMP.z1 - RAMP.z0, RAMP.top), tilt = Math.atan2(RAMP.top, RAMP.z1 - RAMP.z0);
+  const r = new THREE.Mesh(new THREE.BoxGeometry(RAMP.x1 - RAMP.x0, 0.2, len), new THREE.MeshStandardMaterial({ color: "#B34DFF", roughness: 0.7 }));
+  r.rotation.x = -tilt; r.position.set((RAMP.x0 + RAMP.x1) / 2, RAMP.top / 2 - 0.1, (RAMP.z0 + RAMP.z1) / 2);
+  r.castShadow = r.receiveShadow = true; scene.add(r);
+  const ice = new THREE.Mesh(new THREE.PlaneGeometry(ICE.x1 - ICE.x0, ICE.z1 - ICE.z0), new THREE.MeshStandardMaterial({ color: "#bfe6ff", roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.7 }));
+  ice.rotation.x = -Math.PI / 2; ice.position.set((ICE.x0 + ICE.x1) / 2, 0.03, (ICE.z0 + ICE.z1) / 2); ice.receiveShadow = true; scene.add(ice);
+}
 const grid = new THREE.GridHelper(800, 160, "#3a3a42", "#2c2c33"); grid.position.y = 0.01; scene.add(grid);
 const track = new THREE.Mesh(new THREE.RingGeometry(46, 58, 96), new THREE.MeshStandardMaterial({ color: "#34343c", roughness: 0.9 }));
 track.rotation.x = -Math.PI / 2; track.position.y = 0.02; track.receiveShadow = true; scene.add(track);
@@ -616,20 +662,33 @@ function draw() {
   });
 }
 
-// Plain chase camera: behind and above, following the car's heading.
+// Follow camera: chases with lag, swings toward where the car is going, looks into turns, pulls back at speed.
+function cameraWant() {
+  const c = vehicle.camera, [, h, l] = vehicle.body.size;      // bigger models get a wider view
+  const ahead = V(0, 0, -1).applyQuaternion(car.rot).setY(0);
+  if (ahead.lengthSq() < 1e-4) ahead.set(0, 0, -1);
+  ahead.normalize();
+  const travel = car.vel.clone().setY(0);
+  if (travel.length() > 4 && travel.dot(ahead) > 0) ahead.lerp(travel.normalize(), 0.5).normalize();
+  const speed = car.vel.length();
+  const want = car.pos.clone().addScaledVector(ahead, -Math.max(7.5, l * 1.8) * (1 + c.wider_at_speed * Math.min(speed, 40) / 50))
+    .add(V(0, Math.max(3, h * 2), 0));
+  want.y = Math.max(want.y, ground.height(want.x, want.z) + 1.2);
+  const look = car.pos.clone().add(V(0, 0.8, 0)).addScaledVector(car.vel, c.look_ahead * 0.35);
+  return { want, look, fov: 60 + c.wider_at_speed * Math.min(18, speed * 0.5) };
+}
+function snapCamera() { const w = cameraWant(); camBase.copy(w.want); camLook.copy(w.look); }
 function follow(dt) {
-  const back = V(0, 0, 1).applyQuaternion(car.rot); back.y = 0;
-  if (back.lengthSq() < 1e-4) back.set(0, 0, 1);
-  back.normalize();
-  const [, h, l] = vehicle.body.size;                         // bigger models get a wider view
-  const want = car.pos.clone().addScaledVector(back, Math.max(7.5, l * 1.8)).add(V(0, Math.max(3, h * 2), 0));
-  camBase.lerp(want, 1 - Math.exp(-dt * 6));
+  const c = vehicle.camera, w = cameraWant();
+  camBase.lerp(w.want, 1 - Math.exp(-dt * (1.5 + (1 - c.lag) * 10)));
+  camLook.lerp(w.look, 1 - Math.exp(-dt * 8));
+  if (Math.abs(camera.fov - w.fov) > 0.05) { camera.fov += (w.fov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   // Rumble: an idle shiver when the engine runs, stronger with throttle, a kick while it starts.
   const t = performance.now() / 1000, r = vehicle.camera.rumble;
-  const amp = r * (car.power === "On" ? 0.012 + car.drive * 0.05 : car.power === "Starting" ? 0.05 : 0);
+  const amp = !playing ? 0 : r * (car.power === "On" ? 0.012 + car.drive * 0.05 : car.power === "Starting" ? 0.05 : 0);
   camera.position.copy(camBase).add(V(Math.sin(t * 53) + Math.sin(t * 31), Math.sin(t * 47) + Math.sin(t * 23), 0).multiplyScalar(amp));
-  camera.lookAt(car.pos.x, car.pos.y + 0.8, car.pos.z);
-  sun.position.copy(car.pos).add(V(12, 20, 8)); sun.target.position.copy(car.pos);
+  camera.lookAt(camLook);
+  sun.position.copy(car.pos).add(V(25, 30, 10)); sun.target.position.copy(car.pos);
 }
 
 function resize() {
@@ -667,7 +726,10 @@ const SETTINGS = [
   { section: "Suspension", label: "Ride height", key: "drive.ride_height", words: ["Low", "Normal", "Tall"], low: 0.05, high: 1, step: 0.01, unit: "m", show: (v) => v.toFixed(2), help: "From the bottom of the body to the ground, at rest." },
   { section: "Suspension", label: "Stiffness", key: "drive.stiffness", words: ["Soft", "Medium", "Firm"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "Soft springs soak up bumps and lean more." },
   { section: "Feel", label: "Start time", key: "power.start_time", words: ["Instant", "Quick", "Slow"], low: 0, high: 2, step: 0.1, unit: "s", show: (v) => v.toFixed(1), help: "How long it cranks before the engine runs." },
-  { section: "Feel", label: "Rumble", key: "camera.rumble", words: ["Off", "Light", "Strong"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How much the camera shakes with the engine and throttle." },
+  { section: "Camera", label: "Rumble", key: "camera.rumble", words: ["Off", "Light", "Strong"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How much the camera shakes with the engine and throttle." },
+  { section: "Camera", label: "Lag", key: "camera.lag", words: ["Tight", "Smooth", "Floaty"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How far the camera trails behind when the car moves." },
+  { section: "Camera", label: "Look into turns", key: "camera.look_ahead", words: ["Off", "Some", "Lots"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How far ahead of the car the camera aims." },
+  { section: "Camera", label: "Wider at speed", key: "camera.wider_at_speed", words: ["Off", "Some", "Lots"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How much the camera pulls back and widens as you go faster." },
   { section: "Feel", label: "Exhaust", key: "signals.4.amount", words: ["None", "Light", "Smoky"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How many puffs come out of the exhaust." },
   { section: "Suspension", label: "Damping", key: "drive.damping", words: ["Bouncy", "Settled", "Stiff"], low: 0, high: 1, step: 0.01, unit: "", show: pct, help: "How quickly bouncing dies away." },
 ];
@@ -761,7 +823,9 @@ document.getElementById("load").addEventListener("change", async (ev) => {
     const v = JSON.parse(await f.text());
     if (v.kind !== "Ground" || !v.drive || !v.body || !Array.isArray(v.drive.axles)) throw new Error("it isn't a ground vehicle file");
     for (const k of Object.keys(vehicle)) delete vehicle[k];
-    Object.assign(vehicle, structuredClone(DEFAULTS), v);
+    const base = structuredClone(DEFAULTS);
+    for (const k in v) base[k] = base[k] && typeof base[k] === "object" && !Array.isArray(base[k]) ? { ...base[k], ...v[k] } : v[k];
+    Object.assign(vehicle, base);
     if (prism && v.model !== prismSource.file) { prism = null; prismSource = null; turnBtn.hidden = true; modelNote.textContent = "A box stand-in."; }
     note(v.model && !prism ? `Loaded ${f.name}. It was made for ${v.model}: load that model too to see it.` : `Loaded ${f.name}.`);
     reset(); buildModel(); buildPanel(); showFile();
@@ -771,16 +835,42 @@ showFile(); buildPanel();
 
 // ---------- Loop: fixed 60 Hz physics, draw every frame ----------
 const DT = 1 / 60;
-let last = performance.now(), acc = 0, resetHeld = false;
+let last = performance.now(), acc = 0, resetHeld = false, playing = false;
 reset(); buildModel(); resize();
-const camBase = car.pos.clone().add(V(0, 3, 7.5));
+const camBase = V(), camLook = V(); snapCamera();
+const playBtn = document.getElementById("play");
+function setPlaying(on) {
+  playing = on; held.clear();
+  playBtn.classList.toggle("on", on);
+  document.getElementById("play-text").textContent = on ? "Pause" : "Play";
+  document.getElementById("play-icon").setAttribute("d", on ? "M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" : "M4 2.5v11l9-5.5z");
+  stage.focus();
+}
+const resetPosition = () => { reset(); snapCamera(); emit("Reset"); };
+playBtn.addEventListener("click", () => setPlaying(!playing));
+document.getElementById("reset-pos").addEventListener("click", () => { resetPosition(); stage.focus(); });
+stage.addEventListener("pointerdown", (e) => { if (e.target === renderer.domElement) stage.focus(); });
+addEventListener("keydown", (e) => {                           // P plays and pauses, Esc pauses
+  if (rebinding || e.repeat) return;
+  if (e.code === "KeyP" && !Object.values(actions()).flat().includes("KeyP")) setPlaying(!playing);
+  if (e.code === "Escape" && playing) setPlaying(false);
+});
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.1); last = now; acc += dt;
-  if (down("Reset") && !resetHeld) { reset(); emit("Reset"); }
+  if (playing && down("Reset") && !resetHeld) resetPosition();
   resetHeld = down("Reset");
-  const raw = Object.fromEntries(Object.keys(vehicle.controls.actions).map((a) => [a, down(a)]));
-  while (acc >= DT) { step(vehicle, control(raw, DT), DT); acc -= DT; }
-  draw(); follow(dt); exhaust(dt);
+  if (playing) {
+    const raw = Object.fromEntries(Object.keys(vehicle.controls.actions).map((a) => [a, down(a)]));
+    while (acc >= DT) { step(vehicle, control(raw, DT), DT); acc -= DT; }
+    exhaust(dt);
+  } else acc = 0;
+  draw(); follow(dt);
+  const hint = !playing ? "Paused. Press Play (or P) to drive; you can tune either way."
+    : car.power === "Off" ? "Tap F twice: once for accessory power, again to start the engine."
+    : car.power === "Accessory" ? "Tap F again to start the engine." : "";
+  const hintEl = document.getElementById("hint");
+  if (hintEl.textContent !== hint) hintEl.textContent = hint;
+  hintEl.hidden = !hint;
   document.getElementById("state").textContent = POWER_TEXT[car.power] + (vehicle.controls.scheme === "Lever" ? ` · lever ${Math.round(car.lever * 100)}%` : "");
   document.getElementById("kmh").textContent = Math.round(Math.abs(car.vel.dot(V(0, 0, -1).applyQuaternion(car.rot))) * 3.6);
   renderer.render(scene, camera);

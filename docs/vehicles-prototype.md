@@ -44,6 +44,15 @@ translates one to one when the real tab is built (`docs/vehicles.md`).
   Controls: Basic shows the scheme and keys, Advanced rebinds each action (`controls.actions`, saved in the file).
   Older files load with the new fields filled in from the defaults.
 
+**Turn 4: play, follow camera, terrain** (built 2026-11-24, at the user's request)
+- Play / Pause, Reset position and Power as overlay buttons at the bottom centre of the view; it opens paused, and
+  tuning works playing or paused. P plays and pauses, Esc pauses. A hint says what to press next (keys only reach
+  the page after a click into it, and the engine starts off).
+- Follow camera: lag, swings toward the direction of travel, looks into turns, pulls back and widens at speed
+  (`camera.lag`, `look_ahead`, `wider_at_speed`, sliders in a Camera section with Rumble).
+- Ground: flat around the track, rolling hills beyond, a kicker ramp on the track and an ice patch (grip by surface,
+  `ground.grip`), warmer sunlight with shadows.
+
 **Follow-ups** (only if the 3 turns run out first):
 - A follow camera: chase with lag, looking into turns, wider at speed.
 - Simple terrain: rolling hills, a ramp, an ice patch, sunlight and shadows.
