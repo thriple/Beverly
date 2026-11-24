@@ -145,8 +145,14 @@ mod tests {
 
     #[test]
     fn same_bytes_every_time() {
+        // on several threads at once too, as the editor's bake jobs can run (METIS has global state)
         let mesh = test_mesh(4, 1);
-        assert_eq!(bake(&mesh, &BakeSettings::default()).unwrap(), bake(&mesh, &BakeSettings::default()).unwrap());
+        let first = bake(&mesh, &BakeSettings::default()).unwrap();
+        let others: Vec<Vec<u8>> = std::thread::scope(|scope| {
+            let jobs: Vec<_> = (0..4).map(|_| scope.spawn(|| bake(&mesh, &BakeSettings::default()).unwrap())).collect();
+            jobs.into_iter().map(|job| job.join().unwrap()).collect()
+        });
+        assert!(others.iter().all(|bytes| *bytes == first));
     }
 
     #[test]
@@ -191,3 +197,4 @@ mod tests {
         assert_ne!(a[1], b[1]);
     }
 }
+

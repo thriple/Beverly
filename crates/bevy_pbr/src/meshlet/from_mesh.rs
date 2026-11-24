@@ -344,6 +344,7 @@ fn compute_meshlets(
 
     let mut meshlet_per_triangle = vec![0; triangle_count];
     let partition_count = triangle_count.div_ceil(126); // Need to undershoot to prevent METIS from going over 128 triangles per meshlet
+    let _metis = metis_lock();
     Graph::new(1, partition_count as i32, &xadj, &adjncy)
         .unwrap()
         .set_options(&options)
@@ -441,6 +442,14 @@ fn find_connected_meshlets(
     connected_meshlets_per_meshlet
 }
 
+/// Tessera: METIS keeps its random generator in global state (GKlib's `random.c`), seeded at the start of each
+/// call, so two meshes baked at once (on different threads) interleave its draws and come out different each time.
+/// One METIS call at a time keeps every bake the same.
+fn metis_lock() -> std::sync::MutexGuard<'static, ()> {
+    static METIS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    METIS.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 // METIS manual: https://github.com/KarypisLab/METIS/blob/e0f1b88b8efcb24ffa0ec55eabb78fbe61e58ae7/manual/manual.pdf
 fn group_meshlets(
     simplification_queue: &[u32],
@@ -468,6 +477,7 @@ fn group_meshlets(
     let partition_count = simplification_queue
         .len()
         .div_ceil(TARGET_MESHLETS_PER_GROUP); // TODO: Nanite uses groups of 8-32, probably based on some kind of heuristic
+    let _metis = metis_lock();
     Graph::new(1, partition_count as i32, &xadj, &adjncy)
         .unwrap()
         .set_options(&options)
