@@ -88,9 +88,11 @@ pub fn nav_overlay(ed: Res<Editor>, mut commands: Commands, mut meshes: ResMut<A
     *drawn = Some((commands.spawn((Mesh3d(meshes.add(mesh)), MeshMaterial3d(mat), Transform::default(), world::EDITOR_ONLY)).id(), want));
 }
 
-/// The sun and fill light follow the level's Lighting.
-pub fn stage(ed: Res<Editor>, mut applied: Local<Option<level::Lighting>>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>) {
-    if applied.as_ref() == Some(&ed.level.lighting) { return; }
-    world::light_stage(&ed.level.lighting, std::env::var_os("BEVERLY_LITE").is_none(), &mut sun, &mut fill);
-    *applied = Some((*ed.level.lighting).clone());
+/// The sun and fill light follow the level's Lighting, as the zones the camera is in change it.
+pub fn stage(ed: Res<Editor>, mut applied: Local<Option<level::Lighting>>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>, cam: Query<&GlobalTransform, With<crate::play::PlayCamera>>) {
+    let at = cam.iter().next().map_or(Vec3::ZERO, |t| t.translation());
+    let l = ed.level.lighting_at(at);
+    if applied.as_ref() == Some(&l) { return; }
+    world::light_stage(&l, std::env::var_os("BEVERLY_LITE").is_none(), &mut sun, &mut fill);
+    *applied = Some(l);
 }

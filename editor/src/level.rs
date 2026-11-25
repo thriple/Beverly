@@ -30,6 +30,7 @@ mod shape;
 mod sound;
 mod track;
 mod world;
+mod zone;
 pub use delta::Delta;
 pub use foliage::*;
 pub use hierarchy::{beyond, frame, within};
@@ -41,6 +42,7 @@ pub use shape::*;
 pub use sound::*;
 pub use track::{Stamps, Tracked};
 pub use world::*;
+pub use zone::*;
 
 
 
@@ -169,6 +171,10 @@ pub struct Part {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[reflect(@Setting::optional("Sound", "Off", "On").section(SPEAKER))]
     pub sound: Option<Speaker>,
+    /// A Zone part's zone (`Shape::Zone`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[reflect(@Setting::optional("Zone", "Off", "On").section(ZONE))]
+    pub zone: Option<Zone>,
     /// Sounds it plays when things happen to it (Pressed, Arrived, Hit…).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sounds: Vec<Hook>,
@@ -197,11 +203,12 @@ impl Part {
             id: 0, name, shape, pos, rot, size,
             color: match shape { Shape::Interact => [0.94, 0.55, 0.26], Shape::Model => [1.0; 3], _ => [0.62, 0.64, 0.70] },
             visible: true,
-            collision: if shape == Shape::PlayerStart || shape.is_marker() { Collision::WalkThrough } else { Collision::Solid },
+            collision: if shape == Shape::PlayerStart || shape == Shape::Zone || shape.is_marker() { Collision::WalkThrough } else { Collision::Solid },
             model, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None,
             light: shape.is_light().then(Light::default),
             camera: shape.is_camera().then(Camera::default),
             sound: (shape == Shape::Sound).then(Speaker::default),
+            zone: (shape == Shape::Zone).then(Zone::default),
             sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         }
     }

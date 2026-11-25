@@ -29,6 +29,9 @@ pub enum Shape {
     /// A speaker playing a sound file (`Part::sound`), heard in 3D. Shown in the editor only; never collides.
     /// Inputs: Play, Stop.
     Sound,
+    /// A box that sends Entered and Left as the player goes in and out, and changes things inside it (`Part::zone`).
+    /// Shown in the editor only; never collides.
+    Zone,
 }
 
 impl Shape {
@@ -40,7 +43,7 @@ impl Shape {
     /// Kinds that are shown in the editor only and never collide: lights, cameras and sounds.
     pub fn is_marker(self) -> bool { self.is_light() || self.is_camera() || self == Shape::Sound }
     /// Every kind with triangles of its own (all but models).
-    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS).chain(Shape::CAMERAS).chain([Shape::Sound]) }
+    pub fn built() -> impl Iterator<Item = Shape> { Shape::ALL.into_iter().chain([Shape::PlayerStart, Shape::Interact]).chain(Shape::LIGHTS).chain(Shape::CAMERAS).chain([Shape::Sound, Shape::Zone]) }
     pub fn label(self) -> &'static str {
         match self {
             Shape::Box => "Box",
@@ -59,6 +62,7 @@ impl Shape {
             Shape::OrbitCamera => "Orbit camera",
             Shape::FollowCamera => "Follow camera",
             Shape::Sound => "Sound",
+            Shape::Zone => "Zone",
         }
     }
     pub fn glyph(self) -> &'static str {
@@ -79,6 +83,7 @@ impl Shape {
             Shape::OrbitCamera => "↻",
             Shape::FollowCamera => "⇢",
             Shape::Sound => "♪",
+            Shape::Zone => "▣",
         }
     }
     /// One line for the parts pop-up.
@@ -101,6 +106,7 @@ impl Shape {
             Shape::OrbitCamera => return "a view circling a target you drag, once a lap".into(),
             Shape::FollowCamera => return "a view that keeps its offset from the player as they move".into(),
             Shape::Sound => return "a speaker playing a sound, on start or when wired; heard in 3D".into(),
+            Shape::Zone => "a zone: Entered and Left as the player goes in and out, and its own lighting or gravity inside",
         };
         format!("{what} · {x} × {y} × {z} m")
     }
@@ -121,6 +127,7 @@ impl Shape {
             Shape::PointLight | Shape::SpotLight => [0.3, 0.3, 0.3],
             Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => [0.4, 0.3, 0.5],
             Shape::Sound => [0.4, 0.4, 0.4],
+            Shape::Zone => [6.0, 4.0, 6.0],
         }
     }
 
@@ -128,6 +135,7 @@ impl Shape {
     pub fn outputs(self) -> &'static [&'static str] {
         match self {
             Shape::Interact => &["Pressed"],
+            Shape::Zone => &Zone::OUTPUTS,
             _ => &[],
         }
     }

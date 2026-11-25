@@ -750,7 +750,7 @@ ol.q { padding-left: 20px; display: grid; gap: 8px; max-width: 76ch; }
       <span class="tag">Weather and haze</span><h3>Level atmosphere plus zones</h3>
       <ul>
         <li>Level settings: sky, sun, haze colour and density, wind, and precipitation (rain, snow, ash, embers).</li>
-        <li>Zone parts are stretchable boxes that override those settings inside them, blending over a few metres at the edge. "Interior" is a preset zone: no sky, no weather, default lighting.</li>
+        <li>Zone parts are stretchable boxes that override those settings inside them, blending over a few metres at the edge. "Interior" is a preset zone: no sky, no weather, default lighting. Built (2026-11-25): the Zone part sends Entered and Left along wires as the player (or anything) goes in and out; its layers so far are Lighting (Interior: the sun dims out; its own fill) and Gravity (0 floats), blending in over its Edge; the other layers come with their features.</li>
         <li>The "Set weather" action changes the level's atmosphere over time, so a storm can roll in on cue.</li>
       </ul>
     </div>

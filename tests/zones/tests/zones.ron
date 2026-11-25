@@ -1,0 +1,12 @@
+// Zones: walking through the gate zone sends Entered, which raises the door far ahead; in the float zone (gravity 0)
+// a loose crate hangs where it was put while one outside falls; and inside the hall (Interior, a warm dim fill) the
+// sun is gone.
+(
+    trace: "tests/zones.trace.csv",
+    steps: [
+        (at: 0.4, shot: "start", expect: [Feet((0, 0.1, 8), 0.1), Part("Door", (0, 1.5, -14), 0.05)]),
+        (at: 0.5, press: ["W"]),
+        (at: 3.0, release: ["W"]),
+        (at: 4.0, shot: "inside", expect: [Part("Door", (0, 5.5, -14), 0.05), Part("Floating crate", (9, 2, 0), 0.05), Part("Falling crate", (-9, 0.5, 0), 0.05)]),
+    ],
+)

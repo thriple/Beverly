@@ -275,6 +275,8 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
         Shape::PlayerStart => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::PlayerStart)), MeshMaterial3d(mats.ghost.clone()), EDITOR_ONLY)).id()),
         // a Sound part: a speaker in the Actions colour in the editor (clicked to select it); heard, not seen, in the game
         Shape::Sound => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::Sound)), MeshMaterial3d(assets.add(StandardMaterial { base_color: Color::srgb_u8(0x3D, 0x7B, 0xFF), unlit: true, ..default() })), EDITOR_ONLY)).id()),
+        // a Zone part: a see-through box in the trigger colour in the editor (seen from outside; clicked to select it)
+        Shape::Zone => editor.then(|| commands.spawn((tf, Mesh3d(lib.mesh(Shape::Zone)), MeshMaterial3d(assets.add(StandardMaterial { base_color: Color::srgba(0.98, 0.62, 0.22, 0.14), unlit: true, alpha_mode: AlphaMode::Blend, ..default() })), bevy::light::NotShadowCaster, EDITOR_ONLY)).id()),
         Shape::Model => {
             let path = p.model.as_ref()?;
             models.request(server, path);

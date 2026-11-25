@@ -89,11 +89,13 @@ fn setup(
     commands.insert_resource(mats);
 }
 
-/// The sun and fill light as the level says (once, when the stage's sun exists).
-fn stage(game: Res<Game>, mut done: Local<bool>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>) {
-    if *done || sun.is_empty() { return; }
-    world::light_stage(&game.level.lighting, true, &mut sun, &mut fill);
-    *done = true;
+/// The sun and fill light as the level says, as the zones the camera is in change it.
+fn stage(game: Res<Game>, mut applied: Local<Option<crate::level::Lighting>>, mut sun: Query<(&mut DirectionalLight, &mut Transform), With<world::Sun>>, mut fill: ResMut<GlobalAmbientLight>, cam: Query<&GlobalTransform, With<PlayCamera>>) {
+    if sun.is_empty() { return; }
+    let l = game.level.lighting_at(cam.iter().next().map_or(Vec3::ZERO, |t| t.translation()));
+    if applied.as_ref() == Some(&l) { return; }
+    world::light_stage(&l, true, &mut sun, &mut fill);
+    *applied = Some(l);
 }
 
 /// The scatter items (the level file keeps only the curves): made once every model has loaded, so ground that is a

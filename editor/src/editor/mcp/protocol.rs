@@ -207,7 +207,7 @@ pub fn tools() -> Value {
         {
             "name": "add_part",
             "title": "Add a part",
-            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call. Lights (Point light, Spot light) have a Light setting: {\"Light\": {\"Brightness\": 400000, \"Reach\": 8, \"Cone\": 40, \"Shadows\": false, \"Colour\": \"#ffd8a0\"}}; a spot shines away from the surface it stands on, or at aim. Tags mark what a part's surface is: {\"Tags\": [\"Climbable\", \"Slippery\"]} (get_part lists the choices); the walker slides on Slippery parts.",
+            "description": "Place a new part and select it. Without a position it goes where the editor's view is looking, standing on what is there. Settings are set as change_part sets them, so a part can be named, sized, coloured and turned in one call. Lights (Point light, Spot light) have a Light setting: {\"Light\": {\"Brightness\": 400000, \"Reach\": 8, \"Cone\": 40, \"Shadows\": false, \"Colour\": \"#ffd8a0\"}}; a spot shines away from the surface it stands on, or at aim. Tags mark what a part's surface is: {\"Tags\": [\"Climbable\", \"Slippery\"]} (get_part lists the choices); the walker slides on Slippery parts. A Zone is a box (size it with Size) that sends Entered and Left along wires as the player goes in and out, with layers inside it that blend in over its Edge: {\"Zone\": {\"Sets off\": \"Anything\", \"Edge\": 2, \"Lighting\": {\"Interior\": true, \"Fill\": 300}, \"Gravity\": {\"Strength\": 0.2}}} (Sets off: Player or Anything, which adds loose parts; Lighting and Gravity are null for the level's own).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -556,7 +556,7 @@ pub fn tools() -> Value {
         {
             "name": "get_play",
             "title": "Play state",
-            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something, which way it faces and the part it stands on with that part's surface tags), where every moving part is now, and every loose part (where it is, how far it has moved, whether it is asleep: at rest until something touches it).",
+            "description": "While testing: the player (feet, and for the built-in walker its velocity, whether it stands on something, which way it faces and the part it stands on with that part's surface tags; the Zone parts it is in, and gravity there as a share of the level's), where every moving part is now, and every loose part (where it is, how far it has moved, whether it is asleep: at rest until something touches it).",
             "inputSchema": none,
         },
         {

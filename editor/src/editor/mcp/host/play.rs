@@ -127,6 +127,9 @@ pub(super) fn play_state(ed: &Editor, pl: &Playing) -> Value {
     } else {
         player["character"] = json!("the game's own");
     }
+    // the zones the player is in, and how strongly things fall where they stand
+    player["in_zones"] = json!(p.script.zones_in().iter().filter_map(|id| ed.level.get(*id)).map(|q| json!({"id": q.id, "name": q.name})).collect::<Vec<_>>());
+    player["gravity"] = settings::num(p.script.gravity_at(p.feet));
     let moving: Vec<Value> = ed.level.parts.iter().filter(|q| q.mover.is_some()).map(|q| {
         let live = pl.parts.iter().find(|(id, _)| id.0 == q.id).map(|(_, t)| t.translation);
         let moved = live.map(|l| l - part_transform(q).translation).unwrap_or(Vec3::ZERO);

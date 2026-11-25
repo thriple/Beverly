@@ -5,7 +5,7 @@ use super::*;
 pub(super) struct Section { name: &'static str, icon: &'static str, color: Color32, items: &'static [(&'static str, &'static str)], ready: bool }
 
 pub(super) const SCRIPT_SECTIONS: [Section; 5] = [
-    Section { name: "Triggers", icon: "bolt", color: theme::CAT_TRIGGERS, items: &[("◎", "Proximity"), ("⬚", "Volume"), ("☝", "Interact"), ("▶", "On start"), ("✖", "Killed")], ready: false },
+    Section { name: "Triggers", icon: "bolt", color: theme::CAT_TRIGGERS, items: &[("◎", "Proximity"), ("⬚", "Volume"), ("▣", "Zone"), ("☝", "Interact"), ("▶", "On start"), ("✖", "Killed")], ready: false },
     Section {
         name: "Actions",
         icon: "play",
@@ -52,6 +52,7 @@ pub(super) fn parts_popup(ctx: &egui::Context, ed: &mut Editor) {
             "Player start" => Some(Shape::PlayerStart),
             "Interact" => Some(Shape::Interact),
             "Sound" => Some(Shape::Sound),
+            "Zone" => Some(Shape::Zone),
             _ => None,
         };
         sections.push((sec.name, sec.icon, sec.color, sec.items.iter().filter(|(_, l)| matches(l)).map(|(g, l)| Item { glyph: g, label: l, shape: shape_of(l) }).collect(), sec.ready));

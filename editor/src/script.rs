@@ -1,6 +1,6 @@
 //! Script parts at play time: buttons (Interact), wires, and parts that move. Runs in the editor's test mode and
 //! in the game player.
-use crate::level::{beyond, frame, within, Level, Mover, Shape, Wire};
+use crate::level::{beyond, frame, within, Level, Mover, Part, Shape, Who, Wire};
 use crate::physics::PartBody;
 use crate::play::Play;
 use crate::world::part_transform;
@@ -72,6 +72,8 @@ pub struct Script {
     carried: std::collections::HashMap<u64, Carried>,
     /// Buttons: id, centre, radius.
     buttons: Vec<(u64, Vec3, f32)>,
+    /// Zone parts, and whether something that sets each off is inside it.
+    zones: Vec<(Part, bool)>,
     wires: Vec<Wire>,
     /// The wires that fired this frame (indices into the level's wires), for the editor to show.
     pub fired: Vec<usize>,
@@ -96,7 +98,8 @@ impl Script {
             Some((p.id, Carried { carrier, local: within(frame(level.get(carrier)?), frame(p)) }))
         }).collect();
         let buttons = level.parts.iter().filter(|p| p.shape == Shape::Interact).map(|p| (p.id, Vec3::from(p.pos), p.size[0].max(p.size[2]) * 0.5)).collect();
-        Self { movers, carried, buttons, wires: (*level.wires).clone(), fired: vec![], inputs: vec![], happened: vec![] }
+        let zones = level.zones().map(|(p, _)| (p.clone(), false)).collect();
+        Self { movers, carried, buttons, zones, wires: (*level.wires).clone(), fired: vec![], inputs: vec![], happened: vec![] }
     }
 
     /// The button the player at `feet` could press now.
@@ -109,6 +112,25 @@ impl Script {
             .map(|(id, ..)| id)
     }
 
+    /// Zones send Entered as the first thing that sets them off goes in (the player at `feet`, or for Anything also a
+    /// loose part at one of `loose`), and Left as the last comes out.
+    pub fn watch(&mut self, feet: Vec3, loose: &[Vec3]) {
+        let mut sends = vec![];
+        for (p, was) in &mut self.zones {
+            let Some(z) = &p.zone else { continue };
+            let now = crate::level::in_zone(p, feet) || (z.who == Who::Anything && loose.iter().any(|at| crate::level::in_zone(p, *at)));
+            if now != *was { sends.push((p.id, if now { "Entered" } else { "Left" })); }
+            *was = now;
+        }
+        for (id, out) in sends { self.send(id, out); }
+    }
+
+    /// The zones the player is in now (by id), for the MCP.
+    pub fn zones_in(&self) -> Vec<u64> { self.zones.iter().filter(|z| z.1).map(|z| z.0.id).collect() }
+
+    /// How strongly things fall at `at`, as a share of the level's gravity (the zones' Gravity).
+    pub fn gravity_at(&self, at: Vec3) -> f32 { crate::level::gravity_among(self.zones.iter().filter_map(|(p, _)| Some((p, p.zone.as_ref()?))), at) }
+
     /// Start the moving parts over from where they were placed.
     pub fn reset(&mut self) {
         for m in &mut self.movers {
@@ -117,6 +139,7 @@ impl Script {
             m.age = 0.0;
             m.last = (m.home.translation, m.home.rotation);
         }
+        for z in &mut self.zones { z.1 = false; }
         self.fired.clear();
         self.inputs.clear();
         self.happened.clear();
@@ -171,6 +194,8 @@ pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody
     if std::mem::take(&mut play.press) {
         if let Some(id) = play.script.button_near(play.feet) { play.script.send(id, "Pressed"); }
     }
+    let loose: Vec<Vec3> = if play.script.zones.is_empty() { vec![] } else { bodies.iter().filter(|(b, ..)| play.loose.contains_key(&b.0)).map(|(_, at, ..)| at.0).collect() };
+    play.script.watch(play.feet, &loose);
     let dt = time.delta_secs();
     play.script.tick(dt);
     if dt <= 0.0 { return; }
@@ -200,6 +225,18 @@ pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody
     }
 }
 
+/// Gravity follows the zones: the walker and each loose part fall as strongly as the zones they are in say.
+pub fn gravity(play: Res<Play>, mut commands: Commands, mut q: Query<(Entity, &Position, Option<&mut avian3d::prelude::GravityScale>, Has<crate::play::WalkerBody>), Or<(With<crate::play::WalkerBody>, With<PartBody>)>>) {
+    if !play.script.zones.iter().any(|(p, _)| p.zone.as_ref().is_some_and(|z| z.gravity.is_some())) { return; }
+    for (e, at, scale, walker) in &mut q {
+        let g = play.script.gravity_at(at.0) * if walker { crate::play::GRAVITY / 9.81 } else { 1.0 };
+        match scale {
+            Some(mut s) => if s.0 != g { s.0 = g; },
+            None => { commands.entity(e).insert(avian3d::prelude::GravityScale(g)); }
+        }
+    }
+}
+
 /// The parts carried by moving parts are drawn where their carrier is (the carrier is drawn smoothed between steps).
 pub fn carry(play: Res<Play>, mut shown: Query<(&crate::world::PartId, &mut Transform)>) {
     if play.script.carried.is_empty() { return; }
@@ -220,7 +257,7 @@ mod tests {
     use crate::level::{Collision, Part};
 
     fn part(id: u64, shape: Shape, pos: [f32; 3], size: [f32; 3]) -> Part {
-        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None }
+        Part { id, name: format!("p{id}"), shape, pos, rot: [0.0, 0.0, 0.0, 1.0], size, color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, zone: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None }
     }
 
     #[test]
@@ -249,6 +286,28 @@ mod tests {
         // Arrived is wired to its own Back: it heads home again
         s.tick(2.0);
         assert!(up(&s).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_zone_sends_entered_and_left_once_each_way() {
+        let mut z = part(1, Shape::Zone, [0.0, 2.0, 0.0], [4.0, 4.0, 4.0]);
+        z.zone = Some(crate::level::Zone::default());
+        let mut any = part(2, Shape::Zone, [10.0, 2.0, 0.0], [4.0, 4.0, 4.0]);
+        any.zone = Some(crate::level::Zone { who: Who::Anything, ..Default::default() });
+        let level = Level { name: "t".into(), parts: vec![z, any].into(), next_id: 2, ..Default::default() };
+        let mut s = Script::new(&level);
+        let sent = |s: &mut Script| { let v: Vec<(u64, String)> = s.happened.drain(..).map(|h| (h.part.unwrap(), h.what)).collect(); v };
+        s.watch(Vec3::new(0.0, 0.0, 5.0), &[]);
+        assert!(sent(&mut s).is_empty());
+        s.watch(Vec3::new(0.0, 0.1, 1.0), &[]);
+        s.watch(Vec3::new(0.5, 0.1, 0.0), &[]);
+        assert_eq!(sent(&mut s), vec![(1, "Entered".to_string())], "once, as the player goes in");
+        assert_eq!(s.zones_in(), vec![1]);
+        s.watch(Vec3::new(0.0, 0.1, 3.0), &[]);
+        assert_eq!(sent(&mut s), vec![(1, "Left".to_string())]);
+        // a loose part sets off only the zone that lets anything in
+        s.watch(Vec3::new(0.0, 0.1, 9.0), &[Vec3::new(10.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 0.0)]);
+        assert_eq!(sent(&mut s), vec![(2, "Entered".to_string())]);
     }
 
     #[test]

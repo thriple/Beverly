@@ -69,6 +69,24 @@ fn part_sections(ui: &mut Ui, ed: &mut Editor, p: &mut level::Part, model: bool,
         if sec == level::TAGS { continue; }
         // a light or a camera: its settings in place of size and look (the cone for spots only)
         if sec == level::LOOK && p.shape.is_marker() { continue; }
+        // a zone: its size, then its own settings and each layer in a group of its own
+        if sec == level::LOOK && p.shape == Shape::Zone {
+            column(ui, 250.0, "SIZE", |ui| {
+                ui.horizontal(|ui| {
+                    let w = (ui.available_width() - 8.0) / 3.0;
+                    for i in 0..3 { settings::number(ui, &mut p.size[i], 0.05, 0.1, 100000.0, " m", Some(i), w); }
+                });
+            });
+            continue;
+        }
+        if sec == level::ZONE {
+            if let Some(z) = p.zone.as_mut() {
+                for (s, title) in [(level::ZONE, "ZONE"), (level::ZONE_LIGHTING, "LIGHTING"), (level::ZONE_GRAVITY, "GRAVITY")] {
+                    column(ui, 250.0, title, |ui| { settings::section(ui, z, s, ctx); });
+                }
+            }
+            continue;
+        }
         if sec == level::CAMERA {
             let orbit = p.shape == Shape::OrbitCamera;
             if let Some(c) = p.camera.as_mut() {

@@ -126,7 +126,7 @@ pub(super) fn kind(shape: Shape) -> (&'static str, &'static str, Color32) {
         s if s.is_light() => ("Lights", "bulb", theme::CAT_LIGHTS),
         s if s.is_camera() => ("Cameras", "camera", theme::CAT_CAMERAS),
         Shape::PlayerStart => ("Game", "person", theme::CAT_GAME),
-        Shape::Interact => ("Triggers", "bolt", theme::CAT_TRIGGERS),
+        Shape::Interact | Shape::Zone => ("Triggers", "bolt", theme::CAT_TRIGGERS),
         Shape::Sound => ("Actions", "play", theme::CAT_ACTIONS),
         Shape::Model => ("Models", "cube", theme::CAT_SHAPES),
         _ => ("Shapes", "cube", theme::CAT_SHAPES),
@@ -235,6 +235,6 @@ pub fn shape_icon(p: &egui::Painter, c: egui::Pos2, h: f32, shape: Shape, col: C
                 .collect();
             p.add(egui::Shape::line(pts, st));
         }
-        Shape::Model | Shape::Sound | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight | Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => {}
+        Shape::Model | Shape::Sound | Shape::Zone | Shape::PlayerStart | Shape::Interact | Shape::PointLight | Shape::SpotLight | Shape::FixedCamera | Shape::OrbitCamera | Shape::FollowCamera => {}
     }
 }
