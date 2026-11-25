@@ -117,8 +117,6 @@ fn pbr_input_from_standard_material(
     bias.mip_bias = view.mip_bias;
 }
 
-// TODO: Transforming UVs mean we need to apply derivative chain rule for meshlet mesh material pass
-
 @if(VERTEX_UVS && BINDLESS)
     let uv_transform = pbr_bindings::material_array[material_indices[slot].material].uv_transform;
 @elif(VERTEX_UVS)
@@ -127,10 +125,17 @@ fn pbr_input_from_standard_material(
 @if(VERTEX_UVS)
 pbr_input.material.uv_transform = uv_transform;
 
+// Tessera: the UVs are transformed below, so the meshlet pass's gradients are too (chain rule: the transform's
+// linear part), else a tiled texture is sampled at the wrong mip level
+@if(VERTEX_UVS && MESHLET_MESH_MATERIAL_PASS) {
+    let uv_linear = mat2x2(uv_transform[0].xy, uv_transform[1].xy);
+    bias.ddx_uv = uv_linear * bias.ddx_uv;
+    bias.ddy_uv = uv_linear * bias.ddy_uv;
+}
+
 @if(VERTEX_UVS && VERTEX_UVS_A)
     var uv = (uv_transform * vec3(in.uv, 1.0)).xy;
 
-// TODO: Transforming UVs mean we need to apply derivative chain rule for meshlet mesh material pass
 @if(VERTEX_UVS && VERTEX_UVS_B)
     var uv_b = (uv_transform * vec3(in.uv_b, 1.0)).xy;
 @elif(VERTEX_UVS)

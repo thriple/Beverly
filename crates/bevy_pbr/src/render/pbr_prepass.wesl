@@ -81,7 +81,6 @@ fn fragment(
 @if(VERTEX_TANGENTS) {
 @if(STANDARD_MATERIAL_NORMAL_MAP) {
 
-// TODO: Transforming UVs mean we need to apply derivative chain rule for meshlet mesh material pass
 @if(STANDARD_MATERIAL_NORMAL_MAP_UV_B)
         let uv = (uv_transform * vec3(in.uv_b, 1.0)).xy;
 @else
@@ -92,8 +91,10 @@ fn fragment(
 @if(MESHLET_MESH_MATERIAL_PASS) {
         // Apply mip bias by scaling the gradients used by textureSampleGrad.
         let mip_scale = exp2(view.mip_bias);
-        bias.ddx_uv = in.ddx_uv * mip_scale;
-        bias.ddy_uv = in.ddy_uv * mip_scale;
+        // Tessera: the UVs are transformed, so their gradients are too (chain rule: the transform's linear part)
+        let uv_linear = mat2x2(uv_transform[0].xy, uv_transform[1].xy);
+        bias.ddx_uv = uv_linear * in.ddx_uv * mip_scale;
+        bias.ddy_uv = uv_linear * in.ddy_uv * mip_scale;
 }
 @if(!MESHLET_MESH_MATERIAL_PASS)
         bias.mip_bias = view.mip_bias;
