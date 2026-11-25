@@ -79,7 +79,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 5. ✅ **Instances by change.** (2026-11-20, in an interactive session ahead of order, at the user's request)
    - Rewrite the fork's `InstanceManager` so it updates only what changed, and cache the per-view bind groups (both are Bevy TODOs).
    - Add a headless benchmark with 10k and 100k instances, and record the CPU time per frame before and after.
-6. ⬜ **More of the material.**
+6. 🔶 **More of the material.** Texture tiling and its screenshot test done 2026-11-26; **left: vertex colours and a second UV set** (second line).
    - Texture tiling (the UV transform applied to the UVs *and* the analytic derivatives in `visibility_buffer_resolve.wesl`).
    - Vertex colours and a second UV set in the asset format (bump the version).
    - If GPU-testable here: a screenshot test against the normal renderer.
@@ -131,6 +131,11 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
   `tessera::bake::load(bytes)` (the `MeshletMesh`) and `tessera::bake::proxy_mesh(bytes)` (the coarsest level as
   an ordinary mesh, for `realtime-gi` and `backdrops`). A `BakeError::Format` or `Bytes` error on reading means the
   entry is from another version: bake again.
+- **Known limit, camera viewports (job 6):** the meshlet passes size their depth targets to a camera's viewport but
+  draw into the whole render target, so a camera with a `viewport` smaller than its target fails wgpu validation
+  ("attachments have differing sizes") in `meshlet_main_opaque_pass`. Beverly's cameras don't use viewports today;
+  a split view or picture-in-picture would need this fixed in the fork first, or render to its own image as
+  `vg-render tiling` does.
 - **Merging job 1 into main:** `editor/Cargo.toml` gains the `[patch.crates-io] bevy_pbr` (path `../crates/bevy_pbr`),
   the off-by-default `tessera` feature, the optional `tessera` dependency (`../crates/tessera`) and the `vg-render`
   binary (`required-features = ["tessera"]`, so default builds and the release zip don't contain it). Main's
@@ -146,6 +151,33 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-26 (Guam): job 6, texture tiling 🔶 (vertex colours and UV1 left)
+- **Merge:** main merged in cleanly.
+- **The fix:** the meshlet material pass samples textures with `textureSampleGrad` and the analytic UV gradients
+  from `visibility_buffer_resolve.wesl`, but `pbr_fragment.wesl` then transforms the UVs by the material's
+  `uv_transform` and left the gradients alone (Bevy's TODO). Both gradients are now multiplied by the transform's
+  2×2 linear part (chain rule), in `pbr_fragment.wesl` and in `pbr_prepass.wesl`'s normal-map path. The two
+  remaining TODOs of that wording are about parallax mapping's UV shift, outside this job.
+- **Screenshot test against the normal renderer: `vg-render OUT tiling`.**
+  - The scene: a 2 m plane under a mipmapped 256² checker (white and blue, with its whole mip chain), tiled ×8 with a
+    repeating sampler, unlit, seen from 0.5 m up so the distance needs high mips. It is drawn twice, as a meshlet
+    mesh (baked with `tessera::bake`) and as an ordinary mesh, each by its own camera into its own 400×600 image.
+  - The picture shows the two images side by side. It fails if they differ by more than 2.0 per channel on average
+    (`TILING_MAX_DIFF`).
+  - Measured: **0.77 with the fix, 5.51 without** (Bevy's shaders put back temporarily). Without the fix the
+    meshlet side's distant checker stays sharp and aliased where the normal renderer blurs it.
+- **Found on the way:** a camera viewport smaller than its target breaks the meshlet passes (wgpu validation). The
+  test first split one window between two cameras; see *Wiring main needs*.
+- **Checks:**
+  - `vg-render`: draw, grid (0 holes), tiling (0.77), unsupported, msaa and device all exit 0
+  - feature off: `cargo build` ✅, `cargo test` ✅ (100)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (100)
+  - `tools/run-tests.sh` ✅ (all 25)
+- **Left for the next run:** vertex colours and a second UV set in the asset format (bump the version), with a
+  test of each.
+- **Only the RTX card can show:** the same comparison on a real driver; its texture filtering may differ a little
+  from lavapipe's, so the threshold may need a look there.
 
 ### 2026-11-24 and 2026-11-25 (Guam): job 4, baking library ✅
 The 2026-11-24 run ended before its log entry; its work is described here with tonight's.
