@@ -20,7 +20,7 @@ const RADIUS: f32 = 0.4;
 const FLOAT: f32 = 1.1;
 const LENGTH: f32 = 0.5;
 const EYE: f32 = 1.6;
-const GRAVITY: f32 = 22.0;
+pub const GRAVITY: f32 = 22.0;
 const JUMP: f32 = 1.45;
 const WALK: f32 = 5.0;
 const RUN: f32 = 9.0;
@@ -74,7 +74,7 @@ pub struct Play {
     /// Slippery parts (surface tag).
     slippery: HashSet<u64>,
     /// Loose parts: their speed last step, and when each last made a Hit.
-    loose: HashMap<u64, (Vec3, f32)>,
+    pub(crate) loose: HashMap<u64, (Vec3, f32)>,
     clock: f32,
     /// E pressed since the last step (keys are read every frame, play moves on the fixed step).
     pub(crate) press: bool,
@@ -109,7 +109,7 @@ impl Plugin for PlayPlugin {
             .add_plugins((crate::input::InputMapPlugin, crate::physics::PhysicsPlugin, TnuaControllerPlugin::<Moves>::new(PhysicsSchedule), TnuaAvian3dPlugin::new(PhysicsSchedule)))
             .add_systems(Startup, feel)
             .add_systems(Update, (keys.run_if(playing), follow.run_if(walking)))
-            .add_systems(FixedUpdate, (sense.run_if(walking), knocks.run_if(playing), crate::script::run.run_if(playing), controls.run_if(walking)).chain());
+            .add_systems(FixedUpdate, (sense.run_if(walking), knocks.run_if(playing), crate::script::run.run_if(playing), crate::script::gravity.run_if(playing), controls.run_if(walking)).chain());
     }
 }
 

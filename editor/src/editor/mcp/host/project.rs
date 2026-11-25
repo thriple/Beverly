@@ -121,7 +121,7 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
         "get_log" => Ok(json!(ed.island.history().iter().collect::<Vec<_>>())),
         "list_part_kinds" => {
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
-            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight, Shape::Sound]);
+            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight, Shape::Sound, Shape::Zone]);
             kinds.extend(Shape::CAMERAS);
             let template = Part::placed(Shape::Box, None, "Box 1".into(), [0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0], Shape::Box.default_size());
             Ok(json!({

@@ -7,7 +7,7 @@ pub(super) fn parts_tools(ed: &mut Editor, view: &mut View, name: &str, args: &V
             editable(ed)?;
             let want = args.get("kind").and_then(Value::as_str).ok_or("Give the kind (list_part_kinds)")?.to_lowercase();
             let mut kinds: Vec<Shape> = Shape::ALL.to_vec();
-            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight, Shape::Sound]);
+            kinds.extend([Shape::Interact, Shape::PlayerStart, Shape::Model, Shape::PointLight, Shape::SpotLight, Shape::Sound, Shape::Zone]);
             kinds.extend(Shape::CAMERAS);
             let shape = *kinds.iter().find(|k| k.label().to_lowercase() == want).ok_or_else(|| {
                 format!("No kind called \"{want}\" (there are: {})", kinds.iter().map(|k| k.label()).collect::<Vec<_>>().join(", "))

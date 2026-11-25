@@ -211,7 +211,7 @@ mod tests {
 
     fn part() -> Part {
         Part { id: 1, name: "Pad".into(), shape: Shape::Box, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], size: [1.0; 3], color: [0.5; 3],
-            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0, ..Default::default() }), surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None }
+            visible: true, collision: Collision::Solid, model: None, mover: Some(Mover { to: [0.0, 3.0, 0.0], secs: 2.0, ..Default::default() }), surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, zone: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None }
     }
 
     #[test]
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn a_part_describes_its_settings_in_sections_with_values() {
         let p = part();
-        assert_eq!(sections(&p), vec!["PART", "POSITION  ·  ROTATION", "SIZE  ·  LOOK", "TAGS", "LIGHT", "CAMERA", "PLAYS", "MOVES"]);
+        assert_eq!(sections(&p), vec!["PART", "POSITION  ·  ROTATION", "SIZE  ·  LOOK", "TAGS", "LIGHT", "CAMERA", "PLAYS", "ZONE", "MOVES"]);
         let d = describe(&p);
         let f = |name: &str| d.as_array().unwrap().iter().find(|x| x["field"] == name).unwrap().clone();
         assert_eq!(f("collision")["value"], "Solid");

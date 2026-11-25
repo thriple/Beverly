@@ -568,6 +568,27 @@
    "build": 70
   },
   {
+   "id": "shaders",
+   "name": "Custom shaders",
+   "area": "Engine budgets",
+   "effort": "L",
+   "needs": [
+    "materials"
+   ],
+   "what": "Shaders as project assets (assets/shaders/*.wesl) with their settings shown as sliders, hot reload, errors in the island, and any material able to use one; raster hooks for moving vertices and cut-out edges.",
+   "chunks": [
+    "Shader assets: a settings header turned into sliders, hot reload, errors with the line, assigning a shader to a material; the paint layers move onto it",
+    "Raster hooks: vertex offset (with how far it may move, for culling) and alpha mask, declared once and used by the normal renderer and by virtual geometry; marking a shader see-through; the MCP (write, list, assign shaders)"
+   ],
+   "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Closed 2026-11-25 (user): the paint layers moving into the material pass and virtual geometry's use of the hooks belong to Tessera part 3 (Programmable raster and Beverly's materials), where they are listed. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
+   "status": "done",
+   "first_game": true,
+   "order": 32,
+   "stage": "Foundations",
+   "built": "2026-11-19",
+   "build": 70
+  },
+  {
    "id": "change-tracking",
    "name": "Change tracking and undo as diffs",
    "area": "Editor foundations",
@@ -579,7 +600,7 @@
    "what": "Each part notes when it changed, so the editor stops comparing the whole level every frame, and an undo step stores what changed instead of a copy of the level.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Today the edit commit compares the whole level with the last undo step every frame when nothing is dragged, and each step clones the whole level (300 kept). Fine now, but it grows with the level: not for the big polygon, light and logic budgets or for regions. Autosave, the runtime edits layer and the per-region files use the same change stamps. Built 2026-11-20: each collection in a level (parts, wires, curves, ranges, lighting, navigation, walker sounds, materials, sounds) is a `Tracked` value (level/track.rs) that takes a new stamp whenever it is borrowed for change and costs nothing to read, so `Level::stamps()` says at a glance whether anything may have changed; the per-frame commit and the unsaved-changes dot compare the level only when a stamp moved (nothing is compared in an idle editor, checked by the MCP check through get_project's change_stamp). An undo step is a `Delta` (level/delta.rs: the parts that changed, came, went or moved in the list, and the other things that differ, each before and after), 300 kept, applied forward for redo and back for undo, the answer to the instances question joins the step before it. Autosave and the per-region files can read the touched part ids from a step (`Delta::parts_touched`). Tests: level::delta (round trips), level::track, the editor's one-step instance change, tests/mcp/check.py.",
-   "order": 32,
+   "order": 33,
    "first_game": true,
    "next": true,
    "stage": "Foundations",
@@ -603,7 +624,7 @@
     "Frame-relative walking: what stands or walks on a moving, turning parent rides it smoothly, interpolated between physics steps"
    ],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Parts are a flat list today (movers slide only; riding a mover is a special case in the walker). Sockets, prefabs, vehicle assemblies, mounts, ships with interiors, doors on buildings and the attachments that come with a model all need parts attached to parts. Subnautica's moving interior shows the failure to avoid: a walker clipped through the floor when the interior drifted. Chunk 1 built 2026-11-20: `Part.parent` (level/hierarchy.rs). In the editor every part keeps its world position and turn, so everything that reads them is unchanged; a parent that moves or turns takes its descendants along (`Level::follow` against the level as of the last undo step, run each frame and before every commit, so a drag is followed live and the whole thing is one undo step); the file keeps a child's position and turn as offsets from its parent (format 2, written only when parts have parents; older Beverlys refuse it instead of misreading it); a parent can't be attached to its own descendants; deleting a part hands its children to its parent, and duplicating copies the part with everything attached to it. The Inspect panel has an ATTACHED TO picker, the scene list nests children under their parents, and the MCP server takes `parent` (add_part, change_part) and reports parent and children. Size is not inherited. Tests: level::hierarchy, the parents round trip through the project files, tests/mcp/check.py. Chunk 2 built 2026-11-20: a Mover has `turn` (degrees about each axis, about its own middle, eased with the slide; the kinematic body is given a turning speed as well as a sliding one); a still part attached to a moving one is part of the moving body in play (its collider is a child of the moving body's, so the walker can stand on it and it carries loose parts) and is drawn where its carrier is (script::carry, after the drawn carrier is smoothed between steps); a moving part attached to a moving part is not carried yet (it moves by its own motion: nested movers are still to do, as are spin-forever rotors). Test project tests/hierarchy (a deck that rises and turns a quarter with a crate attached, the walker standing on it). Chunk 3 built 2026-11-20: the walker standing on a moving part, or on one attached to it, is carried round with it as it turns and looks round by the same turn (a kinematic body is put at its facing each step rather than given a turning speed, so contact friction doesn't drag the walker round a second time); the drawn parts are smoothed between steps. A Mover also `spin`s (degrees a second about each axis, all the time while playing) for rotors and slowly turning debris. Test project tests/hierarchy: the walker 1.2 m from the middle of a deck that rises and turns a quarter ends exactly where the turn puts it. Still to do, as they need their own features: a moving part attached to a moving part (nested movers; a hinged door on a swinging gate), attachments on loose or vehicle bodies (assemblies, mounts), and sounds following a carried part.",
-   "order": 33,
+   "order": 34,
    "first_game": true,
    "next": true,
    "stage": "Foundations",
@@ -626,7 +647,7 @@
    "note": "Part 1 built 2026-11-19 (the pen): P in the Level tab; click for a corner, drag for a smooth point, click the first point to close, Enter finishes; then drag points and handles, click the line to put a point on it, Alt + click a point (or Delete over it) removes it, Delete elsewhere removes the curve, click another curve to edit it, Alt while dragging breaks a handle; points snap to the grid like parts do and land on whatever surface is under the pointer. Curves live in the level file (curves: id, name, points with handle offsets, closed), one undo step per change; the code is curve.rs (the Bezier maths, tested) and editor/pen.rs. MCP: draw_shape (points as [x, y, z] or {at, handle_in, handle_out}, closed, shape to redraw, delete) and list_shapes (tests/mcp/check.py). Part 2, first slice built 2026-11-19 (stretches): each point carries how the line leaving it treats geometry, Ground (default), Over everything, Air or Fall, and the line seen is laid on what it meets (curve.rs laid, pen.rs surface; cached and relaid when the curve or any part changes): Ground takes the walkable surface (a top face, or a part tagged Ground or Water; never one tagged Paths ignore or an invisible collider) within half a metre up or two down from where it was, so it lies on a slab, passes under a prop or ceiling and bridges gaps; Over takes anything visible within 1.5 m up; Air ignores geometry; Fall leaves along its handle and ends where it lands. Ground stretches draw solid, Air and Fall dashed; a small button by the selected point switches its stretch (a new point goes on as the last one went); the Ground and Paths ignore tags are new surface tags; draw_shape points take stretch and list_shapes says it. Strips built 2026-11-19: the pen has a panel (Inspect while it is out: the curve's name, Paint a strip with a material, Width, Edge, Strength); a strip paints the laid line as brush strokes onto the part under each step of it (the part whose top face the point is on, so a prop the line passes through isn't painted and a stretch in the air paints nothing), kept in step with the curve: the strokes are the parts' own, marked with the curve (Stroke.curve), made again in place when the curve, its strip or the geometry changes and taken away with the strip or curve, in the same undo step; draw_shape takes strip {material, width, edge, strength} (null removes it) and list_shapes says it. Fills built 2026-11-19: the pen's panel has a Fill group (Fill the inside, the material it paints, Feather, Strength); a fill paints the ground inside the curve (an open curve is closed by a straight line), the paint shader working out the inside and the feathered edge from the curve's outline, so nothing is painted into an image; it goes to each part with walkable ground inside the outline (a top face within a step of the line's height, as a Ground path counts it), not to props standing on that ground or parts tagged Paths ignore, and lies under a strip on the same curve; like strips its strokes are the parts' own (Stroke.fill, with the outline in the part's own frame like a brush stroke's), made again in place when the curve, its fill or the geometry changes and in the same undo step; draw_shape takes fill {material, feather, strength} (null removes it) and list_shapes says it. Part 2 finished 2026-11-22 (build 119): a path-wide default (the panel's Path group, Lines go; a point's own stretch overrides it, its button reads e.g. 'Air · path' while it follows the path and goes round to following it again after Fall), Steepest ground (default 60°: steeper faces don't count as ground for Ground lines or fills, so a path passes over a steep ramp), Sag for a stretch in the air (the panel's In the air group for the selected point: it hangs down most in the middle, like a rope), and clicking a curve's line with the pen put away opens it in the pen. Scatter moved to its own entry; height along curves waits for terrain (user, 2026-11-19). Test project: tests/pen (a path stepping onto a slab and over a steep ramp, a filled loop, a rope between posts). MCP: draw_shape takes stretch and steepest on the curve, and a point's stretch (null: as the path) and sag; list_shapes says them. Scatter, as the user describes it (2026-11-19): bits of random, context-appropriate debris that make a level feel varied and detailed (in a nature scene tree stumps, logs, boulders, sticks, brambles), so it places items picked at random from a set the user chooses, along or inside a curve. Decided with the user 2026-11-19: a path has two modes, Ground only (default: drapes onto the ground and ignores props, scatter and other paths) and Over everything (follows any geometry it meets); the surface each point was clicked on decides which level it follows, the path stays on that level between points, ground means surfaces within a slope limit and objects below step height, gaps are bridged, Water counts as ground; where two ground paths cross, the later one wins (order keys Ctrl+[ and ], Ctrl+Shift for ends, with a list in the Inspect panel, see the order note on the brush). Refined 2026-11-19 (user: a path crosses many surfaces; tags as well as rules; scatter on the ground, deep select for manual adjustment): the mode is per stretch (stored on a point, for the segment leaving it) with a path-wide default: Ground (walkable surfaces: ground, road, steps, interior floor; the path takes the walkable surface nearest in height to the previous sample within the step height, starting from the clicked level; ceilings and invisible colliders never count), Over everything, Air (ignores geometry; Sag for a rope) and Fall (leaves along its handle and drops until it hits a surface; a faucet stream is Fall then Ground). Tags: Ground forces a part to count, Paths ignore forces it out, Water counts. Precedence: the stretch's own behaviour, tags, the path's default, the slope and step rules. Scatter sits on the surface the path is following and never on other scatter; deep select (gesture to choose: Ctrl+click or double-click in; Alt is taken by the pen and brush) picks one scatter instance to nudge, delete or detach, kept as overrides by position along the curve (they can drift if the curve is reshaped a lot; Turn into items freezes everything). Confirmed by the user 2026-11-19: ground stretches draw as a solid line and air stretches dashed, with a small button on the selected point to switch its stretch behaviour; deep select is a double-click into the shape. Planned 2026-11-17. The one curve tool: the Paths tool draws its rails, patrols and roads with it. Stored as control points and handles. MCP: draw_shape (points, handles, closed, layer, width, feather). Idea (user, 2026-11-17): terrain features drawn with the pen, such as cliffs: a wedge along the curve with strong variation, and scatter (rocks) masking its seams. Live curves plus Turn into items (user, 2026-11-17). Characters tab later: hair, cloth strips and jewellery drawn with the pen, moving with physics. Keys (2026-11-17): P is the pen in the Level tab; points can also go in the air for camera and flying paths (the Paths overlay). Review 2026-11-20 found the fill outline stored in world coordinates (it would break on a moving part or after a region or origin shift); fixed 2026-11-20: the outline is stored in the part's own frame and the shader tests inside in that frame (test: a fill stays on a part that is moved and turned). Scatter is its own entry now.",
    "status": "done",
    "first_game": true,
-   "order": 34,
+   "order": 35,
    "next": true,
    "stage": "Author the world: land, sea and sky",
    "built": "2026-11-22",
@@ -647,7 +668,7 @@
    "status": "done",
    "first_game": true,
    "next": true,
-   "order": 35,
+   "order": 36,
    "stage": "Author the world: land, sea and sky",
    "built": "2026-11-22",
    "build": 121
@@ -671,7 +692,7 @@
    "note": "Planned 2026-11-17 from the uploaded plugin (bevy_grass_carpet), checked on software Vulkan: it draws, follows its centre without swimming, the species match; builds on our toolchain with no flags. Its paint image is replaced by strokes (the no-raster rule): the plugin's own stamp replays them. Its depth prepass is off, so SSAO, TAA and depth of field won't see the grass. Show the user a Mix example (meadow on a muddy patch) when built (user, 2026-11-17). Part 1 built (2026-11-22): the plugin moved in as editor/src/grass (its heightmap and paint image dropped). A material grows grass (Material::grass: up to four species with shares, and its Thickness); wherever it is laid on a face or painted there with the brush, pen or bucket, that flat face becomes a sheet (grass/sheets.rs: the face's frame and, every 0.5 m, which grower and how thick and the surface's colour, worked out from the strokes whenever the part changes, never stored), so tops, walls, ceilings and a bridge over a meadow each grow their own. Each sheet is drawn as instanced tiles of one lattice (smaller tiles for small faces) out only within the carpet's reach of the camera; the shader picks each blade's species by the shares, stands it out of the face along its normal (ivy lies on it), and its roots take the surface's colour. Curved faces (a cylinder's side, a ball) grow none yet. Scaled to a person's size (grass 0.5 m, its blades 4x as many per m2, reach 40 m). Sways with its own wind. Editor and game; the material panel's GRASS section (species, shares, Thickness). Test project: tests/grass. MCP: change_material and new_material take grass (species names or {species, share}, the species listed in the tool's description); get_material reports it. Part 2 built (2026-11-23): the Foliage topic (Level tab) lists the Mixes (click one to paint with it; Edit opens its material; + New Mix), the carpet's Reach and Quality (level setting, kept in the level file with the species it changed), and the 17 species with settings from their descriptions (a level keeps only what it changed from the built-in ones; + New species copies one). A Mix is a material that grows grass and has a Ground (another material) with Spread, Soft edge and Follows sparseness: every stroke of it (brush, pen strip, fill, bucket) shows the ground wider and softer than the plants, worked out as it is drawn (level/mix.rs), so changing the Mix changes all its strokes; the brush's Ground and paint_stroke's ground pick another ground, or none, per stroke. Footsteps: paint says what it sounds like where it covers half or more of the spot (the Mix's own sound over its ground's). MCP: get_foliage, change_foliage, change_species, new_species; ground on change_material/new_material and paint_stroke. Test project: tests/foliage. Left for others: plant sets (scattered models) come with Scatter; hiding in grass and slipping wait for what reads them; parts are not dimmed in the topic. The brush has a Ground section for a Mix's plants (which ground, its width and its strength for the strokes it paints; paint_stroke's ground_width and ground_strength); the Mix's toggle is Follows sparseness.",
    "status": "done",
    "first_game": true,
-   "order": 36,
+   "order": 37,
    "stage": "Author the world: land, sea and sky",
    "built": "2026-11-23",
    "build": 124
@@ -695,7 +716,7 @@
     "Rules (slope, height, tags, keep off paths) and Turn into items, which places ordinary parts; the MCP"
    ],
    "note": "The user's description 2026-11-20. Whether items stay live or become parts: live by default, with Turn into items for hand-placing. The Foliage topic's dock lists plant sets (scattered models) once Scatter builds them (user's design 2026-11-17). Chunk 1 built (2026-11-23): a pen curve has a Scatter (the pen panel's SCATTER section; MCP draw_shape scatter): Along (a band either side of the line) or Inside (a closed outline), from a set of items (a basic shape of a size and colour, a share, optionally on its side: stumps, logs and boulders to begin with, any number of your own), with Spacing, Band, Size variation, Tilt, Sink and a Seed. The items are ordinary parts marked with the curve (Part.scatter), so they draw, instance and collide like any part; they are made again, the same every time for one seed, whenever the curve, the settings or the ground change (editor/scatter.rs), keep their ids while the layout changes, go with the curve, and are hidden from the scene list (it counts them). The level file keeps only the curves and their settings, not the items: both the editor and the game player make the items when a level opens (editor/scatter.rs `grow`; the player waits for its models, so ground that is a model counts), the same layout from the same seed; items moved by hand are not kept until Turn into items exists. Chunk 2 built (2026-11-23): Where has a third choice, Volume, a closed curve's outline as the floor of a space (Volume height) filled with items in every orientation; Falloff thins items toward the edge (Inside and Volume); Spin and Drift (the fastest turn in degrees a second and travel in metres a second) give each item its own slow way, through the part Mover, which gained a continuous Drifts setting beside Spins. Chunk 3 built (2026-11-23): Rules as the brush's (Slope, Only between heights, Only on a surface tag) decide where an item may land, and Keep clear (metres) keeps items off paths (other curves that lay a strip) and water (parts tagged Water); Turn into items (the pen panel; MCP turn_into_items) makes the items ordinary parts and the curve stops scattering, one undo step; MCP draw_shape scatter takes rules and Keep clear, describes them, and list_shapes shows them. Scatter finished (build 129). Test project: tests/scatter.",
-   "order": 37,
+   "order": 38,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -711,31 +732,30 @@
    "what": "Play input through named actions with default bindings per game, rebinding and gamepad support behind them.",
    "chunks": [],
    "note": "Built 2026-11-24: input.rs. Play reads named actions (Forward, Back, Left, Right, Run, Jump, Use, Look left / right / up / down), never keys; each lists its inputs by name: keys, mouse buttons, gamepad buttons and stick directions (\"Pad South\", \"Pad LeftStick Up\"), read once a frame into Actions (0 to 1, so a stick partly over walks slower; just_pressed for Use). Gamepads through Bevy's gilrs. A game's controls are saved in project.bev (left out while they are the defaults; actions a file leaves out get theirs) and kept on the level for undo. Play > Controls: keycaps per action, click one to take it off, + then press a key, mouse button or gamepad button, Beverly's defaults. MCP: get_controls, change_controls (an action the game doesn't have yet is added, for its own code). Scripted tests press keys by the same names. Test project tests/controls (Forward on I, Jump on K, Use on U). A players' own controls screen inside a game comes with the Screens tab; vehicles, mounts and control targets add their actions to the same list. Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Play reads W A S D E Shift and Space directly today, although the rule is named actions. Control targets, mounts, vehicles, gamepads and rebinding all wait on this, so gamepad is no longer last. Candidate library: leafwing-input-manager (supports Bevy 0.20).",
-   "order": 38,
+   "order": 39,
    "first_game": true,
    "stage": "Foundations",
    "built": "2026-11-24",
    "build": 133
   },
   {
-   "id": "shaders",
-   "name": "Custom shaders",
-   "area": "Engine budgets",
-   "effort": "L",
+   "id": "zones",
+   "name": "Zone parts",
+   "area": "Logic and modules",
+   "status": "done",
+   "effort": "M",
    "needs": [
-    "materials"
+    "shapes",
+    "auto-panels"
    ],
-   "what": "Shaders as project assets (assets/shaders/*.wesl) with their settings shown as sliders, hot reload, errors in the island, and any material able to use one; raster hooks for moving vertices and cut-out edges.",
-   "chunks": [
-    "Shader assets: a settings header turned into sliders, hot reload, errors with the line, assigning a shader to a material; the paint layers move onto it",
-    "Raster hooks: vertex offset (with how far it may move, for culling) and alpha mask, declared once and used by the normal renderer and by virtual geometry; marking a shader see-through; the MCP (write, list, assign shaders)"
-   ],
-   "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Still to do: the paint layers moving onto it (they are already a Beverly shader; the move is for virtual geometry part 3, where the strokes have to be worked out in the material pass), and virtual geometry's use of the hooks. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
-   "status": "planned",
+   "what": "One stretchable Zone part: a volume with enter and exit events and layers (weather, ground, water, sound, post-processing, wind, boundaries, hazards) that modules add to, blending at its edges; also what swimming, air pockets and hazards read.",
+   "chunks": [],
+   "note": "Review 2026-11-20: the base of module reach. Wind, ambience, atmosphere and ocean settings become layers or packs. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): hazard zones that act over time, such as radiation that wears down a ship unless a shield projector covers it. Built 2026-11-25: the Zone part (Triggers in the parts pop-up): a box shown see-through in the trigger colour in the editor only, never colliding, stretched with the scale handles; a click on what is inside it picks that, a click past it picks the zone. It sends Entered and Left along wires (and can play a sound on each) as the player goes in and out, or with Sets off: Anything, also loose parts. Layers (level/zone.rs), each optional (the level's own when off) and blending in over the zone's Edge, a later zone winning where they overlap: Lighting (Interior: the sun dims out and its shadows go; the fill and its colour), read at the camera in the editor and the game, and Gravity (a share of the level's, 0 floats), read at the walker and each loose part while playing. Later features add their layer the same way (weather, wind, sound, water, hazards, boundaries). Test project: tests/zones. MCP: Zone in list_part_kinds, its settings through add_part and change_part ({\"Zone\": {\"Sets off\", \"Edge\", \"Lighting\", \"Gravity\"}}), get_play's in_zones and gravity.",
+   "order": 40,
    "first_game": true,
-   "order": 39,
-   "next": true,
-   "stage": "Foundations"
+   "stage": "Foundations",
+   "built": "2026-11-25",
+   "build": 134
   },
   {
    "id": "stress-level",
@@ -751,7 +771,7 @@
    "what": "A dense generated level (many parts, lights, props and agents) and video memory in the performance meter.",
    "chunks": [],
    "note": "Starts as the separate beverly-bench program (a download of its own, runs unattended at 1080p and 4K, writes a short plain-text log the user sends back: card report, polygons, lights with and without shadows, the moving-headlight case, agents on the processor, memory; no personal data). Bench built 2026-11-20 (`beverly-bench.exe`, code in editor/src/bench.rs and bench/{scenes,agents}.rs; the Windows build makes Beverly-bench-windows.zip beside the main zip): it draws into 1080p and 4K images and steps each series up (1 to 64 million triangles; 100 to 1,600 lights; 1 to 32 shadowed point lights; 1 to 8 moving shadowed headlights in a lit town of 300 lights and 600 props; 1 to 16 GB of textures; 1,000 to 1,000,000 agents on one core and on all), about four seconds a step, a series stopping when it runs under 20 fps; it writes beverly-bench-log.txt line by line (so a crash leaves what came before) with fps, worst 1%, the card's time, triangles, memory and a summary of the heaviest step that held 60 and 30 fps; --quick runs only the lightest steps. First log from the user's RTX 3050 (2026-11-20) showed the first version ran ahead of the card: frames queued up, so the frame rates were the processor's (63 million triangles read 153 fps while the card's own timer said 21 ms), memory grew to 22 GB and it crashed at 4K with 400 lights; the first scene was also wrongly stopped. Fixed the same day: each frame now waits for the card, the crowd test runs on a thread of its own after the card scenes, and a scene gets two minutes to get going. Waiting on a second log from the user's card (its results, such as 1,600 lights without shadows costing 17 ms of card time, and 8 moving shadowed headlights costing about 7.5 ms, are the first real numbers). The stress level builds from the same scene functions. Its scenes then become this level. Reference card: the user's own, 8 GB of video memory (user, 2026-11-20).",
-   "order": 40,
+   "order": 41,
    "first_game": true,
    "next": true,
    "stage": "Foundations"
@@ -769,23 +789,6 @@
    "what": "Presets that choose virtual geometry, cached shadows, baked light and the global illumination tier from the card (GpuCaps) and its budget; a weaker card quietly loses shadows, detail and thinking rate first.",
    "chunks": [],
    "note": "The settings screen for them stays in graphics-settings.",
-   "order": 41,
-   "first_game": true,
-   "stage": "Foundations"
-  },
-  {
-   "id": "zones",
-   "name": "Zone parts",
-   "area": "Logic and modules",
-   "status": "planned",
-   "effort": "M",
-   "needs": [
-    "shapes",
-    "auto-panels"
-   ],
-   "what": "One stretchable Zone part: a volume with enter and exit events and layers (weather, ground, water, sound, post-processing, wind, boundaries, hazards) that modules add to, blending at its edges; also what swimming, air pockets and hazards read.",
-   "chunks": [],
-   "note": "Review 2026-11-20: the base of module reach. Wind, ambience, atmosphere and ocean settings become layers or packs. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): hazard zones that act over time, such as radiation that wears down a ship unless a shield projector covers it.",
    "order": 42,
    "first_game": true,
    "stage": "Foundations"

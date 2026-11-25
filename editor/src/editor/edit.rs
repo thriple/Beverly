@@ -23,7 +23,17 @@ impl Editor {
     /// The nearest surface along a ray: a part, or the ground (y = 0) seen from above.
     pub fn hit(&self, ray: Ray3d) -> Option<Hit> { self.hit_skip(ray, None) }
 
-    pub fn hit_skip(&self, ray: Ray3d, skip: Option<u64>) -> Option<Hit> { world::raycast(&self.level.parts, &self.geo, ray, skip, |_| true) }
+    /// What the ray meets first. A zone counts only where what lies behind it is outside it, so a click on the floor
+    /// inside a zone picks the floor, and one past it (the sky, a wall beyond) picks the zone.
+    pub fn hit_skip(&self, ray: Ray3d, skip: Option<u64>) -> Option<Hit> {
+        let solid = world::raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape != Shape::Zone);
+        let Some(zone) = world::raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape == Shape::Zone) else { return solid };
+        let behind_outside = |s: &Hit| zone.part.and_then(|id| self.level.get(id)).is_none_or(|z| !level::in_zone(z, s.point));
+        match &solid {
+            Some(s) if s.t < zone.t || !behind_outside(s) => solid,
+            _ => Some(zone),
+        }
+    }
 
     /// Write the project as a Windows game: a zip with the game player (renamed after the project) and the
     /// project's files. The player must sit next to the editor (the release zip has both).
@@ -410,7 +420,7 @@ mod tests {
         let mut ed = Editor::at(std::env::temp_dir());
         let p = Part {
             id: 0, name: "Sphere 1".into(), shape: crate::level::Shape::Sphere, pos: [2.25, 1.0, 3.25], rot: Quat::IDENTITY.to_array(),
-            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
+            size: [2.0; 3], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, zone: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         };
         let id = ed.level.add(p);
         let o = vec3(14.0, 10.0, 14.0);
@@ -424,7 +434,7 @@ mod tests {
     fn scaling_keeps_the_opposite_corner_or_face_or_the_middle_put() {
         let p = Part {
             id: 1, name: "Box 1".into(), shape: Shape::Box, pos: [1.0, 2.0, 3.0], rot: Quat::from_rotation_y(0.7).to_array(),
-            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
+            size: [2.0, 1.0, 4.0], color: [0.5; 3], visible: true, collision: Collision::Solid, model: None, mover: None, surfaces: vec![], unique: false, tags: vec![], loose: None, light: None, camera: None, sound: None, zone: None, sounds: vec![], sounds_like: None, strokes: vec![], parent: None, scatter: None,
         };
         let bx = (Vec3::splat(-0.5), Vec3::splat(0.5));
         let at = |q: &Part, g: Grip| scale_handles(q, bx).into_iter().find(|(h, _)| *h == g).unwrap().1;
