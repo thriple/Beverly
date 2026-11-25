@@ -74,7 +74,7 @@ fn tiling_scene(
             Camera { order: i as isize, ..default() },
             bevy::camera::RenderTarget::Image(target.into()),
             Msaa::Off,
-            Transform::from_xyz(x, 0.3, 2.2).looking_at(Vec3::new(x, 0.0, -0.8), Vec3::Y),
+            Transform::from_xyz(x, 0.5, 1.9).looking_at(Vec3::new(x, 0.0, -0.5), Vec3::Y),
         ));
         let at = Transform::from_xyz(x, 0.0, 0.0);
         if i == 0 {
@@ -115,7 +115,12 @@ fn checker_with_mips(size: u32, cell: u32) -> Image {
     );
     image.texture_descriptor.mip_level_count = levels;
     image.data = Some(data);
-    image.sampler = bevy::image::ImageSampler::linear();
+    // repeating, for the tiling
+    image.sampler = bevy::image::ImageSampler::Descriptor(bevy::image::ImageSamplerDescriptor {
+        address_mode_u: bevy::image::ImageAddressMode::Repeat,
+        address_mode_v: bevy::image::ImageAddressMode::Repeat,
+        ..bevy::image::ImageSamplerDescriptor::linear()
+    });
     image
 }
 
