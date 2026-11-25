@@ -35,8 +35,9 @@ struct Shot {
 }
 
 /// `tiling`: the largest mean difference, per colour channel in 0..255, between the meshlet half and the ordinary
-/// half.
-const TILING_MAX_DIFF: f32 = f32::MAX;
+/// half. Measured on lavapipe: 0.77 with the gradients following the UV transform, 5.51 without (the meshlet half's
+/// distant checker sharp and aliased where the ordinary one blurs).
+const TILING_MAX_DIFF: f32 = 2.0;
 
 /// `tiling`: each camera's image size.
 const TILING_SIZE: UVec2 = UVec2::new(400, 600);
