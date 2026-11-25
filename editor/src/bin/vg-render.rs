@@ -5,9 +5,10 @@
 //! told the card can't), `msaa` (the camera has MSAA), `device` (the render device is made without 64-bit texture
 //! atomics). `grid` draws `tessera::test_mesh::jittered_grid` flat and unlit, all through the software rasterizer, and
 //! fails (exit 1) if any background pixel shows inside it: a crack where two triangles share an edge. `tiling` draws a
-//! mipmapped checker tiled 8 times on a plane seen at a grazing angle, as a meshlet mesh in the left half of the window
-//! and as an ordinary mesh in the right half, and fails if the halves differ by more than `TILING_MAX_DIFF`: the
-//! meshlet pass's texture gradients must follow the UV transform, or it picks the wrong mip level.
+//! mipmapped checker tiled 8 times on a plane seen at a grazing angle, as a meshlet mesh and as an ordinary mesh (each
+//! by its own camera into its own image; the picture shows them side by side), and fails if they differ by more than
+//! `TILING_MAX_DIFF`: the meshlet pass's texture gradients must follow the UV transform, or it picks the wrong mip
+//! level.
 use beverly::gpu::GpuCaps;
 use bevy::pbr::experimental::meshlet::{
     MeshletMesh, MeshletMesh3d, MeshletPlugin, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR,
@@ -28,17 +29,23 @@ struct Shot {
     saved: Option<bool>,
     /// `grid`: count background pixels inside the drawn square
     check_holes: bool,
-    /// `tiling`: compare the window's left half (meshlet) with its right half (ordinary mesh)
-    compare_halves: bool,
+    /// `tiling`: the two cameras' images (meshlet, ordinary mesh), captured and compared instead of the window
+    targets: Vec<Handle<Image>>,
+    captured: Vec<Option<image::RgbImage>>,
 }
 
 /// `tiling`: the largest mean difference, per colour channel in 0..255, between the meshlet half and the ordinary
 /// half.
 const TILING_MAX_DIFF: f32 = f32::MAX;
 
-/// `tiling`: the same tiled, mipmapped checker plane twice, 100 m apart: a meshlet mesh seen by the left camera and an
-/// ordinary mesh seen by the right one, each camera at the same place relative to its plane.
+/// `tiling`: each camera's image size.
+const TILING_SIZE: UVec2 = UVec2::new(400, 600);
+
+/// `tiling`: the same tiled, mipmapped checker plane twice, 100 m apart: a meshlet mesh seen by one camera and an
+/// ordinary mesh seen by the other, each camera at the same place relative to its plane and drawing into its own
+/// image. (Not one window split by viewports: the meshlet pass doesn't support a viewport smaller than its target.)
 fn tiling_scene(
+    mut shot: ResMut<Shot>,
     mut commands: Commands,
     mut meshlets: ResMut<Assets<MeshletMesh>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -54,13 +61,21 @@ fn tiling_scene(
         ..default()
     });
     for (i, x) in [-50.0f32, 50.0].into_iter().enumerate() {
-        let camera = Camera {
-            order: i as isize,
-            viewport: Some(bevy::camera::Viewport { physical_position: UVec2::new(400 * i as u32, 0), physical_size: UVec2::new(400, 600), ..default() }),
-            clear_color: if i == 0 { bevy::camera::ClearColorConfig::Default } else { bevy::camera::ClearColorConfig::None },
-            ..default()
-        };
-        commands.spawn((Camera3d::default(), camera, Msaa::Off, Transform::from_xyz(x, 0.3, 2.2).looking_at(Vec3::new(x, 0.0, -0.8), Vec3::Y)));
+        let target = images.add(Image::new_target_texture(
+            TILING_SIZE.x,
+            TILING_SIZE.y,
+            bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+            None,
+        ));
+        shot.targets.push(target.clone());
+        shot.captured.push(None);
+        commands.spawn((
+            Camera3d::default(),
+            Camera { order: i as isize, ..default() },
+            bevy::camera::RenderTarget::Image(target.into()),
+            Msaa::Off,
+            Transform::from_xyz(x, 0.3, 2.2).looking_at(Vec3::new(x, 0.0, -0.8), Vec3::Y),
+        ));
         let at = Transform::from_xyz(x, 0.0, 0.0);
         if i == 0 {
             commands.spawn((MeshletMesh3d(meshlets.add(meshlet.clone())), MeshMaterial3d(material.clone()), at));
@@ -128,7 +143,7 @@ fn main() -> AppExit {
         }),
         MeshletPlugin { cluster_buffer_slots: 1 << 16, supported: caps.virtual_geometry() && case != "unsupported" },
     ))
-    .insert_resource(Shot { path, frame: 0, saved: None, check_holes: case == "grid", compare_halves: case == "tiling" });
+    .insert_resource(Shot { path, frame: 0, saved: None, check_holes: case == "grid", targets: vec![], captured: vec![] });
     if case == "tiling" {
         app.add_systems(Startup, tiling_scene);
     } else {
@@ -165,10 +180,30 @@ fn main() -> AppExit {
 /// Takes the screenshot once the view has settled, then exits once it's saved.
 fn shoot(mut shot: ResMut<Shot>, mut commands: Commands, mut exit: MessageWriter<AppExit>) {
     shot.frame += 1;
-    if shot.frame == SETTLE_FRAMES {
+    if shot.frame == SETTLE_FRAMES && !shot.targets.is_empty() {
+        for (i, target) in shot.targets.clone().into_iter().enumerate() {
+            commands.spawn(Screenshot::image(target)).observe(move |ev: On<ScreenshotCaptured>, mut shot: ResMut<Shot>| {
+                shot.captured[i] = ev.image.clone().try_into_dynamic().ok().map(|i| i.to_rgb8());
+            });
+        }
+    }
+    // tiling: once both images are in, side by side into one picture and compared
+    if shot.saved.is_none() && !shot.captured.is_empty() && shot.captured.iter().all(Option::is_some) {
+        let mut both = image::RgbImage::new(TILING_SIZE.x * 2, TILING_SIZE.y);
+        for (i, half) in shot.captured.iter().flatten().enumerate() {
+            image::imageops::replace(&mut both, half, (i as u32 * TILING_SIZE.x) as i64, 0);
+        }
+        let path = shot.path.clone();
+        let mut ok = std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new("."))).is_ok() && both.save(&path).is_ok();
+        println!("screenshot {}: {}", path.display(), if ok { "saved" } else { "failed" });
+        let difference = halves_difference(&both);
+        println!("meshlet and ordinary mesh differ by {difference:.2} per channel (at most {TILING_MAX_DIFF})");
+        ok &= difference <= TILING_MAX_DIFF;
+        shot.saved = Some(ok);
+    }
+    if shot.frame == SETTLE_FRAMES && shot.targets.is_empty() {
         let path = shot.path.clone();
         let check_holes = shot.check_holes;
-        let compare_halves = shot.compare_halves;
         commands.spawn(Screenshot::primary_window()).observe(move |ev: On<ScreenshotCaptured>, mut shot: ResMut<Shot>| {
             let Some(rgb) = ev.image.clone().try_into_dynamic().ok().map(|i| i.to_rgb8()) else {
                 println!("screenshot {}: failed", path.display());
@@ -181,11 +216,6 @@ fn shoot(mut shot: ResMut<Shot>, mut commands: Commands, mut exit: MessageWriter
                 let holes = holes_inside(&rgb);
                 println!("grid holes: {holes:?}");
                 ok &= holes == Some(0);
-            }
-            if compare_halves {
-                let difference = halves_difference(&rgb);
-                println!("halves differ by {difference:.2} per channel (at most {TILING_MAX_DIFF})");
-                ok &= difference <= TILING_MAX_DIFF;
             }
             shot.saved = Some(ok);
         });
