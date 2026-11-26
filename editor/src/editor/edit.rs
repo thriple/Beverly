@@ -364,17 +364,21 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     // (looking through a camera is one step, made when it ends)
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
     ed.refresh_dirty();
-    pen::strips(&mut ed);
-    super::scatter::scatters(&mut ed);
     ed.commit();
 }
 
 impl Editor {
-    /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
-    /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
+    /// Make the change since the last undo step a step of its own (if there is one), with everything it causes. Every
+    /// edit comes through here (the panels, the handles, keys, the MCP), and the steps after it run in the written
+    /// order (`docs/orderliness.md`, C3), each changing only what it owns: attached parts follow their parent; the
+    /// pen's scatters make their items again; the pen's strips and fills, then the bucket fills, make their strokes
+    /// again; then the whole change is one undo step. A change to a part's contents that its instances didn't get
+    /// asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
-        // what was moved takes what is attached to it along, in the same step, and the bucket fills follow the change
         if self.level.parts.stamp() != self.followed { self.follow(); }
+        pen::lay(self);
+        super::scatter::scatters(self);
+        pen::strips(self);
         bucket::fills(self);
         // nothing was borrowed for change since the last look: nothing to compare
         let stamps = self.level.stamps();

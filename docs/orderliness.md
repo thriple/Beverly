@@ -50,11 +50,13 @@ The bucket outline's lift off a face (0.01 m) · the paint shader's soft edges (
 grass sheets' spot size (`TEXEL` 0.5 m) · the paint texture tile (2 m) · the vector UI's tessellation (0.02 px).
 These are fine as their own numbers; they should be named as display numbers and not reused for data.
 
-**4. Guards against dividing by zero**
+**4. Guards against dividing by zero, and against needless rewrites**
 
 About 30 of the `1e-3 … 1e-12` values (`.max(1e-6)`, `den.abs() < 1e-9` and the like) in `widget.rs`,
 `camera.rs`, `light.rs`, `texture.rs`, `paint.rs`, `curve.rs`, `scatter.rs`, `grass/sheets.rs`. They decide nothing
-about the data. They should become named constants and be left alone.
+about the data. They should become named constants and be left alone. The hierarchy's "already followed" check
+(1 µm, `level/hierarchy.rs`) is one too, not a tolerance: on the 1 mm precision a part could fall behind a parent
+nudged by less than that, a little more each time (stage 2 named it `MOVED` and kept it at 1 µm).
 
 **Things that ignore any project number:** physics uses Avian's default contact slop and solver settings;
 navigation uses Recast's default cell size and height (derived from the agent radius); the walker uses tnua's
@@ -97,7 +99,7 @@ each other's fields.
 |---|---|---|---|
 | 1 | A bucket fill on copied floors asked "Change all, or make this one Unique?" | the instances step compared strokes the bucket step owns | fixed 2026-11-22: copies compare hand-painted strokes only |
 | 2 | An MCP change and the fill strokes it caused were two undo steps | `bucket::fills` ran outside the commit | fixed 2026-11-22: moved into `Editor::commit` |
-| 3 | **An MCP change that moves ground under a pen curve or a scatter makes more than one undo step** | 22 places in the MCP tools call `Editor::commit` directly; only the paint tools call `pen::strips` and `scatters` first, so the frame's `commit` makes the strips and items again as further steps | open, confirmed by a test (stage 1): raising a floor under a scatter made 2 extra steps (`editor::scatter::tests::a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too`, ignored until stage 2) |
+| 3 | **An MCP change that moves ground under a pen curve or a scatter makes more than one undo step** | 22 places in the MCP tools called `Editor::commit` directly; only the paint tools called `pen::strips` and `scatters` first, so the frame's `commit` made the strips and items again as further steps | fixed 2026-11-26 (stage 2): every edit goes through `Editor::commit`, which runs the steps in order; test `a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too`, and checked live through the MCP |
 | 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | open, confirmed by a test (stage 1): an item moved to (0, 0.1, 15) went back to (−9, 0.2, 1.4) when the ground changed (`…a_moved_scattered_item_becomes_the_users_own…`, ignored until stage 4) |
 | 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | open, timed (A4): 10.7 s on the big level |
 | 5 | A fill outline was stored in world coordinates and broke on a moving part | pen fill vs hierarchy | fixed 2026-11-20 |
@@ -273,7 +275,7 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
 
 1. **Time and confirm.** Time the A4 paths on a big level with the performance meter. Write tests for bugs A3-3 and
    A3-4 that fail.
-2. **One pipeline and one tolerance:** every edit through `Editor::commit` with steps 1 to 4 inside it (fixes
+2. **One pipeline and one tolerance** (done 2026-11-26): every edit through `Editor::commit` with steps 1 to 4 inside it (fixes
    A3-3); `precision` in the project with one accessor; the dedup and follow checks on it.
 3. **Shared numbers:** the walker profile and the grid, each read from one place (fixes A3-6); level and upright
    tests that use length; Bucket's floor band and touching derived.

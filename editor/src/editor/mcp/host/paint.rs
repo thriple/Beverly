@@ -63,8 +63,6 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                 let id = existing.ok_or("Give the shape to delete")?;
                 ed.level.curves.retain(|c| c.id != id);
                 if ed.pen.curve == Some(id) { ed.pen.curve = None; ed.pen.drawing = false; }
-                crate::editor::pen::strips(ed);
-                crate::editor::scatter::scatters(ed);
                 ed.commit();
                 return Ok(json!({"deleted": id}));
             }
@@ -175,10 +173,7 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
                     id
                 }
             };
-            // the strip's and fill's strokes are made now, so the curve and they are one undo step
-            crate::editor::pen::lay(ed);
-            crate::editor::pen::strips(ed);
-            crate::editor::scatter::scatters(ed);
+            // (the commit makes the strip's, fill's and scatter's strokes and items, in the same undo step)
             ed.commit();
             Ok(describe_curve(ed.level.curve(id).expect("found")))
         }
@@ -197,7 +192,6 @@ pub(super) fn paint_tools(ed: &mut Editor, name: &str, args: &Value) -> Result<V
             if let Some(id) = args.get("delete").and_then(Value::as_u64) {
                 if !ed.level.buckets.iter().any(|b| b.id == id) { return Err(format!("No fill {id} (list_fills shows them)")); }
                 ed.level.buckets.retain(|b| b.id != id);
-                crate::editor::bucket::fills(ed);
                 ed.commit();
                 return Ok(json!({"deleted": id}));
             }

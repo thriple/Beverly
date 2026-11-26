@@ -23,6 +23,11 @@ pub fn within(outer: (Vec3, Quat), inner: (Vec3, Quat)) -> (Vec3, Quat) {
 /// The inverse of `within`: a frame given within `outer`, in the world.
 pub fn beyond(outer: (Vec3, Quat), inner: (Vec3, Quat)) -> (Vec3, Quat) { (outer.0 + outer.1 * inner.0, outer.1 * inner.1) }
 
+/// A guard, not a tolerance (`docs/orderliness.md`): an attached part already within this of where its parent puts
+/// it isn't written again (so the level isn't marked changed by rounding). It must stay far below the precision: a
+/// coarser one would let a part fall behind a parent nudged by less than it, a little more each time.
+const MOVED: f32 = 1e-6;
+
 impl Level {
     pub fn children(&self, id: u64) -> Vec<u64> { self.parts.iter().filter(|p| p.parent == Some(id)).map(|p| p.id).collect() }
 
@@ -116,7 +121,7 @@ impl Level {
             if old_parent == parent { continue; }
             let to = beyond(parent, within(old_parent, old_child));
             let now = frame(self.get(id).expect("listed"));
-            if to.0.distance_squared(now.0) > 1e-12 || to.1.dot(now.1).abs() < 1.0 - 1e-9 { set_frame(self.get_mut(id).expect("listed"), to); }
+            if to.0.distance_squared(now.0) > MOVED * MOVED || to.1.dot(now.1).abs() < 1.0 - 1e-9 { set_frame(self.get_mut(id).expect("listed"), to); }
         }
     }
 
