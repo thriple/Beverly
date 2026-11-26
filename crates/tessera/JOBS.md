@@ -79,7 +79,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 5. ✅ **Instances by change.** (2026-11-20, in an interactive session ahead of order, at the user's request)
    - Rewrite the fork's `InstanceManager` so it updates only what changed, and cache the per-view bind groups (both are Bevy TODOs).
    - Add a headless benchmark with 10k and 100k instances, and record the CPU time per frame before and after.
-6. 🔶 **More of the material.** Texture tiling and its screenshot test done 2026-11-26; **left: vertex colours and a second UV set** (second line).
+6. 🔶 **More of the material.** Texture tiling done 2026-11-26, vertex colours 2026-11-27, each with a screenshot test; **left: the second UV set** (second line).
    - Texture tiling (the UV transform applied to the UVs *and* the analytic derivatives in `visibility_buffer_resolve.wesl`).
    - Vertex colours and a second UV set in the asset format (bump the version).
    - If GPU-testable here: a screenshot test against the normal renderer.
@@ -151,6 +151,37 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-27 (Guam): job 6, vertex colours 🔶 (the second UV set left)
+- **Merge:** main merged in cleanly.
+- **Format:** `MeshletMesh.vertex_colors` holds RGBA8 per vertex, the colour sRGB-encoded (8 bits spent where the
+  eye sees them; alpha linear), in the same per-meshlet order as the normals and UVs. It is empty when the mesh has
+  none, so a mesh without colours costs 89 bytes more on disk, not 4 per vertex.
+  - Bevy's asset version 3 → 4; `tessera::bake::FORMAT_VERSION` 2 → 3.
+  - `from_mesh` accepts an optional `COLOR` (`Float32x4`) after `UV_0`.
+- **GPU:** the mesh manager gives colours their own `PersistentGpuBuffer`, allocated in step with the normals (4
+  bytes per vertex both, same order), so the meshlets' `start_vertex_attribute_id` finds them as it finds the UVs.
+  Meshes without colours upload white, which costs 4 bytes of VRAM per vertex for every meshlet mesh. That was the
+  choice that needs no change to the `Meshlet` struct; a per-meshlet colour offset would avoid it.
+- **Shaders:** material-shade binding 8 holds the colours; `get_meshlet_vertex_color` decodes them to linear.
+  `visibility_buffer_resolve` interpolates them into `VertexOutput.color`, and both meshlet material pipelines
+  define `VERTEX_COLORS`, so `pbr_fragment` applies them as the normal renderer does. White for meshes without
+  colours changes nothing.
+- **Bake:** `tessera::bake::prepare` keeps `COLOR` and welds on it. New test `keeps_vertex_colours`;
+  `fills_in_and_drops_attributes` now drops a tangent instead.
+- **Screenshot test: `vg-render OUT colors`.** A plane coloured red to green across and blue down, drawn by the
+  meshlet path and the normal renderer side by side like `tiling`: **0.05** per channel (limit 2.0). Without this
+  work the meshlet side drew white, far past the limit.
+- **Checks:**
+  - `vg-render`: draw, grid (0 holes), tiling (0.77), colors (0.05), unsupported, msaa and device all exit 0
+  - `vg-bake`: 1,310,720 triangles in 28.4 s, 20,759,322 bytes (15.8 B per triangle), proxy 78 triangles
+  - `tessera` crate tests ✅ (10)
+  - feature off: `cargo build` ✅, `cargo test` ✅ (102)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (102)
+  - `tools/run-tests.sh` ✅ (all 25)
+- **Left for the next run:** the second UV set, the same way (in step with the UVs, 8 bytes per vertex; meshes
+  without it use the first set), with a `vg-render` case using a material on `UvChannel::Uv1`. The proxy mesh
+  doesn't carry colours yet; worth adding when `realtime-gi` needs albedo from it.
 
 ### 2026-11-26 (Guam): job 6, texture tiling 🔶 (vertex colours and UV1 left)
 - **Merge:** main merged in cleanly.
