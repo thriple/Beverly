@@ -201,6 +201,8 @@ pub fn prepare_material_meshlet_meshes_main_opaque_pass(
 
                 let mut shader_defs = material_fragment.shader_defs;
                 shader_defs.push("MESHLET_MESH_MATERIAL_PASS".into());
+                // Tessera: meshlet meshes carry vertex colours (white when the mesh has none)
+                shader_defs.push("VERTEX_COLORS".into());
 
                 let layout = mesh_pipeline.get_view_layout(view_key.into());
                 let layout = vec![
@@ -379,6 +381,8 @@ pub fn prepare_material_meshlet_meshes_prepass(
 
                 let mut shader_defs = material_fragment.shader_defs;
                 shader_defs.push("MESHLET_MESH_MATERIAL_PASS".into());
+                // Tessera: meshlet meshes carry vertex colours (white when the mesh has none)
+                shader_defs.push("VERTEX_COLORS".into());
 
                 let view_layout = if view_key.contains(MeshPipelineKey::MOTION_VECTOR_PREPASS) {
                     prepass_pipeline.view_layout_motion_vectors.clone()

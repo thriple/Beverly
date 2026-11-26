@@ -228,6 +228,9 @@ impl MeshletMesh {
         let mut vertex_positions = BitVec::<u32, Lsb0>::new();
         let mut vertex_normals = Vec::new();
         let mut vertex_uvs = Vec::new();
+        // Tessera: vertex colours, when the mesh has them (packed after position, normal and UV)
+        let has_colors = mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR);
+        let mut vertex_colors = Vec::new();
         let mut bevy_meshlets = Vec::with_capacity(meshlets.len());
         for (i, meshlet) in meshlets.meshlets.iter().enumerate() {
             build_and_compress_per_meshlet_vertex_data(
@@ -238,6 +241,7 @@ impl MeshletMesh {
                 &mut vertex_positions,
                 &mut vertex_normals,
                 &mut vertex_uvs,
+                has_colors.then_some(&mut vertex_colors),
                 &mut bevy_meshlets,
                 vertex_position_quantization_factor,
             );
@@ -248,6 +252,7 @@ impl MeshletMesh {
             vertex_positions: vertex_positions.into_vec().into(),
             vertex_normals: vertex_normals.into(),
             vertex_uvs: vertex_uvs.into(),
+            vertex_colors: vertex_colors.into(),
             indices: meshlets.triangles.into(),
             bvh: bvh.into(),
             meshlets: bevy_meshlets.into(),
@@ -309,13 +314,21 @@ fn validate_input_mesh(mesh: &Mesh) -> Result<Cow<'_, [u32]>, MeshToMeshletMeshC
         Mesh::ATTRIBUTE_NORMAL,
         Mesh::ATTRIBUTE_UV_0,
     ];
-    if mesh
+    // Tessera: vertex colours may follow
+    let provided: Vec<_> = mesh
         .attributes()
         .map(|(attribute, _)| (attribute.id, attribute.format))
-        .ne(required_attributes
-            .iter()
-            .map(|attribute| (attribute.id, attribute.format)))
-    {
+        .collect();
+    let expected: Vec<_> = required_attributes
+        .iter()
+        .map(|attribute| (attribute.id, attribute.format))
+        .collect();
+    let with_colors = [
+        expected.as_slice(),
+        &[(Mesh::ATTRIBUTE_COLOR.id, Mesh::ATTRIBUTE_COLOR.format)],
+    ]
+    .concat();
+    if provided != expected && provided != with_colors {
         return Err(
             MeshToMeshletMeshConversionError::WrongMeshVertexAttributes {
                 required: required_attributes,
@@ -657,9 +670,28 @@ fn build_and_compress_per_meshlet_vertex_data(
     vertex_positions: &mut BitVec<u32, Lsb0>,
     vertex_normals: &mut Vec<u32>,
     vertex_uvs: &mut Vec<Vec2>,
+    vertex_colors: Option<&mut Vec<u32>>,
     meshlets: &mut Vec<Meshlet>,
     vertex_position_quantization_factor: u8,
 ) {
+    // Tessera: RGBA8, the colour sRGB-encoded so 8 bits are spent where the eye sees them
+    if let Some(vertex_colors) = vertex_colors {
+        for vertex_id in meshlet_vertex_ids {
+            let at = *vertex_id as usize * vertex_stride + 32;
+            let color: [f32; 4] = bytemuck::pod_read_unaligned(&vertex_buffer[at..at + 16]);
+            let srgb = |c: f32| {
+                let c = c.clamp(0.0, 1.0);
+                if c <= 0.0031308 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 }
+            };
+            let byte = |c: f32| (c * 255.0 + 0.5) as u32;
+            vertex_colors.push(
+                byte(srgb(color[0]))
+                    | byte(srgb(color[1])) << 8
+                    | byte(srgb(color[2])) << 16
+                    | byte(color[3].clamp(0.0, 1.0)) << 24,
+            );
+        }
+    }
     let start_vertex_position_bit = vertex_positions.len() as u32;
     let start_vertex_attribute_id = vertex_normals.len() as u32;
 
