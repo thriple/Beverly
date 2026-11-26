@@ -364,17 +364,21 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
     // (looking through a camera is one step, made when it ends)
     if ed.drag.is_some() || ed.looking.is_some() || mouse.pressed(MouseButton::Left) { return; }
     ed.refresh_dirty();
-    pen::strips(&mut ed);
-    super::scatter::scatters(&mut ed);
     ed.commit();
 }
 
 impl Editor {
-    /// Make the change since the last undo step a step of its own (if there is one). A change to a part's
-    /// contents that its instances didn't get asks "Change all, or make this one Unique?" (`ask`).
+    /// Make the change since the last undo step a step of its own (if there is one), with everything it causes. Every
+    /// edit comes through here (the panels, the handles, keys, the MCP), and the steps after it run in the written
+    /// order (`docs/orderliness.md`, C3), each changing only what it owns: attached parts follow their parent; the
+    /// pen's scatters make their items again; the pen's strips and fills, then the bucket fills, make their strokes
+    /// again; then the whole change is one undo step. A change to a part's contents that its instances didn't get
+    /// asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
-        // what was moved takes what is attached to it along, in the same step, and the bucket fills follow the change
         if self.level.parts.stamp() != self.followed { self.follow(); }
+        pen::lay(self);
+        super::scatter::scatters(self);
+        pen::strips(self);
         bucket::fills(self);
         // nothing was borrowed for change since the last look: nothing to compare
         let stamps = self.level.stamps();
@@ -487,5 +491,80 @@ mod tests {
         ed.level.get_mut(a).unwrap().color = [1.0, 0.0, 0.0];
         ed.commit();
         assert_eq!(ed.ask, Some((a, vec![c])));
+    }
+
+    /// Orderliness stage 1 (docs/orderliness.md, A4): how long each step after an edit takes on a big level. Run by
+    /// hand: `cargo test --lib orderliness_timings -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "timing, run by hand"]
+    fn orderliness_timings() {
+        use crate::curve::{PenPoint, Scatter, Strip};
+        use crate::level::{Bucket, Fills, Grows, Material, Stroke, Surface};
+        use std::time::Instant;
+        let mut ed = Editor::at(std::env::temp_dir());
+        ed.level.materials.insert("assets/materials/meadow.bev".into(), Material { grass: vec![Grows { species: "grass".into(), share: 1.0 }], ..Default::default() });
+        ed.level.materials.insert("assets/materials/sand.bev".into(), Material::default());
+        let mut floor = Part::placed(Shape::Plane, None, "Floor".into(), [0.0, 0.05, 0.0], Quat::IDENTITY.to_array(), [400.0, 0.1, 400.0]);
+        floor.surfaces = vec![Surface { face: None, material: "assets/materials/sand.bev".into(), tile: [1.0; 2], offset: [0.0; 2] }];
+        ed.level.add(floor);
+        // 2,000 boxes, every tenth with a few brush strokes of meadow
+        for k in 0..2000 {
+            let (x, z) = ((k % 50) as f32 * 7.0 - 175.0, (k / 50) as f32 * 9.0 - 180.0);
+            let mut b = Part::placed(Shape::Box, None, format!("Box {k}"), [x, 1.0, z], Quat::IDENTITY.to_array(), [2.0; 3]);
+            if k % 10 == 0 {
+                b.strokes = (0..5).map(|j| Stroke { material: "assets/materials/meadow.bev".into(), size: 0.6, hardness: 0.6, strength: 1.0, points: (0..20).map(|i| [-0.9 + i as f32 * 0.09, 1.0, -0.8 + j as f32 * 0.4]).collect(), lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None }).collect();
+            }
+            ed.level.add(b);
+        }
+        // 20 curves, each with a strip and a scatter
+        for c in 0..20 {
+            let z = c as f32 * 18.0 - 170.0;
+            let id = ed.level.add_curve((0..8).map(|i| PenPoint::corner(Vec3::new(-170.0 + i as f32 * 48.0, 0.1, z + 3.0))).collect(), false);
+            let cu = ed.level.curve_mut(id).unwrap();
+            cu.strip = Some(Strip { material: "assets/materials/meadow.bev".into(), size: 2.0, ..Default::default() });
+            cu.scatter = Some(Scatter { spacing: 4.0, ..Default::default() });
+        }
+        // 10 bucket fills
+        for k in 0..10u64 {
+            crate::editor::bucket::add(&mut ed, Bucket { id: 0, part: 2 + k * 37, face: Some(2), at: [0.0, 1.0, 0.0], fills: Fills::Colour, tolerance: 0.05, tag: None, connected: false, material: "assets/materials/meadow.bev".into(), strength: 1.0, lays: Default::default() });
+        }
+        let time = |what: &str, n: u32, f: &mut dyn FnMut()| {
+            let t = Instant::now();
+            for _ in 0..n { f(); }
+            println!("{what:<48} {:>9.3} ms", t.elapsed().as_secs_f64() * 1000.0 / n as f64);
+        };
+        let ed = std::cell::RefCell::new(ed);
+        time("first lay + strips + scatters + commit", 1, &mut || { let mut e = ed.borrow_mut(); pen::lay(&mut e); pen::strips(&mut e); crate::editor::scatter::scatters(&mut e); e.commit(); });
+        println!("level: {} parts, {} curves, {} fills", ed.borrow().level.parts.len(), ed.borrow().level.curves.len(), ed.borrow().level.buckets.len());
+        time("pen::world_stamp (nothing changed)", 50, &mut || { std::hint::black_box(pen::world_stamp(&ed.borrow())); });
+        time("pen::lay (nothing changed)", 50, &mut || pen::lay(&mut ed.borrow_mut()));
+        time("pen::strips (nothing changed)", 50, &mut || pen::strips(&mut ed.borrow_mut()));
+        time("scatter::scatters (nothing changed)", 50, &mut || crate::editor::scatter::scatters(&mut ed.borrow_mut()));
+        time("bucket::fills (nothing changed)", 50, &mut || crate::editor::bucket::fills(&mut ed.borrow_mut()));
+        time("level stamps (nothing changed)", 50, &mut || { std::hint::black_box(ed.borrow().level.stamps()); });
+        let before = ed.borrow().level.clone();
+        let o = vec3(0.0, 40.0, 200.0);
+        let ray = Ray3d::new(o, Dir3::new(vec3(3.0, 1.0, 0.0) - o).unwrap());
+        time("picking: one ray against every part", 50, &mut || { std::hint::black_box(ed.borrow().hit(ray)); });
+        // one change: a box moved
+        ed.borrow_mut().level.get_mut(500).unwrap().pos[0] += 1.0;
+        time("Delta::between after one box moved", 10, &mut || { std::hint::black_box(level::Delta::between(&before, &ed.borrow().level)); });
+        time("bucket::fills after one box moved", 1, &mut || crate::editor::bucket::fills(&mut ed.borrow_mut()));
+        ed.borrow_mut().level.get_mut(500).unwrap().pos[0] += 1.0;
+        time("pen::lay after one box moved (every curve)", 1, &mut || pen::lay(&mut ed.borrow_mut()));
+        time("pen::strips after one box moved", 1, &mut || pen::strips(&mut ed.borrow_mut()));
+        time("scatter::scatters after one box moved", 1, &mut || crate::editor::scatter::scatters(&mut ed.borrow_mut()));
+        let e = ed.borrow();
+        let growers = crate::grass::sheets::growers(&e.level);
+        let painted: Vec<&Part> = e.level.parts.iter().filter(|p| !p.strokes.is_empty()).collect();
+        time("grass sheets, one painted box", 20, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&e.level, painted[1], &growers)); });
+        // (the 400 m floor with the 20 strips on it didn't finish in 9 minutes: a 40 m one with two strips instead)
+        let mut small = e.level.clone();
+        let f = small.get_mut(1).unwrap();
+        f.size = [40.0, 0.1, 40.0];
+        f.strokes.retain(|s| s.points.first().is_some_and(|p| p[2].abs() < 20.0));
+        let n = f.strokes.iter().map(|s| s.points.len()).sum::<usize>();
+        println!("small floor: {} strokes, {n} points", f.strokes.len());
+        time("grass sheets, a 40 m floor", 1, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&small, small.get(1).unwrap(), &growers)); });
     }
 }

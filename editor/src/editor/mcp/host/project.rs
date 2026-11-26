@@ -19,6 +19,8 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
             "selected": ed.selected.and_then(|id| ed.level.get(id)).map(|p| json!({"id": p.id, "name": p.name})),
             "unsaved_changes": ed.dirty(),
             "undo_steps": ed.undo.len(),
+            // "close enough" for the project (docs/orderliness.md): the same point, and touching
+            "precision": {"same_point_m": settings::num(ed.level.precision().same()), "touching_m": settings::num(ed.level.precision().touching())},
             "redo_steps": ed.redo.len(),
             "change_stamp": ed.level.stamps().iter().max(),
             "testing": ed.testing.is_some(),

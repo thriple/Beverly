@@ -313,8 +313,7 @@
    "order": 18,
    "first_game": true,
    "built": "2026-11-15",
-   "build": 30,
-   "next": true
+   "build": 30
   },
   {
    "id": "lights",
@@ -351,8 +350,7 @@
    "order": 20,
    "first_game": true,
    "built": "2026-11-15",
-   "build": 34,
-   "next": true
+   "build": 34
   },
   {
    "id": "cameras",
@@ -498,25 +496,6 @@
    "build": 69
   },
   {
-   "id": "models-split",
-   "name": "Models taken apart into Beverly’s own meshes",
-   "area": "Engine budgets",
-   "effort": "M",
-   "needs": [
-    "models",
-    "instancing"
-   ],
-   "what": "A glTF model is spawned as its own meshes and materials instead of one scene, so its Colour works and LOD, impostors and virtual geometry can each take its meshes.",
-   "note": "Built 2026-11-19: a model part is a root entity (ModelRoot) and, once its glTF has loaded, one child per mesh piece (models::fill_models) with the model's own mesh handle and a StandardMaterial made once from its glTF material, so every instance shares them and Bevy batches them; ModelLib keeps each model's pieces next to its triangles. Colour tints the model's materials (a white Colour leaves it as made; models placed before this, grey, stay as made; tinted copies are shared per colour). A model with a skeleton still spawns as a scene (skinned things stay on the classic path, docs/tessera.md). Picking, surface placement and collision still use the gathered triangles. MCP: Colour comes free through change_part. Test project tests/models (a model made by tools/make-test-model.py, three placements). Planned 2026-11-18: models.rs spawned Scene 0 as-is and Colour did nothing on models.",
-   "chunks": [],
-   "status": "done",
-   "first_game": true,
-   "order": 28,
-   "next": true,
-   "built": "2026-11-19",
-   "build": 70
-  },
-  {
    "id": "gpu-setup",
    "name": "GPU set-up: SMAA, capabilities, Vulkan",
    "area": "Engine budgets",
@@ -529,7 +508,7 @@
    "chunks": [],
    "status": "done",
    "first_game": true,
-   "order": 29,
+   "order": 28,
    "built": "2026-11-19",
    "build": 70
   },
@@ -545,7 +524,7 @@
    "what": "A toggle-able status pill (View > Performance meter): frames a second, frame time, the card's time, triangles, meshes in view, lights, entities and memory, coloured green, amber or red.",
    "chunks": [],
    "note": "Built 2026-11-19: perf.rs keeps Perf (fps, frame time, the card's time summed over Bevy's render passes, triangles drawn shadows included, meshes in view, lights, entities, memory), each graded green, amber or red; View > Performance meter shows it as a status pill under the island. The scripted tests end their report with the same numbers and get_project returns them with their grades. A card or driver that can't time passes or count triangles leaves that number out. Draw calls aren't counted: Bevy batches them inside its passes, so meshes in view stands in until Tessera's fork can count them. Moved up 2026-11-18: virtual geometry, cached shadows and baked light are all judged by its numbers.",
-   "order": 30,
+   "order": 29,
    "first_game": true,
    "built": "2026-11-19",
    "build": 70
@@ -563,7 +542,7 @@
    "chunks": [],
    "status": "done",
    "first_game": true,
-   "order": 31,
+   "order": 30,
    "built": "2026-11-19",
    "build": 70
   },
@@ -583,8 +562,26 @@
    "note": "Part 1 built 2026-11-19 (shader assets): shader.rs. A shader is assets/shaders/NAME.wesl, a fragment shader for Bevy's standard material with header comment lines (@setting name \"Label\" 0..5 = 1 / colour / toggle, @see-through, @raster vertex_offset / alpha_mask) that Beverly turns into setting_NAME() functions (added after the code) and a values uniform; a material file gets shader and shader_values; the extension picks its fragment shader per material (specialize), so any shader works, not a fixed set. The file is read again about twice a second (hot reload); a header that doesn't parse keeps the last good shader and says which line in the island. Materials tab: a Shader choice and its settings as rows; Assets lists Shaders; MCP: get_shader, write_shader, change_material takes shader and shader_values, list_assets has shaders. Test project tests/shaders. Part 2 built 2026-11-19 (errors and raster hooks): code the graphics card refuses reaches the island and get_shader's problem with its line (the render side reads the pipeline cache), and a failing shader fails a scripted test; @raster vertex_offset / alpha_mask are functions the shader defines (vertex_offset(world, normal, uv), alpha_mask(world, uv)) that Beverly runs in its own vertex stage and in the depth and shadow passes, so shadows follow, with the part's bounds grown by the declared reach; @see-through makes an opaque material blend and alpha_mask makes it cut out; a shader with hooks keeps its fragment under @if(!PREPASS_PIPELINE) (tests/shaders lean.wesl). Not skinned, no motion vectors or deferred. Closed 2026-11-25 (user): the paint layers moving into the material pass and virtual geometry's use of the hooks belong to Tessera part 3 (Programmable raster and Beverly's materials), where they are listed. Planned 2026-11-18 (user: many shaders will be written, mostly through Claude; the pipeline must take any shader, not a fixed set). Every material goes through it, so virtual geometry can bin clusters by raster shader the way Nanite's programmable raster does.",
    "status": "done",
    "first_game": true,
-   "order": 32,
+   "order": 31,
    "stage": "Foundations",
+   "built": "2026-11-19",
+   "build": 70
+  },
+  {
+   "id": "models-split",
+   "name": "Models taken apart into Beverly’s own meshes",
+   "area": "Engine budgets",
+   "effort": "M",
+   "needs": [
+    "models",
+    "instancing"
+   ],
+   "what": "A glTF model is spawned as its own meshes and materials instead of one scene, so its Colour works and LOD, impostors and virtual geometry can each take its meshes.",
+   "note": "Built 2026-11-19: a model part is a root entity (ModelRoot) and, once its glTF has loaded, one child per mesh piece (models::fill_models) with the model's own mesh handle and a StandardMaterial made once from its glTF material, so every instance shares them and Bevy batches them; ModelLib keeps each model's pieces next to its triangles. Colour tints the model's materials (a white Colour leaves it as made; models placed before this, grey, stay as made; tinted copies are shared per colour). A model with a skeleton still spawns as a scene (skinned things stay on the classic path, docs/tessera.md). Picking, surface placement and collision still use the gathered triangles. MCP: Colour comes free through change_part. Test project tests/models (a model made by tools/make-test-model.py, three placements). Planned 2026-11-18: models.rs spawned Scene 0 as-is and Colour did nothing on models.",
+   "chunks": [],
+   "status": "done",
+   "first_game": true,
+   "order": 32,
    "built": "2026-11-19",
    "build": 70
   },
@@ -602,7 +599,6 @@
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Today the edit commit compares the whole level with the last undo step every frame when nothing is dragged, and each step clones the whole level (300 kept). Fine now, but it grows with the level: not for the big polygon, light and logic budgets or for regions. Autosave, the runtime edits layer and the per-region files use the same change stamps. Built 2026-11-20: each collection in a level (parts, wires, curves, ranges, lighting, navigation, walker sounds, materials, sounds) is a `Tracked` value (level/track.rs) that takes a new stamp whenever it is borrowed for change and costs nothing to read, so `Level::stamps()` says at a glance whether anything may have changed; the per-frame commit and the unsaved-changes dot compare the level only when a stamp moved (nothing is compared in an idle editor, checked by the MCP check through get_project's change_stamp). An undo step is a `Delta` (level/delta.rs: the parts that changed, came, went or moved in the list, and the other things that differ, each before and after), 300 kept, applied forward for redo and back for undo, the answer to the instances question joins the step before it. Autosave and the per-region files can read the touched part ids from a step (`Delta::parts_touched`). Tests: level::delta (round trips), level::track, the editor's one-step instance change, tests/mcp/check.py.",
    "order": 33,
    "first_game": true,
-   "next": true,
    "stage": "Foundations",
    "built": "2026-11-20",
    "build": 105
@@ -626,7 +622,6 @@
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). Parts are a flat list today (movers slide only; riding a mover is a special case in the walker). Sockets, prefabs, vehicle assemblies, mounts, ships with interiors, doors on buildings and the attachments that come with a model all need parts attached to parts. Subnautica's moving interior shows the failure to avoid: a walker clipped through the floor when the interior drifted. Chunk 1 built 2026-11-20: `Part.parent` (level/hierarchy.rs). In the editor every part keeps its world position and turn, so everything that reads them is unchanged; a parent that moves or turns takes its descendants along (`Level::follow` against the level as of the last undo step, run each frame and before every commit, so a drag is followed live and the whole thing is one undo step); the file keeps a child's position and turn as offsets from its parent (format 2, written only when parts have parents; older Beverlys refuse it instead of misreading it); a parent can't be attached to its own descendants; deleting a part hands its children to its parent, and duplicating copies the part with everything attached to it. The Inspect panel has an ATTACHED TO picker, the scene list nests children under their parents, and the MCP server takes `parent` (add_part, change_part) and reports parent and children. Size is not inherited. Tests: level::hierarchy, the parents round trip through the project files, tests/mcp/check.py. Chunk 2 built 2026-11-20: a Mover has `turn` (degrees about each axis, about its own middle, eased with the slide; the kinematic body is given a turning speed as well as a sliding one); a still part attached to a moving one is part of the moving body in play (its collider is a child of the moving body's, so the walker can stand on it and it carries loose parts) and is drawn where its carrier is (script::carry, after the drawn carrier is smoothed between steps); a moving part attached to a moving part is not carried yet (it moves by its own motion: nested movers are still to do, as are spin-forever rotors). Test project tests/hierarchy (a deck that rises and turns a quarter with a crate attached, the walker standing on it). Chunk 3 built 2026-11-20: the walker standing on a moving part, or on one attached to it, is carried round with it as it turns and looks round by the same turn (a kinematic body is put at its facing each step rather than given a turning speed, so contact friction doesn't drag the walker round a second time); the drawn parts are smoothed between steps. A Mover also `spin`s (degrees a second about each axis, all the time while playing) for rotors and slowly turning debris. Test project tests/hierarchy: the walker 1.2 m from the middle of a deck that rises and turns a quarter ends exactly where the turn puts it. Still to do, as they need their own features: a moving part attached to a moving part (nested movers; a hinged door on a swinging gate), attachments on loose or vehicle bodies (assemblies, mounts), and sounds following a carried part.",
    "order": 34,
    "first_game": true,
-   "next": true,
    "stage": "Foundations",
    "built": "2026-11-20",
    "build": 108
@@ -648,7 +643,6 @@
    "status": "done",
    "first_game": true,
    "order": 35,
-   "next": true,
    "stage": "Author the world: land, sea and sky",
    "built": "2026-11-22",
    "build": 119
@@ -667,7 +661,6 @@
    "note": "Built 2026-11-22 (build 121). G puts the bucket out in the Level tab; a click on a part fills everything that counts as the same, over whole faces, with the brush's material, strength and Lays (Alt + click erases instead). Fills: Material (every face with the same material laid on it; with none laid there, the same colour), Colour (within a tolerance), Tag (every part with a surface tag, the clicked part's first unless one is chosen), Part (all of the part clicked), Floor (the walkable faces within 0.3 m of the height clicked: a storey, a yard); Connected only keeps it to parts touching the clicked one, part to part. Before a click the faces it would fill are outlined. A fill is kept as a rule in the level (buckets: the part, face and place clicked, the rule, the layer), so what it reaches is worked out again whenever the level changes (bucket.rs, editor/bucket.rs): recolour what was clicked and the fill follows, in the same undo step as the change. Its strokes cover whole faces (Stroke.faces, the paint shader telling faces apart by a second UV on the painted mesh, no image), are the parts' own (Stroke.bucket) and don't count toward what copies share (Part::same_contents compares hand-painted strokes only, so a fill or a pen strip on one copy doesn't ask Change all). Filling the same faces again replaces the earlier fill; fills that overlap stack, the later on top. The panel lists the fills in the level, each with its trash. Test project: tests/fill. MCP: bucket_fill (part, point, face, fills, tolerance, tag, connected, material or erase, strength, lays; delete) and list_fills (what each reaches now). Decided with the user 2026-11-19: no order is needed; a fill is its clicked point plus its rule, so filling the same area again replaces the earlier fill (as any bucket does), and fills over different areas that overlap just stack with the later one on top. Planned 2026-11-17 (user: a bucket that fills by the colour clicked, e.g. only the blue square on concrete gets grass). The fill stays a rule, not the area it found: recolour the square and what it filled follows. Stored as the clicked point, the rule and the layer. MCP: fill (point, match, layer). Named Bucket fill since 2026-11-20 so it is not confused with the pen's fill (built, under pen).",
    "status": "done",
    "first_game": true,
-   "next": true,
    "order": 36,
    "stage": "Author the world: land, sea and sky",
    "built": "2026-11-22",
@@ -758,23 +751,33 @@
    "build": 134
   },
   {
-   "id": "stress-level",
-   "name": "Stress level and memory meter",
+   "id": "orderliness",
+   "name": "Orderliness: one precision, one order of steps",
    "area": "Engine budgets",
    "status": "planned",
-   "effort": "S",
+   "effort": "L",
    "needs": [
-    "perf-meter",
-    "instancing",
-    "lights"
+    "change-tracking",
+    "part-hierarchy",
+    "pen",
+    "fill",
+    "grass",
+    "zones"
    ],
-   "what": "A dense generated level (many parts, lights, props and agents) and video memory in the performance meter.",
-   "chunks": [],
-   "note": "Starts as the separate beverly-bench program (a download of its own, runs unattended at 1080p and 4K, writes a short plain-text log the user sends back: card report, polygons, lights with and without shadows, the moving-headlight case, agents on the processor, memory; no personal data). Bench built 2026-11-20 (`beverly-bench.exe`, code in editor/src/bench.rs and bench/{scenes,agents}.rs; the Windows build makes Beverly-bench-windows.zip beside the main zip): it draws into 1080p and 4K images and steps each series up (1 to 64 million triangles; 100 to 1,600 lights; 1 to 32 shadowed point lights; 1 to 8 moving shadowed headlights in a lit town of 300 lights and 600 props; 1 to 16 GB of textures; 1,000 to 1,000,000 agents on one core and on all), about four seconds a step, a series stopping when it runs under 20 fps; it writes beverly-bench-log.txt line by line (so a crash leaves what came before) with fps, worst 1%, the card's time, triangles, memory and a summary of the heaviest step that held 60 and 30 fps; --quick runs only the lightest steps. First log from the user's RTX 3050 (2026-11-20) showed the first version ran ahead of the card: frames queued up, so the frame rates were the processor's (63 million triangles read 153 fps while the card's own timer said 21 ms), memory grew to 22 GB and it crashed at 4K with 400 lights; the first scene was also wrongly stopped. Fixed the same day: each frame now waits for the card, the crowd test runs on a thread of its own after the card scenes, and a scene gets two minutes to get going. Waiting on a second log from the user's card (its results, such as 1,600 lights without shadows costing 17 ms of card time, and 8 moving shadowed headlights costing about 7.5 ms, are the first real numbers). The stress level builds from the same scene functions. Its scenes then become this level. Reference card: the user's own, 8 GB of video memory (user, 2026-11-20).",
-   "order": 41,
+   "what": "The existing code brought to one set of rules: one precision per project read through one accessor, shared design numbers (the walker profile, the grid), one pipeline of steps after every edit with one owner per thing, editing a generated item makes it the user's own with a warning, old projects keep their numbers.",
+   "chunks": [
+    "Time and confirm: the slow-path candidates timed on a big level with the performance meter; failing tests for an MCP change making two undo steps and a scattered item's edit being reverted",
+    "One pipeline and one tolerance: every edit through Editor::commit with the follow, instances, generated parts and generated strokes steps inside it; precision in the project with one accessor; dedup and follow checks on it",
+    "Shared numbers: the walker profile (walker, navigation, bucket Floor, pen Ground stretch) and the grid read from one place; level and upright tests by length; bucket floor band and touching derived",
+    "Ownership enforced: a test per rule; editing a generated item turns it into the user's own with a warning",
+    "The setting: Precision with presets in project settings, a warning for odd scales, old projects keeping their numbers",
+    "Sweep: guards and display numbers named; one spatial index for picking, placement, pen, bucket and scatter if the timings call for it"
+   ],
+   "note": "Audit 2026-11-26 (docs/orderliness.md, from the Prism brief on orderliness). Owner 2026-11-26: foundation first, before any new roadmap feature; decisions recorded in the audit. MCP: get_project reports the precision and the walker profile; the island's warnings reach the MCP as each tool's answer. Stage 1 done 2026-11-26: timings on a big level in the audit (A4: moving one box remakes every curve's strips and scatter, 10.7 s; a big painted floor's grass sheets take minutes); failing tests for an MCP change making extra undo steps and a scattered item's edit being reverted (ignored until stages 2 and 4); timing test editor::edit::tests::orderliness_timings. Stage 2 done 2026-11-26: Editor::commit runs the steps in the written order for every edit (attached parts follow, pen scatters, pen strips and fills, bucket fills, one undo step); the MCP's extra undo steps are gone (test, and checked live); level::Precision (1 mm, touching 50 x) saved in project.bev only when not the default, read through Level::precision(); the pen's and scatter's outline dedup are one function on it; the hierarchy's 1 µm check named as a guard (MOVED). MCP: get_project's precision.",
    "first_game": true,
    "next": true,
-   "stage": "Foundations"
+   "stage": "Foundations",
+   "order": 41
   },
   {
    "id": "quality-tiers",
@@ -878,6 +881,24 @@
    "stage": "Foundations"
   },
   {
+   "id": "stress-level",
+   "name": "Stress level and memory meter",
+   "area": "Engine budgets",
+   "status": "planned",
+   "effort": "S",
+   "needs": [
+    "perf-meter",
+    "instancing",
+    "lights"
+   ],
+   "what": "A dense generated level (many parts, lights, props and agents) and video memory in the performance meter.",
+   "chunks": [],
+   "note": "Starts as the separate beverly-bench program (a download of its own, runs unattended at 1080p and 4K, writes a short plain-text log the user sends back: card report, polygons, lights with and without shadows, the moving-headlight case, agents on the processor, memory; no personal data). Bench built 2026-11-20 (`beverly-bench.exe`, code in editor/src/bench.rs and bench/{scenes,agents}.rs; the Windows build makes Beverly-bench-windows.zip beside the main zip): it draws into 1080p and 4K images and steps each series up (1 to 64 million triangles; 100 to 1,600 lights; 1 to 32 shadowed point lights; 1 to 8 moving shadowed headlights in a lit town of 300 lights and 600 props; 1 to 16 GB of textures; 1,000 to 1,000,000 agents on one core and on all), about four seconds a step, a series stopping when it runs under 20 fps; it writes beverly-bench-log.txt line by line (so a crash leaves what came before) with fps, worst 1%, the card's time, triangles, memory and a summary of the heaviest step that held 60 and 30 fps; --quick runs only the lightest steps. First log from the user's RTX 3050 (2026-11-20) showed the first version ran ahead of the card: frames queued up, so the frame rates were the processor's (63 million triangles read 153 fps while the card's own timer said 21 ms), memory grew to 22 GB and it crashed at 4K with 400 lights; the first scene was also wrongly stopped. Fixed the same day: each frame now waits for the card, the crowd test runs on a thread of its own after the card scenes, and a scene gets two minutes to get going. Waiting on a second log from the user's card (its results, such as 1,600 lights without shadows costing 17 ms of card time, and 8 moving shadowed headlights costing about 7.5 ms, are the first real numbers). The stress level builds from the same scene functions. Its scenes then become this level. Reference card: the user's own, 8 GB of video memory (user, 2026-11-20).",
+   "order": 48,
+   "first_game": true,
+   "stage": "Foundations"
+  },
+  {
    "id": "levels",
    "name": "Several levels and level exits",
    "area": "Logic and modules",
@@ -895,7 +916,7 @@
     "Hand-off points: a trigger that unloads a region or level, leaves a backdrop and keeps what must stay (the ship interior), one-way or reversible; per-level records (time, kills, secrets) as readouts"
    ],
    "note": "Decided with the user 2026-11-20: a returning player finds their changes by default; the default transition is a fade with a loading screen. Anything that outputs a finished event can ask for a transition (a cutscene ending, a boss defeated, a quest complete, a death, a menu button, a module). Last Ascent leaves the outside level when entering the ship, replaced by a backdrop, then plays a cinematic from the escape ship while level two loads behind it. The code today loads only the first level. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): a level can keep running while the player is away; see away-sim.",
-   "order": 48,
+   "order": 49,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -911,7 +932,7 @@
    "what": "Flags and counters such as “has key” or “enemies left”, readable by wires and the HUD.",
    "chunks": [],
    "note": "",
-   "order": 49,
+   "order": 50,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -927,7 +948,7 @@
    "what": "Named attachment frames on a part, with a type and rules for what fits, drawn as small pins: snap building, vehicle parts, docking bays, perches, seats, saddles and the attachments that come with a model all use them.",
    "chunks": [],
    "note": "Decided with the user 2026-11-20 (early groundwork for base-building, vehicles and riding). Replaces the separate ideas of snap points (Valheim, Subnautica), attachment nodes (KSP), docking ports and spots. Spots and claims for modules are sockets with a capacity. Asset prep's attachments come through them.",
-   "order": 50,
+   "order": 51,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -943,7 +964,7 @@
    "what": "What the player controls can change (a character, vehicle, mount, turret or drone), with its own camera and input map; control locks (cinematic, stuck in goo, stunned) as named states that any system can set.",
    "chunks": [],
    "note": "Decided with the user 2026-11-20. Enter and exit go through sockets. The rider-and-mount case needs two control paths, not a swap. The cinematic lock (controls off, skippable) and a goo-stuck status are the same mechanism.",
-   "order": 51,
+   "order": 52,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -964,7 +985,7 @@
     "The LOD drawer: pops out beside the Assets panel with the project’s LOD settings; with a model selected it shows each level side by side (a small live view of it you can turn, triangle count, swap size) and its impostor"
    ],
    "note": "meshopt simplifies the meshes; Bevy's visibility ranges do the cross-fades. LOD drawer (user, 2026-11-17): its previews are small live 3D views you can turn, like the main view (thumbnails of content would be allowed, but 3D is better). Painted and scattered props are always LOD'd. Since 2026-11-18: classic LOD is the path for skinned and see-through models and the last fallback for virtual geometry (docs/tessera.md). Dependency on atmosphere dropped 2026-11-20: fog hiding pop-in is a soft preference.",
-   "order": 52,
+   "order": 53,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -982,7 +1003,7 @@
    "what": "Save points and slots store the player, variables, the runtime edits and which level and entry; load from the menu.",
    "chunks": [],
    "note": "Everything a save needs (moving parts mid-move, fired wires, variables) lives in data, the same rule multiplayer needs. Review 2026-11-20: saves live in the user's own folder (not beside the exe), carry a format version for migration, and include autosave; cloud saves only if a store needs them. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): saves can be made anywhere, including mid-combat, so a save also holds physics velocities, brain state, projectiles, effect timers and the fixed-step tick, and a load resumes the same moment. Every system that keeps state needs a rule for how it saves and restores; keep a rolling history of saves and let Game Over load any of them.",
-   "order": 53,
+   "order": 54,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -1009,7 +1030,7 @@
    "note": "Planned 2026-11-18 (docs/tessera.md). Tessera (Greek tessera, a mosaic tile, from tessares, four; user named it 2026-11-18) is built on its own branch, tessera, in crates/tessera, by nightly unattended runs plus interactive review (user, 2026-11-18); merged into main part by part. Skinned and see-through things stay on classic LOD, which is also the last fallback. Needs Vulkan with 64-bit texture atomics for the full path (about RTX 2000 / RDNA2 and newer). MCP: get_lod reports which path a model draws with. Review 2026-11-20: no longer waits on LOD (classic LOD stays the path for skinned and see-through things and the fallback; the two pair up). Branch job 1 done 2026-11-20: bevy_pbr 0.20.1 vendored in crates/bevy_pbr behind the editor's tessera feature (off by default), a seeded 1.31 M-triangle test mesh, and vg-render draws it with the meshlet path on this container's software Vulkan (lavapipe), so later jobs can check rendering here. Branch job 5 done 2026-11-20 (ahead of order, user's request): instances, uploads, view buffers and bind groups updated only where something changed; the meshlet systems' CPU time at 100k copies went from 27 ms to about 1.1-1.5 ms per frame (vg-bench). Branch job 2 done 2026-11-21: no exit on a card without the features or a camera with MSAA (MeshletPlugin.supported from GpuCaps, MeshletAvailable); meshlet meshes just aren't drawn there yet. Branch job 3 in progress 2026-11-22: five of Bevy's meshlet bugs fixed (prepass material bind group, unclipped shadow depth, deferred key carry-over, stale shader imports, cluster slot cost); and 2026-11-23 the software rasterizer's fixed-point top-left fill rule (job 3 done; vg-render grid checks for cracks). Branch job 4 done 2026-11-25: tessera::bake turns any mesh into baked bytes for main's bake cache (normals and UVs filled in, welded), the same every time (METIS's global state fixed), with the coarsest level kept as a proxy mesh; 15.8 bytes per triangle, 1.3 M triangles in 23 s (vg-bake). Branch job 6 in progress 2026-11-26: tiled textures pick the right mip level on virtual geometry (the UV transform applied to the texture gradients), checked against the normal renderer (vg-render tiling); vertex colours and a second UV set left.",
    "status": "planned",
    "first_game": true,
-   "order": 54,
+   "order": 55,
    "stage": "Foundations"
   },
   {
@@ -1028,7 +1049,7 @@
     "Loading around the player in play, with far regions shown as their simplest LOD or a backdrop"
    ],
    "note": "Moved earlier (review 2026-11-20): Last Ascent is a chunked world, and the region model decides the file format, ids and saves. Regions are seamless open ground; levels are discrete places. Both load through the same machinery.",
-   "order": 55,
+   "order": 56,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -1044,7 +1065,7 @@
    "what": "Named values (number, text, yes/no, percentage, time, colour) published by variables, attributes, modules and level stats, each with a unit, a range and a live value.",
    "chunks": [],
    "note": "Wires carry events today (Pressed, Arrived); screens and HUDs need values (ammo, health, last level's time). Per-level records (time, kills, damage taken, secrets) are readouts too, saved with the level's edits.",
-   "order": 56,
+   "order": 57,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -1067,7 +1088,7 @@
     "Preset modules with no code that combine built-in layers (weather, ground, water, sound) in a zone; what a module touches is listed before it is placed; MCP write, list and place"
    ],
    "note": "Designed with the user 2026-11-20: three nouns, Module, Reach, Dials; presets (header only) and scripted modules (header plus a Luau script). Fortnite's devices and Lyra's game features show the same split (no-code placeable objects with options and events, code when needed). Replaces prefabs as the way to bundle parts with ports. Once the tab strip exists, Modules can be a tab of its own in the World group (user, 2026-11-20).",
-   "order": 57,
+   "order": 58,
    "first_game": true,
    "stage": "Foundations"
   },
@@ -1089,7 +1110,7 @@
    "note": "Planned 2026-11-17. Ported from the user's own baker (docs/reference/octahedral-impostor-baker.html: the octahedral mapping, three-view blend, parallax and depth offset, the alpha bleed and tile dilation) to WGSL. The atlases are never stored in the project (user, 2026-11-17): bake settings live with the model; the atlases are saved locally on the user's machine (a cache outside the project folder), rebuilt when missing, and baked into exported games. MCP: get_lod / change_lod cover impostor quality. Backdrops extend this from single models to whole regions.",
    "status": "planned",
    "first_game": true,
-   "order": 58,
+   "order": 59,
    "stage": "Foundations"
   },
   {
@@ -1105,7 +1126,7 @@
    "what": "Saves a recovery copy every few minutes; offers it after a crash.",
    "chunks": [],
    "note": "",
-   "order": 59,
+   "order": 60,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1122,7 +1143,7 @@
    "what": "Proximity, Volume and On start triggers with who, once / every time, delay.",
    "chunks": [],
    "note": "",
-   "order": 60,
+   "order": 61,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1138,7 +1159,7 @@
    "what": "Timer, Relay, Counter, Random.",
    "chunks": [],
    "note": "",
-   "order": 61,
+   "order": 62,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1154,7 +1175,7 @@
    "what": "AND, OR, NOR, XOR, NOT.",
    "chunks": [],
    "note": "",
-   "order": 62,
+   "order": 63,
    "first_game": false,
    "stage": "Foundations"
   },
@@ -1174,9 +1195,8 @@
     "The switcher (Ctrl+K search of tabs and actions, Ctrl+Tab recents), right-click pin, hide and move, Ctrl+1 to 8 to jump between groups, tabs added by modules and packs"
    ],
    "note": "User's decisions 2026-11-20: colour coding by group stays but does not fill the frame (a thin bezel and the selected tab, the rest neutral dark); the wheel scrolls the strip; tabs squash to slices at the sides so the selected one stays in the middle and is never lost. Design and the first cut of the groups, sorted in workflow order, are in docs/ui/HANDOFF.md (Tab groups and the scrolling strip). Splitting the big tabs, and the slots the new features need (Modules, Levels, Problems and Debug drawers, the patchbay), follow this.",
-   "order": 63,
+   "order": 64,
    "first_game": true,
-   "next": true,
    "stage": "Interface"
   },
   {
@@ -1191,7 +1211,7 @@
    "what": "Right-click on parts, assets, keys, ground and sky: duplicate, delete, rename, make unique, and Edit in its tab (Characters, Vehicles, Effects by topic, Audio); double-click opens what a thing is made of; a back chip (Alt+Left) returns with the same selection and view; Ctrl+1 to 8 switch tabs.",
    "chunks": [],
    "note": "Widened 2026-11-17 (user: right-click 'Edit this in the ___ Effects tab'; redundant ways are fine if they don't conflict). Entries for tabs that aren't built yet are left out. MCP: open_in_tab (thing, tab, topic). Ctrl+1 (Level) and Ctrl+5 (Audio) came with the Audio tab (2026-11-17); the rest follow their tabs.",
-   "order": 64,
+   "order": 65,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1212,7 +1232,7 @@
    "note": "Part 2 started 2026-11-19 (built ahead of the split, which has little to show until asset-prep): the Assets panel has a search field (every word must be in a file's name; folders with no match drop out and the rest open; tags and pips join in when they exist) and a picture on the left of texture and material rows (a texture shrunk, a material's texture or else its tint as a swatch), made in the background into the bake cache (editor/thumbs.rs); a model's picture is taken by showing it alone far below the level, lit by a light of its own, with a camera into a small image (editor/preview.rs), cut to what it fills. Still to do there: materials and shaders as a lit sphere, sounds as their waveform, prepared versions, the grid view, Ctrl+F, the chips, and the MCP's pips. Planned 2026-11-19 (user: a quick visual guide that a file has been through a tab and isn't the original; modified versions must live in the Assets panel as well, with priority on top; a search bar; thumbnails on the left with an optional grid). Decided with the user: originals never edited; a prepared version hides its original beneath it with a way to find it; several prepared versions of one original; search matches names, tags and pips. Not a new tab: tabs are workbenches, Assets is the shelf. Works at once for materials, sounds and shaders; asset-prep (the model's own file) fills it for models. Replaces the change-bar idea (no baseline is needed).",
    "status": "planned",
    "first_game": true,
-   "order": 65,
+   "order": 66,
    "stage": "Interface"
   },
   {
@@ -1229,7 +1249,7 @@
    "chunks": [],
    "status": "planned",
    "first_game": true,
-   "order": 66,
+   "order": 67,
    "stage": "Interface"
   },
   {
@@ -1250,7 +1270,7 @@
     "Distance ruler for rails and moving platforms; Moves upgraded to keys on the timeline"
    ],
    "note": "Laid out as the user's design shows (docs/ui.svg, 'timeline lower window'): the view's bottom edge gets a resize grip, the breadcrumb of the selected item and a toolbar (Auto Keyframe toggle, menus, options) sit in a notch at its bottom left, the timeline area below spans the window. Its look is the Timeline board of the redesign (docs/ui/design/boards/Timeline.dc.html): resize grip, breadcrumb, transport, mono timecode, Seconds/Frames zoom, tracks with category icons, keys as diamonds and clips as bars, playhead in the accent, Auto key in the footer; opened from the bottom notch's Timeline button (T).",
-   "order": 67,
+   "order": 68,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1269,7 +1289,7 @@
     "Check: before-and-after screenshots of every window at full size and in a small window, kept with the test projects"
    ],
    "note": "Placed after step 6 of the Last Ascent path on purpose (not by its needs): by then the editor has most of its panels. MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool.",
-   "order": 68,
+   "order": 69,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1295,7 +1315,7 @@
    "note": "Planned 2026-11-18 (user: an import may need a route through its tab before the Level: a vehicle's lights and sounds, a tree's LOD, a character's physics and voice). Builds on context-menu's make-in-a-tab, place-in-the-Level. Also fixes Ctrl+D naming a copied model “Model N” (edit.rs duplicate_selected).",
    "status": "planned",
    "first_game": true,
-   "order": 69,
+   "order": 70,
    "stage": "Interface"
   },
   {
@@ -1311,7 +1331,7 @@
    "what": "Triangles, shadowed lights, module cost and video memory against the target card, in the status pill, so headroom is seen while building.",
    "chunks": [],
    "note": "Goal (user, 2026-11-20): anyone who picks up Beverly has a very large polygon, light and logic budget in an editor that stays intuitive and modular.",
-   "order": 70,
+   "order": 71,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1332,7 +1352,7 @@
     "The patchbay overlay: a searchable rack of readouts grouped by source with live values, springy 2D noodles to widget inputs, event noodles (pulses) and value noodles (labelled values), red where a source is missing; a jack on every setting so a readout can drive any setting of any part"
    ],
    "note": "From the user 2026-11-20: screens and HUDs get data by noodles from a rack of outputs with a search bar. Wire-view merges into this. Split from HUD and Screens so both build on it. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): UI in the world (diegetic): buttons, strips and readouts on a desk's surface and projected panels above it, drawn with a hologram look, as well as on the screen.",
-   "order": 71,
+   "order": 72,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1353,7 +1373,7 @@
     "In-world panels (the mech's fuel gauge), objective, minimap"
    ],
    "note": "Gets its own planning pass before building. The game's HUD and screens use Bevy's own UI, not the editor's egui, so a shipped game carries no editor code. Its look is the UI/HUD board of the redesign (docs/ui/design/boards/Hud.dc.html): blue frame, amber accent, a 2D view on ink. Split from Screens 2026-11-20: the HUD is the always-on overlay; screens are navigated flows; both build on ui-core. Skins that draw it around the character are hud-skins. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): ship instruments: a faint 3D compass, fuel, power, shields, the active loadout, a damage screen with each part of the ship green, yellow or red, and manual buttons in the cockpit that can be clicked (UI in the world).",
-   "order": 72,
+   "order": 73,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1375,7 +1395,7 @@
     "Live 3D backgrounds; transitions on the timeline"
    ],
    "note": "Gets its own planning pass before building. Its look is the Screens board of the redesign (docs/ui/design/boards/Screens.dc.html): a flow graph of screen cards, with a Flow check card. Widened 2026-11-20 (user: screens need more versatility); data comes in through the patchbay, including last level's results. The HUD is a separate entry.",
-   "order": 73,
+   "order": 74,
    "first_game": true,
    "stage": "Interface"
   },
@@ -1391,7 +1411,7 @@
    "what": "A short pointer tour the first time a panel or card opens; replay from Help.",
    "chunks": [],
    "note": "",
-   "order": 74,
+   "order": 75,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1407,7 +1427,7 @@
    "what": "Where frame time goes, per system and per part, with the heaviest spots highlighted in the level.",
    "chunks": [],
    "note": "",
-   "order": 75,
+   "order": 76,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1423,7 +1443,7 @@
    "what": "A toggle-able list of camera spots in the level: save the current view with a default name, rename, go there, re-set to the current view, delete.",
    "chunks": [],
    "note": "",
-   "order": 76,
+   "order": 77,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1439,7 +1459,7 @@
    "what": "Drag out a count ring, then a spacing ring: rows of fences, pillars, lights.",
    "chunks": [],
    "note": "",
-   "order": 77,
+   "order": 78,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1455,7 +1475,7 @@
    "what": "One list of what is wrong: missing files, wires to nothing, no player start, navigation not built, exits pointing at missing levels, red noodles in screens, over-budget polygons, lights or memory; each with a fix, checked before export.",
    "chunks": [],
    "note": "Today only the Screens tab has a flow check.",
-   "order": 78,
+   "order": 79,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1472,7 +1492,7 @@
    "what": "Wires pulse when they fire in test mode; W opens a flat node graph.",
    "chunks": [],
    "note": "Merges with the patchbay: one wiring look everywhere, with pulses for events and labelled values for readouts; the 3D wire picker moves to it.",
-   "order": 79,
+   "order": 80,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1488,7 +1508,7 @@
    "what": "Title, pause, settings, credits, quit and results screens that work out of the box.",
    "chunks": [],
    "note": "Screens covers settings and loading but not pause, title or credits.",
-   "order": 80,
+   "order": 81,
    "first_game": false,
    "stage": "Interface"
   },
@@ -1504,7 +1524,7 @@
    "what": "The Level tab's World topic: per level, the kind of ground (none, flat floor, terrain, ocean) and sky or Interior; later wind, weather and boundaries. Space games get no ground at all.",
    "chunks": [],
    "note": "",
-   "order": 81,
+   "order": 82,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1520,7 +1540,7 @@
    "what": "One particle system for every effect: bursts and streams of soft blobs with drag, gravity, spin and wander, size and colour over life drawn as curves.",
    "chunks": [],
    "note": "Generalises Last Ascent's particles (fx.rs and the plume particles), which already match the game's look and run without compute shaders. bevy_hanabi (GPU, Bevy 0.20) stays a fallback if counts outgrow it. Rain and snow are a shader around the camera, not particles.",
-   "order": 82,
+   "order": 83,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1536,7 +1556,7 @@
    "what": "Waves from a formula (layered Gerstner), shore fade, foam; settings by wind and storm.",
    "chunks": [],
    "note": "bevy_water supports Bevy 0.20.",
-   "order": 83,
+   "order": 84,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1553,7 +1573,7 @@
    "what": "Per level or camera: bloom, depth of field, motion blur, chromatic aberration, vignette, lens distortion, auto exposure, colour grading; zones and the timeline can change them.",
    "chunks": [],
    "note": "All built into Bevy 0.20. Lasting looks are set in the Level tab (World and Cameras topics); momentary touches fired by events (a flash, heat haze) are effect layers in the Effects tab (2026-11-17).",
-   "order": 84,
+   "order": 85,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1569,7 +1589,7 @@
    "what": "Screen-space ambient occlusion and reflections, volumetric fog and light shafts, quality settings.",
    "chunks": [],
    "note": "All built into Bevy 0.20.",
-   "order": 85,
+   "order": 86,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1588,7 +1608,7 @@
     "Cloud layers and volumetric clouds that follow the wind"
    ],
    "note": "Bevy 0.20 has a physical atmosphere built in.",
-   "order": 86,
+   "order": 87,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1605,7 +1625,7 @@
    "what": "One wind for the level (direction, strength, gusts, zones) read by foliage, cloth, flags, particles, smoke, sails and flying lift.",
    "chunks": [],
    "note": "",
-   "order": 87,
+   "order": 88,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1622,7 +1642,7 @@
    "what": "Scorch marks, cracks, skid grooves, bullet holes and signs projected onto surfaces, fading with age.",
    "chunks": [],
    "note": "Bevy 0.20 has decals built in. Blast, crack and scrape marks are drawn by a shader from a few numbers (Last Ascent's are small images today; the no-raster rule asks for math where it can do the job); signs and graffiti use the user's own images.",
-   "order": 88,
+   "order": 89,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1638,7 +1658,7 @@
    "what": "Reflection box parts with their influence box always drawn.",
    "chunks": [],
    "note": "Captured when the level loads (Bevy 0.20 generates environment maps at run time), so no images are stored.",
-   "order": 89,
+   "order": 90,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1660,7 +1680,7 @@
    "note": "Planned 2026-11-18 (user: bake still lights the way impostors bake models). Baked data is derived, so it lives in the bake cache, never in the project. Probes before lightmaps: virtual geometry has no lightmaps yet. Probes first; the middle tier is gi-tier.",
    "status": "planned",
    "first_game": true,
-   "order": 90,
+   "order": 91,
    "stage": "Author the world: land, sea and sky"
   },
   {
@@ -1677,7 +1697,7 @@
    "note": "Planned 2026-11-17 (user: ground-only painting begs a Terrain place). Foliage stays its own topic and borrows the Surfaces. Ground relief stays flat for now (research in design.html, Foliage). Takes over the Water topic (2026-11-17); the kind of ground (none, floor, terrain, ocean) stays level-wide in the World topic.",
    "status": "planned",
    "first_game": true,
-   "order": 91,
+   "order": 92,
    "stage": "Author the world: land, sea and sky"
   },
   {
@@ -1696,7 +1716,7 @@
     "Tag rules: the words from roles, Prism tags, names and material surfaces (docs/prism-glb.md) set the piece up from a table of words (collider, walkthrough, trigger, loose, breakable, surface tags, footstep materials, door, button, lift, light...); the project can add its own rows; settings from a word show a 'from tag' chip, the owner's change wins and a reset brings the word's value back; unknown words become the project's own tags; an import summary in the island; words that wait for unbuilt features (breakable, sockets, LOD, decals) are kept until they arrive; MCP list_tag_rules, change_tag_rule and where each setting came from in list_parts; test project tests/prism-tags"
    ],
    "note": "Planned 2026-11-21 with the user: tag a group 'collider' or 'breakable', or a material 'stone', and Beverly sets it up, with overrides. 'collider' means an invisible collision shape for the group it sits in (the Unreal and Godot convention); if a model has any, only colliders collide (models collide as drawn otherwise, so the drawn-and-solid meaning needs no word). The GLB contract both programs follow is docs/prism-glb.md, an addendum to Prism's brief 50 sent to the Prism session: roles as a list on groups and components (extras.prism.roles), the instance's Prism tag (extras.prism.tag), a material's Surface (material extras.prism.surface). Waits its turn in the build order (user). From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the word node (a small cube named Node) is an attachment node: the cube's centre and axes give its position and facing, and the cube isn't drawn.",
-   "order": 92,
+   "order": 93,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1718,7 +1738,7 @@
     "Atmosphere settings on Zone parts (Interior preset); Set weather action over time"
    ],
    "note": "Haze is Bevy's distance fog; local fog banks are fog volumes (ambient occlusion and fog volumes feature). Rain and wind sounds go through the sound hooks. Weather looks come built in; once the Effects tab exists they are made and changed there (World effects) and still chosen in the Level by zones and the World topic.",
-   "order": 93,
+   "order": 94,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1738,7 +1758,7 @@
     "Outlines: shell per object and edge detection over the screen; per-project style presets"
    ],
    "note": "bevy_mod_outline supports Bevy 0.20.",
-   "order": 94,
+   "order": 95,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1755,7 +1775,7 @@
    "what": "A running clock with day and night, schedules for lights and NPCs; slow motion and pause.",
    "chunks": [],
    "note": "",
-   "order": 95,
+   "order": 96,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1778,7 +1798,7 @@
     "Detail and distance: ring sizes and how fine they get, close-up relief (mud, ruts) in the same displacement, no seams between rings"
    ],
    "note": "Height images from other tools could be converted into strokes later, if wanted. Collision (user, 2026-11-15: no meshes where a height function does it cheaper): the ground is the height function itself as a custom shape in Avian that answers rays exactly (standing on it: the walker's tnua sensor as a ray instead of a disc; feet and foot placement, grapple, camera, bullets, placing things), plus a small contact rule of Beverly's own, since Parry works out contact between solid shapes only for its built-in ones: each step, loose bodies' lowest points are checked against the height and pushed up and out along the slope, and ground steeper than a set limit (banks taller than the walker's 0.45 m step) pushes characters back like a wall. Check: sampled points agree with the height function, the walker climbs stairs and is stopped by a steep bank, a loose crate settles on a slope. Its stroke tools are the brush; its curve tools the pen (user, 2026-11-17). Needs the pen, not the Paths tool (2026-11-17): the pen is the one curve tool, and Paths adds the timeline overlay terrain doesn't use. Ground without meshes (user, 2026-11-17: not a fan of meshes for world ground; tessellation can be built if needed): the ground is drawn from its description each frame, the way the grass carpet draws blades.",
-   "order": 96,
+   "order": 97,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1799,7 +1819,7 @@
     "Budgets, quality settings, models through the bake cache, the performance numbers"
    ],
    "note": "Research 2026-11-20 (second-hand, to confirm from primary sources): Unity's Surface Cache GI (shown in its Atrio demo) uses hardware ray tracing where there is any and a compute fallback where not; AMD's Brixelizer GI is compute only on sparse distance fields; Lumen's software path uses cards and distance-field tracing; Split Radiance Cascades (2026 paper) stores probes in a sparse hash near visible surfaces. Beverly's parts are mostly primitives, so cards and distance fields are cheap to make. Nothing ready-made exists for Bevy: Solari needs ray queries.",
-   "order": 97,
+   "order": 98,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1820,7 +1840,7 @@
     "Swap and hand-off: turn into the real geometry on approach; a hand-off point that unloads a region and leaves its backdrop (one-way or reversible), with what to keep loaded"
    ],
    "note": "From Last Ascent (user, 2026-11-20): entering the ship unloads the outside level and leaves a baked low-res image plus heightmap of the city or forest, seen through windows; the planet, sun and a distant station in the space level are the same thing. Extends impostors from single models to whole regions.",
-   "order": 98,
+   "order": 99,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1841,7 +1861,7 @@
     "Automatic rules: rock on steep slopes, snow above a height"
    ],
    "note": "Surfaces are outlines and strokes like the terrain itself; blend weights are worked out per vertex, so no paint images are stored. Painted with the brush and pen (user, 2026-11-17).",
-   "order": 99,
+   "order": 100,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1861,7 +1881,7 @@
     "Rivers on paths: flow along the curve, foam, carving the bed, joining lakes"
    ],
    "note": "",
-   "order": 100,
+   "order": 101,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1877,7 +1897,7 @@
    "what": "A floating origin so worlds bigger than about 10 km don't jitter.",
    "chunks": [],
    "note": "big_space has no release for Bevy 0.20 yet, so the plan is a simple floating origin of Beverly's own (move the world back when the player is far from the middle) with Avian in f64; use big_space if it catches up.",
-   "order": 101,
+   "order": 102,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1898,7 +1918,7 @@
    "note": "Planned 2026-11-18. Unverified until its planning pass (docs.rs and bevy.org were out of reach when researched).",
    "status": "planned",
    "first_game": true,
-   "order": 102,
+   "order": 103,
    "stage": "Author the world: land, sea and sky"
   },
   {
@@ -1920,7 +1940,7 @@
     "Drawing lots of them: instances grouped in cells, LOD and impostors per cell, culling; wind sway and performance pass"
    ],
    "note": "Stored as brush strokes and a seed, not every plant: the same plants come back each time and the level file stays small. Erasing is a stroke too. Widened from foliage to any scatter (user, 2026-11-17). Later, maybe: tiles, bricks, cobblestones, kerbs and concrete slabs laid as 3D pieces along pen strips or across fills. Next session (user, 2026-11-17): the user uploads a grass system ported from a game of theirs, to be integrated into the foliage and scatter systems; plan the integration from it before building. Its scatter sets appear in the Foliage topic beside the grass carpet and Mixes (2026-11-17). Trees and rocks can draw as virtual geometry with cut-out leaves (raster hooks) where the card allows (2026-11-18).",
-   "order": 103,
+   "order": 104,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1937,7 +1957,7 @@
    "what": "Falling ribbons with mist and ripple rings where they land; fountain jets and basins.",
    "chunks": [],
    "note": "",
-   "order": 104,
+   "order": 105,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1956,7 +1976,7 @@
    "what": "The edge of a level as a Zone or a closed path with a behaviour: warn and count down, push back, hazard that hurts, turn the player around, or wrap; for space, open worlds and arenas.",
    "chunks": [],
    "note": "Round boundaries feel better than square ones in space; wrapping rarely feels good in 3D. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): a sphere that move orders and targets can't pass, shown on the map.",
-   "order": 105,
+   "order": 106,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1976,7 +1996,7 @@
     "Cloth: flags, banners, sails and capes on characters"
    ],
    "note": "The grass carpet already sways (its own two-part sway); this feature moves it onto the level's wind with everything else.",
-   "order": 106,
+   "order": 107,
    "first_game": true,
    "stage": "Author the world: land, sea and sky"
   },
@@ -1993,7 +2013,7 @@
    "what": "Wall, floor, arch and stair pieces that snap on a grid and rotate in steps; made in Prism.",
    "chunks": [],
    "note": "",
-   "order": 107,
+   "order": 108,
    "first_game": false,
    "stage": "Author the world: land, sea and sky"
   },
@@ -2013,7 +2033,7 @@
     "Placing kit pieces, doors, keys and spawns along it"
    ],
    "note": "",
-   "order": 108,
+   "order": 109,
    "first_game": false,
    "stage": "Author the world: land, sea and sky"
   },
@@ -2029,7 +2049,7 @@
    "what": "Hide whole rooms that can't be seen through doorways; plus Bevy's GPU occlusion culling switched on where it helps.",
    "chunks": [],
    "note": "",
-   "order": 109,
+   "order": 110,
    "first_game": false,
    "stage": "Author the world: land, sea and sky"
   },
@@ -2046,7 +2066,7 @@
    "what": "Roads along paths that cut into the terrain; race checkpoints and laps.",
    "chunks": [],
    "note": "",
-   "order": 110,
+   "order": 111,
    "first_game": false,
    "stage": "Author the world: land, sea and sky"
   },
@@ -2063,7 +2083,7 @@
    "what": "Rain, snow, fog, wind and lightning as module presets with dials, dropped into a zone or over the whole level.",
    "chunks": [],
    "note": "",
-   "order": 111,
+   "order": 112,
    "first_game": false,
    "stage": "Author the world: land, sea and sky"
   },
@@ -2081,7 +2101,7 @@
    "what": "Mud, snow, wet ground, water level, flow and currents as module presets: surface material, footsteps, grip and wetness; water volumes with a level plane you drag.",
    "chunks": [],
    "note": "",
-   "order": 112,
+   "order": 113,
    "first_game": false,
    "stage": "Author the world: land, sea and sky"
   },
@@ -2098,7 +2118,7 @@
    "what": "Step on it and get launched in its direction; works on enemies and objects.",
    "chunks": [],
    "note": "",
-   "order": 113,
+   "order": 114,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2121,7 +2141,7 @@
     "Create steps: template, model, fit (auto collision); Body card"
    ],
    "note": "Undo covers character files the same way it covers levels (each open file keeps its own undo). Its look is the Characters board of the redesign (docs/ui/design/boards/Characters.dc.html): pink frame, mint accent, topics Body, Moves, Camera, Controls. Characters tab tools (user, 2026-11-17, plan with the tab): the brush paints Beverly's own shaders onto a character; the pen draws hair, cloth strips and jewellery that move with physics.",
-   "order": 114,
+   "order": 115,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2141,7 +2161,7 @@
     "Rules editor and the library picker (+ Add) with needs; editable ranges"
    ],
    "note": "bevy_tnua (Bevy 0.20) does walking, jumping with coyote time, crouching and dashing on Avian; the + Add library picker is shared with parts, abilities, effects and items.",
-   "order": 115,
+   "order": 116,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2158,7 +2178,7 @@
    "what": "Third / first person rig, distance, shake per event; actions mapped to keys, rebinding.",
    "chunks": [],
    "note": "Input goes through named actions (leafwing-input-manager supports Bevy 0.20), which multiplayer and gamepads both need. The creator chooses how cameras behave, per game and per character, at any step, nothing hardwired (user, 2026-11-18): which modes a character has (first, third person or both), whether a key switches them while playing (and which key), and the mode it starts in.",
-   "order": 116,
+   "order": 117,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2179,7 +2199,7 @@
     "Joint tree by name: drag joints between chains, rename"
    ],
    "note": "The Walk job generalises Last Ascent's mech legs.",
-   "order": 117,
+   "order": 118,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2199,7 +2219,7 @@
     "Abilities with costs and cooldowns; the Abilities card with its tags"
    ],
    "note": "Status effects that change movement or take control away (stuck in goo, stunned) use the control locks of control-target; they can also set identity markers that factions read.",
-   "order": 118,
+   "order": 119,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2220,7 +2240,7 @@
     "Transitions per move, animation events (footsteps, effects), layering with joint jobs"
    ],
    "note": "Skinned characters bring their clips in the GLB (the user will skin in another tool, Prism once it can). Characters made of separate pieces, like the mech, are posed and keyed here, since Prism exports pieces with pivots.",
-   "order": 119,
+   "order": 120,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2236,7 +2256,7 @@
    "what": "Double jump (set how many), wall jump, keep momentum (bunny hops), ground pound.",
    "chunks": [],
    "note": "",
-   "order": 120,
+   "order": 121,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2252,7 +2272,7 @@
    "what": "Dash, air dash (once per jump), sprint with stamina, roll keeping momentum.",
    "chunks": [],
    "note": "Mostly bevy_tnua's.",
-   "order": 121,
+   "order": 122,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2268,7 +2288,7 @@
    "what": "Crouch, prone crawl, slide at speed, lean around corners.",
    "chunks": [],
    "note": "Mostly bevy_tnua's.",
-   "order": 122,
+   "order": 123,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2288,7 +2308,7 @@
     "Wall-run and wall-cling with their exits into jumps"
    ],
    "note": "",
-   "order": 123,
+   "order": 124,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2307,7 +2327,7 @@
     "Manoeuvres as moves: rolls, dive, loop, Immelmann / split-S, stall, boost"
    ],
    "note": "",
-   "order": 124,
+   "order": 125,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2324,7 +2344,7 @@
    "what": "Swim at the surface, dive under with breath, water volumes.",
    "chunks": [],
    "note": "",
-   "order": 125,
+   "order": 126,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2341,7 +2361,7 @@
    "what": "Characters go limp on death or big hits and blend back when they get up.",
    "chunks": [],
    "note": "",
-   "order": 126,
+   "order": 127,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2362,7 +2382,7 @@
     "Interaction targets: look-at, hand reach (two-bone IK with blend in and out), sit / lean spots"
    ],
    "note": "",
-   "order": 127,
+   "order": 128,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2384,7 +2404,7 @@
     "Vehicle and Enemy (with vehicles and the swarm)"
    ],
    "note": "",
-   "order": 128,
+   "order": 129,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2403,7 +2423,7 @@
    "what": "Every water body is a swim volume; floating objects bob with drag; splashes; underwater fog and tint; water puts out fire.",
    "chunks": [],
    "note": "",
-   "order": 129,
+   "order": 130,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2425,7 +2445,7 @@
     "Physical models driven by readouts (needle, glowing spine, ammo counter, suit lights), built on the Characters stage with the patchbay, plus the 2D fallback skin"
    ],
    "note": "User idea 2026-11-20: a HUD near the mech instead of the corners of the screen, since the mech's fast momentum is the fun; some things (a countdown timer) still belong on the screen; the mech is still in flux. A first-person skin sits on a visor, arm or weapon. World-space UI can be hard to read, so the 2D skin stays available.",
-   "order": 130,
+   "order": 131,
    "first_game": true,
    "stage": "Move through it"
   },
@@ -2441,7 +2461,7 @@
    "what": "Gamepad controls and glyphs for games, through the input map.",
    "chunks": [],
    "note": "No longer last: the input map comes early and gamepad support follows it.",
-   "order": 131,
+   "order": 132,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2458,7 +2478,7 @@
    "what": "The pointer tour for each card the first time it opens.",
    "chunks": [],
    "note": "",
-   "order": 132,
+   "order": 133,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2478,7 +2498,7 @@
     "Grind rails, zero-g, burrow, ride, perch"
    ],
    "note": "",
-   "order": 133,
+   "order": 134,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2494,7 +2514,7 @@
    "what": "Lock characters to a plane or the camera to a view for 2.5D and top-down games.",
    "chunks": [],
    "note": "",
-   "order": 134,
+   "order": 135,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2510,7 +2530,7 @@
    "what": "A generic humanoid and a small cartoon character, skinned and animated, with walk, run, jump and idle clips, so any project can test from day one.",
    "chunks": [],
    "note": "Made by the user, not asset packs (2026-11-15), and skinned in another tool: Prism once it can skin (user, 2026-11-15). They arrive as GLB with their skeleton and clips.",
-   "order": 135,
+   "order": 136,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2526,7 +2546,7 @@
    "what": "Animations made for one humanoid play on any humanoid by matching the standard skeleton.",
    "chunks": [],
    "note": "",
-   "order": 136,
+   "order": 137,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2547,7 +2567,7 @@
     "Newtonian ship movement: thrusters in six directions, flight assist on / off, boost; walking characters push off and use magnetic boots"
    ],
    "note": "Real Newtonian flight is easy to overshoot; games like Elite add a flight-assist layer that can be switched off. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): mouse steering with a deadzone near the centre (as in Starship EVO), Q and E roll, Caps Lock auto-forward with Shift and Ctrl throttle and Z / X for full and zero, G landing gear, middle-click free look, cockpit view with F4 for third person; all through the input map, set per game.",
-   "order": 137,
+   "order": 138,
    "first_game": false,
    "stage": "Move through it"
   },
@@ -2563,7 +2583,7 @@
    "what": "Temporary sounds made from a few settings: blips, hits, footsteps, whooshes, explosions, engine hums and rain, saved as their settings (tiny) and swapped for real recordings whenever you have them.",
    "chunks": [],
    "note": "User, 2026-11-15: generated temporary sounds are fine. Works like the classic sfxr sound makers: a wave, a pitch slide, an envelope and noise. Lives in the Sounds topic as a source beside recordings (2026-11-17).",
-   "order": 138,
+   "order": 139,
    "first_game": true,
    "stage": "Make it alive: sound, effects, prefabs"
   },
@@ -2584,7 +2604,7 @@
     "Animating overlay (P): keys and handles in the world, ticks for timing, fly-to-record"
    ],
    "note": "One path system for rails, patrols, rivers, roads, terrain curves, camera paths and boundaries. Rail cameras (a camera part that travels along a path) moved here from Camera parts (user, 2026-11-15). Patrol paths (points an enemy walks between, looped or back and forth) come here, drawn with the Paths tool (user, 2026-11-16). Drawn with the pen tool (user, 2026-11-17).",
-   "order": 139,
+   "order": 140,
    "first_game": true,
    "stage": "Make it alive: sound, effects, prefabs"
   },
@@ -2606,7 +2626,7 @@
     "Glow, trails, camera shake; attaching effects to joints and events in the editor"
    ],
    "note": "Reuses Last Ascent's plume reader and renderer, which already match the Plume Editor. Making effects happens in the Effects tab.",
-   "order": 140,
+   "order": 141,
    "first_game": true,
    "stage": "Make it alive: sound, effects, prefabs"
   },
@@ -2632,7 +2652,7 @@
     "Combined effects: layers (plume, particles, marks, glow, trail, shake, a momentary post-processing touch such as a flash or heat haze) timed into one effect (a landing: dust, cracks, shake, a thud)"
    ],
    "note": "User, 2026-11-15: integrate the Plume Editor; other kinds of effects get their own sections. Its fields already come with sections, labels, ranges and notes (references/plume/FIELDS.md in Last Ascent), which is what Settings panels from data needs, and Last Ascent's plume code already draws them the same as the editor. Its look is the Effects board of the redesign (docs/ui/design/boards/Effects.dc.html): orange frame, azure accent. Topics by subject (user, 2026-11-17) replace the board's topics by kind (Plumes, Particles, Fire, Post): kinds are layers inside an effect. Vehicle effects waits as Coming soon until Vehicles exist; the walker stands in for characters until Character files exist.",
-   "order": 141,
+   "order": 142,
    "first_game": true,
    "stage": "Make it alive: sound, effects, prefabs"
   },
@@ -2649,7 +2669,7 @@
    "chunks": [],
    "note": "Planned 2026-11-17. Buses are kira sub-tracks; reverb spaces are send tracks with kira's reverb; muffling is a ray from the listener to the sound and a low-pass filter. The Settings screen's volume sliders are these buses. MCP: get_mix, change_mix, set_mood.",
    "first_game": false,
-   "order": 142,
+   "order": 143,
    "stage": "Make it alive: sound, effects, prefabs"
   },
   {
@@ -2666,7 +2686,7 @@
    "chunks": [],
    "note": "Planned 2026-11-17. The stage is a patch of world with time of day, wind and rain sliders (shared with the Effects tab's World stage); scattered sounds show as dots popping up around you. Weather sounds (rain, wind) are ambience layers that follow the weather. MCP: ambience through the sound tools, zones through the part tools. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): a screen showing a playing recording's waveform (the hangar monitor's news anchor): a material that reads a sound's loudness, so background screens need no video.",
    "first_game": false,
-   "order": 143,
+   "order": 144,
    "stage": "Make it alive: sound, effects, prefabs"
   },
   {
@@ -2687,7 +2707,7 @@
    ],
    "note": "Planned 2026-11-17. Works like FMOD's and Wwise's adaptive music: vertical (stems in and out) and horizontal (sections on the beat). MCP: list_music, change_music, set_music_state.",
    "first_game": false,
-   "order": 144,
+   "order": 145,
    "stage": "Make it alive: sound, effects, prefabs"
   },
   {
@@ -2706,7 +2726,7 @@
     "Exposed ports and settings, nested prefabs"
    ],
    "note": "Overlaps modules; built on the part hierarchy, with ids remapped for each copy.",
-   "order": 145,
+   "order": 146,
    "first_game": false,
    "stage": "Make it alive: sound, effects, prefabs"
   },
@@ -2728,7 +2748,7 @@
     "A test per module on the fixed clock; the MCP can write, test and place modules"
    ],
    "note": "Language: Luau (sandbox built in, fast, the assistant writes it reliably); Rhai is the fallback behind the same host contract. To confirm when building: how Luau builds into the Windows player. Rules from multiplayer: declared state, fixed step, seeded randomness, effects as events.",
-   "order": 146,
+   "order": 147,
    "first_game": true,
    "stage": "Inhabitants"
   },
@@ -2745,7 +2765,7 @@
    "what": "A spot is a socket with a capacity (a dock bay, a perch, a bench, a market stall); an agent claims one, queues if it is taken and lets go when done.",
    "chunks": [],
    "note": "One building block for docking ships, birds on perches, crowds and traders. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): landing pads are spots with room for one: a ship landing at a base's pad is refilled at a medium pace, and a robot coming to drop off loiters until the pad is clear; more pads, less waiting.",
-   "order": 147,
+   "order": 148,
    "first_game": true,
    "stage": "Inhabitants"
   },
@@ -2766,7 +2786,7 @@
     "Perception: sight cones, hearing, memory, line-of-fire checks counted against the module budget"
    ],
    "note": "From the RTS and crowd research: flow fields for big groups, simulation detail by distance (Unreal's Mass has separate levels for drawing, thinking and networking).",
-   "order": 148,
+   "order": 149,
    "first_game": true,
    "stage": "Inhabitants"
   },
@@ -2790,7 +2810,7 @@
     "Allegiance through factions: who counts as an enemy, and markers such as goo that flip it"
    ],
    "note": "Becomes the first module pack on the behaviour host (review 2026-11-20). Walkers use the navigation areas; flyers and swimmers steer around obstacles with rays. The Flock preset is the wildlife pack.",
-   "order": 149,
+   "order": 150,
    "first_game": true,
    "stage": "Inhabitants"
   },
@@ -2807,7 +2827,7 @@
    "what": "Who is friendly to whom, and the identity markers perception reads (a uniform, a signal, a status such as covered in goo), so allegiance can flip with state.",
    "chunks": [],
    "note": "Story beat from Last Ascent level one (user, 2026-11-20): the enemy coats the main character in goo so thoroughly that the ship's AI takes them for an enemy and sends a military-spec mech after them.",
-   "order": 150,
+   "order": 151,
    "first_game": true,
    "stage": "Inhabitants"
   },
@@ -2824,7 +2844,7 @@
    "what": "Spawner parts and spawn waves on the timeline.",
    "chunks": [],
    "note": "",
-   "order": 151,
+   "order": 152,
    "first_game": true,
    "stage": "Inhabitants"
   },
@@ -2841,7 +2861,7 @@
    "what": "The walkable area updates while playing, for built, dug or destroyed ground.",
    "chunks": [],
    "note": "To confirm: whether the navigation library supports rebuilding tiles at runtime.",
-   "order": 152,
+   "order": 153,
    "first_game": false,
    "stage": "Inhabitants"
   },
@@ -2858,7 +2878,7 @@
    "what": "Live readout and event watch, slow motion and single step, teleport, and overlays for navigation, sockets, perception and module state.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review of the built code against the roadmap (docs/architecture.md). The profiler exists in the plan but there was no general debug feature.",
-   "order": 153,
+   "order": 154,
    "first_game": false,
    "stage": "Inhabitants"
   },
@@ -2875,7 +2895,7 @@
    "what": "A game rules module (what the player controls, the camera, the HUD, winning and losing, scoring) bundled with modules into a pack, so a genre is a pack and not hard-coded.",
    "chunks": [],
    "note": "Unreal's Lyra gets three game modes from one core plus plugins the same way.",
-   "order": 154,
+   "order": 155,
    "first_game": false,
    "stage": "Inhabitants"
   },
@@ -2898,7 +2918,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the failure branch needs enemies that build while the player is gone. Decide this early because every system with state has to support it. MCP: settings come free from their descriptions; its named actions are part of the feature.",
    "stage": "Inhabitants",
    "first_game": false,
-   "order": 155
+   "order": 156
   },
   {
    "id": "pack-docking",
@@ -2914,7 +2934,7 @@
    "what": "Ships that request a bay, approach along a curve, dock, unload and leave, queuing when the bays are full.",
    "chunks": [],
    "note": "",
-   "order": 156,
+   "order": 157,
    "first_game": false,
    "stage": "Inhabitants"
   },
@@ -2931,7 +2951,7 @@
    "what": "Birds that land on perch spots, scatter when you come near and flock; the bird code becomes a module.",
    "chunks": [],
    "note": "Replaces brain's Flock preset.",
-   "order": 157,
+   "order": 158,
    "first_game": false,
    "stage": "Inhabitants"
   },
@@ -2950,7 +2970,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): one sighting alerts the squad; a squad investigates where an attack came from and reports; the group then decides how many units to send. Teleporting units use the shared knowledge to jump to a spotted place. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): a commander layer above the squads decides how much force to send (the Guard investigates the vector of an attack, then sends a squad or more).",
    "stage": "Inhabitants",
    "first_game": false,
-   "order": 158
+   "order": 159
   },
   {
    "id": "health",
@@ -2964,7 +2984,7 @@
    "what": "Health and shield bars, regen after a pause, death and respawn, Killed trigger.",
    "chunks": [],
    "note": "Health, fuel, hunger and oxygen are attributes: one foundation shared with modules, publishing readouts. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): death can send the player to a different level (a clone wakes in the previous one) while the wreck, its salvage and the world stay behind. Gates of Heaven's ship has shield modules that draw power from the ship's totals (2026-11-22). Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): self-repair while under 50% and no damage for a while (as Last Ascent's mech); the rest is repaired by hand with a tool.",
-   "order": 159,
+   "order": 160,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -2984,7 +3004,7 @@
     "Pick up and throw (water containers), flare (needs lights), demo charge (needs damage)"
    ],
    "note": " Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): the multi-tool: repair, and a grav beam that moves parts and modules by hand or throws them into space; parts left loose despawn only once the level is cleared.",
-   "order": 160,
+   "order": 161,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3004,7 +3024,7 @@
     "Gear traits stacking, consumables; inventory screen (with Screens)"
    ],
    "note": "Gets its own planning pass before building.",
-   "order": 161,
+   "order": 162,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3027,7 +3047,7 @@
     "Bake tool: blast point and strength, simulate on a flat floor, Keep or Redo, a few break directions"
    ],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): mining: asteroids and sheets are worn down by harvesting and give up resources, with the loss stored as runtime edits.",
-   "order": 162,
+   "order": 163,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3043,7 +3063,7 @@
    "what": "Fire, water, explosive and impact; what each does to characters, props and fire.",
    "chunks": [],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): area blasts can chain: when several explosive things are in range of each other the damage multiplies (six boosters set off a Weapon). Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): hitting a loose part at speed damages shields first, then the ship.",
-   "order": 163,
+   "order": 164,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3060,7 +3080,7 @@
    "what": "Jetpack (fuel, heat) and grapple (hook, reel) as abilities any character can have.",
    "chunks": [],
    "note": "Reuses Last Ascent's jets and grapple.",
-   "order": 164,
+   "order": 165,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3080,7 +3100,7 @@
     "Shield bubble, take cover, perfect dodge and time slow"
    ],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): placed area shields: a projector that shelters what is inside it, with a finite capacity (the bombardment shield) or against a hazard (the anti-radiation shield); base shield generators work the same way. Projectors have their own damage bars, separate from the power they draw (a minimal basic level).",
-   "order": 165,
+   "order": 166,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3106,7 +3126,7 @@
     "Plumes, effects and the fuel gauge hooked up; Last Ascent editor and player removed"
    ],
    "note": "Scripted tests record today's mech before anything changes, so the port can be compared step by step. What to look for when converting it (Physics part 2, 2026-11-15): Beverly no longer hands a game's character the level's triangles (Play::world, with pieces() and offsets(), is gone), so Last Ascent's own editor and player stop building once they update past this; the user chose to rebuild the mech after Beverly is built, not to port it twice. Collision is now Avian's world while playing (physics.rs): each Solid part is a body tagged PartBody(id), still ones static, Moves ones kinematic (their LinearVelocity carries what stands on them), Loose ones dynamic, plus the ground at y = 0. The mech's own physics maps onto it: its sphere-against-triangles step becomes a body of its own (a bevy_tnua character like the walker in play.rs, or Avian's MoveAndSlide), its raycast (grapple, camera, ground) Avian's SpatialQuery::cast_ray, its ground_y (the legs' foot placement) a ray down, and riding moving parts comes free. Physics runs on the fixed 60 Hz step (single precision, Avian's Gravity 9.81 with GravityScale for heavier falls): the mech's movement moves from Update with a variable step to FixedUpdate, catching one-off keys every frame as play.rs does (Play::press), and still sets Play::feet for buttons. Its recorded runs (walk, jets, grapple) will drift with the new collision: compare them, and re-record only when the user agrees.",
-   "order": 166,
+   "order": 167,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3123,7 +3143,7 @@
    "what": "Fire parts or states that hurt, light and smoke; water puts them out.",
    "chunks": [],
    "note": "",
-   "order": 167,
+   "order": 168,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3140,7 +3160,7 @@
    "what": "Hook two things; the winch pulls them together for a time; lighter moves more.",
    "chunks": [],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the reel pulls two points together at a fixed speed whatever the bodies weigh (so 'lighter moves more' becomes an option, not the rule), and a pin anchors a body around a rotatable point like a hinge. Both are bodies held by runtime joints; see attach-anywhere and tethers.",
-   "order": 168,
+   "order": 169,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3158,7 +3178,7 @@
    "what": "Close attacks with combos, takedowns from behind.",
    "chunks": [],
    "note": "",
-   "order": 169,
+   "order": 170,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3179,7 +3199,7 @@
     "Beams, muzzle effects and sounds, aim with lock-on"
    ],
    "note": "",
-   "order": 170,
+   "order": 171,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3198,7 +3218,7 @@
    "what": "A follower that stays near the player, scouts ahead and pings what it finds, and carries the player's inventory as a diegetic display.",
    "chunks": [],
    "note": "Last Ascent (user, 2026-11-20): a geometric sphere drone follows the mech everywhere as its inventory (power-ups, healing packs, weapon modifiers) and its visual scout.",
-   "order": 171,
+   "order": 172,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3221,7 +3241,7 @@
     "Combat: bites, goo splash, damage and death"
    ],
    "note": "Goo is drawn per cluster: each cluster's box runs a shader over only its own bugs, so cost grows with clusters, not with every bug against every other.",
-   "order": 172,
+   "order": 173,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3237,7 +3257,7 @@
    "what": "Hide in shadow or grass, noise enemies hear, distract.",
    "chunks": [],
    "note": "",
-   "order": 173,
+   "order": 174,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3255,7 +3275,7 @@
    "what": "A long-range missile shooter that hides among cover and jumps from spot to spot, and a stealth flanker that gets behind the player and fires a restraining shot of goo before closing in to melee.",
    "chunks": [],
    "note": "Last Ascent level two (user, 2026-11-20). The goo shot is a projectile with a status effect and a control lock, not a physical grab (a real grab stays possible through sockets). A director module mixes the two.",
-   "order": 174,
+   "order": 175,
    "first_game": true,
    "stage": "Challenge"
   },
@@ -3277,7 +3297,7 @@
     "Removing, repairing and upgrading pieces; ownership; units and the player colliding with what is built"
    ],
    "note": "From Valheim, Fortnite, Subnautica and KSP. Priority groundwork for Last Ascent with vehicles and riding; crowds and armies come much later (user, 2026-11-20). Gates of Heaven doesn't need it (user, 2026-11-22): it builds only through holo desks (game-editors), and placing in the 3D world can come later.",
-   "order": 175,
+   "order": 176,
    "first_game": true,
    "stage": "Build and ride"
   },
@@ -3299,7 +3319,7 @@
     "Interiors and passengers in the body's own frame, interpolated"
    ],
    "note": "Separate from joints, which is for character rigs. Vehicles are built from this. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): mass, centre of mass and inertia come from the attached parts and update when parts attach or detach during play (cargo, boosters, drones, detached modules), and ship stats such as thrust, cargo slots and a mass limit are derived from the parts.",
-   "order": 176,
+   "order": 177,
    "first_game": true,
    "stage": "Build and ride"
   },
@@ -3317,7 +3337,7 @@
    "what": "Sit in seats and turrets, ride animals: enter and exit through sockets with animation hooks, rider and mount each with their own control path.",
    "chunks": [],
    "note": "Opsive's rideable ability and Unreal's possess calls show the pattern; the hard case is rider and mount controlled at once.",
-   "order": 177,
+   "order": 178,
    "first_game": true,
    "stage": "Build and ride"
   },
@@ -3337,7 +3357,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): sockets are placed ahead of time. Here the point is chosen during play (boosters on a derelict, a pin on a sheet), joined by a physical joint, saved as a runtime edit, and the body's mass updates. MCP: settings come free from their descriptions; its named actions are part of the feature.",
    "stage": "Build and ride",
    "first_game": false,
-   "order": 178
+   "order": 179
   },
   {
    "id": "vehicles",
@@ -3365,7 +3385,7 @@
     "Later: point and click (navmesh), NPC drivers along routes, fuel, damage, trailers, legs with wheels"
    ],
    "note": "Its look is the Vehicles board of the redesign (docs/ui/design/boards/Vehicles.dc.html): lime frame, violet accent. Built as assemblies from the part hierarchy, sockets and physical joints (review 2026-11-20); the Vehicles tab is the assembler; entering and leaving go through control handover. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): capital ships with many independently aimed turrets, run by AI, for large enemy fleets; and ship stats derived from parts with a mass limit. Spec written 2026-11-24 from the user's list (docs/vehicles.md): answers (moves on Wheels, Tracks, Hover, Rails, later Legs; any number of wheels in axles; which axles steer; WASD by default with throttle and steering schemes, point and click later), the gaps filled in, cargo racks, the file format, MCP, checks, the build order and how a separate session plugs it in on a `vehicles` branch (proposed). char-modes dropped as a need (a vehicle is not a character; control handover covers it). Kept ready for games where players build vehicles and buy upgrades (sections 10 and 10b: stats come from parts, and one effective-settings step applies upgrades). Decisions (user, 2026-11-24): the vehicles branch is the second exception to main only; main builds input-map and sockets first; ignition as one key (F steps off, accessory, on) or ignition and switches (an accessory switch anywhere on the vehicle, wired); forgiving by default; Last Ascent's mech is a legged vehicle (chunk 7, needs joints); each game builds its own upgrade shop; building in games first for Gates of Heaven, not scheduled. Prototype (2026-11-24): a standalone page to feel the direction early (docs/vehicles-prototype.md, bookmarked there): a drivable, tunable car with the same file fields, settings table, named actions, fixed step and events as the plan; it loads Prism GLBs (wheels, lights and exhaust found by name). Waiting on the user's test vehicle from Prism.",
-   "order": 179,
+   "order": 180,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3387,7 +3407,7 @@
     "Cave dressing: drips, rubble and lights along the walls"
    ],
    "note": "fast-surface-nets does the meshing (no Bevy dependency). The open ground is drawn without meshes (terrain); whether caves are meshed with surface nets or drawn from their shapes in a shader is decided when they are planned (user prefers no meshes for the ground). Digging is a runtime edit (shapes added or taken away), baked to chunks in the bake cache.",
-   "order": 180,
+   "order": 181,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3404,7 +3424,7 @@
    "what": "A support graph: strength spreads from the ground through connected pieces, shown as colour while building (blue to red, as in Valheim), and a piece that loses support falls.",
    "chunks": [],
    "note": "",
-   "order": 181,
+   "order": 182,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3423,7 +3443,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Weapon's energy cable held on a short tether with strong, wild recoil that the player corrects with the mouse; a fixed-speed reel between two bodies. MCP: settings come free from their descriptions; its named actions are part of the feature.",
    "stage": "Build and ride",
    "first_game": false,
-   "order": 182
+   "order": 183
   },
   {
    "id": "resource-flow",
@@ -3443,7 +3463,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): a basic system many games want (user), though Gates of Heaven doesn't use flow: its tanks, thrusters, power sources and life support simply draw from totals summed over the ship's parts (game-editors' readouts). Planned late, as possibly over-complicated for now (user). MCP: settings come free from their descriptions; its named actions are part of the feature.",
    "first_game": false,
    "stage": "Build and ride",
-   "order": 183
+   "order": 184
   },
   {
    "id": "vehicles-air",
@@ -3462,7 +3482,7 @@
    "note": "Placeholder (user, 2026-11-24): the user has designs in mind; planned in its own pass. Reuses the vehicle file, tab, power, signals, rig, controls, seats and camera (docs/vehicles.md). Overlaps flight's manoeuvres.",
    "first_game": false,
    "stage": "Build and ride",
-   "order": 184
+   "order": 185
   },
   {
    "id": "game-editors",
@@ -3488,7 +3508,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): each game's editor has to look like its own game, not like Beverly's or a cookie-cutter kit (user), so Beverly gives the behaviour and the creator gives the look. Gates of Heaven's ship editor sits over a holographic desk in the hangar: three physical buttons (Intel, Cargo, Modify Ship), the parts strip on the right, the readouts top right. Nodes come from Prism as a 0.25 m cube named Node (docs/prism-glb.md). Gates of Heaven builds only through holo desks (user, 2026-11-22): the ship from the hangar's desk or the one inside the ship, base tiles from the starter base's desk onto its hex rings (a starter hex with a ring of open slots, every new tile opening the same ring unless taken, connectors two tiles wide joined only at their ends); placing in the world (build-mode) can come later. Its parts list needs no mask. MCP: settings come free from their descriptions; its named actions are part of the feature. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): the ship editor has a hotkeys window: hotkeys in a column, then what each can activate (several functions allowed), then toggle or press (toggle by default); these are the player's own bindings, saved with the ship.",
    "first_game": false,
    "stage": "Build and ride",
-   "order": 185
+   "order": 186
   },
   {
    "id": "vehicles-water",
@@ -3507,7 +3527,7 @@
    "note": "Placeholder (user, 2026-11-24): the user has designs in mind; planned in its own pass. Reuses docs/vehicles.md; with water-play, sailing and ocean.",
    "first_game": false,
    "stage": "Build and ride",
-   "order": 186
+   "order": 187
   },
   {
    "id": "vehicles-space",
@@ -3526,7 +3546,7 @@
    "note": "Placeholder (user, 2026-11-24): the user has designs in mind; planned in its own pass. Reuses docs/vehicles.md; with space (Gates of Heaven's controls are noted there).",
    "first_game": false,
    "stage": "Build and ride",
-   "order": 187
+   "order": 188
   },
   {
    "id": "sailing",
@@ -3542,7 +3562,7 @@
    "what": "Sails catch the wind for boats and gliders; tacking, heeling.",
    "chunks": [],
    "note": "",
-   "order": 188,
+   "order": 189,
    "first_game": false,
    "stage": "Build and ride"
   },
@@ -3566,7 +3586,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the robot swarm that builds the gate (exponential growth to a self-sustaining point) and the backup ships. build-mode says armies come much later; this game needs it earlier. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): enemy sides build bases with the same work orders as the player's robots. Plants make units, ammo, drones, robots and ship modules from a production queue paid in Resource Units. A move order on a single unit shows its range as a circle from the ship to the cursor, red when out of range. Robots carry to the nearest base or to the player's ship, and all stores count as one. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Homeworld-style move orders with height: a selected unit shows a grid on its plane and a line from the cursor's circle to it; Shift raises or lowers the target off the plane (the line splits into a triangle); an order-received mark and sound; orders given from a holographic map mode (Tab) that works on foot and while flying, in first or third person.",
    "stage": "Build and ride",
    "first_game": false,
-   "order": 189
+   "order": 190
   },
   {
    "id": "animatics",
@@ -3586,7 +3606,7 @@
     "Character recordings into editable keys; letterbox and skippable"
    ],
    "note": "Its look is the Animatics board of the redesign (docs/ui/design/boards/Animatics.dc.html): paper frame, red highlight, teal accent. The creator chooses, per animatic, how it starts and ends (user, 2026-11-18: a choice, not hardwired): blend in from the player's camera or cut (and how long the blend takes), and on the way out blend or cut back to the mode the player was in, or to a mode the creator picks. A cinematic sets the cinematic control lock (controls off, skippable, letterbox, subtitles); its end is a wire output that can start a transition, and the next level can load behind it (user, 2026-11-20).",
-   "order": 190,
+   "order": 191,
    "first_game": true,
    "stage": "Story and flow"
   },
@@ -3603,7 +3623,7 @@
    "what": "Dialog lines with text and voice, the Dialog action, the dialog box widget.",
    "chunks": [],
    "note": "Its lines are made in the Audio tab's Voices topic (2026-11-17); the topic waits as Coming soon until then. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): short lore fragments (plaques, records, monitors, loading screens) are drawn from one table of records, so a line is written once and shown wherever it fits.",
-   "order": 191,
+   "order": 192,
    "first_game": true,
    "stage": "Story and flow"
   },
@@ -3619,7 +3639,7 @@
    "what": "Achievements and stats wired to variables, shown in a screen.",
    "chunks": [],
    "note": "",
-   "order": 192,
+   "order": 193,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3639,7 +3659,7 @@
     "Quest log, markers on the map and compass"
    ],
    "note": "",
-   "order": 193,
+   "order": 194,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3656,7 +3676,7 @@
    "what": "A map screen of the regions and travel points between them.",
    "chunks": [],
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the same screen style also serves a hand-plotted route of levels (a galactic map); see level-map.",
-   "order": 194,
+   "order": 195,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3677,7 +3697,7 @@
     "Crafting recipes and the crafting screen"
    ],
    "note": "The simulation side (production, consumption, prices, traders) is a module pack: the first one to build, since it needs no characters or flight. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): two resources: Resource Units, mined by robots and spent on everything (ship parts, base tiles, production), and a gate resource only robots harvest and only the gate uses. Cargo containers of Resource Units are bought from the same budget. Gates of Heaven (docs/games/gates-of-heaven.md, 2026-11-22): Resource Units also convert into fuel and power; solar panels add power; base tiles draw power except connectors, and the starter base makes a little of its own; efficiency tiers may come later. Loot caches of Resource Units and special equipment inside derelicts, found on foot (Gates of Heaven).",
-   "order": 195,
+   "order": 196,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3694,7 +3714,7 @@
    "what": "Pause, free camera, depth of field and filters, hide the HUD.",
    "chunks": [],
    "note": "",
-   "order": 196,
+   "order": 197,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3716,7 +3736,7 @@
    "note": "Asked for by the user 2026-11-24 (not needed yet; the vehicle code is built ready for it: docs/vehicles.md section 10b).",
    "first_game": false,
    "stage": "Story and flow",
-   "order": 197
+   "order": 198
   },
   {
    "id": "dialog-trees",
@@ -3734,7 +3754,7 @@
     "Speakers, camera shots and idle reactions during conversations"
    ],
    "note": "",
-   "order": 198,
+   "order": 199,
    "first_game": false,
    "stage": "Story and flow"
   },
@@ -3767,7 +3787,7 @@
    ],
    "note": "Added 2026-11-18 (user, with a sketch: space above 50 m, island and sky below, ocean at the bottom). A demo of what Beverly can make once its parts exist; it sits at the end of the plan. The palms are the user's own models, or built from shapes (no asset packs). MCP: nothing of its own beyond its parts' (it is a project made with them). Camera (user, 2026-11-18): the demo sets its characters to switch between first and third person while in control, and its rocket animatics to blend in and back out to the player's mode; these are the creator's choices in the character camera and animatics settings, not built in.",
    "first_game": false,
-   "order": 199,
+   "order": 200,
    "stage": "Story and flow"
   },
   {
@@ -3785,7 +3805,7 @@
    "note": "From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the Intel map shows major bodies always, hides small ones (behind larger ones, say), and shows authored resources and enemy bases only when marked as known; the route map is the levels in the order the author chose. MCP: settings come free from their descriptions; its named actions are part of the feature. From the Gates of Heaven design (docs/games/gates-of-heaven.md, 2026-11-22): the galactic map is a 3D hologram above the station's desk and the Intel map a 2D projection above it, so the maps must draw in the world, not only full screen. Orders can be given on the map: pick a point and a unit goes there (Gates of Heaven's probe flies out about 50 m, then heads straight for the point picked, with no range limit).",
    "stage": "Story and flow",
    "first_game": false,
-   "order": 200
+   "order": 201
   },
   {
    "id": "export-hardening",
@@ -3799,7 +3819,7 @@
    "what": "A friendly error window when the game can't load or the card is unsuitable; a log file in the user's folder; the game's icon, name and version; window mode and quality saved in the user's folder; third-party licence notices; unused and editor-only files left out and the rest packed.",
    "chunks": [],
    "note": "Found in the 2026-11-20 review: the player exits silently on a load failure, has no icon or version, a fixed 1600 by 900 window and no notices. Decided with the user 2026-11-20: logs stay local with no analytics at all; the unsigned-exe warning (code signing needs a paid certificate) is a static message on the export window, not a planned feature.",
-   "order": 201,
+   "order": 202,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3822,7 +3842,7 @@
    "note": "Planned 2026-11-18, for later: only worth it once levels are dense enough that cached shadows aren’t enough.",
    "status": "planned",
    "first_game": true,
-   "order": 202,
+   "order": 203,
    "stage": "Ship and scale"
   },
   {
@@ -3838,7 +3858,7 @@
    "what": "Low / medium / high / ultra presets, resolution scaling, effects on or off, frame limit.",
    "chunks": [],
    "note": "Presets choose virtual geometry, cached shadows, baked lighting and realtime GI where the card allows (2026-11-18). Split 2026-11-20: tiers and presets come early as quality-tiers; this is their settings screen.",
-   "order": 203,
+   "order": 204,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3855,7 +3875,7 @@
    "what": "Subtitles and their size, colour-blind filters, full key remapping, hold-to-toggle, camera shake and flash reduction, difficulty assists.",
    "chunks": [],
    "note": "",
-   "order": 204,
+   "order": 205,
    "first_game": true,
    "stage": "Ship and scale"
   },
@@ -3871,7 +3891,7 @@
    "what": "Our test projects become starter games (Empty, First-person, Third-person, a base-building and a vehicle one later) offered when Beverly opens, so the first hour has something to play.",
    "chunks": [],
    "note": "The launcher's start screen comes later; this gives it something to show.",
-   "order": 205,
+   "order": 206,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3888,7 +3908,7 @@
    "what": "Make Windows zip: the instant prebuilt player is the default; Build on GitHub is for games with their own code; pre-export checks from the Problems panel; a static note that the exe is unsigned and what that means (code signing costs a yearly certificate).",
    "chunks": [],
    "note": "",
-   "order": 206,
+   "order": 207,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3906,7 +3926,7 @@
    "what": "Start screen with recent projects and templates: Empty, First-person, Third-person.",
    "chunks": [],
    "note": "",
-   "order": 207,
+   "order": 208,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3932,7 +3952,7 @@
     "A headless dedicated-server build of the player"
    ],
    "note": "Built late, with multiplayer in mind from now on (user, 2026-11-15): game state lives in data, input goes through named actions, and play runs on a fixed time step so a character's moves can be replayed. lightyear 0.31 supports Bevy 0.20 with prediction and rollback, including Avian (lightyear_avian3d); bevy_replicon is the simpler choice without prediction. Review 2026-11-20: keep the editor friendly to an authoritative server (fixed step, commands as data); decide on lockstep (which needs deterministic maths) only if an RTS pack is wanted.",
-   "order": 208,
+   "order": 209,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3949,7 +3969,7 @@
    "what": "Every text in a translation table per language; fonts that cover them.",
    "chunks": [],
    "note": "bevy_fluent supports Bevy 0.20.",
-   "order": 209,
+   "order": 210,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3968,7 +3988,7 @@
     "Check: before-and-after screenshots of every window, kept with the test projects"
    ],
    "note": "Placed after the last step on purpose (not by its needs). MCP: nothing new to add; the before-and-after screenshots are taken through the server's screenshot tool. Includes the first export of a game.",
-   "order": 210,
+   "order": 211,
    "first_game": false,
    "stage": "Ship and scale"
   },
@@ -3984,7 +4004,7 @@
    "what": "Export for macOS and Linux as well as Windows.",
    "chunks": [],
    "note": "On hold (user, 2026-11-15).",
-   "order": 211,
+   "order": 212,
    "first_game": false,
    "stage": "Ship and scale"
   }

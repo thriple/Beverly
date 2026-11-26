@@ -260,6 +260,25 @@ impl Part {
     }
 }
 
+/// "Close enough" for the whole project (`docs/orderliness.md`, C1): one distance in metres, the same in every level,
+/// saved in the project file when it isn't the default, and read through [`Level::precision`]. Every other threshold
+/// is derived from it by a stated ratio; nothing works it out from the size of what is asking.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Precision(pub f32);
+
+impl Default for Precision {
+    /// 1 mm (owner, 2026-11-26): about the most an `f32` holds 10 km from the middle.
+    fn default() -> Self { Precision(0.001) }
+}
+
+impl Precision {
+    /// Two points this close are the same point.
+    pub fn same(self) -> f32 { self.0 }
+    /// Two parts this close touch (owner, 2026-11-26: 50 x the precision, 5 cm at the default: parts placed by hand
+    /// on the 0.25 m grid rarely meet exactly).
+    pub fn touching(self) -> f32 { self.0 * 50.0 }
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub struct Level {
     /// The file format that wrote this level (see [`FORMAT`]); 0 for files from before it existed.
@@ -298,9 +317,15 @@ pub struct Level {
     /// The game's controls (see `input.rs`). Saved in the project file, not the level; kept here for undo.
     #[serde(skip)]
     pub controls: Tracked<crate::input::Controls>,
+    /// The project's precision. Saved in the project file, not the level; read it through [`Level::precision`].
+    #[serde(skip)]
+    pub precision: Precision,
 }
 
 impl Level {
+    /// The project's "close enough" (see [`Precision`]).
+    pub fn precision(&self) -> Precision { self.precision }
+
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {
         [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp(), self.controls.stamp()]

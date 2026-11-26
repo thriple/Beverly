@@ -42,6 +42,11 @@ build by direct manipulation in 3D. The design lives in `docs/design.html` (keep
   the module system and the level-transition design are in `docs/architecture.md`.
 - No third-party asset packs: the user makes Beverly's built-in models and characters. Libraries are fine.
 - Build each feature to its full plan in the roadmap (its parts in order), not a cut-down first version.
+- **Orderliness (user, 2026-11-26; `docs/orderliness.md`):** one precision per project (default 1 mm, read through one
+  accessor; other thresholds derived from it), one written order of steps after an edit with one owner per thing,
+  build and warn rather than refuse, preview fast and commit exact, old projects keep the numbers they were made with.
+  A feature that changes the level (or anything listed as shared there) is not done until it says which step it is
+  in, what it owns, which tolerance and shared numbers it uses, and has a test that no other step can undo its decision.
 - Every feature says what the MCP server gets from it (most comes free from setting descriptions and named
   editor actions; anything else is part of the feature).
 - Keep it simple: minimum code for what was asked, surgical changes, ask when unclear.

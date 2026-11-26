@@ -10,6 +10,9 @@ pub struct ProjectFile {
     /// The game's controls, when they differ from Beverly's defaults (`input.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub controls: Option<crate::input::Controls>,
+    /// The project's precision in metres, when it isn't the default (1 mm): see `level::Precision`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub precision: Option<f32>,
 }
 
 pub const ASSET_FOLDERS: [&str; 6] = ["textures", "materials", "models", "sounds", "shaders", "other"];
@@ -76,7 +79,8 @@ pub fn save(dir: &Path, name: &str, level: &Level) -> Result<(), String> {
     make_folders(dir).map_err(|e| e.to_string())?;
     let cfg = ron::ser::PrettyConfig::default();
     let controls = (!level.controls.is_default()).then(|| (*level.controls).clone());
-    let pf = ProjectFile { format: FORMAT, name: name.to_owned(), levels: vec!["main".into()], controls };
+    let precision = (level.precision != Precision::default()).then_some(level.precision.0);
+    let pf = ProjectFile { format: FORMAT, name: name.to_owned(), levels: vec!["main".into()], controls, precision };
     let p = ron::ser::to_string_pretty(&pf, cfg.clone()).map_err(|e| e.to_string())?;
     let format = if level.parts.iter().any(|p| p.parent.is_some()) { LEVEL_FORMAT } else { FORMAT };
     let l = ron::ser::to_string_pretty(&Level { format, ..level.to_file() }, cfg).map_err(|e| e.to_string())?;
@@ -112,6 +116,7 @@ pub fn load(dir: &Path) -> Result<(String, Level), String> {
     level.materials = load_materials(dir).into_iter().map(|(k, m)| (k, Material { format: 0, ..m })).collect();
     level.sounds = load_sounds(dir).into_iter().map(|(k, m)| (k, Sound { format: 0, ..m })).collect();
     level.controls = pf.controls.map(|c| c.with_defaults()).unwrap_or_default().into();
+    level.precision = pf.precision.map_or_else(Precision::default, Precision);
     Ok((pf.name, level))
 }
 
@@ -162,4 +167,26 @@ pub fn export_zip(dir: &Path, name: &str, player: &Path, bakes: &[(String, Vec<u
     }
     z.finish().map_err(std::io::Error::other)?;
     Ok(n)
+}
+
+#[cfg(test)]
+mod precision_tests {
+    use super::*;
+
+    #[test]
+    fn precision_is_kept_by_the_project_only_when_it_isnt_the_default() {
+        let dir = std::env::temp_dir().join(format!("beverly-precision-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut level = Level { name: "main".into(), ..Default::default() };
+        save(&dir, "P", &level).unwrap();
+        let text = std::fs::read_to_string(dir.join("project.bev")).unwrap();
+        assert!(!text.contains("precision"), "the default isn't written: a project at it saves as before\n{text}");
+        assert_eq!(load(&dir).unwrap().1.precision(), Precision::default());
+        level.precision = Precision(0.005);
+        save(&dir, "P", &level).unwrap();
+        let back = load(&dir).unwrap().1;
+        assert_eq!(back.precision(), Precision(0.005));
+        assert!((back.precision().touching() - 0.25).abs() < 1e-6, "touching is 50 x the precision");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -120,7 +120,7 @@ pub fn lay(ed: &mut Editor) {
 
 /// Make the strokes of each curve's strip again where the curve, its strip or the geometry changed, and take away
 /// those of a curve or strip that is gone. Not while something is being dragged (the strokes would be made every
-/// frame); `edit::commit` calls it as the change becomes an undo step.
+/// frame); `Editor::commit` calls it as the change becomes an undo step (step 4 of `docs/orderliness.md` C3).
 pub fn strips(ed: &mut Editor) {
     if ed.level.curves.is_empty() && ed.pen.stripped.is_empty() { return; }
     let world = world_stamp(ed);
@@ -141,7 +141,7 @@ pub fn strips(ed: &mut Editor) {
         pen.stripped.insert(c.id, now);
         // the fill goes on first, so a strip along the curve lies over it
         let mut made = vec![];
-        if let Some(f) = c.fill.as_ref().filter(|f| level.materials.contains_key(&f.material)) { made.extend(fill_strokes(c.id, f, c.path, line, &level.parts, geo)); }
+        if let Some(f) = c.fill.as_ref().filter(|f| level.materials.contains_key(&f.material)) { made.extend(fill_strokes(c.id, f, c.path, line, &level.parts, geo, level.precision().same())); }
         if let Some(s) = c.strip.as_ref().filter(|s| level.materials.contains_key(&s.material)) { made.extend(strip_strokes(c.id, s, line, &level.parts, geo)); }
         // each part gets the new strokes where its old ones were (so what was painted over or under them stays so)
         for p in &mut level.parts {
@@ -166,15 +166,22 @@ pub(super) fn inside(poly: &[Vec3], x: f32, z: f32) -> bool {
     yes
 }
 
+/// A closed curve's laid line as an outline: points closer than `same` (the project's precision) are one point, and
+/// the last isn't the first again.
+pub(super) fn outline(line: &[Vert], same: f32) -> Vec<Vec3> {
+    let mut poly: Vec<Vec3> = line.iter().map(|v| v.at).collect();
+    poly.dedup_by(|a, b| a.distance_squared(*b) < same * same);
+    if poly.len() > 1 && poly[0].distance_squared(poly[poly.len() - 1]) < same * same { poly.pop(); }
+    poly
+}
+
 /// A fill's strokes: the curve's laid line as a closed outline, given to each part that has walkable ground inside it
 /// (a face no steeper than the path's steepest ground, within a step of the line's height, as a Ground path counts it), so props standing on that ground, and
 /// anything tagged Paths ignore, are left out. The outline is kept in each part's own frame, like a brush stroke, so it
 /// holds when the part moves; the paint shader works out the inside.
 /// (part id, stroke)
-fn fill_strokes(curve: u64, fill: &curve::Fill, path: curve::Path, line: &[Vert], parts: &[Part], geo: &Geometry) -> Vec<(u64, crate::level::Stroke)> {
-    let mut poly: Vec<Vec3> = line.iter().map(|v| v.at).collect();
-    poly.dedup_by(|a, b| a.distance_squared(*b) < 1e-6);
-    if poly.len() > 1 && poly[0].distance_squared(poly[poly.len() - 1]) < 1e-6 { poly.pop(); }
+fn fill_strokes(curve: u64, fill: &curve::Fill, path: curve::Path, line: &[Vert], parts: &[Part], geo: &Geometry, same: f32) -> Vec<(u64, crate::level::Stroke)> {
+    let poly = outline(line, same);
     if poly.len() < 3 { return vec![]; }
     let (lo, hi) = poly.iter().fold((Vec2::splat(f32::MAX), Vec2::splat(f32::MIN)), |(lo, hi), p| (lo.min(Vec2::new(p.x, p.z)), hi.max(Vec2::new(p.x, p.z))));
     // a grid of points inside it (about 900 at most), each with the height of the nearest point of the outline
@@ -554,7 +561,7 @@ mod tests {
         let square = |s: f32| vec![PenPoint::corner(Vec3::new(-s, 0.1, -s)), PenPoint::corner(Vec3::new(s, 0.1, -s)), PenPoint::corner(Vec3::new(s, 0.1, s)), PenPoint::corner(Vec3::new(-s, 0.1, s))];
         let c = Curve { id: 9, name: "F".into(), points: square(4.0), closed: true, strip: None, fill: None, scatter: None, path: curve::Path::default() };
         let fill = curve::Fill { material: "assets/materials/moss.bev".into(), feather: 0.5, strength: 1.0 };
-        let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo);
+        let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo, crate::level::Precision::default().same());
         // the floor (not the box standing on it: its top is higher than a step, and the line runs inside it; nor the far slab)
         assert_eq!(made.iter().map(|m| m.0).collect::<Vec<_>>(), vec![1]);
         let s = &made[0].1;
@@ -580,7 +587,7 @@ mod tests {
         let sq = [(-4.0, -4.0), (4.0, -4.0), (4.0, 4.0), (-4.0, 4.0)];
         let c = Curve { id: 9, name: "F".into(), points: sq.iter().map(|(x, z)| PenPoint::corner(Vec3::new(cx + x, 0.1, cz + z))).collect(), closed: true, strip: None, fill: None, scatter: None, path: curve::Path::default() };
         let fill = curve::Fill { material: "assets/materials/moss.bev".into(), feather: 0.5, strength: 1.0 };
-        let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo);
+        let made = fill_strokes(9, &fill, curve::Path::default(), &c.laid(|_, _, _| None), &parts, &geo, crate::level::Precision::default().same());
         assert_eq!(made.len(), 1);
         let pc = crate::paint::pieces(&Part { strokes: vec![made[0].1.clone()], ..floor.clone() });
         let at = |x: f32, z: f32| crate::paint::coverage(&pc, pc.len(), 0, floor.to_local(Vec3::new(x, 0.1, z)), 0, 1.0, 0.1);

@@ -79,7 +79,8 @@ fn bucket_stamp(b: &Bucket, world: u64) -> u64 {
 }
 
 /// Make each fill's strokes again where the fill or the level changed, and take away those of a fill that is gone.
-/// `edit::commit` calls it as a change becomes an undo step, so a fill and its strokes are one step.
+/// `Editor::commit` calls it as a change becomes an undo step, so a fill and its strokes are one step (step 4 of
+/// `docs/orderliness.md` C3, after the pen: it owns the strokes marked with a fill, and no other).
 pub fn fills(ed: &mut Editor) {
     if ed.level.buckets.is_empty() && ed.filling.made.is_empty() { return; }
     let world = level_stamp(ed);
