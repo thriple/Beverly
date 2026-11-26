@@ -289,4 +289,19 @@ here.
 
 ## Decisions
 
-(none yet)
+Owner's decisions, newest first. A later one that contradicts an earlier one marks it replaced.
+
+- **2026-11-26: precision.** 1 mm per project by default, with presets for other scales; touching = 50 × precision
+  (5 cm). The grid snap (0.25 m, 0.05, 15°) stays as it is (owner: "i've liked the snap so far").
+- **2026-11-26: generated items.** Editing something a generator owns (a scattered item; later foliage, dungeon
+  pieces, arrays) turns it into the user's own part, with a warning in the island.
+- **2026-11-26: the order and the stacks.** The order of steps in C3 and the precedence stacks in C4 (environment,
+  time, input, camera, surface identity) are agreed.
+- **2026-11-26: definition of done.** Added to `CLAUDE.md`: a feature that changes the level isn't done until it
+  says which step it's in, what it owns, which tolerance and shared numbers it uses, and has a test that no other
+  step can undo its decision.
+- **2026-11-26: foundation first.** The existing code is brought to these rules (the stages in C7) before any new
+  roadmap feature (owner: "Gotta have a good foundation").
+- **Open, default in use: the walker profile (C2).** The owner hasn't worked with the walker, navigation or the
+  pen's Ground stretch yet. Until decided, one shared profile is used (so a path never asks a character for a step
+  it can't climb), with a character file able to override it for that character later.
