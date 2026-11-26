@@ -173,7 +173,7 @@ are the places where two or more of them would decide the same thing.
   anything a player can see). It's read everywhere through one accessor, the same in every level of the project,
   and never worked out from the size of what is asking.
 - **Derived by stated ratios:**
-  - the same point = precision (the pen's and scatter's dedup, the hierarchy's "already followed");
+  - the same point = precision (the pen's and scatter's outline dedup);
   - touching = 50 × precision (5 cm: Bucket's Connected only, and later sockets and structures). Hand-placed parts
     at a 0.25 m grid sit this close without meeting exactly;
   - level and upright: a face counts as level when its height changes by no more than the precision over its own
