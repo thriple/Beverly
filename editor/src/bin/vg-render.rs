@@ -8,7 +8,7 @@
 //! mipmapped checker tiled 8 times on a plane seen at a grazing angle, as a meshlet mesh and as an ordinary mesh (each
 //! by its own camera into its own image; the picture shows them side by side), and fails if they differ by more than
 //! `TILING_MAX_DIFF`: the meshlet pass's texture gradients must follow the UV transform, or it picks the wrong mip
-//! level.
+//! level. `colors` compares the same way a plane whose vertex colours run red to green across and blue down it.
 use beverly::gpu::GpuCaps;
 use bevy::pbr::experimental::meshlet::{
     MeshletMesh, MeshletMesh3d, MeshletPlugin, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR,
@@ -39,6 +39,12 @@ struct Shot {
 /// distant checker sharp and aliased where the ordinary one blurs).
 const TILING_MAX_DIFF: f32 = 2.0;
 
+/// `tiling` and `colors`: which of the two side-by-side scenes.
+#[derive(Resource)]
+struct Comparing {
+    colors: bool,
+}
+
 /// `tiling`: each camera's image size.
 const TILING_SIZE: UVec2 = UVec2::new(400, 600);
 
@@ -46,6 +52,7 @@ const TILING_SIZE: UVec2 = UVec2::new(400, 600);
 /// ordinary mesh seen by the other, each camera at the same place relative to its plane and drawing into its own
 /// image. (Not one window split by viewports: the meshlet pass doesn't support a viewport smaller than its target.)
 fn tiling_scene(
+    comparing: Res<Comparing>,
     mut shot: ResMut<Shot>,
     mut commands: Commands,
     mut meshlets: ResMut<Assets<MeshletMesh>>,
@@ -53,14 +60,25 @@ fn tiling_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let plane = Plane3d::default().mesh().size(2.0, 2.0).subdivisions(32).build();
+    let mut plane = Plane3d::default().mesh().size(2.0, 2.0).subdivisions(32).build();
+    let material = if comparing.colors {
+        // colours from the UVs: red to green across, blue down
+        let uvs = match plane.attribute(Mesh::ATTRIBUTE_UV_0) {
+            Some(bevy::mesh::VertexAttributeValues::Float32x2(uvs)) => uvs.clone(),
+            _ => vec![],
+        };
+        let colors: Vec<[f32; 4]> = uvs.iter().map(|[u, v]| [1.0 - u, *u, *v, 1.0]).collect();
+        plane.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+        materials.add(StandardMaterial { base_color: Color::WHITE, unlit: true, ..default() })
+    } else {
+        materials.add(StandardMaterial {
+            base_color_texture: Some(images.add(checker_with_mips(256, 32))),
+            unlit: true,
+            uv_transform: bevy::math::Affine2::from_scale(Vec2::splat(8.0)),
+            ..default()
+        })
+    };
     let (meshlet, _) = tessera::bake::bake_mesh(&plane, &tessera::bake::BakeSettings::default()).expect("bake");
-    let material = materials.add(StandardMaterial {
-        base_color_texture: Some(images.add(checker_with_mips(256, 32))),
-        unlit: true,
-        uv_transform: bevy::math::Affine2::from_scale(Vec2::splat(8.0)),
-        ..default()
-    });
     for (i, x) in [-50.0f32, 50.0].into_iter().enumerate() {
         let target = images.add(Image::new_target_texture(
             TILING_SIZE.x,
@@ -150,8 +168,8 @@ fn main() -> AppExit {
         MeshletPlugin { cluster_buffer_slots: 1 << 16, supported: caps.virtual_geometry() && case != "unsupported" },
     ))
     .insert_resource(Shot { path, frame: 0, saved: None, check_holes: case == "grid", targets: vec![], captured: vec![] });
-    if case == "tiling" {
-        app.add_systems(Startup, tiling_scene);
+    if case == "tiling" || case == "colors" {
+        app.insert_resource(Comparing { colors: case == "colors" }).add_systems(Startup, tiling_scene);
     } else {
         app.add_systems(Startup, move |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
             // baked here, not before the app: the bake runs on Bevy's task pools
