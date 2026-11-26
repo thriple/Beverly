@@ -388,4 +388,54 @@ mod tests {
         assert_eq!(ed.level.parts.len(), made + 1, "they stay, and nothing is made again");
         assert_eq!(turn_into_items(&mut ed, id), 0);
     }
+
+    /// What the editor does each frame once nothing is being dragged (`edit::commit`), with the curves laid first.
+    fn frame(ed: &mut Editor) {
+        super::super::pen::lay(ed);
+        super::super::pen::strips(ed);
+        scatters(ed);
+        ed.commit();
+    }
+
+    fn scattered_floor() -> (Editor, u64) {
+        let mut ed = Editor::at(std::env::temp_dir());
+        ed.level.parts = floor().into();
+        let id = ed.level.add_curve(vec![PenPoint::corner(Vec3::new(-10.0, 0.1, 0.0)), PenPoint::corner(Vec3::new(10.0, 0.1, 0.0))], false);
+        ed.level.curve_mut(id).unwrap().scatter = Some(Scatter { spacing: 2.0, ..Default::default() });
+        frame(&mut ed);
+        (ed, id)
+    }
+
+    // Orderliness (docs/orderliness.md, A3-3): a change the MCP makes is one undo step with what it causes, as a
+    // change made in the view is. Fails until every edit goes through one pipeline (stage 2).
+    #[test]
+    #[ignore = "orderliness stage 2: one pipeline for every edit"]
+    fn a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too() {
+        let (mut ed, _) = scattered_floor();
+        let steps = ed.undo.len();
+        // the MCP's change_part: change the level, then commit
+        ed.level.get_mut(1).unwrap().pos[1] += 1.0;
+        ed.commit();
+        // the next frames
+        frame(&mut ed);
+        frame(&mut ed);
+        assert_eq!(ed.undo.len(), steps + 1, "the raised floor and the items it lifted are one step");
+    }
+
+    // Orderliness (A3-4, owner 2026-11-26): editing a scattered item makes it the user's own (with a warning); the
+    // scatter never puts it back. Fails until ownership is enforced (stage 4).
+    #[test]
+    #[ignore = "orderliness stage 4: a generated item edited becomes the user's own"]
+    fn a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put() {
+        let (mut ed, curve) = scattered_floor();
+        let item = ed.level.parts.iter().find(|p| p.scatter == Some(curve)).unwrap().id;
+        ed.level.get_mut(item).unwrap().pos = [0.0, 0.1, 15.0];
+        frame(&mut ed);
+        // the ground changes, so the scatter is made again
+        ed.level.get_mut(1).unwrap().size[0] = 39.0;
+        frame(&mut ed);
+        let p = ed.level.get(item).expect("still there");
+        assert_eq!(p.pos, [0.0, 0.1, 15.0], "where the user put it");
+        assert!(p.scatter.is_none(), "the user's own now");
+    }
 }

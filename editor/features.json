@@ -773,7 +773,7 @@
     "The setting: Precision with presets in project settings, a warning for odd scales, old projects keeping their numbers",
     "Sweep: guards and display numbers named; one spatial index for picking, placement, pen, bucket and scatter if the timings call for it"
    ],
-   "note": "Audit 2026-11-26 (docs/orderliness.md, from the Prism brief on orderliness). Owner 2026-11-26: foundation first, before any new roadmap feature; decisions recorded in the audit. MCP: get_project reports the precision and the walker profile; the island's warnings reach the MCP as each tool's answer.",
+   "note": "Audit 2026-11-26 (docs/orderliness.md, from the Prism brief on orderliness). Owner 2026-11-26: foundation first, before any new roadmap feature; decisions recorded in the audit. MCP: get_project reports the precision and the walker profile; the island's warnings reach the MCP as each tool's answer. Stage 1 done 2026-11-26: timings on a big level in the audit (A4: moving one box remakes every curve's strips and scatter, 10.7 s; a big painted floor's grass sheets take minutes); failing tests for an MCP change making extra undo steps and a scattered item's edit being reverted (ignored until stages 2 and 4); timing test editor::edit::tests::orderliness_timings.",
    "first_game": true,
    "next": true,
    "stage": "Foundations",

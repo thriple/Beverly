@@ -97,26 +97,42 @@ each other's fields.
 |---|---|---|---|
 | 1 | A bucket fill on copied floors asked "Change all, or make this one Unique?" | the instances step compared strokes the bucket step owns | fixed 2026-11-22: copies compare hand-painted strokes only |
 | 2 | An MCP change and the fill strokes it caused were two undo steps | `bucket::fills` ran outside the commit | fixed 2026-11-22: moved into `Editor::commit` |
-| 3 | **An MCP change that moves ground under a pen curve or a scatter makes two undo steps** | 22 places in the MCP tools call `Editor::commit` directly; only the paint tools call `pen::strips` and `scatters` first, so the frame's `commit` makes the strips and items again as a second step | open (found by reading; to confirm with a test) |
-| 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | open (found by reading) |
+| 3 | **An MCP change that moves ground under a pen curve or a scatter makes more than one undo step** | 22 places in the MCP tools call `Editor::commit` directly; only the paint tools call `pen::strips` and `scatters` first, so the frame's `commit` makes the strips and items again as further steps | open, confirmed by a test (stage 1): raising a floor under a scatter made 2 extra steps (`editor::scatter::tests::a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too`, ignored until stage 2) |
+| 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | open, confirmed by a test (stage 1): an item moved to (0, 0.1, 15) went back to (−9, 0.2, 1.4) when the ground changed (`…a_moved_scattered_item_becomes_the_users_own…`, ignored until stage 4) |
+| 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | open, timed (A4): 10.7 s on the big level |
 | 5 | A fill outline was stored in world coordinates and broke on a moving part | pen fill vs hierarchy | fixed 2026-11-20 |
 | 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | open (by reading; a walker can fail a step the path uses, or the reverse) |
 | 7 | The paint and grass draw one frame behind a fill | `paint` and `grass` run before `commit` in the chain | cosmetic |
 
-### A4. Slow paths (not yet timed)
+### A4. Slow paths (timed 2026-11-26, stage 1)
 
-The brief says to time before guessing, so these are **candidates**, to be timed by stage with the performance
-meter before any change:
+Timed by `editor::edit::tests::orderliness_timings` (run by hand: `cargo test --lib orderliness_timings -- --ignored
+--nocapture`), on a level of a 400 m floor, 2,000 boxes (one in ten painted), 20 pen curves each with a strip and a
+scatter (1,686 scattered items, 3,687 parts in all) and a bucket fill. The editor's dev build (optimised), on this
+container's processor:
 
-- **Three different "has anything changed?" hashes** walk the whole level: `pen::world_stamp`,
-  `bucket::level_stamp` and the grass's per-part key, which formats each stroke's rules as text. They run on every
-  commit or every level change.
-- **No spatial index anywhere.** Picking, surface placement, pen projection and the walker's checks each scan every
-  part (`world::raycast`). The same goes for Bucket's Connected only, which compares parts pairwise, and for
-  scatter's ground checks.
-- **Whole-level work at play start:** physics bodies and navigation are built from everything at once.
-- **Grass sheets** work out coverage for every half-metre spot against every stroke piece on the part. This is
-  throttled while painting, but it isn't indexed.
+| Step | Nothing changed | After one box moved 1 m |
+|---|---|---|
+| `pen::lay` | 0.2 ms | **1,403 ms**: every curve is laid again |
+| `pen::strips` | 0.2 ms | **8,973 ms**: every strip is made again |
+| `scatter::scatters` | 0.2 ms | **308 ms** |
+| `bucket::fills` | 0.4 ms | 43 ms |
+| `Delta::between` (the undo step) | — | 1.4 ms |
+| picking: one ray against every part | 4.5 ms (each frame the pointer moves) | |
+| grass sheets: one painted box | 0.2 ms | |
+| grass sheets: a 40 m floor with two strips (3,838 points) | 978 ms | |
+| grass sheets: the 400 m floor with 20 strips | **didn't finish in 9 minutes** | |
+
+What the numbers say (each is one of the brief's "performance hygiene" points):
+
+- **A whole-world check inside an inner step.** The pen's "has the ground changed?" stamp covers every part, so moving
+  one box anywhere lays every curve again and remakes every strip and scatter, even 300 m away. **One box moved costs
+  10.7 seconds.** The fix is to ask each curve only about the parts near it (by box), which needs an index.
+- **No index, and no skipping by box.** The grass sheets and the strips test every spot against every stroke piece on
+  the part, though a strip touches only a narrow band of it. The paint shader does the same per pixel on the card.
+- **Picking** at 4.5 ms per ray is fine for one ray a frame, but the pen, placement and the bucket's hover each cast
+  their own.
+- **Nothing changed costs little:** under half a millisecond for every step. The change stamps work.
 
 ---
 
@@ -267,7 +283,9 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
 5. **The setting:** Precision with presets in project settings, its warning for odd scales, old projects keeping
    their numbers.
 6. **Sweep:** name the guards and the display numbers; one spatial index for picking, placement, pen, bucket and
-   scatter if the timings say so.
+   scatter. The stage 1 timings say it is needed: each curve asks only about the parts near it (moving one box no
+   longer remakes every curve), and strips, grass sheets and coverage skip the stroke pieces whose box doesn't reach
+   the spot. Each is timed again on the same level, before and after.
 
 Part C4 needs no code now. It becomes the rule each planned feature follows when it is built, and the roadmap
 entries for wind, zones' layers, runtime-edits, prism-import, sockets and the character modes get a line pointing
