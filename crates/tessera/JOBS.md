@@ -79,7 +79,7 @@ Each night a scheduled run starts a fresh session. It does **one** job from the 
 5. ✅ **Instances by change.** (2026-11-20, in an interactive session ahead of order, at the user's request)
    - Rewrite the fork's `InstanceManager` so it updates only what changed, and cache the per-view bind groups (both are Bevy TODOs).
    - Add a headless benchmark with 10k and 100k instances, and record the CPU time per frame before and after.
-6. 🔶 **More of the material.** Texture tiling done 2026-11-26, vertex colours 2026-11-27, each with a screenshot test; **left: the second UV set** (second line).
+6. ✅ **More of the material.** Texture tiling 2026-11-26, vertex colours 2026-11-27, the second UV set 2026-11-28, each with a screenshot test against the normal renderer.
    - Texture tiling (the UV transform applied to the UVs *and* the analytic derivatives in `visibility_buffer_resolve.wesl`).
    - Vertex colours and a second UV set in the asset format (bump the version).
    - If GPU-testable here: a screenshot test against the normal renderer.
@@ -151,6 +151,38 @@ Main's roadmap changed shape: every unbuilt feature has a `stage` (the build lad
 (`GpuCaps::virtual_geometry()` true, the editor's `Graphics card:` log says `virtual geometry: yes`) and really draws
 Bevy's meshlet path: `vg-render` saves a lit, shadowed picture of the test mesh. Slowly, so it is a correctness check,
 not a speed one.
+
+### 2026-11-28 (Guam): job 6, the second UV set ✅ (job 6 done)
+- **Merge:** main merged in cleanly.
+- **Format:** `MeshletMesh.vertex_uvs_b` holds UV1, uncompressed like UV0, empty when the mesh has none.
+  - Bevy's asset version 4 → 5; `tessera::bake::FORMAT_VERSION` 3 → 4.
+  - `from_mesh` accepts `UV_1` and/or `COLOR` after `UV_0`. In the packed vertex UV1 comes before the colour, so
+    the colour's offset is 32 or 40.
+- **GPU:** its own buffer, allocated in step with `vertex_uvs` (8 bytes per vertex both). Meshes without UV1 upload
+  their UV0 again, so `uv_b` is `uv` as in the normal renderer. That costs 8 bytes of VRAM per vertex for every
+  meshlet mesh, the same trade as the colours.
+- **Shaders:**
+  - material-shade binding 9 holds UV1; the resolve outputs `uv_b` and its own analytic gradients
+    (`ddx_uv_b` / `ddy_uv_b`); both meshlet material pipelines define `VERTEX_UVS_B`
+  - `SampleBias` carries both sets' gradients, both multiplied by the UV transform's linear part
+  - each of `pbr_fragment.wesl`'s 14 meshlet sample sites now uses the gradients of the set its coordinates come
+    from (`@if(STANDARD_MATERIAL_<texture>_UV_B)`), and so does the prepass normal map
+- **Bake:** `tessera::bake::prepare` keeps `UV_1` and welds on it. New test `keeps_the_second_uv_set` (with colours
+  too, so the moved colour offset is exercised).
+- **Screenshot test: `vg-render OUT uv1`.** A plane whose UV1 tiles the checker 4 times (UV0 would show it once),
+  with the base-colour texture on `UvChannel::Uv1`, compared with the normal renderer: **0.44** per channel (limit
+  2.0); both halves show the 4× tiling. Reading UV0 instead would show a quarter as many cells and fail by far.
+  - Not measured separately: using UV1's gradients rather than UV0's. Wrong gradients would pick mips 4× off, the
+    error `tiling` measured at 5.51.
+- **Checks:**
+  - `vg-render`: draw, grid (0 holes), tiling (0.77), colors (0.05), uv1 (0.44), unsupported, msaa and device all
+    exit 0
+  - `vg-bake`: 1,310,720 triangles in 19.8 s, 20,757,272 bytes (15.8 B per triangle), proxy 78 triangles
+  - `tessera` crate tests ✅ (11)
+  - feature off: `cargo build` ✅, `cargo test` ✅ (114)
+  - `--features tessera`: `cargo build` ✅, `cargo test` ✅ (114)
+  - `tools/run-tests.sh` ✅ (all 26)
+- **Only the RTX card can show:** the three comparisons on a real driver.
 
 ### 2026-11-27 (Guam): job 6, vertex colours 🔶 (the second UV set left)
 - **Merge:** main merged in cleanly.
