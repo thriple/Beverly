@@ -82,7 +82,7 @@ fn tiling_scene(
         plane.insert_attribute(Mesh::ATTRIBUTE_UV_1, uvs.iter().map(|[u, v]| [u * 4.0, v * 4.0]).collect::<Vec<[f32; 2]>>());
         materials.add(StandardMaterial {
             base_color_texture: Some(images.add(checker_with_mips(256, 32))),
-            base_color_channel: bevy::pbr::UvChannel::Uv1,
+            base_color_channel: bevy::mesh::UvChannel::Uv1,
             unlit: true,
             ..default()
         })
