@@ -93,8 +93,14 @@ fn fragment(
         let mip_scale = exp2(view.mip_bias);
         // Tessera: the UVs are transformed, so their gradients are too (chain rule: the transform's linear part)
         let uv_linear = mat2x2(uv_transform[0].xy, uv_transform[1].xy);
+@if(STANDARD_MATERIAL_NORMAL_MAP_UV_B) {
+        bias.ddx_uv = uv_linear * in.ddx_uv_b * mip_scale;
+        bias.ddy_uv = uv_linear * in.ddy_uv_b * mip_scale;
+}
+@else {
         bias.ddx_uv = uv_linear * in.ddx_uv * mip_scale;
         bias.ddy_uv = uv_linear * in.ddy_uv * mip_scale;
+}
 }
 @if(!MESHLET_MESH_MATERIAL_PASS)
         bias.mip_bias = view.mip_bias;

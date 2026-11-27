@@ -43,6 +43,11 @@ struct SampleBias {
     ddx_uv: vec2<f32>,
     @if(MESHLET_MESH_MATERIAL_PASS)
     ddy_uv: vec2<f32>,
+    // Tessera: the gradients of the second UV set, for textures sampled with it
+    @if(MESHLET_MESH_MATERIAL_PASS)
+    ddx_uv_b: vec2<f32>,
+    @if(MESHLET_MESH_MATERIAL_PASS)
+    ddy_uv_b: vec2<f32>,
     @else   // MESHLET_MESH_MATERIAL_PASS
     mip_bias: f32,
 }

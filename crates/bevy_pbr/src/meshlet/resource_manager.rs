@@ -411,7 +411,8 @@ impl ResourceManager {
                         storage_buffer_read_only_sized(false, None),
                         storage_buffer_read_only_sized(false, None),
                         storage_buffer_read_only_sized(false, None),
-                        // Tessera: vertex colours
+                        // Tessera: vertex colours, the second UV set
+                        storage_buffer_read_only_sized(false, None),
                         storage_buffer_read_only_sized(false, None),
                     ),
                 ),
@@ -921,6 +922,7 @@ pub fn prepare_meshlet_view_bind_groups(
             meshlet_mesh_manager.vertex_normals.buffer_id(),
             meshlet_mesh_manager.vertex_uvs.buffer_id(),
             meshlet_mesh_manager.vertex_colors.buffer_id(),
+            meshlet_mesh_manager.vertex_uvs_b.buffer_id(),
         ]
         .map(|id| BindKey::Buffer(Some(id))),
     );
@@ -1284,6 +1286,7 @@ pub fn prepare_meshlet_view_bind_groups(
                     meshlet_mesh_manager.vertex_uvs.binding(),
                     instance_manager.instance_uniforms.binding().unwrap(),
                     meshlet_mesh_manager.vertex_colors.binding(),
+                    meshlet_mesh_manager.vertex_uvs_b.binding(),
                 )),
             )
         });

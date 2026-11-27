@@ -112,6 +112,8 @@ fn pbr_input_from_standard_material(
     let mip_scale = exp2(view.mip_bias);
     bias.ddx_uv = in.ddx_uv * mip_scale;
     bias.ddy_uv = in.ddy_uv * mip_scale;
+    bias.ddx_uv_b = in.ddx_uv_b * mip_scale;
+    bias.ddy_uv_b = in.ddy_uv_b * mip_scale;
 }
 @else {
     bias.mip_bias = view.mip_bias;
@@ -131,6 +133,8 @@ pbr_input.material.uv_transform = uv_transform;
     let uv_linear = mat2x2(uv_transform[0].xy, uv_transform[1].xy);
     bias.ddx_uv = uv_linear * bias.ddx_uv;
     bias.ddy_uv = uv_linear * bias.ddy_uv;
+    bias.ddx_uv_b = uv_linear * bias.ddx_uv_b;
+    bias.ddy_uv_b = uv_linear * bias.ddy_uv_b;
 }
 
 @if(VERTEX_UVS && VERTEX_UVS_A)
@@ -209,8 +213,17 @@ pbr_input.material.uv_transform = uv_transform;
         let coords = uv_b;
         @else
         let coords = uv;
+        // Tessera: the gradients of the UV set these coordinates come from
+        @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_BASE_COLOR_UV_B)
+        let coords_ddx = bias.ddx_uv_b;
+        @elif(MESHLET_MESH_MATERIAL_PASS)
+        let coords_ddx = bias.ddx_uv;
+        @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_BASE_COLOR_UV_B)
+        let coords_ddy = bias.ddy_uv_b;
+        @elif(MESHLET_MESH_MATERIAL_PASS)
+        let coords_ddy = bias.ddy_uv;
         @if(MESHLET_MESH_MATERIAL_PASS)
-        pbr_input.material.base_color *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv);
+        pbr_input.material.base_color *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy);
         @else
         pbr_input.material.base_color *= textureSampleBias(texture, sampler_, coords, bias.mip_bias);
 
@@ -274,8 +287,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_SPECULAR_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_SPECULAR_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            let specular = textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).a;
+            let specular = textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).a;
             @else
             let specular = textureSampleBias(texture, sampler_, coords, bias.mip_bias).a;
             // This 0.5 factor is from the `KHR_materials_specular` specification:
@@ -297,8 +319,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_SPECULAR_TINT_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_SPECULAR_TINT_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            let specular_tint = textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).rgb;
+            let specular_tint = textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).rgb;
             @else
             let specular_tint = textureSampleBias(texture, sampler_, coords, bias.mip_bias).rgb;
             pbr_input.material.reflectance *= specular_tint;
@@ -326,8 +357,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_EMISSIVE_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_EMISSIVE_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            emissive = vec4<f32>(emissive.rgb * textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).rgb, emissive.a);
+            emissive = vec4<f32>(emissive.rgb * textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).rgb, emissive.a);
             @else
             emissive = vec4<f32>(emissive.rgb * textureSampleBias(texture, sampler_, coords, bias.mip_bias).rgb, emissive.a);
         }
@@ -357,8 +397,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_METALLIC_ROUGHNESS_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_METALLIC_ROUGHNESS_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            let metallic_roughness = textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv);
+            let metallic_roughness = textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy);
             @else
             let metallic_roughness = textureSampleBias(texture, sampler_, coords, bias.mip_bias);
             if ((flags & pbr_types::STANDARD_MATERIAL_FLAGS_METALLIC_ROUGHNESS_RG_BIT) != 0u) {
@@ -394,8 +443,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_CLEARCOAT_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_CLEARCOAT_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            pbr_input.material.clearcoat *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).r;
+            pbr_input.material.clearcoat *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).r;
             @else
             pbr_input.material.clearcoat *= textureSampleBias(texture, sampler_, coords, bias.mip_bias).r;
         }
@@ -422,8 +480,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_CLEARCOAT_ROUGHNESS_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_CLEARCOAT_ROUGHNESS_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            pbr_input.material.clearcoat_perceptual_roughness *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).g;
+            pbr_input.material.clearcoat_perceptual_roughness *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).g;
             @else
             pbr_input.material.clearcoat_perceptual_roughness *= textureSampleBias(texture, sampler_, coords, bias.mip_bias).g;
         }
@@ -452,8 +519,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_SPECULAR_TRANSMISSION_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_SPECULAR_TRANSMISSION_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            specular_transmission *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).r;
+            specular_transmission *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).r;
             @else
             specular_transmission *= textureSampleBias(texture, sampler_, coords, bias.mip_bias).r;
         }
@@ -478,8 +554,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_THICKNESS_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_THICKNESS_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            thickness *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).g;
+            thickness *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).g;
             @else
             thickness *= textureSampleBias(texture, sampler_, coords, bias.mip_bias).g;
         }
@@ -511,8 +596,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_DIFFUSE_TRANSMISSION_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_DIFFUSE_TRANSMISSION_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            diffuse_transmission *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).a;
+            diffuse_transmission *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).a;
             @else
             diffuse_transmission *= textureSampleBias(texture, sampler_, coords, bias.mip_bias).a;
         }
@@ -534,8 +628,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_OCCLUSION_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_OCCLUSION_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            diffuse_occlusion *= textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).r;
+            diffuse_occlusion *= textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).r;
             @else
             diffuse_occlusion *= textureSampleBias(texture, sampler_, coords, bias.mip_bias).r;
         }
@@ -575,8 +678,17 @@ pbr_input.material.uv_transform = uv_transform;
         let coords = uv_b;
         @else
         let coords = uv;
+        // Tessera: the gradients of the UV set these coordinates come from
+        @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_NORMAL_MAP_UV_B)
+        let coords_ddx = bias.ddx_uv_b;
+        @elif(MESHLET_MESH_MATERIAL_PASS)
+        let coords_ddx = bias.ddx_uv;
+        @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_NORMAL_MAP_UV_B)
+        let coords_ddy = bias.ddy_uv_b;
+        @elif(MESHLET_MESH_MATERIAL_PASS)
+        let coords_ddy = bias.ddy_uv;
         @if(MESHLET_MESH_MATERIAL_PASS)
-        let Nt = textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).rgb;
+        let Nt = textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).rgb;
         @else
         let Nt = textureSampleBias(texture, sampler_, coords, bias.mip_bias).rgb;
 
@@ -610,8 +722,17 @@ pbr_input.material.uv_transform = uv_transform;
         let clearcoat_coords = uv_b;
         @else
         let clearcoat_coords = uv;
+        // Tessera: the gradients of the UV set these coordinates come from
+        @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_CLEARCOAT_NORMAL_UV_B)
+        let clearcoat_coords_ddx = bias.ddx_uv_b;
+        @elif(MESHLET_MESH_MATERIAL_PASS)
+        let clearcoat_coords_ddx = bias.ddx_uv;
+        @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_CLEARCOAT_NORMAL_UV_B)
+        let clearcoat_coords_ddy = bias.ddy_uv_b;
+        @elif(MESHLET_MESH_MATERIAL_PASS)
+        let clearcoat_coords_ddy = bias.ddy_uv;
         @if(MESHLET_MESH_MATERIAL_PASS)
-        let clearcoat_Nt = textureSampleGrad(clearcoat_texture, clearcoat_sampler, clearcoat_coords, bias.ddx_uv, bias.ddy_uv).rgb;
+        let clearcoat_Nt = textureSampleGrad(clearcoat_texture, clearcoat_sampler, clearcoat_coords, clearcoat_coords_ddx, clearcoat_coords_ddy).rgb;
         @else
         let clearcoat_Nt = textureSampleBias(clearcoat_texture, clearcoat_sampler, clearcoat_coords, bias.mip_bias).rgb;
 
@@ -658,8 +779,17 @@ pbr_input.material.uv_transform = uv_transform;
             let coords = uv_b;
             @else
             let coords = uv;
+            // Tessera: the gradients of the UV set these coordinates come from
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_ANISOTROPY_UV_B)
+            let coords_ddx = bias.ddx_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddx = bias.ddx_uv;
+            @if(MESHLET_MESH_MATERIAL_PASS && STANDARD_MATERIAL_ANISOTROPY_UV_B)
+            let coords_ddy = bias.ddy_uv_b;
+            @elif(MESHLET_MESH_MATERIAL_PASS)
+            let coords_ddy = bias.ddy_uv;
             @if(MESHLET_MESH_MATERIAL_PASS)
-            let anisotropy_texel = textureSampleGrad(texture, sampler_, coords, bias.ddx_uv, bias.ddy_uv).rgb;
+            let anisotropy_texel = textureSampleGrad(texture, sampler_, coords, coords_ddx, coords_ddy).rgb;
             @else
             let anisotropy_texel = textureSampleBias(texture, sampler_, coords, bias.mip_bias).rgb;
 

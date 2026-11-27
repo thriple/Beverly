@@ -12,6 +12,7 @@ import package::{
         get_meshlet_vertex_normal,
         get_meshlet_vertex_uv,
         get_meshlet_vertex_color,
+        get_meshlet_vertex_uv_b,
     },
     render::{
         mesh_view_bindings::view,
@@ -92,6 +93,10 @@ struct VertexOutput {
     ddy_uv: vec2<f32>,
     // Tessera: the vertex colour, interpolated (white for meshes without)
     color: vec4<f32>,
+    // Tessera: the second UV set and its gradients (the first set for meshes without one)
+    uv_b: vec2<f32>,
+    ddx_uv_b: vec2<f32>,
+    ddy_uv_b: vec2<f32>,
     world_tangent: vec4<f32>,
     mesh_flags: u32,
     cluster_id: u32,
@@ -170,6 +175,10 @@ fn resolve_vertex_output(frag_coord: vec4<f32>) -> VertexOutput {
     out.ddx_uv = ddx_uv;
     out.ddy_uv = ddy_uv;
     out.color = mat3x4(vertex_0.color, vertex_1.color, vertex_2.color) * partial_derivatives.barycentrics;
+    let uvs_b = mat3x2(vertex_0.uv_b, vertex_1.uv_b, vertex_2.uv_b);
+    out.uv_b = uvs_b * partial_derivatives.barycentrics;
+    out.ddx_uv_b = uvs_b * partial_derivatives.ddx;
+    out.ddy_uv_b = uvs_b * partial_derivatives.ddy;
     out.world_tangent = world_tangent;
     out.mesh_flags = instance_uniform.flags;
     out.cluster_id = instance_id ^ meshlet_id;
@@ -185,6 +194,7 @@ struct MeshletVertex {
     normal: vec3<f32>,
     uv: vec2<f32>,
     color: vec4<f32>,
+    uv_b: vec2<f32>,
 }
 
 @if(MESHLET_MESH_MATERIAL_PASS)
@@ -194,6 +204,7 @@ fn load_vertex(meshlet: ptr<function, Meshlet>, vertex_id: u32) -> MeshletVertex
         get_meshlet_vertex_normal(meshlet, vertex_id),
         get_meshlet_vertex_uv(meshlet, vertex_id),
         get_meshlet_vertex_color(meshlet, vertex_id),
+        get_meshlet_vertex_uv_b(meshlet, vertex_id),
     );
 }
 

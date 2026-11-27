@@ -20,7 +20,7 @@ pub const KIND: &str = "meshlet";
 
 /// The version of these bytes and of what this module does to a mesh before Bevy's builder; bumped when either
 /// changes, so old bakes are made again.
-pub const FORMAT_VERSION: u32 = 3;
+pub const FORMAT_VERSION: u32 = 4;
 
 const MAGIC: &[u8; 4] = b"TSRA";
 
@@ -154,8 +154,8 @@ fn split(bytes: &[u8]) -> Result<(&[u8], &[u8]), BakeError> {
     bytes[16..].split_at_checked(length).ok_or(BakeError::Format(None))
 }
 
-/// The mesh as Bevy's builder takes it: positions, normals, UVs and (when it has them) vertex colours, indexed, with
-/// identical vertices welded. Missing normals are made smooth (weighted by corner angle) and missing UVs are zero;
+/// The mesh as Bevy's builder takes it: positions, normals, UVs and (when it has them) a second UV set and vertex
+/// colours, indexed, with identical vertices welded. Missing normals are made smooth (weighted by corner angle) and missing UVs are zero;
 /// other attributes are dropped.
 pub fn prepare(mesh: &Mesh) -> Result<Mesh, BakeError> {
     if mesh.primitive_topology() != PrimitiveTopology::TriangleList {
@@ -172,6 +172,10 @@ pub fn prepare(mesh: &Mesh) -> Result<Mesh, BakeError> {
         Some(VertexAttributeValues::Float32x2(uv)) if uv.len() == positions.len() => Some(uv),
         _ => None,
     };
+    let uvs_b = match mesh.attribute(Mesh::ATTRIBUTE_UV_1) {
+        Some(VertexAttributeValues::Float32x2(uv)) if uv.len() == positions.len() => Some(uv),
+        _ => None,
+    };
     let colors = match mesh.attribute(Mesh::ATTRIBUTE_COLOR) {
         Some(VertexAttributeValues::Float32x4(c)) if c.len() == positions.len() => Some(c),
         _ => None,
@@ -181,21 +185,25 @@ pub fn prepare(mesh: &Mesh) -> Result<Mesh, BakeError> {
         None => (0..positions.len()).collect(),
     };
 
-    // Weld: one vertex per distinct (position, normal, UV, colour); without normals, per (position, UV, colour), so
-    // the smoothed normals are shared across triangles
-    let mut welded: HashMap<[u32; 12], u32> = HashMap::new();
-    let (mut out_positions, mut out_normals, mut out_uvs, mut out_colors) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    // Weld: one vertex per distinct (position, normal, UVs, colour); without normals, per (position, UVs, colour),
+    // so the smoothed normals are shared across triangles
+    let mut welded: HashMap<[u32; 14], u32> = HashMap::new();
+    let (mut out_positions, mut out_normals, mut out_uvs) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut out_uvs_b, mut out_colors) = (Vec::new(), Vec::new());
     let mut indices = Vec::with_capacity(corners.len() - corners.len() % 3);
     for &i in &corners[..corners.len() - corners.len() % 3] {
         let p = positions[i];
         let n = normals.map_or([0.0; 3], |n| n[i]);
         let uv = uvs.map_or([0.0; 2], |uv| uv[i]);
+        let uv_b = uvs_b.map_or([0.0; 2], |uv| uv[i]);
         let c = colors.map_or([1.0; 4], |c| c[i]);
-        let key = [p[0], p[1], p[2], n[0], n[1], n[2], uv[0], uv[1], c[0], c[1], c[2], c[3]].map(f32::to_bits);
+        let key = [p[0], p[1], p[2], n[0], n[1], n[2], uv[0], uv[1], uv_b[0], uv_b[1], c[0], c[1], c[2], c[3]]
+            .map(f32::to_bits);
         let index = *welded.entry(key).or_insert_with(|| {
             out_positions.push(p);
             out_normals.push(n);
             out_uvs.push(uv);
+            out_uvs_b.push(uv_b);
             out_colors.push(c);
             out_positions.len() as u32 - 1
         });
@@ -206,6 +214,9 @@ pub fn prepare(mesh: &Mesh) -> Result<Mesh, BakeError> {
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, out_positions)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, out_uvs)
         .with_inserted_indices(Indices::U32(indices));
+    if uvs_b.is_some() {
+        prepared.insert_attribute(Mesh::ATTRIBUTE_UV_1, out_uvs_b);
+    }
     if colors.is_some() {
         prepared.insert_attribute(Mesh::ATTRIBUTE_COLOR, out_colors);
     }
@@ -310,6 +321,28 @@ mod tests {
         let without = bake(&test_mesh(3, 5), &BakeSettings::default()).unwrap();
         assert!(with.len() > without.len());
         assert!(load(&with).is_ok());
+    }
+
+    #[test]
+    fn keeps_the_second_uv_set() {
+        let mut mesh = test_mesh(3, 6);
+        let count = mesh.count_vertices();
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, (0..count).map(|i| [i as f32, 0.5]).collect::<Vec<[f32; 2]>>());
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, vec![[1.0f32, 0.0, 0.0, 1.0]; count]);
+        let prepared = prepare(&mesh).unwrap();
+        let ids: Vec<_> = prepared.attributes().map(|(a, _)| a.id).collect();
+        assert_eq!(
+            ids,
+            [
+                Mesh::ATTRIBUTE_POSITION.id,
+                Mesh::ATTRIBUTE_NORMAL.id,
+                Mesh::ATTRIBUTE_UV_0.id,
+                Mesh::ATTRIBUTE_UV_1.id,
+                Mesh::ATTRIBUTE_COLOR.id
+            ]
+        );
+        let bytes = bake(&mesh, &BakeSettings::default()).unwrap();
+        assert!(load(&bytes).is_ok());
     }
 
     #[test]

@@ -258,6 +258,7 @@ fn get_meshlet_vertex_position(meshlet: ptr<function, Meshlet>, vertex_id: u32) 
 @group(2) @binding(6) var<storage, read> meshlet_vertex_uvs: array<vec2<f32>>; // Many per meshlet
 @group(2) @binding(7) var<storage, read> meshlet_instance_uniforms: array<Mesh>; // Per entity instance
 @group(2) @binding(8) var<storage, read> meshlet_vertex_colors: array<u32>; // Many per meshlet (Tessera)
+@group(2) @binding(9) var<storage, read> meshlet_vertex_uvs_b: array<vec2<f32>>; // Many per meshlet (Tessera)
 }
 
 // TODO: Load only twice, instead of 3x in cases where you load 3 indices per thread?
@@ -312,6 +313,12 @@ fn get_meshlet_vertex_normal(meshlet: ptr<function, Meshlet>, vertex_id: u32) ->
 @if(MESHLET_MESH_MATERIAL_PASS)
 fn get_meshlet_vertex_uv(meshlet: ptr<function, Meshlet>, vertex_id: u32) -> vec2<f32> {
     return meshlet_vertex_uvs[(*meshlet).start_vertex_attribute_id + vertex_id];
+}
+
+// Tessera: the second UV set (the first, for meshes without one)
+@if(MESHLET_MESH_MATERIAL_PASS)
+fn get_meshlet_vertex_uv_b(meshlet: ptr<function, Meshlet>, vertex_id: u32) -> vec2<f32> {
+    return meshlet_vertex_uvs_b[(*meshlet).start_vertex_attribute_id + vertex_id];
 }
 
 // Tessera: RGBA8, the colour sRGB-encoded; returned linear

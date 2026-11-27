@@ -24,12 +24,15 @@ pub struct MeshletMeshManager {
     /// Tessera: RGBA8 vertex colours, allocated in step with `vertex_normals` (same size per vertex, same order), so
     /// the meshlets' `start_vertex_attribute_id` finds them too; white for meshes without colours.
     pub vertex_colors: PersistentGpuBuffer<Arc<[u32]>>,
+    /// Tessera: the second UV set, allocated in step with `vertex_uvs` (same size per vertex, same order); the first
+    /// set again for meshes without one.
+    pub vertex_uvs_b: PersistentGpuBuffer<Arc<[Vec2]>>,
     pub indices: PersistentGpuBuffer<Arc<[u8]>>,
     pub bvh_nodes: PersistentGpuBuffer<Arc<[BvhNode]>>,
     pub meshlets: PersistentGpuBuffer<Arc<[Meshlet]>>,
     pub meshlet_cull_data: PersistentGpuBuffer<Arc<[MeshletCullData]>>,
     meshlet_mesh_slices:
-        HashMap<AssetId<MeshletMesh>, ([Range<BufferAddress>; 8], MeshletAabb, u32)>,
+        HashMap<AssetId<MeshletMesh>, ([Range<BufferAddress>; 9], MeshletAabb, u32)>,
 }
 
 pub fn init_meshlet_mesh_manager(mut commands: Commands, render_device: Res<RenderDevice>) {
@@ -38,6 +41,7 @@ pub fn init_meshlet_mesh_manager(mut commands: Commands, render_device: Res<Rend
         vertex_normals: PersistentGpuBuffer::new("meshlet_vertex_normals", &render_device),
         vertex_uvs: PersistentGpuBuffer::new("meshlet_vertex_uvs", &render_device),
         vertex_colors: PersistentGpuBuffer::new("meshlet_vertex_colors", &render_device),
+        vertex_uvs_b: PersistentGpuBuffer::new("meshlet_vertex_uvs_b", &render_device),
         indices: PersistentGpuBuffer::new("meshlet_indices", &render_device),
         bvh_nodes: PersistentGpuBuffer::new("meshlet_bvh_nodes", &render_device),
         meshlets: PersistentGpuBuffer::new("meshlets", &render_device),
@@ -73,6 +77,12 @@ impl MeshletMeshManager {
                 Arc::clone(&meshlet_mesh.vertex_colors)
             };
             let vertex_colors_slice = self.vertex_colors.queue_write(vertex_colors, ());
+            let vertex_uvs_b = if meshlet_mesh.vertex_uvs_b.is_empty() {
+                Arc::clone(&meshlet_mesh.vertex_uvs)
+            } else {
+                Arc::clone(&meshlet_mesh.vertex_uvs_b)
+            };
+            let vertex_uvs_b_slice = self.vertex_uvs_b.queue_write(vertex_uvs_b, ());
             let indices_slice = self
                 .indices
                 .queue_write(Arc::clone(&meshlet_mesh.indices), ());
@@ -102,6 +112,7 @@ impl MeshletMeshManager {
                     meshlets_slice,
                     meshlet_cull_data_slice,
                     vertex_colors_slice,
+                    vertex_uvs_b_slice,
                 ],
                 meshlet_mesh.aabb,
                 meshlet_mesh.bvh_depth,
@@ -109,7 +120,7 @@ impl MeshletMeshManager {
         };
 
         // If the MeshletMesh asset has not been uploaded to the GPU yet, queue it for uploading
-        let ([_, _, _, _, bvh_node_slice, _, _, _], aabb, bvh_depth) = self
+        let ([_, _, _, _, bvh_node_slice, _, _, _, _], aabb, bvh_depth) = self
             .meshlet_mesh_slices
             .entry(asset_id)
             .or_insert_with_key(queue_meshlet_mesh)
@@ -124,7 +135,7 @@ impl MeshletMeshManager {
 
     pub fn remove(&mut self, asset_id: &AssetId<MeshletMesh>) {
         if let Some((
-            [vertex_positions_slice, vertex_normals_slice, vertex_uvs_slice, indices_slice, bvh_node_slice, meshlets_slice, meshlet_cull_data_slice, vertex_colors_slice],
+            [vertex_positions_slice, vertex_normals_slice, vertex_uvs_slice, indices_slice, bvh_node_slice, meshlets_slice, meshlet_cull_data_slice, vertex_colors_slice, vertex_uvs_b_slice],
             _,
             _,
         )) = self.meshlet_mesh_slices.remove(asset_id)
@@ -134,6 +145,7 @@ impl MeshletMeshManager {
             self.vertex_normals.mark_slice_unused(vertex_normals_slice);
             self.vertex_uvs.mark_slice_unused(vertex_uvs_slice);
             self.vertex_colors.mark_slice_unused(vertex_colors_slice);
+            self.vertex_uvs_b.mark_slice_unused(vertex_uvs_b_slice);
             self.indices.mark_slice_unused(indices_slice);
             self.bvh_nodes.mark_slice_unused(bvh_node_slice);
             self.meshlets.mark_slice_unused(meshlets_slice);
@@ -160,6 +172,9 @@ pub fn perform_pending_meshlet_mesh_writes(
         .perform_writes(&render_queue, &render_device);
     meshlet_mesh_manager
         .vertex_colors
+        .perform_writes(&render_queue, &render_device);
+    meshlet_mesh_manager
+        .vertex_uvs_b
         .perform_writes(&render_queue, &render_device);
     meshlet_mesh_manager
         .indices

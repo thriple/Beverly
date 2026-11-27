@@ -228,8 +228,11 @@ impl MeshletMesh {
         let mut vertex_positions = BitVec::<u32, Lsb0>::new();
         let mut vertex_normals = Vec::new();
         let mut vertex_uvs = Vec::new();
-        // Tessera: vertex colours, when the mesh has them (packed after position, normal and UV)
+        // Tessera: a second UV set and vertex colours, when the mesh has them (packed after position, normal and UV,
+        // in that order)
+        let has_uvs_b = mesh.contains_attribute(Mesh::ATTRIBUTE_UV_1);
         let has_colors = mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR);
+        let mut vertex_uvs_b = Vec::new();
         let mut vertex_colors = Vec::new();
         let mut bevy_meshlets = Vec::with_capacity(meshlets.len());
         for (i, meshlet) in meshlets.meshlets.iter().enumerate() {
@@ -241,6 +244,7 @@ impl MeshletMesh {
                 &mut vertex_positions,
                 &mut vertex_normals,
                 &mut vertex_uvs,
+                has_uvs_b.then_some(&mut vertex_uvs_b),
                 has_colors.then_some(&mut vertex_colors),
                 &mut bevy_meshlets,
                 vertex_position_quantization_factor,
@@ -253,6 +257,7 @@ impl MeshletMesh {
             vertex_normals: vertex_normals.into(),
             vertex_uvs: vertex_uvs.into(),
             vertex_colors: vertex_colors.into(),
+            vertex_uvs_b: vertex_uvs_b.into(),
             indices: meshlets.triangles.into(),
             bvh: bvh.into(),
             meshlets: bevy_meshlets.into(),
@@ -314,21 +319,21 @@ fn validate_input_mesh(mesh: &Mesh) -> Result<Cow<'_, [u32]>, MeshToMeshletMeshC
         Mesh::ATTRIBUTE_NORMAL,
         Mesh::ATTRIBUTE_UV_0,
     ];
-    // Tessera: vertex colours may follow
+    // Tessera: a second UV set and vertex colours may follow, in that order
     let provided: Vec<_> = mesh
         .attributes()
         .map(|(attribute, _)| (attribute.id, attribute.format))
         .collect();
+    let mut optional = [Mesh::ATTRIBUTE_UV_1, Mesh::ATTRIBUTE_COLOR]
+        .into_iter()
+        .filter(|attribute| mesh.contains_attribute(attribute.id));
     let expected: Vec<_> = required_attributes
         .iter()
+        .copied()
+        .chain(&mut optional)
         .map(|attribute| (attribute.id, attribute.format))
         .collect();
-    let with_colors = [
-        expected.as_slice(),
-        &[(Mesh::ATTRIBUTE_COLOR.id, Mesh::ATTRIBUTE_COLOR.format)],
-    ]
-    .concat();
-    if provided != expected && provided != with_colors {
+    if provided != expected {
         return Err(
             MeshToMeshletMeshConversionError::WrongMeshVertexAttributes {
                 required: required_attributes,
@@ -670,14 +675,23 @@ fn build_and_compress_per_meshlet_vertex_data(
     vertex_positions: &mut BitVec<u32, Lsb0>,
     vertex_normals: &mut Vec<u32>,
     vertex_uvs: &mut Vec<Vec2>,
+    vertex_uvs_b: Option<&mut Vec<Vec2>>,
     vertex_colors: Option<&mut Vec<u32>>,
     meshlets: &mut Vec<Meshlet>,
     vertex_position_quantization_factor: u8,
 ) {
+    // Tessera: the second UV set, uncompressed like the first, right after it
+    let color_offset = if vertex_uvs_b.is_some() { 40 } else { 32 };
+    if let Some(vertex_uvs_b) = vertex_uvs_b {
+        for vertex_id in meshlet_vertex_ids {
+            let at = *vertex_id as usize * vertex_stride + 32;
+            vertex_uvs_b.push(Vec2::from_slice(bytemuck::cast_slice(&vertex_buffer[at..at + 8])));
+        }
+    }
     // Tessera: RGBA8, the colour sRGB-encoded so 8 bits are spent where the eye sees them
     if let Some(vertex_colors) = vertex_colors {
         for vertex_id in meshlet_vertex_ids {
-            let at = *vertex_id as usize * vertex_stride + 32;
+            let at = *vertex_id as usize * vertex_stride + color_offset;
             let color: [f32; 4] = bytemuck::pod_read_unaligned(&vertex_buffer[at..at + 16]);
             let srgb = |c: f32| {
                 let c = c.clamp(0.0, 1.0);
