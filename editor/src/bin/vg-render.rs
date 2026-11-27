@@ -8,7 +8,9 @@
 //! mipmapped checker tiled 8 times on a plane seen at a grazing angle, as a meshlet mesh and as an ordinary mesh (each
 //! by its own camera into its own image; the picture shows them side by side), and fails if they differ by more than
 //! `TILING_MAX_DIFF`: the meshlet pass's texture gradients must follow the UV transform, or it picks the wrong mip
-//! level. `colors` compares the same way a plane whose vertex colours run red to green across and blue down it.
+//! level. `colors` compares the same way a plane whose vertex colours run red to green across and blue down it, and
+//! `uv1` one whose second UV set tiles the checker 4 times (the first doesn't), with the texture on that set: the
+//! meshlet pass must use the second set and its own gradients.
 use beverly::gpu::GpuCaps;
 use bevy::pbr::experimental::meshlet::{
     MeshletMesh, MeshletMesh3d, MeshletPlugin, MESHLET_DEFAULT_VERTEX_POSITION_QUANTIZATION_FACTOR,
@@ -43,6 +45,7 @@ const TILING_MAX_DIFF: f32 = 2.0;
 #[derive(Resource)]
 struct Comparing {
     colors: bool,
+    uv1: bool,
 }
 
 /// `tiling`: each camera's image size.
@@ -70,6 +73,19 @@ fn tiling_scene(
         let colors: Vec<[f32; 4]> = uvs.iter().map(|[u, v]| [1.0 - u, *u, *v, 1.0]).collect();
         plane.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
         materials.add(StandardMaterial { base_color: Color::WHITE, unlit: true, ..default() })
+    } else if comparing.uv1 {
+        // the second set tiles the checker 4 times; the first, left as it is, would show it once
+        let uvs = match plane.attribute(Mesh::ATTRIBUTE_UV_0) {
+            Some(bevy::mesh::VertexAttributeValues::Float32x2(uvs)) => uvs.clone(),
+            _ => vec![],
+        };
+        plane.insert_attribute(Mesh::ATTRIBUTE_UV_1, uvs.iter().map(|[u, v]| [u * 4.0, v * 4.0]).collect::<Vec<[f32; 2]>>());
+        materials.add(StandardMaterial {
+            base_color_texture: Some(images.add(checker_with_mips(256, 32))),
+            base_color_channel: bevy::pbr::UvChannel::Uv1,
+            unlit: true,
+            ..default()
+        })
     } else {
         materials.add(StandardMaterial {
             base_color_texture: Some(images.add(checker_with_mips(256, 32))),
@@ -168,8 +184,8 @@ fn main() -> AppExit {
         MeshletPlugin { cluster_buffer_slots: 1 << 16, supported: caps.virtual_geometry() && case != "unsupported" },
     ))
     .insert_resource(Shot { path, frame: 0, saved: None, check_holes: case == "grid", targets: vec![], captured: vec![] });
-    if case == "tiling" || case == "colors" {
-        app.insert_resource(Comparing { colors: case == "colors" }).add_systems(Startup, tiling_scene);
+    if case == "tiling" || case == "colors" || case == "uv1" {
+        app.insert_resource(Comparing { colors: case == "colors", uv1: case == "uv1" }).add_systems(Startup, tiling_scene);
     } else {
         app.add_systems(Startup, move |mut commands: Commands, mut meshlets: ResMut<Assets<MeshletMesh>>, mut materials: ResMut<Assets<StandardMaterial>>| {
             // baked here, not before the app: the bake runs on Bevy's task pools
