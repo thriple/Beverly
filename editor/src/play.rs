@@ -2,7 +2,7 @@
 //! (bevy_tnua) in the physics world (`physics.rs`): it walks up steps and slopes and rides moving parts. Used by the
 //! editor's test mode (`) and by the game player.
 use crate::input::{Actions, Controls};
-use crate::level::{Level, Tag};
+use crate::level::{Level, Navigation, Tag};
 use crate::physics::PartBody;
 use crate::script::Script;
 use crate::world::{Geometry, PartId, part_transform};
@@ -14,11 +14,31 @@ use bevy_tnua::builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig};
 use bevy_tnua_avian3d::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-const RADIUS: f32 = 0.4;
-/// The walker's body: a capsule whose middle floats this high above the ground (its bottom 0.45 m up, so it walks
-/// up steps that high).
-const FLOAT: f32 = 1.1;
-const LENGTH: f32 = 0.5;
+/// The walker's body, from the level's walker profile ([`Level::profile`]): a capsule as wide as the profile,
+/// floating a step above the ground (so it walks up steps that high, and no higher) with its top at the profile's
+/// height, and the steepest slope it stands on (steeper, it slides).
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Body {
+    radius: f32,
+    length: f32,
+    /// How high the capsule's middle floats above the ground.
+    float: f32,
+    height: f32,
+    /// Radians.
+    slope: f32,
+}
+
+impl Body {
+    fn of(p: &Navigation) -> Body {
+        let radius = (p.width * 0.5).max(0.05);
+        let length = (p.height - p.step - 2.0 * radius).max(0.0);
+        Body { radius, length, float: p.step + radius + length * 0.5, height: p.height.max(2.0 * radius), slope: p.slope.clamp(0.0, 89.0).to_radians() }
+    }
+}
+
+impl Default for Body {
+    fn default() -> Self { Body::of(&Navigation::default()) }
+}
 const EYE: f32 = 1.6;
 pub const GRAVITY: f32 = 22.0;
 const JUMP: f32 = 1.45;
@@ -67,6 +87,8 @@ pub struct Play {
     shown: Option<Entity>,
     body: Option<Entity>,
     feel: Option<Feel>,
+    /// The walker's body for this run (from the level's walker profile).
+    size: Body,
     /// The physics bodies made for this run (see `physics.rs`).
     bodies: Vec<Entity>,
     /// Where the moving and loose parts are drawn when not playing.
@@ -109,16 +131,32 @@ impl Plugin for PlayPlugin {
             .add_plugins((crate::input::InputMapPlugin, crate::physics::PhysicsPlugin, TnuaControllerPlugin::<Moves>::new(PhysicsSchedule), TnuaAvian3dPlugin::new(PhysicsSchedule)))
             .add_systems(Startup, feel)
             .add_systems(Update, (keys.run_if(playing), follow.run_if(walking)))
-            .add_systems(FixedUpdate, (sense.run_if(walking), knocks.run_if(playing), crate::script::run.run_if(playing), crate::script::gravity.run_if(playing), controls.run_if(walking)).chain());
+            .add_systems(FixedUpdate, (fit.run_if(walking), sense.run_if(walking), knocks.run_if(playing), crate::script::run.run_if(playing), crate::script::gravity.run_if(playing), controls.run_if(walking)).chain());
     }
 }
 
 /// The walker's two ways of moving: with grip, and on slippery ground (slow to speed up and to stop).
 fn feel(mut play: ResMut<Play>, mut configs: ResMut<Assets<MovesConfig>>) {
-    let walk = TnuaBuiltinWalkConfig { speed: 1.0, float_height: FLOAT, cling_distance: 0.3, ..default() };
+    let (grip, slippery) = moves(play.size);
+    play.feel = Some(Feel { grip: configs.add(grip), slippery: configs.add(slippery) });
+}
+
+/// The two ways of moving, for a body of this size.
+fn moves(b: Body) -> (MovesConfig, MovesConfig) {
+    let walk = TnuaBuiltinWalkConfig { speed: 1.0, float_height: b.float, cling_distance: 0.3, max_slope: b.slope, ..default() };
     let config = |walk: TnuaBuiltinWalkConfig| MovesConfig { basis: walk, jump: TnuaBuiltinJumpConfig { height: JUMP, ..default() } };
     let slippery = TnuaBuiltinWalkConfig { acceleration: 4.0, air_acceleration: 4.0, ..walk.clone() };
-    play.feel = Some(Feel { grip: configs.add(config(walk)), slippery: configs.add(config(slippery)) });
+    (config(walk), config(slippery))
+}
+
+/// The ways of moving follow the walker's body (a level with its own walker profile).
+fn fit(play: Res<Play>, mut configs: ResMut<Assets<MovesConfig>>, mut fitted: Local<Option<Body>>) {
+    let Some(feel) = play.feel.as_ref() else { return };
+    if *fitted == Some(play.size) { return; }
+    let (grip, slippery) = moves(play.size);
+    if let Some(mut c) = configs.get_mut(&feel.grip) { *c = grip; }
+    if let Some(mut c) = configs.get_mut(&feel.slippery) { *c = slippery; }
+    *fitted = Some(play.size);
 }
 
 impl Play {
@@ -140,19 +178,21 @@ impl Play {
         self.start = (feet, yaw);
         self.on = true;
         if self.custom.is_some() { return; }
+        self.size = Body::of(level.profile());
+        let size = self.size;
         self.walker = Walker { pos: feet, facing: yaw, yaw, pitch: -0.25, ..default() };
         let grip = self.feel.as_ref().map(|f| f.grip.clone()).unwrap_or_default();
         self.body = Some(commands.spawn((
             WalkerBody,
             RigidBody::Dynamic,
-            Collider::capsule(RADIUS, LENGTH),
+            Collider::capsule(size.radius, size.length),
             LockedAxes::ROTATION_LOCKED,
             GravityScale(GRAVITY / 9.81),
             Mass(80.0),
             TnuaController::<Moves>::default(),
             TnuaConfig::<Moves>(grip),
-            TnuaAvian3dSensorShape(Collider::cylinder(RADIUS - 0.01, 0.0)),
-            Transform::from_translation(feet + Vec3::Y * FLOAT),
+            TnuaAvian3dSensorShape(Collider::cylinder(size.radius - 0.01, 0.0)),
+            Transform::from_translation(feet + Vec3::Y * size.float),
             TransformInterpolation,
         )).id());
         let body_mat = mats.add(StandardMaterial { base_color: Color::srgb(0.85, 0.82, 0.78), perceptual_roughness: 0.6, ..default() });
@@ -160,7 +200,7 @@ impl Play {
         let shown = commands
             .spawn((Transform::from_translation(feet), Visibility::Visible))
             .with_children(|b| {
-                b.spawn((Mesh3d(meshes.add(Capsule3d::new(RADIUS, 1.0))), MeshMaterial3d(body_mat), Transform::from_xyz(0.0, 0.9, 0.0)));
+                b.spawn((Mesh3d(meshes.add(Capsule3d::new(size.radius, size.height - 2.0 * size.radius))), MeshMaterial3d(body_mat), Transform::from_xyz(0.0, size.height * 0.5, 0.0)));
                 b.spawn((Mesh3d(meshes.add(Cuboid::new(0.5, 0.14, 0.12))), MeshMaterial3d(visor), Transform::from_xyz(0.0, 1.45, -0.36)));
             })
             .id();
@@ -218,7 +258,7 @@ fn sense(mut play: ResMut<Play>, time: Res<Time>, body: Query<(&Position, &Linea
     let play = &mut *play;
     let w = &mut play.walker;
     let (was_ground, was_vel) = (w.ground, w.vel);
-    w.pos = at.0 - Vec3::Y * FLOAT;
+    w.pos = at.0 - Vec3::Y * play.size.float;
     w.vel = v.0;
     w.ground = c.is_airborne().is_ok_and(|air| !air);
     w.on = c.basis_memory.standing_on_entity().and_then(|e| parts.get(e).ok()).map(|b| b.0);
@@ -269,7 +309,7 @@ fn controls(play: Res<Play>, actions: Res<Actions>, mut body: Query<(&mut TnuaCo
 fn follow(mut play: ResMut<Play>, actions: Res<Actions>, ray: SpatialQuery, body: Query<&Transform, (With<WalkerBody>, Without<PlayCamera>)>, mut shown: Query<&mut Transform, (Without<WalkerBody>, Without<PlayCamera>)>, mut cam: Query<&mut Transform, (With<PlayCamera>, Without<WalkerBody>)>) {
     let Some(b) = play.body else { return };
     // the body as drawn (smoothed between steps); facing the way it walks
-    let Ok(at) = body.get(b).map(|t| t.translation - Vec3::Y * FLOAT) else { return };
+    let Ok(at) = body.get(b).map(|t| t.translation - Vec3::Y * play.size.float) else { return };
     let w = &mut play.walker;
     let dir = walk_dir(&actions, w.yaw);
     if dir != Vec3::ZERO { w.facing = (-dir.x).atan2(-dir.z); }
@@ -286,5 +326,26 @@ fn follow(mut play: ResMut<Play>, actions: Res<Actions>, ray: SpatialQuery, body
     for mut t in &mut cam {
         t.translation = target + back * dist;
         t.rotation = rot;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_walkers_body_is_the_walker_profile() {
+        let check = |p: &Navigation| {
+            let b = Body::of(p);
+            let bottom = b.float - b.length * 0.5 - b.radius;
+            assert!((bottom - p.step).abs() < 1e-5, "it floats a step up, so it climbs that and no higher: {b:?}");
+            assert!((b.float + b.length * 0.5 + b.radius - p.height).abs() < 1e-5, "its top is the profile's height: {b:?}");
+            assert!((2.0 * b.radius - p.width).abs() < 1e-5 && (b.slope - p.slope.to_radians()).abs() < 1e-5, "{b:?}");
+            let (grip, slippery) = moves(b);
+            assert_eq!((grip.basis.float_height, grip.basis.max_slope), (b.float, b.slope));
+            assert_eq!((slippery.basis.float_height, slippery.basis.max_slope), (b.float, b.slope));
+        };
+        check(&Navigation::default());
+        check(&Navigation { width: 1.2, height: 2.4, step: 0.3, slope: 30.0 });
     }
 }

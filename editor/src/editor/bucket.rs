@@ -68,6 +68,8 @@ fn level_stamp(ed: &Editor) -> u64 {
         for v in p.pos.iter().chain(&p.rot).chain(&p.size).chain(&p.color) { v.to_bits().hash(&mut h); }
         for s in &p.surfaces { (s.face, &s.material).hash(&mut h); }
     }
+    // Floor reads the walker profile
+    [ed.level.profile().step, ed.level.profile().slope].map(f32::to_bits).hash(&mut h);
     for (k, m) in ed.level.materials.iter() { (k, m.tint.map(f32::to_bits)).hash(&mut h); }
     h.finish()
 }

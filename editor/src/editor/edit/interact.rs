@@ -124,7 +124,7 @@ fn place_step(ed: &mut Editor, ghost: &mut (Mut<Transform>, Mut<Visibility>, Mut
     if shape != Shape::Model { mesh.0 = lib.mesh(shape); }
     // the wheel turns it about the surface's normal (15 degrees a notch), Shift + wheel sizes it
     if view.wheel != 0.0 {
-        if shift { ed.place_scale = (ed.place_scale * 1.1f32.powf(view.wheel)).clamp(0.05, 50.0); } else { ed.place_turn += view.wheel * 15f32.to_radians(); }
+        if shift { ed.place_scale = (ed.place_scale * 1.1f32.powf(view.wheel)).clamp(0.05, 50.0); } else { ed.place_turn += view.wheel * ed.level.grid().turn.to_radians(); }
     }
     let (turn, scale) = if shape.is_camera() { (0.0, 1.0) } else { (ed.place_turn, ed.place_scale) };
     match ray.and_then(|r| ed.hit(r)) {
@@ -133,9 +133,11 @@ fn place_step(ed: &mut Editor, ghost: &mut (Mut<Transform>, Mut<Visibility>, Mut
             let n = if shift || shape == Shape::PlayerStart || shape.is_camera() { Vec3::Y } else { h.normal };
             let rot = Quat::from_rotation_arc(Vec3::Y, n) * Quat::from_rotation_y(turn);
             let mut p = h.point;
-            if ed.snap && n.y > 0.999 {
-                p.x = snapf(p.x, 0.25);
-                p.z = snapf(p.z, 0.25);
+            let grid = ed.level.grid();
+            // snapping slides the point across the surface, so only where that keeps it on the surface
+            if ed.snap && ed.level.precision().level(n.y, grid.reach()) {
+                p.x = snapf(p.x, grid.step);
+                p.z = snapf(p.z, grid.step);
             }
             // the bottom of the part sits on the surface
             let pos = p - n * lo.y * size.y;
@@ -251,6 +253,7 @@ fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: b
             return true;
         }
         let snap = ed.snap && !ctrl;
+        let grid = ed.level.grid();
         let at = pointer.unwrap_or_default() + vec2(18.0, 14.0);
         let keys_hint = if typing { format!("typed {typed_text} · Enter sets it · Esc cancels") } else if snap { "type a number · Ctrl: free".into() } else { "type a number".into() };
         let world_handle = |g: Grip, part: &Part| scale_handles(part, bx).into_iter().find(|(h, _)| *h == g).map(|(_, w)| w).unwrap_or(start_pos);
@@ -262,7 +265,7 @@ fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: b
             Grip::Axis(i) => {
                 let delta = match (enter, typed_val) {
                     (true, Some(v)) => Some(v),
-                    _ => ray.and_then(|r| axis_param(start_pos, AXES[i], r)).map(|s| if snap { snapf(s - s0, 0.25) } else { s - s0 }),
+                    _ => ray.and_then(|r| axis_param(start_pos, AXES[i], r)).map(|s| if snap { snapf(s - s0, grid.step) } else { s - s0 }),
                 };
                 if let Some(delta) = delta {
                     let mut m = p.clone();
@@ -277,7 +280,7 @@ fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: b
                     (true, Some(v)) => Some(v),
                     _ => ray.and_then(|r| ring_angle(start_pos, r)).map(|a| {
                         let mut delta = (a - s0 + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
-                        if snap { delta = snapf(delta, 15f32.to_radians()); }
+                        if snap { delta = snapf(delta, grid.turn.to_radians()); }
                         -delta.to_degrees()
                     }),
                 };
@@ -296,7 +299,7 @@ fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: b
                     (true, Some(v)) => Some(v),
                     _ => ray.and_then(|r| axis_param(h0, dir, r)).map(|s| {
                         let e = extent0 + (s - s0) * if shift { 2.0 } else { 1.0 };
-                        if snap { snapf(e, 0.25) } else { e }
+                        if snap { snapf(e, grid.step) } else { e }
                     }),
                 };
                 if let Some(e) = extent {
@@ -316,7 +319,7 @@ fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: b
                     (true, Some(v)) => Some(v),
                     _ => ray.and_then(|r| axis_param(h0, dir, r)).map(|s| {
                         let f = (l0 + s - s0) / l0;
-                        if snap { snapf(f, 0.05) } else { f }
+                        if snap { snapf(f, grid.scale) } else { f }
                     }),
                 };
                 if let Some(f) = factor {

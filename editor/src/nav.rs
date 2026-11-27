@@ -57,8 +57,9 @@ fn triangles(level: &Level, geo: &Geometry) -> TriMesh {
 fn insides(level: &Level) -> Vec<ConvexVolume> {
     level.parts.iter().filter(|p| counts(p) && matches!(p.shape, Shape::Box | Shape::Cylinder)).filter_map(|p| {
         let rot = Quat::from_array(p.rot);
-        if (rot * Vec3::Y).y < 0.999 { return None; }
         let (c, s) = (Vec3::from(p.pos), Vec3::from(p.size));
+        // upright: its top tips by no more than the precision across its width (else the box below is wrong)
+        if !level.precision().level((rot * Vec3::Y).y, s.x.max(s.z)) { return None; }
         let n = if p.shape == Shape::Box { 4 } else { 16 };
         let vertices = (0..n).map(|k| {
             let a = std::f32::consts::TAU * (k as f32 + 0.5) / n as f32;

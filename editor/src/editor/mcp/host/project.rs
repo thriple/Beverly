@@ -21,6 +21,7 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
             "undo_steps": ed.undo.len(),
             // "close enough" for the project (docs/orderliness.md): the same point, and touching
             "precision": {"same_point_m": settings::num(ed.level.precision().same()), "touching_m": settings::num(ed.level.precision().touching())},
+            "grid": {"move_m": settings::num(ed.level.grid().step), "scale": settings::num(ed.level.grid().scale), "turn_deg": settings::num(ed.level.grid().turn)},
             "redo_steps": ed.redo.len(),
             "change_stamp": ed.level.stamps().iter().max(),
             "testing": ed.testing.is_some(),

@@ -140,16 +140,17 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
         let Some(now) = ray.and_then(|r| plane.metres(r)) else { return true };
         let o = &d.orig;
         let (tile0, off0) = (Vec2::from(o.tile), Vec2::from(o.offset));
+        let by = ed.level.grid().scale;
         let step = |x: Vec2, by: f32| if snap { (x / by).round() * by } else { x };
         let (tile, offset) = match d.grip {
-            Grip::Slide => (tile0, step(off0 + now - d.start, 0.05)),
+            Grip::Slide => (tile0, step(off0 + now - d.start, by)),
             Grip::Corner(c) => {
                 // the opposite corner stays put
                 let copy = plane.copy(o);
                 let pin = copy[(c + 2) % 4];
                 let mut t = (now - pin).abs().max(Vec2::splat(0.05));
                 if shift { t = tile0 * (t / tile0).max_element(); }
-                let t = step(t, 0.05).max(Vec2::splat(0.05));
+                let t = step(t, by).max(Vec2::splat(by));
                 let k = ((plane.centre - off0) / tile0).floor();
                 let side = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0)][(c + 2) % 4];
                 (t, pin - (k + side) * t)

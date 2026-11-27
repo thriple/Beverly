@@ -277,6 +277,32 @@ impl Precision {
     /// Two parts this close touch (owner, 2026-11-26: 50 x the precision, 5 cm at the default: parts placed by hand
     /// on the 0.25 m grid rarely meet exactly).
     pub fn touching(self) -> f32 { self.0 * 50.0 }
+    /// Whether something whose up direction has this height (`up`, the y of a unit normal) is level over `length`
+    /// metres: its height changes by no more than the precision from one end to the other. Replaces a fixed angle,
+    /// which lets the far end of a long thing drift much further than a short one.
+    pub fn level(self, up: f32, length: f32) -> bool { up > 0.0 && (1.0 - up * up).max(0.0).sqrt() * length <= self.0 * up }
+}
+
+/// The snaps (`docs/orderliness.md`, C2): every snap in the editor reads its steps from [`Level::grid`]
+/// (owner, 2026-11-26: they stay as they are).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Grid {
+    /// Metres a move snaps to.
+    pub step: f32,
+    /// What a resize snaps to (metres, or a share of the size).
+    pub scale: f32,
+    /// Degrees a turn snaps to.
+    pub turn: f32,
+}
+
+impl Default for Grid {
+    fn default() -> Self { Grid { step: 0.25, scale: 0.05, turn: 15.0 } }
+}
+
+impl Grid {
+    /// How far a snap moves a point across a surface at most (half a step each way, x and z), the length over which a
+    /// surface must be level for the point to stay on it.
+    pub fn reach(self) -> f32 { self.step * std::f32::consts::FRAC_1_SQRT_2 }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -325,6 +351,14 @@ pub struct Level {
 impl Level {
     /// The project's "close enough" (see [`Precision`]).
     pub fn precision(&self) -> Precision { self.precision }
+
+    /// The snaps' steps (see [`Grid`]).
+    pub fn grid(&self) -> Grid { Grid::default() }
+
+    /// The walker profile (`docs/orderliness.md`, C2): how wide and tall the characters are, the highest step and the
+    /// steepest slope they walk up. The walker, the navigation area, Bucket's Floor and the pen's Ground lines all
+    /// read it from here, so a path never asks a character for a step it can't climb.
+    pub fn profile(&self) -> &Navigation { &self.navigation }
 
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {

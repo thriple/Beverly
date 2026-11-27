@@ -59,13 +59,14 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
             return false;
         }
         let Some(ray) = ray else { return true };
+        let grid = ed.level.grid();
         let step = |x: f32, by: f32| if snap { ((x / by).round() * by).max(by) } else { x };
         let mut q = p.clone();
         let light = q.light.as_mut().expect("a light");
         let text = match grip {
             Grip::Reach => {
                 let Some(at) = on_plane(ray, c, view.forward()) else { return true };
-                light.reach = step(at.distance(c).max(0.1), 0.25);
+                light.reach = step(at.distance(c).max(0.1), grid.step);
                 format!("Reach · {:.2} m", light.reach)
             }
             Grip::Tip => {
@@ -74,7 +75,7 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
                 let Some(at) = at.filter(|a| a.distance(c) > 0.1) else { return true };
                 q.rot = Quat::from_rotation_arc(Vec3::Y, (at - c).normalize()).to_array();
                 let light = q.light.as_mut().expect("a light");
-                light.reach = step(at.distance(c), 0.25);
+                light.reach = step(at.distance(c), grid.step);
                 format!("Aim · reach {:.2} m", light.reach)
             }
             Grip::Rim => {

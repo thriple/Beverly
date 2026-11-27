@@ -64,12 +64,12 @@ fn paths_of(level: &Level, c: &Curve, lines: impl Fn(&Curve) -> Option<Vec<Vec3>
 }
 
 /// The points the scatter puts items at: along the line in a band, over the ground inside it, or through the space above it.
-fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, paths: &[Vec<Vec3>], rng: &mut Rng, same: f32) -> Vec<Vec3> {
+fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, paths: &[Vec<Vec3>], rng: &mut Rng, same: f32, climb: f32) -> Vec<Vec3> {
     let spacing = sc.spacing.max(0.1);
     let up = c.path.up();
     // the ground at a spot, if the rules let an item land there: steep enough, high enough, on the right part, clear of paths and water
     let land = |at: Vec3, from: Vec3| -> Option<Vec3> {
-        let h = surface_hit(parts, geo, at, from, Stretch::Ground, up)?;
+        let h = surface_hit(parts, geo, at, from, Stretch::Ground, up, climb)?;
         let on = |t: Tag| h.part.and_then(|id| parts.iter().find(|q| q.id == id)).is_some_and(|q| q.tags.contains(&t));
         let clear = sc.clear <= 0.0 || (paths.iter().all(|l| off_line(l, h.point) >= sc.clear) && parts.iter().filter(|q| q.tags.contains(&Tag::Water)).all(|q| off_part(q, h.point) >= sc.clear));
         (sc.rules.on.is_none_or(on) && sc.rules.allows(h.normal.y, h.point.y) >= 0.5 && clear).then_some(h.point)
@@ -136,12 +136,12 @@ fn spots(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry,
 }
 
 /// The items of a scatter, one for each spot.
-fn made(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, paths: &[Vec<Vec3>], same: f32) -> Vec<Made> {
+fn made(c: &Curve, sc: &Scatter, line: &[Vert], parts: &[Part], geo: &Geometry, paths: &[Vec<Vec3>], same: f32, climb: f32) -> Vec<Made> {
     if sc.items.is_empty() { return vec![]; }
     let mut rng = Rng((sc.seed as u64).wrapping_mul(0x2545_F491_4F6C_DD1D) ^ c.id);
     let total: f32 = sc.items.iter().map(|i| i.weight.max(0.0)).sum();
     let mut out = vec![];
-    for (n, ground) in spots(c, sc, line, parts, geo, paths, &mut rng, same).into_iter().enumerate() {
+    for (n, ground) in spots(c, sc, line, parts, geo, paths, &mut rng, same, climb).into_iter().enumerate() {
         // which item, by share
         let mut pick = rng.next() * if total > 0.0 { total } else { sc.items.len() as f32 };
         let item = sc.items.iter().find(|i| { pick -= if total > 0.0 { i.weight.max(0.0) } else { 1.0 }; pick < 0.0 }).unwrap_or(&sc.items[0]);
@@ -188,9 +188,10 @@ pub fn grow(level: &mut Level, geo: &Geometry) {
     level.parts.retain(|p| p.scatter.is_none());
     for c in level.curves.clone().iter() {
         let Some(sc) = c.scatter.as_ref() else { continue };
-        let lay = |o: &Curve| Some(o.laid(|p, from, s| surface(&level.parts, geo, p, from, s, o.path.up())).iter().map(|v| v.at).collect::<Vec<_>>());
-        let line = c.laid(|p, from, s| surface(&level.parts, geo, p, from, s, c.path.up()));
-        for m in made(c, sc, &line, &level.parts, geo, &paths_of(level, c, lay), level.precision().same()) { level.add(part(&m, c.id)); }
+        let climb = level.profile().climb(level.precision());
+        let lay = |o: &Curve| Some(o.laid(|p, from, s| surface(&level.parts, geo, p, from, s, o.path.up(), climb)).iter().map(|v| v.at).collect::<Vec<_>>());
+        let line = c.laid(|p, from, s| surface(&level.parts, geo, p, from, s, c.path.up(), climb));
+        for m in made(c, sc, &line, &level.parts, geo, &paths_of(level, c, lay), level.precision().same(), climb) { level.add(part(&m, c.id)); }
     }
 }
 
@@ -227,7 +228,7 @@ pub fn scatters(ed: &mut Editor) {
         let now = h.finish();
         if pen.scattered.get(&c.id) == Some(&now) { continue; }
         pen.scattered.insert(c.id, now);
-        let want = made(c, sc, line, &level.parts, geo, &paths, level.precision().same());
+        let want = made(c, sc, line, &level.parts, geo, &paths, level.precision().same(), level.profile().climb(level.precision()));
         let have: Vec<u64> = level.parts.iter().filter(|p| p.scatter == Some(c.id)).map(|p| p.id).collect();
         let same = have.len() == want.len() && have.iter().zip(&want).all(|(id, m)| level.get(*id).is_some_and(|p| matches(p, m)));
         if same { continue; }
@@ -254,6 +255,8 @@ mod tests {
     use crate::level::Shape;
 
     const SAME: f32 = 0.001;
+    /// The default walker profile's step (0.45 m) and touching (5 cm).
+    const CLIMB: f32 = 0.5;
 
     fn floor() -> Vec<Part> {
         let mut p = Part::placed(Shape::Plane, None, "Floor".into(), [0.0, 0.05, 0.0], [0.0, 0.0, 0.0, 1.0], [40.0, 0.1, 40.0]);
@@ -271,14 +274,14 @@ mod tests {
         let c = curve(&[(-10.0, 0.0), (10.0, 0.0)], false, sc.clone());
         let line = c.laid(|_, _, _| None);
         let (parts, geo) = (floor(), Geometry::default());
-        let a = made(&c, &sc, &line, &parts, &geo, &[], SAME);
+        let a = made(&c, &sc, &line, &parts, &geo, &[], SAME, CLIMB);
         assert!(a.len() >= 8 && a.len() <= 14, "about one a spacing along 20 m: {}", a.len());
         assert!(a.iter().all(|m| m.pos.z.abs() <= 2.05 && m.pos.x.abs() <= 10.5), "inside the band");
         assert!(a.iter().all(|m| m.pos.y > 0.1 && m.pos.y < 1.5), "on the floor, not floating or buried: {:?}", a.iter().map(|m| m.pos.y).collect::<Vec<_>>());
-        let b = made(&c, &sc, &line, &parts, &geo, &[], SAME);
+        let b = made(&c, &sc, &line, &parts, &geo, &[], SAME, CLIMB);
         assert!(a.iter().zip(&b).all(|(x, y)| x.pos == y.pos && x.size == y.size && x.name == y.name), "the same every time");
         let other = Scatter { seed: 2.0, ..sc.clone() };
-        let d = made(&c, &other, &line, &parts, &geo, &[], SAME);
+        let d = made(&c, &other, &line, &parts, &geo, &[], SAME, CLIMB);
         assert!(a.iter().zip(&d).any(|(x, y)| x.pos != y.pos), "another seed, another layout");
     }
 
@@ -288,7 +291,7 @@ mod tests {
         sc.items[0].weight = 0.0;
         let c = curve(&[(-6.0, -6.0), (6.0, -6.0), (6.0, 6.0), (-6.0, 6.0)], true, sc.clone());
         let line = c.laid(|_, _, _| None);
-        let a = made(&c, &sc, &line, &floor(), &Geometry::default(), &[], SAME);
+        let a = made(&c, &sc, &line, &floor(), &Geometry::default(), &[], SAME, CLIMB);
         assert!(a.len() >= 20 && a.len() <= 50, "about a 12 m square over 2 m: {}", a.len());
         assert!(a.iter().all(|m| m.pos.x.abs() <= 6.0 && m.pos.z.abs() <= 6.0));
         assert!(a.iter().all(|m| !m.name.starts_with("Stump")), "the stump has no share");
@@ -322,7 +325,7 @@ mod tests {
         let sc = Scatter { place: Place::Volume, spacing: 2.0, height: 8.0, spin: 30.0, drift: 2.0, ..Default::default() };
         let c = curve(&square, true, sc.clone());
         let line = c.laid(|_, _, _| None);
-        let a = made(&c, &sc, &line, &[], &Geometry::default(), &[], SAME);
+        let a = made(&c, &sc, &line, &[], &Geometry::default(), &[], SAME, CLIMB);
         assert!(a.len() >= 200 && a.len() <= 400, "a 16 x 16 x 8 m space over 2 m cubes: {}", a.len());
         assert!(a.iter().all(|m| m.pos.x.abs() <= 8.0 && m.pos.z.abs() <= 8.0 && m.pos.y >= 0.1 && m.pos.y <= 8.1), "inside the space");
         assert!(a.iter().any(|m| m.pos.y > 6.0) && a.iter().any(|m| m.pos.y < 2.0), "all the way up");
@@ -331,12 +334,12 @@ mod tests {
         assert!(a.iter().all(|m| m.mover.as_ref().is_some_and(|v| v.spin.iter().all(|s| s.abs() <= 30.0) && v.drift.iter().all(|d| d.abs() <= 2.0))));
         // falloff takes the ones at the edge: the middle keeps its thickness
         let soft = Scatter { falloff: 1.0, ..sc.clone() };
-        let b = made(&c, &soft, &line, &[], &Geometry::default(), &[], SAME);
+        let b = made(&c, &soft, &line, &[], &Geometry::default(), &[], SAME, CLIMB);
         let edge = |v: &[Made]| v.iter().filter(|m| m.pos.x.abs() > 6.0 || m.pos.z.abs() > 6.0 || m.pos.y > 6.0 || m.pos.y < 2.0).count() as f32 / v.len() as f32;
         assert!(b.len() < a.len() && edge(&b) < edge(&a) * 0.7, "thinner at the edge: {} of {} vs {} of {}", edge(&b), b.len(), edge(&a), a.len());
         // one that doesn't move has no mover, and the ground layouts are as before
         let still = Scatter { spin: 0.0, drift: 0.0, ..sc };
-        assert!(made(&c, &still, &line, &[], &Geometry::default(), &[], SAME).iter().all(|m| m.mover.is_none()));
+        assert!(made(&c, &still, &line, &[], &Geometry::default(), &[], SAME, CLIMB).iter().all(|m| m.mover.is_none()));
     }
 
     #[test]
@@ -345,7 +348,7 @@ mod tests {
         let c = curve(&[(-10.0, 0.0), (10.0, 0.0)], false, sc.clone());
         let line = c.laid(|_, _, _| None);
         let (parts, geo) = (floor(), Geometry::default());
-        let count = |sc: &Scatter, parts: &[Part], paths: &[Vec<Vec3>]| made(&c, sc, &line, parts, &geo, paths, SAME).len();
+        let count = |sc: &Scatter, parts: &[Part], paths: &[Vec<Vec3>]| made(&c, sc, &line, parts, &geo, paths, SAME, CLIMB).len();
         let all = count(&sc, &parts, &[]);
         assert!(all > 10);
         // the height band: the floor's top is at 0.1 m
@@ -362,14 +365,14 @@ mod tests {
         // keep clear of a path along the line itself, and of water
         let clear = Scatter { clear: 2.0, ..sc.clone() };
         let path = vec![vec![Vec3::new(-10.0, 0.1, 0.0), Vec3::new(10.0, 0.1, 0.0)]];
-        let off = made(&c, &clear, &line, &parts, &geo, &path, SAME);
+        let off = made(&c, &clear, &line, &parts, &geo, &path, SAME, CLIMB);
         assert!(!off.is_empty() && off.len() < all && off.iter().all(|m| m.pos.z.abs() >= 2.0 - 1e-3), "none within 2 m of the path: {:?}", off.iter().map(|m| m.pos.z).fold(9.0f32, |a, b| a.min(b.abs())));
         let mut wet = parts.clone();
         let mut pond = Part::placed(Shape::Box, None, "Pond".into(), [5.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0], [4.0, 0.1, 4.0]);
         pond.id = 2;
         pond.tags.push(Tag::Water);
         wet.push(pond);
-        let near_pond = made(&c, &clear, &line, &wet, &geo, &[], SAME);
+        let near_pond = made(&c, &clear, &line, &wet, &geo, &[], SAME, CLIMB);
         assert!(!near_pond.is_empty() && near_pond.iter().all(|m| (m.pos.x - 5.0).abs() >= 2.0 || m.pos.z.abs() >= 2.0 + 2.0 - 1e-3 || { let (dx, dz) = ((m.pos.x - 5.0).abs() - 2.0, m.pos.z.abs() - 2.0); dx.max(0.0).hypot(dz.max(0.0)) >= 2.0 - 1e-3 }));
     }
 

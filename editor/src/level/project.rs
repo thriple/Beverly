@@ -174,6 +174,18 @@ mod precision_tests {
     use super::*;
 
     #[test]
+    fn level_is_judged_over_a_length_not_by_a_fixed_angle() {
+        let p = Precision::default();
+        let tilt = |deg: f32| deg.to_radians().cos();
+        // 0.05° tips 0.87 mm over a metre: level over a metre, not over ten
+        assert!(p.level(tilt(0.05), 1.0) && !p.level(tilt(0.05), 10.0));
+        assert!(p.level(1.0, 1000.0) && !p.level(0.0, 0.0) && !p.level(-1.0, 1.0));
+        // the snap's reach on the default grid (0.18 m): a surface tipped 0.999 (2.6°) would leave a snapped point 8 mm off it
+        let reach = Grid::default().reach();
+        assert!(!p.level(0.999, reach) && p.level(tilt(0.3), reach));
+    }
+
+    #[test]
     fn precision_is_kept_by_the_project_only_when_it_isnt_the_default() {
         let dir = std::env::temp_dir().join(format!("beverly-precision-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);

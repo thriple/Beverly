@@ -42,18 +42,19 @@ impl Default for Lighting {
 
 pub const NAVIGATION: &str = "NAVIGATION";
 
-/// Who the level's navigation area is for: the size of the characters that walk it (enemies) and what they climb.
+/// The level's walker profile ([`Level::profile`]): the size of the characters that walk it (the walker you play, and
+/// those that walk on their own along the navigation area) and what they climb.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Reflect)]
 #[reflect(Default)]
 #[serde(default)]
 pub struct Navigation {
-    #[reflect(@Setting::number("Width", "m", 0.05, 0.1, 10.0).section(NAVIGATION).help("How wide the characters are: they keep this far from walls"))]
+    #[reflect(@Setting::number("Width", "m", 0.05, 0.1, 10.0).section(NAVIGATION).help("How wide the characters are, the walker you play too: they keep this far from walls"))]
     pub width: f32,
     #[reflect(@Setting::number("Height", "m", 0.05, 0.2, 20.0).section(NAVIGATION).help("How tall they are: they don't go where it is lower"))]
     pub height: f32,
-    #[reflect(@Setting::number("Step", "m", 0.05, 0.0, 5.0).section(NAVIGATION).help("The highest step they walk up"))]
+    #[reflect(@Setting::number("Step", "m", 0.05, 0.0, 5.0).section(NAVIGATION).help("The highest step they walk up (and the pen's Ground lines climb, and Bucket's Floor reaches)"))]
     pub step: f32,
-    #[reflect(@Setting::number("Slope", "°", 1.0, 0.0, 89.0).section(NAVIGATION).help("The steepest slope they walk up"))]
+    #[reflect(@Setting::number("Slope", "°", 1.0, 0.0, 89.0).section(NAVIGATION).help("The steepest slope they walk up (and Bucket's Floor paints); steeper, the walker slides"))]
     pub slope: f32,
 }
 
@@ -63,6 +64,11 @@ impl Default for Navigation {
 
 impl Navigation {
     pub(super) fn is_default(&self) -> bool { *self == Navigation::default() }
+    /// The least a surface's normal points up and still counts as walkable.
+    pub fn up(&self) -> f32 { self.slope.clamp(0.0, 89.0).to_radians().cos() }
+    /// How high a line laid on the ground climbs onto the next surface: a step, and touching over it so a step of
+    /// exactly that is met.
+    pub fn climb(&self, precision: Precision) -> f32 { self.step + precision.touching() }
 }
 
 impl Lighting {

@@ -44,6 +44,13 @@ These aren't tolerances, but they're the same kind of trouble: one idea, several
 | Grid snap | 0.25 m, written five times (`interact.rs` ×3, `pen.rs` ×2); scale snap 0.05; turn snap 15° |
 | Walker width | the walker's capsule radius 0.4 · Navigation `width` 0.8 (agrees, by hand) |
 
+**Stage 3 (2026-11-27):** these are now one number each. The level's Navigation settings are its **walker profile**
+(`Level::profile`): the walker's body (capsule width, how high it floats, so the step it climbs, its top, and tnua's
+`max_slope`, which was 90° before), navigation, Bucket's Floor (walkable = the profile's slope; "the same floor" =
+within a step) and the pen's Ground lines (climb = step + touching, 0.50 m, was 0.52) all read it. The snaps read
+`Level::grid` (move 0.25 m, scale 0.05, turn 15°; the light's reach and the texture handles too; the light's cone
+keeps its own 5° step). "Level" for the snaps and "upright" for navigation are `Precision::level` over a length.
+
 **3. Display and quality allowances (about pixels and looks, not data)**
 
 The bucket outline's lift off a face (0.01 m) · the paint shader's soft edges (slope ±0.03, height ±0.05) · the
@@ -103,7 +110,7 @@ each other's fields.
 | 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | open, confirmed by a test (stage 1): an item moved to (0, 0.1, 15) went back to (−9, 0.2, 1.4) when the ground changed (`…a_moved_scattered_item_becomes_the_users_own…`, ignored until stage 4) |
 | 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | open, timed (A4): 10.7 s on the big level |
 | 5 | A fill outline was stored in world coordinates and broke on a moving part | pen fill vs hierarchy | fixed 2026-11-20 |
-| 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | open (by reading; a walker can fail a step the path uses, or the reverse) |
+| 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | fixed 2026-11-27 (stage 3): the walker's body and slope come from the walker profile; test `the_walkers_body_is_the_walker_profile` |
 | 7 | The paint and grass draw one frame behind a fill | `paint` and `grass` run before `commit` in the chain | cosmetic |
 
 ### A4. Slow paths (timed 2026-11-26, stage 1)
@@ -277,7 +284,7 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
    A3-4 that fail.
 2. **One pipeline and one tolerance** (done 2026-11-26): every edit through `Editor::commit` with steps 1 to 4 inside it (fixes
    A3-3); `precision` in the project with one accessor; the dedup and follow checks on it.
-3. **Shared numbers:** the walker profile and the grid, each read from one place (fixes A3-6); level and upright
+3. **Shared numbers** (done 2026-11-27): the walker profile and the grid, each read from one place (fixes A3-6); level and upright
    tests that use length; Bucket's floor band and touching derived.
 4. **Ownership enforced:** a test per rule ("a fill never changes a hand-painted stroke", "scatter never moves a
    part it doesn't own", "an instance question never sees generated strokes"); editing a generated item turns it
@@ -325,3 +332,5 @@ Owner's decisions, newest first. A later one that contradicts an earlier one mar
 - **Open, default in use: the walker profile (C2).** The owner hasn't worked with the walker, navigation or the
   pen's Ground stretch yet. Until decided, one shared profile is used (so a path never asks a character for a step
   it can't climb), with a character file able to override it for that character later.
+  Built in stage 3 (2026-11-27) as the level's Navigation settings; changing it is one place if the owner decides
+  otherwise.
