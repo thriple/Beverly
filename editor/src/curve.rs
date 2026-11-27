@@ -225,6 +225,11 @@ pub struct Scatter {
     pub rules: crate::level::Rules,
     #[reflect(ignore)]
     pub items: Vec<Item>,
+    /// The spots the user took over (an item moved, changed or deleted by hand), by their place in the scatter's
+    /// order: their items are the user's own parts now, and the scatter makes nothing there again.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[reflect(ignore)]
+    pub taken: Vec<u32>,
 }
 
 impl Default for Scatter {
@@ -232,7 +237,7 @@ impl Default for Scatter {
         let item = |name: &str, shape, size: [f32; 3], colour: [f32; 3], weight: f32, on_side| Item { name: name.into(), shape, size, colour, weight, on_side };
         use crate::level::Shape;
         Scatter {
-            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, height: 6.0, falloff: 0.0, spin: 0.0, drift: 0.0, clear: 0.0, rules: Default::default(), seed: 1.0,
+            place: Place::Along, spacing: 3.0, band: 4.0, size_var: 0.4, tilt: 10.0, sink: 0.15, height: 6.0, falloff: 0.0, spin: 0.0, drift: 0.0, clear: 0.0, rules: Default::default(), seed: 1.0, taken: vec![],
             items: vec![
                 item("Stump", Shape::Cylinder, [0.7, 0.5, 0.7], [0.42, 0.3, 0.2], 1.0, false),
                 item("Log", Shape::Cylinder, [0.4, 2.0, 0.4], [0.38, 0.27, 0.18], 1.0, true),

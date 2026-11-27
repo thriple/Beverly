@@ -370,11 +370,14 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
 impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one), with everything it causes. Every
     /// edit comes through here (the panels, the handles, keys, the MCP), and the steps after it run in the written
-    /// order (`docs/orderliness.md`, C3), each changing only what it owns: attached parts follow their parent; the
+    /// order (`docs/orderliness.md`, C3), each changing only what it owns: a scattered item edited by hand becomes the
+    /// user's own; attached parts follow their parent; the
     /// pen's scatters make their items again; the pen's strips and fills, then the bucket fills, make their strokes
     /// again; then the whole change is one undo step. A change to a part's contents that its instances didn't get
     /// asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
+        let took = super::scatter::take_over(self);
+        if took > 0 { self.island.show("✋", if took == 1 { "Turned into an item".into() } else { format!("Turned {took} into items") }, "Edited by hand, so the curve no longer makes it", Tone::Accent); }
         if self.level.parts.stamp() != self.followed { self.follow(); }
         pen::lay(self);
         super::scatter::scatters(self);
@@ -491,6 +494,39 @@ mod tests {
         ed.level.get_mut(a).unwrap().color = [1.0, 0.0, 0.0];
         ed.commit();
         assert_eq!(ed.ask, Some((a, vec![c])));
+    }
+
+    /// Orderliness (C3): the generated strokes (step 4: pen fills, then bucket fills) never change a stroke painted by
+    /// hand or its place among them, and the instances question (step 2) never sees the generated ones.
+    #[test]
+    fn generated_strokes_never_touch_hand_painted_ones_and_copies_dont_see_them() {
+        use crate::level::{Bucket, Fills, Stroke};
+        let mut ed = Editor::at(std::env::temp_dir());
+        let moss = "assets/materials/moss.bev".to_string();
+        ed.level.materials.insert(moss.clone(), Default::default());
+        let dab = Stroke { material: moss.clone(), size: 0.5, hardness: 1.0, strength: 1.0, points: vec![[0.2, 1.0, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None };
+        let boxed = |x: f32| { let mut p = Part::placed(Shape::Box, None, format!("Box {x}"), [x, 1.0, 0.0], Quat::IDENTITY.to_array(), [2.0; 3]); p.strokes = vec![dab.clone(), Stroke { points: vec![[-0.3, 1.0, 0.2]], ..dab.clone() }]; p };
+        let (a, b) = (ed.level.add(boxed(0.0)), ed.level.add(boxed(6.0)));
+        ed.commit();
+        assert_eq!(ed.level.instances(a), vec![b], "copies");
+        // a pen fill over a's top, and a bucket fill of a
+        let c = ed.level.add_curve([(-0.8, -0.8), (0.8, -0.8), (0.8, 0.8), (-0.8, 0.8)].iter().map(|(x, z)| crate::curve::PenPoint::corner(Vec3::new(*x, 2.0, *z))).collect(), true);
+        ed.level.curve_mut(c).unwrap().fill = Some(crate::curve::Fill { material: moss.clone(), feather: 0.2, strength: 1.0 });
+        bucket::add(&mut ed, Bucket { id: 0, part: a, face: Some(2), at: [0.0, 1.0, 0.0], fills: Fills::Part, tolerance: 0.0, tag: None, connected: false, material: moss.clone(), strength: 0.5, lays: Default::default() });
+        ed.commit();
+        let hand = |ed: &Editor| ed.level.get(a).unwrap().strokes.iter().filter(|s| s.curve.is_none() && s.bucket.is_none()).cloned().collect::<Vec<_>>();
+        let strokes = &ed.level.get(a).unwrap().strokes;
+        assert!(strokes.iter().any(|s| s.curve == Some(c)) && strokes.iter().any(|s| s.bucket.is_some()), "both made strokes: {strokes:?}");
+        assert_eq!(&strokes[..2], &boxed(0.0).strokes[..], "the hand-painted ones first, as they were");
+        assert!(ed.ask.is_none(), "the copies question doesn't see made strokes");
+        // move a and the curve: both fills are made again; the hand-painted strokes are untouched
+        ed.level.get_mut(a).unwrap().pos[0] = 0.5;
+        ed.level.curve_mut(c).unwrap().points[0].at[0] = -0.6;
+        ed.commit();
+        assert_eq!(hand(&ed), boxed(0.0).strokes);
+        assert_eq!(&ed.level.get(a).unwrap().strokes[..2], &boxed(0.0).strokes[..]);
+        assert!(ed.ask.is_none());
+        assert_eq!(ed.level.instances(a), vec![b], "still copies");
     }
 
     /// Orderliness stage 1 (docs/orderliness.md, A4): how long each step after an edit takes on a big level. Run by

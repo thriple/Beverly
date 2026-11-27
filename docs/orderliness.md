@@ -107,7 +107,7 @@ each other's fields.
 | 1 | A bucket fill on copied floors asked "Change all, or make this one Unique?" | the instances step compared strokes the bucket step owns | fixed 2026-11-22: copies compare hand-painted strokes only |
 | 2 | An MCP change and the fill strokes it caused were two undo steps | `bucket::fills` ran outside the commit | fixed 2026-11-22: moved into `Editor::commit` |
 | 3 | **An MCP change that moves ground under a pen curve or a scatter makes more than one undo step** | 22 places in the MCP tools called `Editor::commit` directly; only the paint tools called `pen::strips` and `scatters` first, so the frame's `commit` made the strips and items again as further steps | fixed 2026-11-26 (stage 2): every edit goes through `Editor::commit`, which runs the steps in order; test `a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too`, and checked live through the MCP |
-| 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | open, confirmed by a test (stage 1): an item moved to (0, 0.1, 15) went back to (−9, 0.2, 1.4) when the ground changed (`…a_moved_scattered_item_becomes_the_users_own…`, ignored until stage 4) |
+| 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | fixed 2026-11-27 (stage 4): an item edited (other than its tags) or deleted by hand is taken over in step 0: it becomes an ordinary part, the island says so, and the scatter leaves its spot empty (`Scatter::taken`, saved); test `a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put`, and checked live through the MCP |
 | 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | open, timed (A4): 10.7 s on the big level |
 | 5 | A fill outline was stored in world coordinates and broke on a moving part | pen fill vs hierarchy | fixed 2026-11-20 |
 | 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | fixed 2026-11-27 (stage 3): the walker's body and slope come from the walker profile; test `the_walkers_body_is_the_walker_profile` |
@@ -221,6 +221,19 @@ what each step owns:
 item), the editor doesn't silently revert it later. It does the nearest thing and says so: the item becomes the
 user's own ("Turned into an item: it no longer follows the curve"), as Turn into items does now.
 
+**Stage 4 (2026-11-27), how it is held:** `scatter::take_over` runs first in `Editor::commit`, as part of the user's
+edit. It compares the scattered items with the last undo step: an item changed (other than its tags, which the user
+may always set) or deleted becomes the user's, and its spot number goes into `Scatter::taken`, so the scatter, the
+game and a level opened again make nothing there. The spot numbers follow the scatter's order: after the curve or
+its settings change, a taken number leaves some other spot empty, never puts an item back over the user's. Undo
+takes the whole thing back. A test for each rule:
+
+| Rule | Test |
+|---|---|
+| Step 3 never undoes the user's edit of an item | `scatter::a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put` |
+| Step 3 never changes a part it doesn't own | `scatter::a_scatter_never_moves_a_part_it_doesnt_own` |
+| Step 4 never changes a hand-painted stroke or its place; step 2 never sees generated strokes | `edit::generated_strokes_never_touch_hand_painted_ones_and_copies_dont_see_them` |
+
 ### C4. Who owns what, for the systems to come
 
 Each shared thing from Part B gets one owner and a written precedence. Features plug into these; a new one says
@@ -286,7 +299,7 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
    A3-3); `precision` in the project with one accessor; the dedup and follow checks on it.
 3. **Shared numbers** (done 2026-11-27): the walker profile and the grid, each read from one place (fixes A3-6); level and upright
    tests that use length; Bucket's floor band and touching derived.
-4. **Ownership enforced:** a test per rule ("a fill never changes a hand-painted stroke", "scatter never moves a
+4. **Ownership enforced** (done 2026-11-27): a test per rule ("a fill never changes a hand-painted stroke", "scatter never moves a
    part it doesn't own", "an instance question never sees generated strokes"); editing a generated item turns it
    into the user's own, with a warning (fixes A3-4).
 5. **The setting:** Precision with presets in project settings, its warning for odd scales, old projects keeping

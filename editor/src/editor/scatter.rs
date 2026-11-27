@@ -9,6 +9,7 @@ use crate::curve::{Curve, Place, Scatter, Stretch, Vert};
 use crate::level::{Level, Mover, Part, Tag};
 use crate::world::Geometry;
 use bevy::prelude::*;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 /// The most items one scatter makes.
@@ -191,7 +192,7 @@ pub fn grow(level: &mut Level, geo: &Geometry) {
         let climb = level.profile().climb(level.precision());
         let lay = |o: &Curve| Some(o.laid(|p, from, s| surface(&level.parts, geo, p, from, s, o.path.up(), climb)).iter().map(|v| v.at).collect::<Vec<_>>());
         let line = c.laid(|p, from, s| surface(&level.parts, geo, p, from, s, c.path.up(), climb));
-        for m in made(c, sc, &line, &level.parts, geo, &paths_of(level, c, lay), level.precision().same(), climb) { level.add(part(&m, c.id)); }
+        for m in kept(sc, made(c, sc, &line, &level.parts, geo, &paths_of(level, c, lay), level.precision().same(), climb)) { level.add(part(&m, c.id)); }
     }
 }
 
@@ -204,6 +205,53 @@ pub fn turn_into_items(ed: &mut Editor, curve: u64) -> usize {
     let mut n = 0;
     for p in ed.level.parts.iter_mut().filter(|p| p.scatter == Some(curve)) { p.scatter = None; n += 1; }
     n
+}
+
+/// The user's edit of a scattered item takes it over (owner, 2026-11-26): an item moved, changed, hidden or deleted
+/// since the last step becomes an ordinary part (deleted, it stays gone), and its scatter leaves that spot empty from
+/// now on (`Scatter::taken`), so no later remake undoes the edit. Its tags are the user's to change either way.
+/// `Editor::commit` calls it first, as part of the user's edit (step 0 of `docs/orderliness.md` C3), and says so in
+/// the island. Returns how many it took over.
+pub fn take_over(ed: &mut Editor) -> usize {
+    let Editor { level, committed, .. } = ed;
+    if level.parts.stamp() == committed.parts.stamp() || !level.curves.iter().any(|c| c.scatter.is_some()) { return 0; }
+    let live: Vec<u64> = level.curves.iter().filter(|c| c.scatter.is_some()).map(|c| c.id).collect();
+    let now: HashMap<u64, &Part> = level.parts.iter().filter(|p| p.scatter.is_some()).map(|p| (p.id, p)).collect();
+    // (curve, the item's place among the curve's items, the part if it is still there)
+    let mut taken: Vec<(u64, usize, Option<u64>)> = vec![];
+    let mut seen: HashMap<u64, usize> = HashMap::new();
+    for p in committed.parts.iter() {
+        let Some(c) = p.scatter.filter(|c| live.contains(c)) else { continue };
+        let k = seen.entry(c).or_default();
+        let i = *k;
+        *k += 1;
+        match now.get(&p.id) {
+            Some(q) if q.scatter == Some(c) => {
+                let edited = *q != p && { let mut q = (*q).clone(); q.tags = p.tags.clone(); q != *p };
+                if edited { taken.push((c, i, Some(p.id))); }
+            }
+            Some(_) => {}
+            None => taken.push((c, i, None)),
+        }
+    }
+    if taken.is_empty() { return 0; }
+    // an item's place among those made is its spot once the spots already taken are skipped
+    let spots: Vec<(u64, u32)> = taken.iter().filter_map(|(c, i, _)| {
+        let sc = level.curve(*c)?.scatter.as_ref()?;
+        Some((*c, (0u32..).filter(|n| !sc.taken.contains(n)).nth(*i)?))
+    }).collect();
+    for (c, n) in spots {
+        if let Some(sc) = level.curve_mut(c).and_then(|c| c.scatter.as_mut()) { sc.taken.push(n); sc.taken.sort_unstable(); }
+    }
+    for id in taken.iter().filter_map(|t| t.2) {
+        if let Some(p) = level.get_mut(id) { p.scatter = None; }
+    }
+    taken.len()
+}
+
+/// The items a scatter makes: one for each spot not taken over by the user.
+fn kept(sc: &Scatter, made: Vec<Made>) -> Vec<Made> {
+    made.into_iter().enumerate().filter(|(n, _)| !sc.taken.contains(&(*n as u32))).map(|(_, m)| m).collect()
 }
 
 /// Make each curve's scattered items again where the curve, its scatter or the ground changed, and take away those of
@@ -224,11 +272,12 @@ pub fn scatters(ed: &mut Editor) {
         (curve_stamp(c, world), sc.place as u8, [sc.spacing, sc.band, sc.size_var, sc.tilt, sc.sink, sc.height, sc.falloff, sc.spin, sc.drift, sc.clear, sc.seed].map(f32::to_bits)).hash(&mut h);
         (sc.rules.slope.to_bits(), sc.rules.band.map(|b| b.map(f32::to_bits)), sc.rules.on.map(|t| t as u8)).hash(&mut h);
         for l in &paths { for v in l { v.to_array().map(f32::to_bits).hash(&mut h); } }
+        sc.taken.hash(&mut h);
         for i in &sc.items { (&i.name, i.shape as u8, i.size.map(f32::to_bits), i.colour.map(f32::to_bits), i.weight.to_bits(), i.on_side).hash(&mut h); }
         let now = h.finish();
         if pen.scattered.get(&c.id) == Some(&now) { continue; }
         pen.scattered.insert(c.id, now);
-        let want = made(c, sc, line, &level.parts, geo, &paths, level.precision().same(), level.profile().climb(level.precision()));
+        let want = kept(sc, made(c, sc, line, &level.parts, geo, &paths, level.precision().same(), level.profile().climb(level.precision())));
         let have: Vec<u64> = level.parts.iter().filter(|p| p.scatter == Some(c.id)).map(|p| p.id).collect();
         let same = have.len() == want.len() && have.iter().zip(&want).all(|(id, m)| level.get(*id).is_some_and(|p| matches(p, m)));
         if same { continue; }
@@ -394,12 +443,8 @@ mod tests {
     }
 
     /// What the editor does each frame once nothing is being dragged (`edit::commit`), with the curves laid first.
-    fn frame(ed: &mut Editor) {
-        super::super::pen::lay(ed);
-        super::super::pen::strips(ed);
-        scatters(ed);
-        ed.commit();
-    }
+    /// What a frame does with the level: every step, in order, through the one pipeline.
+    fn frame(ed: &mut Editor) { ed.commit(); }
 
     fn scattered_floor() -> (Editor, u64) {
         let mut ed = Editor::at(std::env::temp_dir());
@@ -426,19 +471,68 @@ mod tests {
     }
 
     // Orderliness (A3-4, owner 2026-11-26): editing a scattered item makes it the user's own (with a warning); the
-    // scatter never puts it back. Fails until ownership is enforced (stage 4).
+    // scatter never puts it back, nor makes another in its place. Step 0 owns the user's edit; step 3 may not undo it.
     #[test]
-    #[ignore = "orderliness stage 4: a generated item edited becomes the user's own"]
     fn a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put() {
         let (mut ed, curve) = scattered_floor();
-        let item = ed.level.parts.iter().find(|p| p.scatter == Some(curve)).unwrap().id;
+        let ours = |ed: &Editor| ed.level.parts.iter().filter(|p| p.scatter == Some(curve)).map(|p| p.id).collect::<Vec<_>>();
+        let n = ours(&ed).len();
+        assert!(n > 4, "{n}");
+        // changing only its tags isn't taking it over
+        let first = ours(&ed)[0];
+        ed.level.get_mut(first).unwrap().tags.push(Tag::Diggable);
+        frame(&mut ed);
+        assert_eq!(ed.level.get(first).unwrap().scatter, Some(curve));
+        // move the third
+        let item = ours(&ed)[2];
+        let was = ed.level.get(item).unwrap().pos;
         ed.level.get_mut(item).unwrap().pos = [0.0, 0.1, 15.0];
         frame(&mut ed);
+        assert!(ed.island.history().back().is_some_and(|h| h.starts_with("Turned into an item")), "it says so: {:?}", ed.island.history().back());
+        assert_eq!(ed.level.curve(curve).unwrap().scatter.as_ref().unwrap().taken, vec![2]);
+        assert_eq!(ours(&ed).len(), n - 1);
+        // delete the first (with its tag): it stays gone
+        ed.level.remove_part(first);
+        frame(&mut ed);
+        assert_eq!(ed.level.curve(curve).unwrap().scatter.as_ref().unwrap().taken, vec![0, 2]);
         // the ground changes, so the scatter is made again
         ed.level.get_mut(1).unwrap().size[0] = 39.0;
         frame(&mut ed);
         let p = ed.level.get(item).expect("still there");
         assert_eq!(p.pos, [0.0, 0.1, 15.0], "where the user put it");
         assert!(p.scatter.is_none(), "the user's own now");
+        assert_eq!(ours(&ed).len(), n - 2, "nothing made again in the spots taken");
+        assert!(ed.level.parts.iter().all(|q| q.pos != was || q.id == item), "nothing new where it was");
+        // a level opened again (the game, or the editor) makes the same
+        let mut opened = ed.level.clone();
+        grow(&mut opened, &ed.geo);
+        assert_eq!(opened.parts.iter().filter(|p| p.scatter == Some(curve)).count(), n - 2);
+        // undo the ground, the delete and the move: the item is the scatter's again, where it was
+        ed.undo();
+        ed.undo();
+        ed.undo();
+        frame(&mut ed);
+        assert!(ed.level.curve(curve).unwrap().scatter.as_ref().unwrap().taken.is_empty());
+        assert_eq!(ed.level.get(item).unwrap().scatter, Some(curve));
+        assert_eq!(ed.level.get(item).unwrap().pos, was);
     }
+
+    // Orderliness (C3, step 3 never changes any other part): a part of the user's standing where items go is left as it is.
+    #[test]
+    fn a_scatter_never_moves_a_part_it_doesnt_own() {
+        let (mut ed, curve) = scattered_floor();
+        let id = ed.level.add(Part::placed(Shape::Box, None, "Rock".into(), [1.0, 0.6, 0.5], [0.0, 0.0, 0.0, 1.0], [1.0; 3]));
+        frame(&mut ed);
+        let rock = ed.level.get(id).unwrap().clone();
+        // remake the scatter several ways
+        ed.level.curve_mut(curve).unwrap().scatter.as_mut().unwrap().seed = 7.0;
+        frame(&mut ed);
+        ed.level.curve_mut(curve).unwrap().points[1].at = [12.0, 0.1, 3.0];
+        frame(&mut ed);
+        ed.level.curve_mut(curve).unwrap().scatter.as_mut().unwrap().spacing = 1.0;
+        frame(&mut ed);
+        assert_eq!(ed.level.get(id).expect("still there"), &rock);
+        assert_eq!(ed.level.parts.iter().filter(|p| p.scatter.is_none()).count(), 2, "the floor and the rock, and no item let go");
+    }
+
 }
