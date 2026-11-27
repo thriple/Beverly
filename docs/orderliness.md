@@ -189,6 +189,12 @@ are the places where two or more of them would decide the same thing.
     so a fitted thing never misses what it should meet.
 - **A setting for odd scales,** with presets (Tabletop 0.1 mm · Human 1 mm · Vehicle 5 mm · Planet 5 cm) and a typed
   value.
+  Built in stage 5 (2026-11-27): the Level panel (nothing selected) has **Precision**, the four presets and a typed
+  value in mm (0.01 mm to 1 m), an undo step like any edit; the MCP's `change_level` takes `precision` (a preset or
+  mm) and `get_project` gives the preset and the warning. The warning (`Level::precision_warning`, build and warn: the
+  setting stays as chosen) says when the level's far edge is past where an `f32` holds the precision, or its smallest
+  parts are under ten times it, and which preset would fit. A project with its own precision says so in the island
+  when it opens.
 - **Display allowances** are named in one place, apart from the data numbers.
 - **Guards** become named constants.
 
@@ -289,6 +295,10 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
   So **changing any number in C1 or C2 changes how old levels look.** A project opened after a change keeps the
   numbers it was made with (stored in `project.bev` only when they differ from the defaults, and said once in the
   island). New projects start at the defaults, and a project at the defaults saves byte for byte as before.
+  So far (stage 5): the precision's default has never changed, so every project file without one reads 1 mm, the
+  number it was made with (`level::load` is where a later change of default gives older formats the old one). Stage
+  3 changed some derived numbers for every project, as listed there (the walker's slope and height, the pen's climb,
+  Bucket's Floor band); they weren't pinned for old projects, being small and the point of the stage.
 - **Compare before and after every stage:** the test projects' screenshots and the saved files.
 
 ### C7. Stages (each tested and released, as Prism did)
@@ -302,7 +312,7 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
 4. **Ownership enforced** (done 2026-11-27): a test per rule ("a fill never changes a hand-painted stroke", "scatter never moves a
    part it doesn't own", "an instance question never sees generated strokes"); editing a generated item turns it
    into the user's own, with a warning (fixes A3-4).
-5. **The setting:** Precision with presets in project settings, its warning for odd scales, old projects keeping
+5. **The setting** (done 2026-11-27): Precision with presets in project settings, its warning for odd scales, old projects keeping
    their numbers.
 6. **Sweep:** name the guards and the display numbers; one spatial index for picking, placement, pen, bucket and
    scatter. The stage 1 timings say it is needed: each curve asks only about the parts near it (moving one box no

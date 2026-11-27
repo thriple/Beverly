@@ -27,6 +27,7 @@ pub(super) fn group_look(title: &str) -> (String, &'static str, Color32) {
         "LEVEL · LIGHTING" => ("Lighting", "bulb", theme::CAT_LIGHTS),
         level::SUN => ("Sun", "spark", theme::CAT_LIGHTS),
         "LEVEL · PHYSICS · NAVIGATION" => ("Navigation", "route", theme::CAT_FLOW),
+        "PROJECT · PRECISION" => ("Precision", "target", TEXT_2),
         "LEVEL · CAMERAS" => ("Cameras", "camera", theme::CAT_CAMERAS),
         "ADVANCED" => ("Advanced", "sliders", MUTED),
         "SOUNDS" => ("Sounds", "wave", theme::CAT_ACTIONS),

@@ -92,7 +92,7 @@ pub fn tools() -> Value {
         {
             "name": "get_project",
             "title": "Describe the project",
-            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, its precision (how close two points are to count as the same, and two parts to count as touching, in metres), the grid every snap uses (move in metres, scale, turn in degrees), whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry), and the performance meter's numbers (frames a second, frame time, the card's time, triangles, meshes in view, lights, entities, memory), each with a green, amber or red grade (a number the card can't give is null), and the bake cache (entries, size, and what is being built with its percent).",
+            "description": "The open project: its name and folder, the level, how many parts and wires, the selection, whether there are unsaved changes, how many steps Undo and Redo can take, its precision (how close two points are to count as the same, and two parts to count as touching, in metres; its preset if it is one; and a warning when it doesn't suit the level's size, with the preset that would), the grid every snap uses (move in metres, scale, turn in degrees), whether test mode is on, Beverly's build, and the graphics card it renders with (name, backend, kind, and whether it can run virtual geometry), and the performance meter's numbers (frames a second, frame time, the card's time, triangles, meshes in view, lights, entities, memory), each with a green, amber or red grade (a number the card can't give is null), and the bake cache (entries, size, and what is being built with its percent).",
             "inputSchema": none,
         },
         {
@@ -117,13 +117,14 @@ pub fn tools() -> Value {
         {
             "name": "change_level",
             "title": "Change the level's settings",
-            "description": "Change the level's settings (as get_level lists them, by label or field, as change_part takes them): lighting in settings, such as {\"Interior\": true, \"Fill\": 200} or {\"Height\": 15, \"Direction\": 270}; the navigation area's in navigation, such as {\"Step\": 0.3, \"Width\": 1.2}.",
+            "description": "Change the level's settings (as get_level lists them, by label or field, as change_part takes them): lighting in settings, such as {\"Interior\": true, \"Fill\": 200} or {\"Height\": 15, \"Direction\": 270}; the navigation area's in navigation, such as {\"Step\": 0.3, \"Width\": 1.2}; the project's precision in precision.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "settings": {"type": "object", "description": "Lighting: setting label or field → new value."},
                     "navigation": {"type": "object", "description": "Navigation: setting label or field → new value."},
                     "walker_sounds": {"type": "object", "description": "The walker's sounds (until characters have their own): Step, Jump and Land → a sound file, such as {\"Step\": \"footsteps\"}; null for none."},
+                    "precision": {"type": ["string", "number"], "description": "The whole project's precision (how close two points are to count as the same; touching is 50 times it): a preset, Tabletop (0.1 mm), Human (1 mm, the default), Vehicle (5 mm) or Planet (5 cm), or millimetres from 0.01 to 1000. get_project says whether it suits the level."},
                 },
             },
         },

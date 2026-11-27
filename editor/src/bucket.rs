@@ -191,7 +191,7 @@ mod tests {
         let mut l = level(vec![part(1, Shape::Plane, [0.0, 0.05, 0.0], [4.0, 0.1, 4.0], grey), part(2, Shape::Plane, [4.04, 0.05, 0.0], [4.0, 0.1, 4.0], grey)]);
         let b = Bucket { connected: true, ..bucket(1, [0.0, 0.05, 0.0], Fills::Floor) };
         assert_eq!(reach(&l, &b).len(), 2, "4 cm apart touch at 1 mm");
-        l.precision = crate::level::Precision(0.0005);
+        *l.precision = crate::level::Precision(0.0005);
         assert_eq!(reach(&l, &b).len(), 1, "but not at 0.5 mm (touching 2.5 cm)");
     }
 

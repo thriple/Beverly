@@ -147,7 +147,9 @@ impl Editor {
                     Ok((name, lvl)) => {
                         self.load_into(dir, lvl);
                         self.name = name;
-                        let note = if level::is_old(&self.dir) { " · from an older Beverly: saving updates its files to .bev" } else { "" };
+                        let own = self.level.precision();
+                        let precision = if own != level::Precision::default() { format!(" · precision {} (this project's)", level::length(own.0)) } else { String::new() };
+                        let note = if level::is_old(&self.dir) { format!("{precision} · from an older Beverly: saving updates its files to .bev") } else { precision };
                         self.island.show("▸", format!("Opened {}", self.name), format!("{} parts{note}", self.level.parts.len()), Tone::Accent);
                     }
                     Err(e) => self.island.show("!", "Couldn't open that folder", e, Tone::Danger),
@@ -494,6 +496,30 @@ mod tests {
         ed.level.get_mut(a).unwrap().color = [1.0, 0.0, 0.0];
         ed.commit();
         assert_eq!(ed.ask, Some((a, vec![c])));
+    }
+
+    /// Orderliness stage 5: changing the precision is an undo step like any edit, and what it decides (Bucket's
+    /// Connected only) follows it in the same step.
+    #[test]
+    fn changing_the_precision_is_one_undo_step_and_fills_follow_it() {
+        use crate::level::{Bucket, Fills, Precision};
+        let mut ed = Editor::at(std::env::temp_dir());
+        let plane = |x: f32| Part::placed(Shape::Plane, None, format!("Floor {x}"), [x, 0.05, 0.0], Quat::IDENTITY.to_array(), [4.0, 0.1, 4.0]);
+        // two floors 4 cm apart: touching at 1 mm (5 cm), not at 0.5 mm (2.5 cm)
+        let (a, b) = (ed.level.add(plane(0.0)), ed.level.add(plane(4.04)));
+        bucket::add(&mut ed, Bucket { id: 0, part: a, face: None, at: [0.0, 0.05, 0.0], fills: Fills::Floor, tolerance: 0.0, tag: None, connected: true, material: "moss".into(), strength: 1.0, lays: Default::default() });
+        ed.commit();
+        let filled = |ed: &Editor, id: u64| ed.level.get(id).unwrap().strokes.iter().any(|s| s.bucket.is_some());
+        assert!(filled(&ed, a) && filled(&ed, b));
+        let steps = ed.undo.len();
+        *ed.level.precision = Precision(0.0005);
+        ed.commit();
+        assert_eq!(ed.undo.len(), steps + 1, "one step");
+        assert!(filled(&ed, a) && !filled(&ed, b), "the fill stops at the gap now");
+        ed.undo();
+        ed.commit();
+        assert_eq!(ed.level.precision(), Precision::default());
+        assert!(filled(&ed, b), "undo brings the precision and the fill back");
     }
 
     /// Orderliness (C3): the generated strokes (step 4: pen fills, then bucket fills) never change a stroke painted by

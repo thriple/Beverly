@@ -210,6 +210,8 @@ impl Editor {
                 ed.saved = lvl.clone();
                 ed.level = lvl;
                 ed.sync_committed();
+                let own = ed.level.precision();
+                if own != level::Precision::default() { ed.island.show("◎", format!("Precision {}", level::length(own.0)), "This project's own (Level panel)", theme::Tone::Plain); }
                 return ed;
             }
         }

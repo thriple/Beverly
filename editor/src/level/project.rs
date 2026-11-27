@@ -79,7 +79,7 @@ pub fn save(dir: &Path, name: &str, level: &Level) -> Result<(), String> {
     make_folders(dir).map_err(|e| e.to_string())?;
     let cfg = ron::ser::PrettyConfig::default();
     let controls = (!level.controls.is_default()).then(|| (*level.controls).clone());
-    let precision = (level.precision != Precision::default()).then_some(level.precision.0);
+    let precision = (level.precision() != Precision::default()).then_some(level.precision().0);
     let pf = ProjectFile { format: FORMAT, name: name.to_owned(), levels: vec!["main".into()], controls, precision };
     let p = ron::ser::to_string_pretty(&pf, cfg.clone()).map_err(|e| e.to_string())?;
     let format = if level.parts.iter().any(|p| p.parent.is_some()) { LEVEL_FORMAT } else { FORMAT };
@@ -116,7 +116,9 @@ pub fn load(dir: &Path) -> Result<(String, Level), String> {
     level.materials = load_materials(dir).into_iter().map(|(k, m)| (k, Material { format: 0, ..m })).collect();
     level.sounds = load_sounds(dir).into_iter().map(|(k, m)| (k, Sound { format: 0, ..m })).collect();
     level.controls = pf.controls.map(|c| c.with_defaults()).unwrap_or_default().into();
-    level.precision = pf.precision.map_or_else(Precision::default, Precision);
+    // a project file without one was made at the default; were the default ever to change, the files of the formats
+    // before the change would read the old one here (old projects keep the numbers they were made with)
+    level.precision = pf.precision.map_or_else(Precision::default, Precision).into();
     Ok((pf.name, level))
 }
 
@@ -174,6 +176,28 @@ mod precision_tests {
     use super::*;
 
     #[test]
+    fn presets_and_a_warning_when_the_precision_doesnt_suit_the_level() {
+        assert_eq!(Precision::default().preset(), Some("Human"));
+        assert_eq!(Precision(0.05).preset(), Some("Planet"));
+        assert_eq!(Precision(0.0003).preset(), None);
+        assert_eq!((length(0.0001), length(0.001), length(0.05), length(2.5), length(24_000.0)), ("0.1 mm".into(), "1 mm".into(), "5 cm".into(), "2.5 m".into(), "24 km".into()));
+        let part = |pos: [f32; 3], size: [f32; 3]| Part::placed(Shape::Box, None, "P".into(), pos, [0.0, 0.0, 0.0, 1.0], size);
+        let mut level = Level::default();
+        level.parts.push(part([0.0; 3], [2.0; 3]));
+        assert_eq!(level.precision_warning(), None);
+        // 20 km out an f32 steps 2.4 mm: 1 mm can't hold there, Vehicle (5 mm) can
+        level.parts.push(part([20_000.0, 0.0, 0.0], [2.0; 3]));
+        let w = level.precision_warning().expect("too fine for the far part");
+        assert!(w.contains("20 km") && w.contains("Vehicle"), "{w}");
+        *level.precision = Precision(0.005);
+        assert_eq!(level.precision_warning(), None);
+        // a 2 cm part at 5 mm: Human (1 mm) fits
+        level.parts.push(part([1.0; 3], [0.02, 0.5, 0.5]));
+        let w = level.precision_warning().expect("too coarse for the small part");
+        assert!(w.contains("2 cm") && w.contains("Human"), "{w}");
+    }
+
+    #[test]
     fn level_is_judged_over_a_length_not_by_a_fixed_angle() {
         let p = Precision::default();
         let tilt = |deg: f32| deg.to_radians().cos();
@@ -194,7 +218,7 @@ mod precision_tests {
         let text = std::fs::read_to_string(dir.join("project.bev")).unwrap();
         assert!(!text.contains("precision"), "the default isn't written: a project at it saves as before\n{text}");
         assert_eq!(load(&dir).unwrap().1.precision(), Precision::default());
-        level.precision = Precision(0.005);
+        *level.precision = Precision(0.005);
         save(&dir, "P", &level).unwrap();
         let back = load(&dir).unwrap().1;
         assert_eq!(back.precision(), Precision(0.005));

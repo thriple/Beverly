@@ -272,6 +272,12 @@ impl Default for Precision {
 }
 
 impl Precision {
+    /// The presets for odd scales, by name (owner, 2026-11-26), and any typed value between the first and the last.
+    pub const PRESETS: [(&'static str, f32); 4] = [("Tabletop", 0.0001), ("Human", 0.001), ("Vehicle", 0.005), ("Planet", 0.05)];
+    pub const MIN: f32 = 0.00001;
+    pub const MAX: f32 = 1.0;
+    /// The preset this is, if it is one.
+    pub fn preset(self) -> Option<&'static str> { Self::PRESETS.iter().find(|(_, v)| (v - self.0).abs() <= v * 1e-4).map(|(n, _)| *n) }
     /// Two points this close are the same point.
     pub fn same(self) -> f32 { self.0 }
     /// Two parts this close touch (owner, 2026-11-26: 50 x the precision, 5 cm at the default: parts placed by hand
@@ -345,12 +351,42 @@ pub struct Level {
     pub controls: Tracked<crate::input::Controls>,
     /// The project's precision. Saved in the project file, not the level; read it through [`Level::precision`].
     #[serde(skip)]
-    pub precision: Precision,
+    pub precision: Tracked<Precision>,
+}
+
+/// A length as people say it: "0.1 mm", "5 cm", "2.4 km".
+pub fn length(m: f32) -> String {
+    let short = |v: f32, unit: &str| { let t = format!("{v:.2}"); format!("{} {unit}", t.trim_end_matches('0').trim_end_matches('.')) };
+    if m < 0.01 { short(m * 1000.0, "mm") } else if m < 1.0 { short(m * 100.0, "cm") } else if m < 1000.0 { short(m, "m") } else { short(m / 1000.0, "km") }
 }
 
 impl Level {
     /// The project's "close enough" (see [`Precision`]).
-    pub fn precision(&self) -> Precision { self.precision }
+    pub fn precision(&self) -> Precision { *self.precision }
+
+    /// Whether the precision suits this level, or what doesn't and which preset would: the level's far edge must be
+    /// within reach of an `f32` at that precision, and its smallest parts at least ten times it. The setting stays as
+    /// chosen either way (build and warn).
+    pub fn precision_warning(&self) -> Option<String> {
+        let p = self.precision().0;
+        let (mut far, mut small) = (0.0f32, f32::MAX);
+        for q in self.parts.iter().filter(|q| q.scatter.is_none()) {
+            let size = Vec3::from(q.size);
+            far = far.max((Vec3::from(q.pos).abs() + size * 0.5).max_element());
+            if let Some(m) = size.to_array().into_iter().filter(|v| *v > 0.0).reduce(f32::min) { small = small.min(m); }
+        }
+        // the gap between neighbouring f32 values out there
+        let gap = far * f32::EPSILON;
+        if gap > p {
+            let fits = Precision::PRESETS.iter().find(|(_, v)| *v >= gap).map_or("a coarser precision".into(), |(n, v)| format!("{n} ({})", length(*v)));
+            return Some(format!("The level reaches {} from the middle, where numbers can't hold {}: {fits} fits", length(far), length(p)));
+        }
+        if small < 10.0 * p {
+            let fits = Precision::PRESETS.iter().rev().find(|(_, v)| 10.0 * v <= small).map_or("a finer precision".into(), |(n, v)| format!("{n} ({})", length(*v)));
+            return Some(format!("Parts as small as {} are under ten times the precision ({}): {fits} fits", length(small), length(p)));
+        }
+        None
+    }
 
     /// The snaps' steps (see [`Grid`]).
     pub fn grid(&self) -> Grid { Grid::default() }
@@ -362,7 +398,7 @@ impl Level {
 
     /// What changed where: see [`Stamps`].
     pub fn stamps(&self) -> Stamps {
-        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp(), self.controls.stamp()]
+        [self.parts.stamp(), self.wires.stamp(), self.curves.stamp(), self.buckets.stamp(), self.ranges.stamp(), self.lighting.stamp(), self.navigation.stamp(), self.walker.stamp(), self.foliage.stamp(), self.materials.stamp(), self.sounds.stamp(), self.controls.stamp(), self.precision.stamp()]
     }
 
     pub fn get(&self, id: u64) -> Option<&Part> { self.parts.iter().find(|p| p.id == id) }

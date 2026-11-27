@@ -90,8 +90,8 @@ pub(super) fn world_stamp(ed: &Editor) -> u64 {
         for v in p.pos.iter().chain(&p.rot).chain(&p.size) { v.to_bits().hash(&mut h); }
         stamp(&mut h, &p.tags.iter().map(|t| *t as u8).collect::<Vec<_>>());
     }
-    // Ground lines climb the walker profile's step
-    ed.level.profile().step.to_bits().hash(&mut h);
+    // Ground lines climb the walker profile's step and touching; outlines merge points by the precision
+    (ed.level.profile().step.to_bits(), ed.level.precision().0.to_bits()).hash(&mut h);
     h.finish()
 }
 
