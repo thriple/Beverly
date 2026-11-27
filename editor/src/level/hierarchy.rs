@@ -121,7 +121,7 @@ impl Level {
             if old_parent == parent { continue; }
             let to = beyond(parent, within(old_parent, old_child));
             let now = frame(self.get(id).expect("listed"));
-            if to.0.distance_squared(now.0) > MOVED * MOVED || to.1.dot(now.1).abs() < 1.0 - 1e-9 { set_frame(self.get_mut(id).expect("listed"), to); }
+            if to.0.distance_squared(now.0) > MOVED * MOVED || to.1.dot(now.1).abs() < 1.0 - crate::guard::FINE { set_frame(self.get_mut(id).expect("listed"), to); }
         }
     }
 

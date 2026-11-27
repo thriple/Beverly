@@ -405,7 +405,7 @@ pub fn ray_to_segment(ray: Ray3d, p: Vec3, q: Vec3) -> (f32, f32) {
     let (a, b, c) = (d.dot(d), d.dot(e), e.dot(e));
     let (c1, f) = (d.dot(r), e.dot(r));
     let den = a * c - b * b;
-    let t = if den.abs() < 1e-9 { 0.0 } else { ((a * f - b * c1) / den).clamp(0.0, 1.0) };
+    let t = if den.abs() < crate::guard::FINE { 0.0 } else { ((a * f - b * c1) / den).clamp(0.0, 1.0) };
     (t, ray_to_point(ray, p + e * t))
 }
 

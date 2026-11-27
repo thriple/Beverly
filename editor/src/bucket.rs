@@ -29,7 +29,7 @@ fn faces_of(p: &Part) -> Vec<(f32, f32, f32)> {
         let o = &mut out[f as usize];
         for k in t * 3..t * 3 + 3 {
             let y = a.transform_point3(tris.pos[k]).y;
-            let up = (turn * (tris.nrm[k] / size.max(Vec3::splat(1e-4)))).normalize_or_zero().y;
+            let up = (turn * (tris.nrm[k] / size.max(Vec3::splat(crate::guard::SHORT)))).normalize_or_zero().y;
             *o = (o.0.max(up), o.1.min(y), o.2.max(y));
         }
     }

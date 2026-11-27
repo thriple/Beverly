@@ -20,14 +20,23 @@ pub use sync::*;
 pub use widget::*;
 
 impl Editor {
+    /// The level's parts by where they are (`world::Index`), made again when the parts or the models change.
+    pub fn index(&self) -> std::sync::Arc<world::Index> {
+        let key = (self.level.parts.stamp(), self.geo.models.len());
+        let mut c = self.index.lock().expect("not poisoned");
+        if c.as_ref().is_none_or(|(k, _)| *k != key) { *c = Some((key, std::sync::Arc::new(world::Index::new(&self.level.parts, &self.geo)))); }
+        c.as_ref().expect("just made").1.clone()
+    }
+
     /// The nearest surface along a ray: a part, or the ground (y = 0) seen from above.
     pub fn hit(&self, ray: Ray3d) -> Option<Hit> { self.hit_skip(ray, None) }
 
     /// What the ray meets first. A zone counts only where what lies behind it is outside it, so a click on the floor
     /// inside a zone picks the floor, and one past it (the sky, a wall beyond) picks the zone.
     pub fn hit_skip(&self, ray: Ray3d, skip: Option<u64>) -> Option<Hit> {
-        let solid = world::raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape != Shape::Zone);
-        let Some(zone) = world::raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape == Shape::Zone) else { return solid };
+        let ix = self.index();
+        let solid = ix.raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape != Shape::Zone);
+        let Some(zone) = ix.raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape == Shape::Zone) else { return solid };
         let behind_outside = |s: &Hit| zone.part.and_then(|id| self.level.get(id)).is_none_or(|z| !level::in_zone(z, s.point));
         match &solid {
             Some(s) if s.t < zone.t || !behind_outside(s) => solid,
@@ -598,7 +607,7 @@ mod tests {
         let ed = std::cell::RefCell::new(ed);
         time("first lay + strips + scatters + commit", 1, &mut || { let mut e = ed.borrow_mut(); pen::lay(&mut e); pen::strips(&mut e); crate::editor::scatter::scatters(&mut e); e.commit(); });
         println!("level: {} parts, {} curves, {} fills", ed.borrow().level.parts.len(), ed.borrow().level.curves.len(), ed.borrow().level.buckets.len());
-        time("pen::world_stamp (nothing changed)", 50, &mut || { std::hint::black_box(pen::world_stamp(&ed.borrow())); });
+        time("pen::near_stamps (nothing changed)", 50, &mut || { let e = ed.borrow(); std::hint::black_box(pen::near_stamps(&e.level, &e.geo)); });
         time("pen::lay (nothing changed)", 50, &mut || pen::lay(&mut ed.borrow_mut()));
         time("pen::strips (nothing changed)", 50, &mut || pen::strips(&mut ed.borrow_mut()));
         time("scatter::scatters (nothing changed)", 50, &mut || crate::editor::scatter::scatters(&mut ed.borrow_mut()));
@@ -607,7 +616,7 @@ mod tests {
         let before = ed.borrow().level.clone();
         let o = vec3(0.0, 40.0, 200.0);
         let ray = Ray3d::new(o, Dir3::new(vec3(3.0, 1.0, 0.0) - o).unwrap());
-        time("picking: one ray against every part", 50, &mut || { std::hint::black_box(ed.borrow().hit(ray)); });
+        time("picking: one ray (through the index)", 50, &mut || { std::hint::black_box(ed.borrow().hit(ray)); });
         // one change: a box moved
         ed.borrow_mut().level.get_mut(500).unwrap().pos[0] += 1.0;
         time("Delta::between after one box moved", 10, &mut || { std::hint::black_box(level::Delta::between(&before, &ed.borrow().level)); });
@@ -620,7 +629,8 @@ mod tests {
         let growers = crate::grass::sheets::growers(&e.level);
         let painted: Vec<&Part> = e.level.parts.iter().filter(|p| !p.strokes.is_empty()).collect();
         time("grass sheets, one painted box", 20, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&e.level, painted[1], &growers)); });
-        // (the 400 m floor with the 20 strips on it didn't finish in 9 minutes: a 40 m one with two strips instead)
+        // (before stage 6 the 400 m floor with the 20 strips on it didn't finish in 9 minutes: a 40 m one with two
+        // strips stood in)
         let mut small = e.level.clone();
         let f = small.get_mut(1).unwrap();
         f.size = [40.0, 0.1, 40.0];
@@ -628,5 +638,6 @@ mod tests {
         let n = f.strokes.iter().map(|s| s.points.len()).sum::<usize>();
         println!("small floor: {} strokes, {n} points", f.strokes.len());
         time("grass sheets, a 40 m floor", 1, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&small, small.get(1).unwrap(), &growers)); });
+        time("grass sheets, the 400 m floor with 20 strips", 1, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&e.level, e.level.get(1).unwrap(), &growers)); });
     }
 }

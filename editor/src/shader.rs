@@ -435,7 +435,7 @@ pub fn grow_bounds(shaders: Res<Shaders>, mats: Res<Assets<ShaderMaterial>>, mut
         let want = mats.get(&m.0).and_then(|m| shaders.header(&m.extension.path)).and_then(|h| h.vertex_offset).unwrap_or(0.0);
         // a new box (Bevy worked it out again) has none of the growth
         let had = if aabb.is_added() { 0.0 } else { had.map_or(0.0, |r| r.0) };
-        if (want - had).abs() > 1e-4 {
+        if (want - had).abs() > crate::guard::SHORT {
             aabb.half_extents += Vec3A::splat(want - had);
             commands.entity(e).insert(Reach(want));
         }

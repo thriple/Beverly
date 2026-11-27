@@ -313,7 +313,7 @@ fn drag_step(ed: &mut Editor, ray: Option<Ray3d>, pointer: Option<Vec2>, ctrl: b
                 let h0 = world_handle(drag_h, &orig);
                 let a = part_affine(&orig);
                 let pin = if shift { a.transform_point3((bx.0 + bx.1) * 0.5) } else { a.transform_point3(corner_local(7 - k, bx.0, bx.1)) };
-                let l0 = h0.distance(pin).max(1e-4);
+                let l0 = h0.distance(pin).max(crate::guard::SHORT);
                 let dir = (h0 - pin) / l0;
                 let factor = match (enter, typed_val) {
                     (true, Some(v)) => Some(v),

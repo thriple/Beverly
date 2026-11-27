@@ -1,0 +1,18 @@
+// Orderliness (docs/orderliness.md): one walker profile and one owner per thing. The walker, navigation and the
+// pen all read the level's walker profile (a 0.45 m step): the walker climbs the 0.4 m Low step and stops at the
+// High block, 0.8 m higher; the paths agree (onto the step, none onto the block). (Walking, the walker's rounded
+// body still rides up a ledge to about 0.6 m: docs/orderliness.md, A3-6.) A boulder the Path curve
+// scattered was moved by hand: it is the user's own, where it was put, and the scatter left its spot empty.
+(
+    steps: [
+        (at: 0.4, shot: "start", expect: [
+            Feet((14, 0.1, 12), 0.15),
+            Path((14, 0.1, 10), (14, 0.5, 6), Some(4), 0.6),
+            Path((14, 0.1, 10), (14, 1.3, 3), None, 0),
+            Part("Kept boulder", (10, 0.5, -12), 0.05),
+        ]),
+        (at: 0.5, press: ["W"]),
+        (at: 2.5, release: ["W"]),
+        (at: 3.0, shot: "stopped", expect: [Feet((14, 0.5, 5.6), 0.3)]),
+    ],
+)

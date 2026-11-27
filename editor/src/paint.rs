@@ -120,7 +120,7 @@ fn upload(pieces: Vec<Piece>) -> ShaderBuffer {
 fn edge(a: Vec3, b: Vec3, p: Vec3) -> (bool, f32) {
     let crosses = (a.z > p.z) != (b.z > p.z) && p.x < a.x + (p.z - a.z) * (b.x - a.x) / (b.z - a.z);
     let (ab, ap) = (Vec2::new(b.x - a.x, b.z - a.z), Vec2::new(p.x - a.x, p.z - a.z));
-    let t = (ap.dot(ab) / ab.dot(ab).max(1e-8)).clamp(0.0, 1.0);
+    let t = (ap.dot(ab) / ab.dot(ab).max(crate::guard::PAINT_LEN2)).clamp(0.0, 1.0);
     (crosses, (ap - ab * t).length())
 }
 
@@ -130,7 +130,7 @@ pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, face: u8, 
     let dab = |p: &Piece| {
         let (a, b) = (p.a.truncate(), p.b.truncate());
         let ab = b - a;
-        let t = ((at - a).dot(ab) / ab.dot(ab).max(1e-8)).clamp(0.0, 1.0);
+        let t = ((at - a).dot(ab) / ab.dot(ab).max(crate::guard::PAINT_LEN2)).clamp(0.0, 1.0);
         let d = at.distance(a + ab * t);
         let (lo, hi) = (p.a.w * p.b.w.min(0.98), p.a.w);
         let x = ((d - lo) / (hi - lo)).clamp(0.0, 1.0);
@@ -155,7 +155,7 @@ pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, face: u8, 
             i += 1;
         }
         if fill {
-            let x = (near / feather.max(1e-3)).clamp(0.0, 1.0);
+            let x = (near / feather.max(crate::guard::SMALL)).clamp(0.0, 1.0);
             m = if inside { x * x * (3.0 - 2.0 * x) } else { 0.0 };
         }
         let rules = crate::level::Rules { slope: if d.x < -1.0 { 90.0 } else { d.x.clamp(-1.0, 1.0).acos().to_degrees() }, band: (d.y > -1e8).then_some([d.y, d.z]), on: None };
@@ -164,6 +164,48 @@ pub fn coverage(pieces: &[Piece], count: usize, layer: i32, at: Vec3, face: u8, 
         cov = lay(cov, l == layer, l < 0, lays, m, f, strength);
     }
     cov
+}
+
+/// Each stroke's run of pieces and the box (in the part's frame) outside which it covers nothing (None: anywhere on
+/// its faces, a fill over whole faces), so a question about one spot can skip the strokes that can't reach it: a
+/// stroke that covers nothing there leaves every layer as it was, whatever it lays.
+pub fn runs(pieces: &[Piece], count: usize) -> Vec<(std::ops::Range<usize>, Option<(Vec3, Vec3)>)> {
+    let mut out = vec![];
+    let mut i = 0;
+    while i < count {
+        let start = i;
+        let stroke = pieces[i].c.z;
+        let mut b = Some((Vec3::MAX, Vec3::MIN));
+        while i < count && pieces[i].c.z == stroke {
+            let p = &pieces[i];
+            // a dab reaches its radius round its segment; a fill covers only inside its outline
+            let r = if p.d.w > 1.5 { b = None; 0.0 } else if p.d.w > 0.5 { 0.0 } else { p.a.w };
+            if let Some((lo, hi)) = b.as_mut() {
+                for q in [p.a.truncate(), p.b.truncate()] { *lo = lo.min(q - r); *hi = hi.max(q + r); }
+            }
+            i += 1;
+        }
+        out.push((start..i, b));
+    }
+    out
+}
+
+/// The pieces of the strokes (see [`runs`]) that can reach the box `lo`..`hi` (in the part's frame), in their order.
+pub fn near(pieces: &[Piece], runs: &[(std::ops::Range<usize>, Option<(Vec3, Vec3)>)], lo: Vec3, hi: Vec3) -> Vec<Piece> {
+    let reaches = |a: Vec3, b: Vec3| a.cmple(hi).all() && b.cmpge(lo).all();
+    let mut out = vec![];
+    for (r, b) in runs {
+        if b.is_some_and(|(a, b)| !reaches(a, b)) { continue; }
+        let run = &pieces[r.clone()];
+        // a brush stroke's dabs each on their own (one that can't reach covers nothing here); a fill's outline whole
+        if run[0].d.w < 0.5 {
+            let near: Vec<Piece> = run.iter().filter(|p| { let (a, b, r) = (p.a.truncate(), p.b.truncate(), p.a.w); reaches(a.min(b) - r, a.max(b) + r) }).copied().collect();
+            out.extend(near);
+        } else {
+            out.extend_from_slice(run);
+        }
+    }
+    out
 }
 
 /// One stroke over a layer's coverage `cov`: `own` when it is this layer's, `erase` when it erases; `m` how much of it
@@ -274,6 +316,35 @@ impl PaintSync<'_, '_> {
 mod tests {
     use super::*;
     use crate::level::Stroke;
+
+    /// Asking only the strokes that reach a spot gives what asking all of them gives (orderliness stage 6).
+    #[test]
+    fn the_strokes_that_cant_reach_a_spot_change_nothing_there() {
+        use crate::level::Lays;
+        let mut p = Part::placed(Shape::Box, None, "P".into(), [0.0; 3], [0.0, 0.0, 0.0, 1.0], [20.0, 1.0, 20.0]);
+        let s = |m: &str, points: Vec<[f32; 3]>, size: f32, lays: Lays, fill: bool, faces: Vec<u8>| Stroke { material: m.into(), size, hardness: 0.5, strength: 0.8, points, lays, rules: Default::default(), curve: None, fill, faces, bucket: None, ground: None, ground_look: None };
+        let line = |x0: f32, z: f32| (0..40).map(|i| [x0 + i as f32 * 0.03, 0.5, z]).collect::<Vec<_>>();
+        p.strokes = vec![
+            s("a", vec![], 0.0, Lays::Add, false, vec![2]),
+            s("a", line(-0.4, -0.3), 0.1, Lays::Add, false, vec![]),
+            s("b", vec![[-0.2, 0.5, -0.2], [0.2, 0.5, -0.2], [0.2, 0.5, 0.2], [-0.2, 0.5, 0.2]], 0.05, Lays::Add, true, vec![]),
+            s("a", line(-0.1, 0.1), 0.08, Lays::Subtract, false, vec![]),
+            s("b", line(0.0, 0.0), 0.06, Lays::Set, false, vec![]),
+            s("a", vec![[0.3, 0.5, 0.3]], 0.2, Lays::Add, false, vec![]),
+        ];
+        let all = pieces(&p);
+        let runs = runs(&all, all.len());
+        let mut seed = 3u64;
+        let mut rnd = move || { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; (seed % 10_000) as f32 / 10_000.0 - 0.5 };
+        for _ in 0..2000 {
+            let at = Vec3::new(rnd(), 0.5, rnd());
+            let near = near(&all, &runs, at - 0.01, at + 0.01);
+            for layer in 0..2 {
+                let (a, b) = (coverage(&all, all.len(), layer, at, 2, 1.0, 0.5), coverage(&near, near.len(), layer, at, 2, 1.0, 0.5));
+                assert!((a - b).abs() < 1e-6, "{at} layer {layer}: {a} vs {b}");
+            }
+        }
+    }
 
     #[test]
     fn later_strokes_cover_earlier_ones_and_erasing_uncovers() {

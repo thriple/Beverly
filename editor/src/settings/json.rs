@@ -81,7 +81,7 @@ pub(super) fn apply_one(f: &mut dyn PartialReflect, s: &Setting, v: &serde_json:
     use serde_json::Value;
     let keep = |x: f32| match s.kind {
         Kind::Number { min, max, .. } => x.clamp(min, max),
-        Kind::Feel { log: true, .. } => x.max(1e-3),
+        Kind::Feel { log: true, .. } => x.max(crate::guard::SMALL),
         _ => x,
     };
     let num = |v: &Value| v.as_f64().map(|x| keep(x as f32)).ok_or_else(|| format!("expected a number, not {v}"));
@@ -108,7 +108,7 @@ pub(super) fn apply_one(f: &mut dyn PartialReflect, s: &Setting, v: &serde_json:
             Value::Array(a) if a.len() == 4 => {
                 let mut q = [0.0; 4];
                 for i in 0..4 { q[i] = num(&a[i])?; }
-                { let q = Quat::from_array(q); if q.length() < 1e-6 { return Err("that quaternion has no length".into()) } q.normalize() }
+                { let q = Quat::from_array(q); if q.length() < crate::guard::ZERO { return Err("that quaternion has no length".into()) } q.normalize() }
             }
             _ => return Err(format!("expected degrees or a quaternion [x, y, z, w], not {v}")),
         };

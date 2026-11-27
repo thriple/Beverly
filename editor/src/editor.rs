@@ -103,6 +103,8 @@ pub struct Editor {
     pub island: theme::Island,
     /// Every part's triangles (shapes, and models once loaded).
     pub geo: world::Geometry,
+    /// The parts by where they are (picking asks it), with the parts' stamp and the models it was made with.
+    index: std::sync::Mutex<Option<((u64, usize), std::sync::Arc<world::Index>)>>,
     /// The model file being placed, when `placing` is `Shape::Model`.
     pub placing_model: Option<String>,
     /// Test mode (`): where the editor camera was, to go back to.
@@ -223,6 +225,7 @@ impl Editor {
         let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "Untitled".into());
         let level = Level { name: "main".into(), ..default() };
         let mut ed = Self {
+            index: Default::default(),
             saved: level.clone(),
             committed: level.clone(),
             checked: level.stamps(),

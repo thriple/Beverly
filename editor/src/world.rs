@@ -53,28 +53,156 @@ impl Geometry {
     }
 }
 
+/// The box around a part in the world (its own box turned and placed: every corner).
+pub fn world_box(geo: &Geometry, p: &Part) -> (Vec3, Vec3) {
+    let (lo, hi) = geo.local_box(p);
+    let a = part_affine(p);
+    (0..8).map(|k| a.transform_point3(Vec3::new(if k & 1 == 0 { lo.x } else { hi.x }, if k & 2 == 0 { lo.y } else { hi.y }, if k & 4 == 0 { lo.z } else { hi.z })))
+        .fold((Vec3::MAX, Vec3::MIN), |(l, h), c| (l.min(c), h.max(c)))
+}
+
+/// Parts by where they are, seen from above (docs/orderliness.md, stage 6): a grid of cells, each listing the parts
+/// whose box reaches it, so a ray or a question about one spot looks only at the parts there rather than at every
+/// part. Built from the parts as they are; it holds their places in the list and their ids, not the parts.
+pub struct Index {
+    boxes: Vec<(Vec3, Vec3)>,
+    ids: Vec<u64>,
+    cells: HashMap<(i32, i32), Vec<u32>>,
+    /// Parts too big to list cell by cell: looked at by every question.
+    everywhere: Vec<u32>,
+    /// The cells' corner-to-corner span, seen from above.
+    span: (Vec2, Vec2),
+}
+
+/// Metres across a cell of the index, and the most cells one part is listed in.
+const CELL: f32 = 8.0;
+const MOST_CELLS: i64 = 4096;
+
+fn cell_of(x: f32) -> i32 { (x / CELL).floor() as i32 }
+
+impl Index {
+    pub fn new(parts: &[Part], geo: &Geometry) -> Index {
+        let mut ix = Index { boxes: Vec::with_capacity(parts.len()), ids: Vec::with_capacity(parts.len()), cells: HashMap::new(), everywhere: vec![], span: (Vec2::MAX, Vec2::MIN) };
+        for (i, p) in parts.iter().enumerate() {
+            let (lo, hi) = world_box(geo, p);
+            ix.boxes.push((lo, hi));
+            ix.ids.push(p.id);
+            let (x0, x1, z0, z1) = (cell_of(lo.x), cell_of(hi.x), cell_of(lo.z), cell_of(hi.z));
+            if !(lo.is_finite() && hi.is_finite()) || (x1 - x0 + 1) as i64 * (z1 - z0 + 1) as i64 > MOST_CELLS { ix.everywhere.push(i as u32); continue; }
+            ix.span = (ix.span.0.min(lo.xz()), ix.span.1.max(hi.xz()));
+            for x in x0..=x1 { for z in z0..=z1 { ix.cells.entry((x, z)).or_default().push(i as u32); } }
+        }
+        ix
+    }
+
+    /// The part in slot `i`, if the list is still the one the index was built from there.
+    fn part<'a>(&self, parts: &'a [Part], i: u32) -> Option<&'a Part> {
+        let id = self.ids[i as usize];
+        parts.get(i as usize).filter(|p| p.id == id).or_else(|| parts.iter().find(|p| p.id == id))
+    }
+
+    /// The parts whose box reaches the spot (x, z) seen from above (a superset: their boxes, not their shapes).
+    pub fn at<'a>(&'a self, parts: &'a [Part], at: Vec2) -> impl Iterator<Item = &'a Part> + 'a {
+        let cell = self.cells.get(&(cell_of(at.x), cell_of(at.y))).map_or(&[][..], |v| v.as_slice());
+        cell.iter().chain(&self.everywhere).filter(move |i| { let (lo, hi) = self.boxes[**i as usize]; at.cmpge(lo.xz()).all() && at.cmple(hi.xz()).all() }).filter_map(move |i| self.part(parts, *i))
+    }
+
+    /// As [`raycast`], walking only the cells the ray crosses, nearest first, and stopping once nothing nearer can be
+    /// found. The same answer as testing every part.
+    pub fn raycast(&self, parts: &[Part], geo: &Geometry, ray: Ray3d, skip: Option<u64>, keep: impl Fn(&Part) -> bool) -> Option<Hit> {
+        let (o, d) = (ray.origin, *ray.direction);
+        let mut best: Option<Hit> = None;
+        let mut seen = std::collections::HashSet::new();
+        let mut test = |i: u32, best: &mut Option<Hit>| {
+            if !seen.insert(i) { return; }
+            let Some(t0) = slab(o, d, self.boxes[i as usize]) else { return };
+            if best.as_ref().is_some_and(|b| b.t < t0) { return; }
+            let Some(p) = self.part(parts, i) else { return };
+            if Some(p.id) == skip || !keep(p) { return; }
+            if let Some(h) = hit_part(geo, p, o, d) { if best.as_ref().is_none_or(|b| h.t < b.t) { *best = Some(h); } }
+        };
+        for i in &self.everywhere { test(*i, &mut best); }
+        // the stretch of the ray over the cells' span, seen from above
+        let (flat, (lo, hi)) = (d.xz(), self.span);
+        let range = if lo.x > hi.x { None } else if flat.length_squared() < crate::guard::LEN2 {
+            (o.xz().cmpge(lo).all() && o.xz().cmple(hi).all()).then_some((0.0f32, f32::MAX))
+        } else {
+            let (a, b) = ((lo - o.xz()) / flat, (hi - o.xz()) / flat);
+            let (t0, t1) = (a.min(b).max_element().max(0.0), a.max(b).min_element());
+            (t0 <= t1).then_some((t0, t1))
+        };
+        if let Some((t0, t1)) = range {
+            // step from cell to cell along the ray (seen from above)
+            let start = o.xz() + flat * t0;
+            let (mut cx, mut cz) = (cell_of(start.x), cell_of(start.y));
+            let step = |v: f32| if v > 0.0 { 1 } else { -1 };
+            let next = |c: i32, o: f32, v: f32| if v.abs() < crate::guard::LEN2 { f32::MAX } else { (((c + i32::from(v > 0.0)) as f32 * CELL) - o) / v };
+            let (mut nx, mut nz) = (next(cx, o.x, d.x), next(cz, o.z, d.z));
+            let (dx, dz) = (if d.x.abs() < crate::guard::LEN2 { f32::MAX } else { CELL / d.x.abs() }, if d.z.abs() < crate::guard::LEN2 { f32::MAX } else { CELL / d.z.abs() });
+            let mut enter = t0;
+            loop {
+                if best.as_ref().is_some_and(|b| b.t < enter) { break; }
+                if let Some(v) = self.cells.get(&(cx, cz)) { for i in v { test(*i, &mut best); } }
+                if flat.length_squared() < crate::guard::LEN2 { break; }
+                if nx < nz { enter = nx; nx += dx; cx += step(d.x); } else { enter = nz; nz += dz; cz += step(d.z); }
+                if enter > t1 { break; }
+            }
+        }
+        ground(o, d, &mut best);
+        best
+    }
+}
+
+/// Where a ray first meets a box (its distance), if it does.
+fn slab(o: Vec3, d: Vec3, (lo, hi): (Vec3, Vec3)) -> Option<f32> {
+    let inv = d.recip();
+    let (a, b) = ((lo - crate::guard::SHORT - o) * inv, (hi + crate::guard::SHORT - o) * inv);
+    let (near, far) = (a.min(b).max_element(), a.max(b).min_element());
+    (far >= near.max(0.0)).then_some(near.max(0.0))
+}
+
+
+/// A ray against one part's shape, in the world.
+fn hit_part(geo: &Geometry, p: &Part, o: Vec3, d: Vec3) -> Option<Hit> {
+    let tris = geo.tris(p)?;
+    let m = part_affine(p);
+    let inv = m.inverse();
+    let (t, n, face) = tris.raycast(inv.transform_point3(o), inv.transform_vector3(d))?;
+    let nw = (Mat3::from(m.matrix3).inverse().transpose() * n).normalize_or_zero();
+    Some(Hit { t, point: o + d * t, normal: nw, part: Some(p.id), face })
+}
+
+/// The ground (y = 0), seen from above, when it is nearer.
+fn ground(o: Vec3, d: Vec3, best: &mut Option<Hit>) {
+    if d.y < -crate::guard::ZERO && o.y > 0.0 {
+        let t = -o.y / d.y;
+        if best.as_ref().is_none_or(|b| t < b.t) { *best = Some(Hit { t, point: o + d * t, normal: Vec3::Y, part: None, face: None }); }
+    }
+}
+
+/// The parts of a level that lines are laid on and items land on, with their shapes and an [`Index`] of them.
+pub struct Ground<'a> {
+    pub parts: &'a [Part],
+    pub geo: &'a Geometry,
+    pub index: Index,
+}
+
+impl<'a> Ground<'a> {
+    pub fn new(parts: &'a [Part], geo: &'a Geometry) -> Self { Ground { parts, geo, index: Index::new(parts, geo) } }
+    pub fn raycast(&self, ray: Ray3d, skip: Option<u64>, keep: impl Fn(&Part) -> bool) -> Option<Hit> { self.index.raycast(self.parts, self.geo, ray, skip, keep) }
+    /// The parts whose box reaches (x, z), seen from above.
+    pub fn at(&self, at: Vec2) -> impl Iterator<Item = &Part> + '_ { self.index.at(self.parts, at) }
+}
+
 /// The nearest surface along a ray: a part (those `keep` accepts, except `skip`), or the ground (y = 0) seen from above.
 pub fn raycast(parts: &[Part], geo: &Geometry, ray: Ray3d, skip: Option<u64>, keep: impl Fn(&Part) -> bool) -> Option<Hit> {
     let (o, d) = (ray.origin, *ray.direction);
     let mut best: Option<Hit> = None;
     for p in parts {
         if Some(p.id) == skip || !keep(p) { continue; }
-        let Some(tris) = geo.tris(p) else { continue };
-        let m = part_affine(p);
-        let inv = m.inverse();
-        if let Some((t, n, face)) = tris.raycast(inv.transform_point3(o), inv.transform_vector3(d)) {
-            if best.as_ref().is_none_or(|b| t < b.t) {
-                let nw = (Mat3::from(m.matrix3).inverse().transpose() * n).normalize_or_zero();
-                best = Some(Hit { t, point: o + d * t, normal: nw, part: Some(p.id), face });
-            }
-        }
+        if let Some(h) = hit_part(geo, p, o, d) { if best.as_ref().is_none_or(|b| h.t < b.t) { best = Some(h); } }
     }
-    if d.y < -1e-6 && o.y > 0.0 {
-        let t = -o.y / d.y;
-        if best.as_ref().is_none_or(|b| t < b.t) {
-            best = Some(Hit { t, point: o + d * t, normal: Vec3::Y, part: None, face: None });
-        }
-    }
+    ground(o, d, &mut best);
     best
 }
 
@@ -310,5 +438,50 @@ pub fn spawn_visual(commands: &mut Commands, p: &Part, k: &mut Looks, editor: bo
             if !p.visible { return Some(commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(mats.collider.clone()), EDITOR_ONLY)).id()); }
             Some(commands.spawn((tf, Mesh3d(lib.mesh(s)), MeshMaterial3d(mats.color(assets, p.color)))).id())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The index walks only the cells a ray crosses: it must find what testing every part finds, ray for ray.
+    #[test]
+    fn the_index_finds_what_testing_every_part_finds() {
+        let geo = Geometry::default();
+        let mut seed = 7u64;
+        let mut rnd = move || { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; (seed % 10_000) as f32 / 10_000.0 };
+        let shapes = [Shape::Box, Shape::Ramp, Shape::Cylinder, Shape::Sphere, Shape::Arch, Shape::Stairs];
+        let mut parts: Vec<Part> = (0..300).map(|k| {
+            let mut p = Part::placed(shapes[k % shapes.len()], None, format!("P{k}"), [rnd() * 200.0 - 100.0, rnd() * 20.0, rnd() * 200.0 - 100.0], Quat::from_euler(EulerRot::YXZ, rnd() * 6.0, rnd() - 0.5, rnd() - 0.5).to_array(), [0.2 + rnd() * 12.0, 0.2 + rnd() * 6.0, 0.2 + rnd() * 12.0]);
+            p.id = k as u64 + 1;
+            p
+        }).collect();
+        // a floor too big to list cell by cell, and a long thin wall
+        let mut floor = Part::placed(Shape::Plane, None, "Floor".into(), [0.0, -0.05, 0.0], Quat::IDENTITY.to_array(), [5000.0, 0.1, 5000.0]);
+        floor.id = 1000;
+        parts.push(floor);
+        let mut wall = Part::placed(Shape::Box, None, "Wall".into(), [0.0, 2.0, 30.0], Quat::from_rotation_y(0.3).to_array(), [300.0, 4.0, 0.3]);
+        wall.id = 1001;
+        parts.push(wall);
+        let ix = Index::new(&parts, &geo);
+        assert!(!ix.everywhere.is_empty(), "the big floor is looked at by every question");
+        let mut checked = 0;
+        for k in 0..3000 {
+            let o = Vec3::new(rnd() * 300.0 - 150.0, rnd() * 60.0 - 5.0, rnd() * 300.0 - 150.0);
+            // oblique, straight down, straight along x, and upward rays
+            let d = match k % 4 { 0 => Vec3::new(rnd() - 0.5, rnd() - 0.8, rnd() - 0.5), 1 => Vec3::NEG_Y, 2 => Vec3::X * if rnd() > 0.5 { 1.0 } else { -1.0 }, _ => Vec3::new(rnd() - 0.5, rnd(), rnd() - 0.5) };
+            let Ok(d) = Dir3::new(d) else { continue };
+            let ray = Ray3d::new(o, d);
+            let keep = |p: &Part| p.id % 7 != 3;
+            let (a, b) = (raycast(&parts, &geo, ray, Some(5), keep), ix.raycast(&parts, &geo, ray, Some(5), keep));
+            assert_eq!(a.as_ref().map(|h| h.part), b.as_ref().map(|h| h.part), "ray {k}: {ray:?}");
+            if let (Some(a), Some(b)) = (a, b) { assert!((a.t - b.t).abs() < 1e-4, "ray {k}"); checked += 1; }
+            // a spot: every part whose shape is straight above or below it is among those the index gives
+            let at = o.xz();
+            let down = raycast(&parts, &geo, Ray3d::new(Vec3::new(at.x, 500.0, at.y), Dir3::NEG_Y), None, |_| true);
+            if let Some(id) = down.and_then(|h| h.part) { assert!(ix.at(&parts, at).any(|p| p.id == id), "spot {k}"); }
+        }
+        assert!(checked > 1000, "{checked}");
     }
 }

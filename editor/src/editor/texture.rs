@@ -43,7 +43,7 @@ impl Plane {
         let inv = self.rot.inverse();
         let (o, dir) = (inv * (ray.origin - self.pos), inv * *ray.direction);
         let den = self.n.dot(dir);
-        if den.abs() < 1e-6 { return None; }
+        if den.abs() < crate::guard::ZERO { return None; }
         let x = o + dir * ((self.d - self.n.dot(o)) / den);
         Some(vec2(x.dot(self.u), x.dot(self.v)))
     }

@@ -11,6 +11,7 @@ pub mod editor;
 pub mod gpu;
 pub mod input;
 pub mod grass;
+pub mod guard;
 pub mod level;
 pub mod models;
 pub mod nav;

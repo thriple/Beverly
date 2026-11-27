@@ -15,8 +15,9 @@ use bevy_tnua_avian3d::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 /// The walker's body, from the level's walker profile ([`Level::profile`]): a capsule as wide as the profile,
-/// floating a step above the ground (so it walks up steps that high, and no higher) with its top at the profile's
-/// height, and the steepest slope it stands on (steeper, it slides).
+/// floating a step above the ground (so it walks up steps that high) with its top at the profile's height, and the
+/// steepest slope it stands on (steeper, it slides). Its rounded bottom also rides up a ledge to about 0.6 m when it
+/// walks into one (docs/orderliness.md, A3-6), which stairs and ramps need; the character controller will settle it.
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Body {
     radius: f32,

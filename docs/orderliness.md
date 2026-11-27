@@ -108,9 +108,9 @@ each other's fields.
 | 2 | An MCP change and the fill strokes it caused were two undo steps | `bucket::fills` ran outside the commit | fixed 2026-11-22: moved into `Editor::commit` |
 | 3 | **An MCP change that moves ground under a pen curve or a scatter makes more than one undo step** | 22 places in the MCP tools called `Editor::commit` directly; only the paint tools called `pen::strips` and `scatters` first, so the frame's `commit` made the strips and items again as further steps | fixed 2026-11-26 (stage 2): every edit goes through `Editor::commit`, which runs the steps in order; test `a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too`, and checked live through the MCP |
 | 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | fixed 2026-11-27 (stage 4): an item edited (other than its tags) or deleted by hand is taken over in step 0: it becomes an ordinary part, the island says so, and the scatter leaves its spot empty (`Scatter::taken`, saved); test `a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put`, and checked live through the MCP |
-| 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | open, timed (A4): 10.7 s on the big level |
+| 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | fixed 2026-11-27 (stage 6): each curve's stamp covers only the parts near it; 10.7 s to 3.6 ms (A4); test `moving_a_part_lays_again_only_the_curves_near_it` |
 | 5 | A fill outline was stored in world coordinates and broke on a moving part | pen fill vs hierarchy | fixed 2026-11-20 |
-| 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | fixed 2026-11-27 (stage 3): the walker's body and slope come from the walker profile; test `the_walkers_body_is_the_walker_profile` |
+| 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | mostly fixed 2026-11-27 (stage 3): the walker's body and slope come from the walker profile, so navigation never asks it for a step it can't climb (test `the_walkers_body_is_the_walker_profile`, `tests/orderliness`). Still open the other way: walking into a ledge, the walker's rounded body rides up to about 0.6 m (measured in stage 6: it climbs 0.6, stops at 0.7) where the profile says 0.45, so it can reach a few places the navigation calls unreachable. A flat-bottomed body stops at the step but can't walk up 45° stairs or ramps (tried, and reverted); the fix belongs to the character controller (char-modes) |
 | 7 | The paint and grass draw one frame behind a fill | `paint` and `grass` run before `commit` in the chain | cosmetic |
 
 ### A4. Slow paths (timed 2026-11-26, stage 1)
@@ -142,6 +142,30 @@ What the numbers say (each is one of the brief's "performance hygiene" points):
 - **Picking** at 4.5 ms per ray is fine for one ray a frame, but the pen, placement and the bucket's hover each cast
   their own.
 - **Nothing changed costs little:** under half a millisecond for every step. The change stamps work.
+
+**Stage 6 (2026-11-27), timed again on the same level** (the same test, before and after the stage, this container):
+
+| Step | Before | After |
+|---|---|---|
+| First lay, strips, scatters and commit of the whole level | 11,188 ms | **72 ms** |
+| `pen::lay` after one box moved | 1,617 ms | **1.1 ms** (only the curves near it) |
+| `pen::strips` after one box moved | 9,076 ms | **1.4 ms** |
+| `scatter::scatters` after one box moved | 329 ms | **1.1 ms** |
+| `bucket::fills` after one box moved | 32 ms | 36 ms (unchanged: one Colour fill asks every part) |
+| picking: one ray | 3.6 ms | **0.02 ms** |
+| grass sheets: one painted box | 0.24 ms | 0.07 ms |
+| grass sheets: a 40 m floor with two strips | 1,014 ms | **12 ms** |
+| grass sheets: the 400 m floor with 20 strips | didn't finish in 9 minutes | **574 ms** |
+| any step with nothing changed | under 0.5 ms | under 0.5 ms |
+
+How: each curve's stamp covers only the parts whose box lies under its line, strip, fill or scatter band
+(`pen::near_stamps`); `world::Index` lists the parts by 8 m cells seen from above, and a ray walks only the cells it
+crosses (picking, the pen's lines, strips, fills and scatter landing; a test checks it finds what testing every
+part finds, ray for ray); the grass sheets work in tiles of 16 spots, each asking only the stroke pieces whose box
+reaches it (`paint::runs`, `paint::near`; a test checks the coverage is unchanged). The guards are named once in
+`guard.rs`, values unchanged; the scatter's "long enough to walk along" and the grass's "too thin to grow on" are
+the precision now. The display numbers (the springs and colour sums in the UI, the bucket outline's lift, the paint
+shader's soft edges, the grass's spot size and the paint tile) stay where they are, as display numbers.
 
 ---
 
@@ -314,7 +338,7 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
    into the user's own, with a warning (fixes A3-4).
 5. **The setting** (done 2026-11-27): Precision with presets in project settings, its warning for odd scales, old projects keeping
    their numbers.
-6. **Sweep:** name the guards and the display numbers; one spatial index for picking, placement, pen, bucket and
+6. **Sweep** (done 2026-11-27): name the guards and the display numbers; one spatial index for picking, placement, pen, bucket and
    scatter. The stage 1 timings say it is needed: each curve asks only about the parts near it (moving one box no
    longer remakes every curve), and strips, grass sheets and coverage skip the stroke pieces whose box doesn't reach
    the spot. Each is timed again on the same level, before and after.

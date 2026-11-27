@@ -179,7 +179,7 @@ pub fn draw(ed: &Editor, g: &mut Gizmos<super::edit::WidgetGizmos>) {
         let turn = Quat::from_array(p.rot);
         for (t, f) in tris.face.iter().enumerate() {
             if !faces.contains(f) { continue; }
-            let n = (turn * (tris.nrm[t * 3] / Vec3::from(p.size).max(Vec3::splat(1e-4)))).normalize_or_zero() * 0.01;
+            let n = (turn * (tris.nrm[t * 3] / Vec3::from(p.size).max(Vec3::splat(crate::guard::SHORT)))).normalize_or_zero() * 0.01;
             let c: Vec<Vec3> = (0..3).map(|k| a.transform_point3(tris.pos[t * 3 + k]) + n).collect();
             g.linestrip([c[0], c[1], c[2], c[0]], col.with_alpha(0.55));
         }
