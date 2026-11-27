@@ -20,14 +20,23 @@ pub use sync::*;
 pub use widget::*;
 
 impl Editor {
+    /// The level's parts by where they are (`world::Index`), made again when the parts or the models change.
+    pub fn index(&self) -> std::sync::Arc<world::Index> {
+        let key = (self.level.parts.stamp(), self.geo.models.len());
+        let mut c = self.index.lock().expect("not poisoned");
+        if c.as_ref().is_none_or(|(k, _)| *k != key) { *c = Some((key, std::sync::Arc::new(world::Index::new(&self.level.parts, &self.geo)))); }
+        c.as_ref().expect("just made").1.clone()
+    }
+
     /// The nearest surface along a ray: a part, or the ground (y = 0) seen from above.
     pub fn hit(&self, ray: Ray3d) -> Option<Hit> { self.hit_skip(ray, None) }
 
     /// What the ray meets first. A zone counts only where what lies behind it is outside it, so a click on the floor
     /// inside a zone picks the floor, and one past it (the sky, a wall beyond) picks the zone.
     pub fn hit_skip(&self, ray: Ray3d, skip: Option<u64>) -> Option<Hit> {
-        let solid = world::raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape != Shape::Zone);
-        let Some(zone) = world::raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape == Shape::Zone) else { return solid };
+        let ix = self.index();
+        let solid = ix.raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape != Shape::Zone);
+        let Some(zone) = ix.raycast(&self.level.parts, &self.geo, ray, skip, |p| p.shape == Shape::Zone) else { return solid };
         let behind_outside = |s: &Hit| zone.part.and_then(|id| self.level.get(id)).is_none_or(|z| !level::in_zone(z, s.point));
         match &solid {
             Some(s) if s.t < zone.t || !behind_outside(s) => solid,
@@ -147,7 +156,9 @@ impl Editor {
                     Ok((name, lvl)) => {
                         self.load_into(dir, lvl);
                         self.name = name;
-                        let note = if level::is_old(&self.dir) { " · from an older Beverly: saving updates its files to .bev" } else { "" };
+                        let own = self.level.precision();
+                        let precision = if own != level::Precision::default() { format!(" · precision {} (this project's)", level::length(own.0)) } else { String::new() };
+                        let note = if level::is_old(&self.dir) { format!("{precision} · from an older Beverly: saving updates its files to .bev") } else { precision };
                         self.island.show("▸", format!("Opened {}", self.name), format!("{} parts{note}", self.level.parts.len()), Tone::Accent);
                     }
                     Err(e) => self.island.show("!", "Couldn't open that folder", e, Tone::Danger),
@@ -370,11 +381,14 @@ pub fn commit(mut ed: ResMut<Editor>, mouse: Res<ButtonInput<MouseButton>>) {
 impl Editor {
     /// Make the change since the last undo step a step of its own (if there is one), with everything it causes. Every
     /// edit comes through here (the panels, the handles, keys, the MCP), and the steps after it run in the written
-    /// order (`docs/orderliness.md`, C3), each changing only what it owns: attached parts follow their parent; the
+    /// order (`docs/orderliness.md`, C3), each changing only what it owns: a scattered item edited by hand becomes the
+    /// user's own; attached parts follow their parent; the
     /// pen's scatters make their items again; the pen's strips and fills, then the bucket fills, make their strokes
     /// again; then the whole change is one undo step. A change to a part's contents that its instances didn't get
     /// asks "Change all, or make this one Unique?" (`ask`).
     pub fn commit(&mut self) {
+        let took = super::scatter::take_over(self);
+        if took > 0 { self.island.show("✋", if took == 1 { "Turned into an item".into() } else { format!("Turned {took} into items") }, "Edited by hand, so the curve no longer makes it", Tone::Accent); }
         if self.level.parts.stamp() != self.followed { self.follow(); }
         pen::lay(self);
         super::scatter::scatters(self);
@@ -493,6 +507,63 @@ mod tests {
         assert_eq!(ed.ask, Some((a, vec![c])));
     }
 
+    /// Orderliness stage 5: changing the precision is an undo step like any edit, and what it decides (Bucket's
+    /// Connected only) follows it in the same step.
+    #[test]
+    fn changing_the_precision_is_one_undo_step_and_fills_follow_it() {
+        use crate::level::{Bucket, Fills, Precision};
+        let mut ed = Editor::at(std::env::temp_dir());
+        let plane = |x: f32| Part::placed(Shape::Plane, None, format!("Floor {x}"), [x, 0.05, 0.0], Quat::IDENTITY.to_array(), [4.0, 0.1, 4.0]);
+        // two floors 4 cm apart: touching at 1 mm (5 cm), not at 0.5 mm (2.5 cm)
+        let (a, b) = (ed.level.add(plane(0.0)), ed.level.add(plane(4.04)));
+        bucket::add(&mut ed, Bucket { id: 0, part: a, face: None, at: [0.0, 0.05, 0.0], fills: Fills::Floor, tolerance: 0.0, tag: None, connected: true, material: "moss".into(), strength: 1.0, lays: Default::default() });
+        ed.commit();
+        let filled = |ed: &Editor, id: u64| ed.level.get(id).unwrap().strokes.iter().any(|s| s.bucket.is_some());
+        assert!(filled(&ed, a) && filled(&ed, b));
+        let steps = ed.undo.len();
+        *ed.level.precision = Precision(0.0005);
+        ed.commit();
+        assert_eq!(ed.undo.len(), steps + 1, "one step");
+        assert!(filled(&ed, a) && !filled(&ed, b), "the fill stops at the gap now");
+        ed.undo();
+        ed.commit();
+        assert_eq!(ed.level.precision(), Precision::default());
+        assert!(filled(&ed, b), "undo brings the precision and the fill back");
+    }
+
+    /// Orderliness (C3): the generated strokes (step 4: pen fills, then bucket fills) never change a stroke painted by
+    /// hand or its place among them, and the instances question (step 2) never sees the generated ones.
+    #[test]
+    fn generated_strokes_never_touch_hand_painted_ones_and_copies_dont_see_them() {
+        use crate::level::{Bucket, Fills, Stroke};
+        let mut ed = Editor::at(std::env::temp_dir());
+        let moss = "assets/materials/moss.bev".to_string();
+        ed.level.materials.insert(moss.clone(), Default::default());
+        let dab = Stroke { material: moss.clone(), size: 0.5, hardness: 1.0, strength: 1.0, points: vec![[0.2, 1.0, 0.0]], lays: Default::default(), rules: Default::default(), curve: None, fill: false, faces: vec![], bucket: None, ground: None, ground_look: None };
+        let boxed = |x: f32| { let mut p = Part::placed(Shape::Box, None, format!("Box {x}"), [x, 1.0, 0.0], Quat::IDENTITY.to_array(), [2.0; 3]); p.strokes = vec![dab.clone(), Stroke { points: vec![[-0.3, 1.0, 0.2]], ..dab.clone() }]; p };
+        let (a, b) = (ed.level.add(boxed(0.0)), ed.level.add(boxed(6.0)));
+        ed.commit();
+        assert_eq!(ed.level.instances(a), vec![b], "copies");
+        // a pen fill over a's top, and a bucket fill of a
+        let c = ed.level.add_curve([(-0.8, -0.8), (0.8, -0.8), (0.8, 0.8), (-0.8, 0.8)].iter().map(|(x, z)| crate::curve::PenPoint::corner(Vec3::new(*x, 2.0, *z))).collect(), true);
+        ed.level.curve_mut(c).unwrap().fill = Some(crate::curve::Fill { material: moss.clone(), feather: 0.2, strength: 1.0 });
+        bucket::add(&mut ed, Bucket { id: 0, part: a, face: Some(2), at: [0.0, 1.0, 0.0], fills: Fills::Part, tolerance: 0.0, tag: None, connected: false, material: moss.clone(), strength: 0.5, lays: Default::default() });
+        ed.commit();
+        let hand = |ed: &Editor| ed.level.get(a).unwrap().strokes.iter().filter(|s| s.curve.is_none() && s.bucket.is_none()).cloned().collect::<Vec<_>>();
+        let strokes = &ed.level.get(a).unwrap().strokes;
+        assert!(strokes.iter().any(|s| s.curve == Some(c)) && strokes.iter().any(|s| s.bucket.is_some()), "both made strokes: {strokes:?}");
+        assert_eq!(&strokes[..2], &boxed(0.0).strokes[..], "the hand-painted ones first, as they were");
+        assert!(ed.ask.is_none(), "the copies question doesn't see made strokes");
+        // move a and the curve: both fills are made again; the hand-painted strokes are untouched
+        ed.level.get_mut(a).unwrap().pos[0] = 0.5;
+        ed.level.curve_mut(c).unwrap().points[0].at[0] = -0.6;
+        ed.commit();
+        assert_eq!(hand(&ed), boxed(0.0).strokes);
+        assert_eq!(&ed.level.get(a).unwrap().strokes[..2], &boxed(0.0).strokes[..]);
+        assert!(ed.ask.is_none());
+        assert_eq!(ed.level.instances(a), vec![b], "still copies");
+    }
+
     /// Orderliness stage 1 (docs/orderliness.md, A4): how long each step after an edit takes on a big level. Run by
     /// hand: `cargo test --lib orderliness_timings -- --ignored --nocapture`.
     #[test]
@@ -536,7 +607,7 @@ mod tests {
         let ed = std::cell::RefCell::new(ed);
         time("first lay + strips + scatters + commit", 1, &mut || { let mut e = ed.borrow_mut(); pen::lay(&mut e); pen::strips(&mut e); crate::editor::scatter::scatters(&mut e); e.commit(); });
         println!("level: {} parts, {} curves, {} fills", ed.borrow().level.parts.len(), ed.borrow().level.curves.len(), ed.borrow().level.buckets.len());
-        time("pen::world_stamp (nothing changed)", 50, &mut || { std::hint::black_box(pen::world_stamp(&ed.borrow())); });
+        time("pen::near_stamps (nothing changed)", 50, &mut || { let e = ed.borrow(); std::hint::black_box(pen::near_stamps(&e.level, &e.geo)); });
         time("pen::lay (nothing changed)", 50, &mut || pen::lay(&mut ed.borrow_mut()));
         time("pen::strips (nothing changed)", 50, &mut || pen::strips(&mut ed.borrow_mut()));
         time("scatter::scatters (nothing changed)", 50, &mut || crate::editor::scatter::scatters(&mut ed.borrow_mut()));
@@ -545,7 +616,7 @@ mod tests {
         let before = ed.borrow().level.clone();
         let o = vec3(0.0, 40.0, 200.0);
         let ray = Ray3d::new(o, Dir3::new(vec3(3.0, 1.0, 0.0) - o).unwrap());
-        time("picking: one ray against every part", 50, &mut || { std::hint::black_box(ed.borrow().hit(ray)); });
+        time("picking: one ray (through the index)", 50, &mut || { std::hint::black_box(ed.borrow().hit(ray)); });
         // one change: a box moved
         ed.borrow_mut().level.get_mut(500).unwrap().pos[0] += 1.0;
         time("Delta::between after one box moved", 10, &mut || { std::hint::black_box(level::Delta::between(&before, &ed.borrow().level)); });
@@ -558,7 +629,8 @@ mod tests {
         let growers = crate::grass::sheets::growers(&e.level);
         let painted: Vec<&Part> = e.level.parts.iter().filter(|p| !p.strokes.is_empty()).collect();
         time("grass sheets, one painted box", 20, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&e.level, painted[1], &growers)); });
-        // (the 400 m floor with the 20 strips on it didn't finish in 9 minutes: a 40 m one with two strips instead)
+        // (before stage 6 the 400 m floor with the 20 strips on it didn't finish in 9 minutes: a 40 m one with two
+        // strips stood in)
         let mut small = e.level.clone();
         let f = small.get_mut(1).unwrap();
         f.size = [40.0, 0.1, 40.0];
@@ -566,5 +638,6 @@ mod tests {
         let n = f.strokes.iter().map(|s| s.points.len()).sum::<usize>();
         println!("small floor: {} strokes, {n} points", f.strokes.len());
         time("grass sheets, a 40 m floor", 1, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&small, small.get(1).unwrap(), &growers)); });
+        time("grass sheets, the 400 m floor with 20 strips", 1, &mut || { std::hint::black_box(crate::grass::sheets::sheets(&e.level, e.level.get(1).unwrap(), &growers)); });
     }
 }

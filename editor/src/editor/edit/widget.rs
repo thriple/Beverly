@@ -63,7 +63,7 @@ pub(super) fn scaled(orig: &Part, (lo, hi): (Vec3, Vec3), grip: Grip, amount: f3
         Grip::Corner(k) => ((size * amount.max(0.01)).max(Vec3::splat(min)), corner_local(7 - k, lo, hi)),
         Grip::Face(i, pos) => {
             let mut s = size;
-            s[i] = (amount / (hi[i] - lo[i]).max(1e-6)).max(min);
+            s[i] = (amount / (hi[i] - lo[i]).max(crate::guard::ZERO)).max(min);
             (s, face_local(i, !pos, lo, hi))
         }
         _ => return orig.clone(),
@@ -88,13 +88,13 @@ pub(super) fn axis_param(c: Vec3, a: Vec3, ray: Ray3d) -> Option<f32> {
     let w = c - ray.origin;
     let b = a.dot(d);
     let den = 1.0 - b * b;
-    if den < 1e-3 { return None; }
+    if den < crate::guard::SMALL { return None; }
     Some((b * d.dot(w) - a.dot(w)) / den)
 }
 
 pub(super) fn ring_angle(c: Vec3, ray: Ray3d) -> Option<f32> {
     let d = *ray.direction;
-    if d.y.abs() < 1e-4 { return None; }
+    if d.y.abs() < crate::guard::SHORT { return None; }
     let t = (c.y - ray.origin.y) / d.y;
     if t <= 0.0 { return None; }
     let q = ray.origin + d * t - c;
@@ -103,7 +103,7 @@ pub(super) fn ring_angle(c: Vec3, ray: Ray3d) -> Option<f32> {
 
 pub(super) fn seg_dist(p: Vec2, a: Vec2, b: Vec2) -> f32 {
     let ab = b - a;
-    let t = ((p - a).dot(ab) / ab.length_squared().max(1e-6)).clamp(0.0, 1.0);
+    let t = ((p - a).dot(ab) / ab.length_squared().max(crate::guard::ZERO)).clamp(0.0, 1.0);
     p.distance(a + ab * t)
 }
 

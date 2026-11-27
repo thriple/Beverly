@@ -273,6 +273,28 @@ fn material_row(ui: &mut Ui, salt: &str, ed: &Editor, chosen: &mut String) {
     });
 }
 
+/// The project's precision (docs/orderliness.md, C1): a preset or a typed value, and a warning when it doesn't suit
+/// the level. Changing it is an undo step, like any edit.
+fn precision_column(ui: &mut Ui, ed: &mut Editor) {
+    let now = ed.level.precision();
+    column(ui, 0.0, "PROJECT · PRECISION", |ui| {
+        let names: Vec<&str> = level::Precision::PRESETS.iter().map(|(n, _)| *n).collect();
+        // a typed value that is no preset: none lit
+        let mut i = level::Precision::PRESETS.iter().position(|(n, _)| Some(*n) == now.preset()).unwrap_or(names.len());
+        let mut chosen = None;
+        if theme::choices(ui, "precision", &names, &mut i) {
+            chosen = level::Precision::PRESETS.get(i).map(|p| p.1);
+        }
+        let mut mm = now.0 * 1000.0;
+        let mut none = false;
+        let typed = settings::row(ui, "target", "Typed", "How close two points are to count as the same, for the whole project (the presets: Tabletop 0.1 mm, Human 1 mm, Vehicle 5 mm, Planet 5 cm), or any value from 0.01 mm to 1 m; parts this close count as touching at 50 times it", now != level::Precision::default(), &mut none, |ui| settings::number(ui, &mut mm, 0.01, level::Precision::MIN * 1000.0, level::Precision::MAX * 1000.0, " mm", None, ui.available_width()));
+        if typed.changed() { chosen = Some(mm / 1000.0); }
+        if none { chosen = Some(level::Precision::default().0); }
+        if let Some(w) = ed.level.precision_warning() { ui.label(egui::RichText::new(w).color(theme::DANGER_TEXT)); }
+        if let Some(v) = chosen.map(|v| v.clamp(level::Precision::MIN, level::Precision::MAX)).filter(|v| *v != now.0) { *ed.level.precision = level::Precision(v); }
+    });
+}
+
 /// The bottom-left panel: what the Level tab's topic (its menu) sets, or the level and its topics.
 pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
     let mut l = ed.level.lighting.clone();
@@ -301,6 +323,7 @@ pub(super) fn mode_panel(ui: &mut Ui, ed: &mut Editor) {
                 theme::hint(ui, "Test", &["`"]);
                 theme::hint(ui, "Save", &["Ctrl", "S"]);
             });
+            precision_column(ui, ed);
             // the walker's sounds (until characters have their own)
             let files: Vec<String> = ed.level.sounds.keys().cloned().collect();
             let mut w = ed.level.walker.clone();

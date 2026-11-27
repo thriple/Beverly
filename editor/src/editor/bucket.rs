@@ -68,6 +68,8 @@ fn level_stamp(ed: &Editor) -> u64 {
         for v in p.pos.iter().chain(&p.rot).chain(&p.size).chain(&p.color) { v.to_bits().hash(&mut h); }
         for s in &p.surfaces { (s.face, &s.material).hash(&mut h); }
     }
+    // Floor reads the walker profile, Connected only the precision
+    [ed.level.profile().step, ed.level.profile().slope, ed.level.precision().0].map(f32::to_bits).hash(&mut h);
     for (k, m) in ed.level.materials.iter() { (k, m.tint.map(f32::to_bits)).hash(&mut h); }
     h.finish()
 }
@@ -177,7 +179,7 @@ pub fn draw(ed: &Editor, g: &mut Gizmos<super::edit::WidgetGizmos>) {
         let turn = Quat::from_array(p.rot);
         for (t, f) in tris.face.iter().enumerate() {
             if !faces.contains(f) { continue; }
-            let n = (turn * (tris.nrm[t * 3] / Vec3::from(p.size).max(Vec3::splat(1e-4)))).normalize_or_zero() * 0.01;
+            let n = (turn * (tris.nrm[t * 3] / Vec3::from(p.size).max(Vec3::splat(crate::guard::SHORT)))).normalize_or_zero() * 0.01;
             let c: Vec<Vec3> = (0..3).map(|k| a.transform_point3(tris.pos[t * 3 + k]) + n).collect();
             g.linestrip([c[0], c[1], c[2], c[0]], col.with_alpha(0.55));
         }

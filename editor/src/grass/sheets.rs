@@ -9,6 +9,8 @@ use bevy::prelude::*;
 /// Metres per spot of a sheet's maps, and the most spots along a side (a bigger face gets bigger spots).
 pub const TEXEL: f32 = 0.5;
 pub const MOST: u32 = 512;
+/// Spots along a side of the tiles a sheet is worked out in (each tile asks only the strokes that reach it).
+const TILE: u32 = 16;
 /// The most grass-growing materials a level can have (the shader's table).
 pub const MOST_GROWERS: usize = 32;
 
@@ -46,7 +48,7 @@ fn off_triangle(p: Vec2, t: [Vec2; 3]) -> f32 {
     let side = |a: Vec2, b: Vec2| (b - a).perp_dot(p - a);
     let (s0, s1, s2) = (side(t[0], t[1]), side(t[1], t[2]), side(t[2], t[0]));
     if (s0 >= 0.0 && s1 >= 0.0 && s2 >= 0.0) || (s0 <= 0.0 && s1 <= 0.0 && s2 <= 0.0) { return 0.0; }
-    let seg = |a: Vec2, b: Vec2| { let ab = b - a; let k = ((p - a).dot(ab) / ab.dot(ab).max(1e-12)).clamp(0.0, 1.0); p.distance(a + ab * k) };
+    let seg = |a: Vec2, b: Vec2| { let ab = b - a; let k = ((p - a).dot(ab) / ab.dot(ab).max(crate::guard::LEN2)).clamp(0.0, 1.0); p.distance(a + ab * k) };
     seg(t[0], t[1]).min(seg(t[1], t[2])).min(seg(t[2], t[0]))
 }
 
@@ -67,6 +69,7 @@ pub fn sheets(level: &Level, p: &Part, growers: &[String]) -> Vec<Sheet> {
     let (pieces, seen) = (crate::paint::pieces(p), crate::paint::pieces(&shown));
     let count = if p.strokes.is_empty() { 0 } else { pieces.len() };
     let seen_count = if p.strokes.is_empty() { 0 } else { seen.len() };
+    let (runs, seen_runs) = (crate::paint::runs(&pieces, count), crate::paint::runs(&seen, seen_count));
     let (a, turn, size) = (crate::world::part_affine(p), Quat::from_array(p.rot), Vec3::from(p.size));
     let mut out = vec![];
     for (f, lay) in tris.faces.iter().enumerate() {
@@ -74,13 +77,14 @@ pub fn sheets(level: &Level, p: &Part, growers: &[String]) -> Vec<Sheet> {
         let f = f as u8;
         let corners: Vec<Vec3> = tris.face.iter().enumerate().filter(|(_, x)| **x == f).flat_map(|(t, _)| (0..3).map(move |k| t * 3 + k)).map(|k| a.transform_point3(tris.pos[k])).collect();
         let Some(k0) = tris.face.iter().position(|x| *x == f) else { continue };
-        let normal = (turn * (tris.nrm[k0 * 3] / size.max(Vec3::splat(1e-4)))).normalize_or_zero();
+        let normal = (turn * (tris.nrm[k0 * 3] / size.max(Vec3::splat(crate::guard::SHORT)))).normalize_or_zero();
         if normal == Vec3::ZERO { continue; }
         let (u, v) = across(normal);
         let flat: Vec<Vec2> = corners.iter().map(|c| Vec2::new(c.dot(u), c.dot(v))).collect();
         let (lo, hi) = flat.iter().fold((Vec2::MAX, Vec2::MIN), |(lo, hi), q| (lo.min(*q), hi.max(*q)));
         let span = hi - lo;
-        if span.min_element() < 1e-3 { continue; }
+        // a face thinner than the precision has no room to grow on
+        if span.min_element() < level.precision().same() { continue; }
         let texel = TEXEL.max(span.max_element() / MOST as f32);
         let dims = (span / texel).ceil().as_uvec2().max(UVec2::ONE);
         let origin = corners[0] + u * (lo.x - flat[0].x) + v * (lo.y - flat[0].y);
@@ -90,22 +94,26 @@ pub fn sheets(level: &Level, p: &Part, growers: &[String]) -> Vec<Sheet> {
         let n = (dims.x * dims.y) as usize;
         let (mut g, mut c) = (vec![0u8; n * 4], vec![255u8; n * 4]);
         let mut any = false;
-        for j in 0..dims.y {
-            for i in 0..dims.x {
+        // a tile of spots at a time, each asking only the strokes that reach it
+        for (tj, ti) in (0..dims.y).step_by(TILE as usize).flat_map(|tj| (0..dims.x).step_by(TILE as usize).map(move |ti| (tj, ti))) {
+            let (lo, hi) = [(ti, tj), (ti + TILE, tj), (ti, tj + TILE), (ti + TILE, tj + TILE)].iter().map(|(i, j)| p.to_local(origin + u * (*i as f32 * texel) + v * (*j as f32 * texel))).fold((Vec3::MAX, Vec3::MIN), |(l, h), c| (l.min(c), h.max(c)));
+            let near_seen = crate::paint::near(&seen, &seen_runs, lo, hi);
+            let near_pieces = crate::paint::near(&pieces, &runs, lo, hi);
+            for (j, i) in (tj..(tj + TILE).min(dims.y)).flat_map(|j| (ti..(ti + TILE).min(dims.x)).map(move |i| (j, i))) {
                 let at = (Vec2::new(i as f32, j as f32) + 0.5) * texel;
                 if !tri2.iter().any(|t| off_triangle(at, *t) <= texel * 0.5) { continue; }
                 let w = origin + u * at.x + v * at.y;
                 let local = p.to_local(w);
                 let (mut left, mut colour, mut best, mut thick) = (1.0f32, Vec3::ZERO, (0.0f32, 0usize), 0.0f32);
                 for (l, tint) in tints.iter().enumerate() {
-                    let cov = crate::paint::coverage(&seen, seen_count, l as i32, local, f, normal.y, w.y);
+                    let cov = crate::paint::coverage(&near_seen, near_seen.len(), l as i32, local, f, normal.y, w.y);
                     colour += *tint * cov;
                     left -= cov;
                 }
                 colour += base_colour * left.max(0.0);
                 let mut left = 1.0f32;
                 for (l, gr) in grow.iter().enumerate() {
-                    let cov = crate::paint::coverage(&pieces, count, l as i32, local, f, normal.y, w.y);
+                    let cov = crate::paint::coverage(&near_pieces, near_pieces.len(), l as i32, local, f, normal.y, w.y);
                     left -= cov;
                     if let Some((gi, d)) = gr {
                         thick += cov * d;

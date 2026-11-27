@@ -71,7 +71,7 @@ impl<T: PartialEq> PartialEq for Tracked<T> {
 
 /// The stamps of everything in a level that can change: two levels with equal stamps (one a copy of the other, or the
 /// same level not borrowed for change in between) hold the same things.
-pub type Stamps = [u64; 12];
+pub type Stamps = [u64; 13];
 
 #[cfg(test)]
 mod tests {

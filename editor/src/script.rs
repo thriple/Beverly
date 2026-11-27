@@ -206,7 +206,7 @@ pub fn run(mut play: ResMut<Play>, time: Res<Time>, mut bodies: Query<(&PartBody
         let (to, facing) = m.pose();
         let (was, turned) = (m.last, facing * m.last.1.inverse());
         m.last = (to, facing);
-        if on != Some(m.id) || turned.dot(Quat::IDENTITY).abs() > 1.0 - 1e-9 { continue; }
+        if on != Some(m.id) || turned.dot(Quat::IDENTITY).abs() > 1.0 - crate::guard::FINE { continue; }
         if let Ok(mut at) = walker.single_mut() {
             let r = at.0 - was.0;
             at.0 += turned * r - r;

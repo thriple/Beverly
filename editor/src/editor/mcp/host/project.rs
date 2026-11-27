@@ -20,7 +20,8 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
             "unsaved_changes": ed.dirty(),
             "undo_steps": ed.undo.len(),
             // "close enough" for the project (docs/orderliness.md): the same point, and touching
-            "precision": {"same_point_m": settings::num(ed.level.precision().same()), "touching_m": settings::num(ed.level.precision().touching())},
+            "precision": {"same_point_m": settings::num(ed.level.precision().same()), "touching_m": settings::num(ed.level.precision().touching()), "preset": ed.level.precision().preset(), "warning": ed.level.precision_warning()},
+            "grid": {"move_m": settings::num(ed.level.grid().step), "scale": settings::num(ed.level.grid().scale), "turn_deg": settings::num(ed.level.grid().turn)},
             "redo_steps": ed.redo.len(),
             "change_stamp": ed.level.stamps().iter().max(),
             "testing": ed.testing.is_some(),
@@ -63,7 +64,13 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
         }
         "change_level" => {
             editable(ed)?;
-            if args.get("settings").is_none() && args.get("navigation").is_none() && args.get("walker_sounds").is_none() { return Err("Give settings, such as {\"Interior\": true}, or navigation, such as {\"Step\": 0.3}".into()); }
+            if args.get("settings").is_none() && args.get("navigation").is_none() && args.get("walker_sounds").is_none() && args.get("precision").is_none() { return Err("Give settings, such as {\"Interior\": true}, or navigation, such as {\"Step\": 0.3}".into()); }
+            use crate::level::Precision;
+            let precision = match args.get("precision") {
+                None => None,
+                Some(Value::String(name)) => Some(Precision::PRESETS.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| *v).ok_or_else(|| format!("No precision preset {name} (they are: Tabletop, Human, Vehicle, Planet), or give millimetres"))?),
+                Some(v) => Some(v.as_f64().ok_or("precision is a preset name or millimetres")? as f32 / 1000.0),
+            }.map(|v| v.clamp(Precision::MIN, Precision::MAX));
             let mut w = ed.level.walker.clone();
             if let Some(map) = args.get("walker_sounds") {
                 let map = map.as_object().ok_or("walker_sounds is an object such as {\"Step\": \"footsteps\"} (null for none)")?;
@@ -79,6 +86,7 @@ pub(super) fn project_tools(ed: &mut Editor, name: &str, args: &Value) -> Result
             ed.level.lighting = l;
             ed.level.navigation = n;
             if w != ed.level.walker { changed.push("walker_sounds"); ed.level.walker = w; }
+            if let Some(v) = precision.filter(|v| *v != ed.level.precision().0) { changed.push("precision"); *ed.level.precision = Precision(v); }
             ed.commit();
             Ok(json!({"changed": changed, "level": describe_level(ed)}))
         }

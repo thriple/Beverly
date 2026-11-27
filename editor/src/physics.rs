@@ -102,7 +102,7 @@ struct Pulling(Vec<(u64, Vec3, f32, f32)>);
 /// The impulse a blast gives a body at `pos`.
 pub fn blast_impulse(b: &Blast, pos: Vec3) -> Vec3 {
     let d = pos - b.at;
-    let k = (1.0 - d.length() / b.radius.max(1e-3)).max(0.0);
+    let k = (1.0 - d.length() / b.radius.max(crate::guard::SMALL)).max(0.0);
     // straight up when it is right on top
     d.try_normalize().unwrap_or(Vec3::Y) * b.strength * k
 }

@@ -6,10 +6,6 @@ use crate::level::{Bucket, Fills, Level, Part, Tag};
 use crate::world::part_affine;
 use bevy::prelude::*;
 
-/// How far (m) above or below the height clicked a walkable face may be and still be the same floor.
-const FLOOR: f32 = 0.3;
-/// How far apart (m) two parts may be and still touch (Connected only).
-const TOUCH: f32 = 0.05;
 
 /// The material laid on face `f` of `p`: the face's own, else the one laid all over it.
 pub fn face_material(p: &Part, f: Option<u8>) -> Option<&str> {
@@ -33,7 +29,7 @@ fn faces_of(p: &Part) -> Vec<(f32, f32, f32)> {
         let o = &mut out[f as usize];
         for k in t * 3..t * 3 + 3 {
             let y = a.transform_point3(tris.pos[k]).y;
-            let up = (turn * (tris.nrm[k] / size.max(Vec3::splat(1e-4)))).normalize_or_zero().y;
+            let up = (turn * (tris.nrm[k] / size.max(Vec3::splat(crate::guard::SHORT)))).normalize_or_zero().y;
             *o = (o.0.max(up), o.1.min(y), o.2.max(y));
         }
     }
@@ -52,11 +48,15 @@ fn bounds(p: &Part) -> (Vec3, Vec3) {
     (lo, hi)
 }
 
-fn touch(a: (Vec3, Vec3), b: (Vec3, Vec3)) -> bool { (a.0 - TOUCH).cmple(b.1).all() && (b.0 - TOUCH).cmple(a.1).all() }
+/// Two parts' boxes touch: no further apart than `touching` (the project's, Connected only).
+fn touch(a: (Vec3, Vec3), b: (Vec3, Vec3), touching: f32) -> bool { (a.0 - touching).cmple(b.1).all() && (b.0 - touching).cmple(a.1).all() }
 
 /// The faces each part the fill reaches: (part id, faces), in the level's order. Only parts that can be painted.
+/// Floor takes the walker profile's slope and step (a walkable face within a step of the height clicked is the same
+/// floor); Connected only takes the project's touching.
 pub fn reach(level: &Level, b: &Bucket) -> Vec<(u64, Vec<u8>)> {
     let Some(clicked) = level.get(b.part) else { return vec![] };
+    let (walkable, floor, touching) = (level.profile().up(), level.profile().step, level.precision().touching());
     let at_y = clicked.to_world(Vec3::from(b.at)).y;
     let key_material = face_material(clicked, b.face).map(str::to_string);
     let key_colour = face_colour(level, clicked, b.face);
@@ -79,7 +79,7 @@ pub fn reach(level: &Level, b: &Bucket) -> Vec<(u64, Vec<u8>)> {
             Fills::Colour => (0..n).filter(|f| colour_gap(face_colour(level, p, Some(*f)), key_colour) <= b.tolerance.max(0.02)).collect(),
             Fills::Floor => {
                 let ground = p.tags.iter().any(|t| matches!(t, Tag::Ground | Tag::Water));
-                faces_of(p).iter().enumerate().filter(|(_, (up, lo, hi))| (*up >= 0.7 || (ground && *up > 0.0)) && at_y >= lo - FLOOR && at_y <= hi + FLOOR).map(|(f, _)| f as u8).collect()
+                faces_of(p).iter().enumerate().filter(|(_, (up, lo, hi))| (*up >= walkable || (ground && *up > 0.0)) && at_y >= lo - floor && at_y <= hi + floor).map(|(f, _)| f as u8).collect()
             }
         };
         if !faces.is_empty() { found.push((p.id, faces)); }
@@ -93,7 +93,7 @@ pub fn reach(level: &Level, b: &Bucket) -> Vec<(u64, Vec<u8>)> {
             grew = false;
             for (id, bx) in &boxes {
                 if keep.contains(id) { continue; }
-                if boxes.iter().any(|(k, kb)| keep.contains(k) && touch(*bx, *kb)) { keep.push(*id); grew = true; }
+                if boxes.iter().any(|(k, kb)| keep.contains(k) && touch(*bx, *kb, touching)) { keep.push(*id); grew = true; }
             }
         }
         found.retain(|(id, _)| keep.contains(id));
@@ -173,6 +173,26 @@ mod tests {
         // colour, connected: the grey storey above doesn't touch
         b.fills = Fills::Colour;
         assert_eq!(reach(&l, &b).iter().map(|x| x.0).collect::<Vec<_>>(), vec![1, 2]);
+    }
+
+    #[test]
+    fn floor_reads_the_walker_profile_and_connected_reads_the_precision() {
+        // a platform 0.42 m up, and a ramp face 50° steep (the same height as the floor clicked)
+        let grey = [0.5; 3];
+        let ramp = part(3, Shape::Ramp, [-6.0, 0.0, 0.0], [2.0, 2.4, 2.0], grey);
+        let mut l = level(vec![part(1, Shape::Plane, [0.0, 0.05, 0.0], [4.0, 0.1, 4.0], grey), part(2, Shape::Box, [6.0, 0.27, 0.0], [2.0, 0.3, 2.0], grey), ramp]);
+        let b = bucket(1, [0.0, 0.05, 0.0], Fills::Floor);
+        let ids = |l: &Level| reach(l, &b).iter().map(|x| x.0).collect::<Vec<_>>();
+        assert_eq!(ids(&l), vec![1, 2], "the platform is within the profile's step (0.45 m); the ramp is steeper than its slope (45°)");
+        l.navigation.step = 0.3;
+        l.navigation.slope = 60.0;
+        assert_eq!(ids(&l), vec![1, 3], "a lower step leaves the platform out; a steeper slope takes the ramp in");
+        // Connected only: touching is 50 x the precision
+        let mut l = level(vec![part(1, Shape::Plane, [0.0, 0.05, 0.0], [4.0, 0.1, 4.0], grey), part(2, Shape::Plane, [4.04, 0.05, 0.0], [4.0, 0.1, 4.0], grey)]);
+        let b = Bucket { connected: true, ..bucket(1, [0.0, 0.05, 0.0], Fills::Floor) };
+        assert_eq!(reach(&l, &b).len(), 2, "4 cm apart touch at 1 mm");
+        *l.precision = crate::level::Precision(0.0005);
+        assert_eq!(reach(&l, &b).len(), 1, "but not at 0.5 mm (touching 2.5 cm)");
     }
 
     #[test]

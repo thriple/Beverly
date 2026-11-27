@@ -291,7 +291,8 @@ pub fn chip(ui: &mut Ui, label: &str, on: &mut bool) -> Response {
     r
 }
 
-/// A choice of two to four in a row: equal parts across the width, the highlight's pill sliding to the chosen one.
+/// A choice of two to four in a row: equal parts across the width, the highlight's pill sliding to the chosen one
+/// (none chosen, `selected` past the last: no pill).
 pub fn choices(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize) -> bool {
     let id = ui.id().with(id);
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::hover());
@@ -299,12 +300,13 @@ pub fn choices(ui: &mut Ui, id: &str, options: &[&str], selected: &mut usize) ->
     p.rect_filled(rect, CornerRadius::same(8), FIELD);
     let w = (rect.width() - 4.0) / options.len() as f32;
     let at = spring(ui.ctx(), id.with("x"), *selected as f32, SNAPPY);
-    p.rect_filled(Rect::from_min_size(pos2(rect.left() + 2.0 + at * w, rect.top() + 2.0), vec2(w, 24.0)), CornerRadius::same(6), highlight());
+    let none = *selected >= options.len();
+    if !none { p.rect_filled(Rect::from_min_size(pos2(rect.left() + 2.0 + at * w, rect.top() + 2.0), vec2(w, 24.0)), CornerRadius::same(6), highlight()); }
     let mut changed = false;
     for (i, o) in options.iter().enumerate() {
         let r = Rect::from_min_size(pos2(rect.left() + 2.0 + i as f32 * w, rect.top() + 2.0), vec2(w, 24.0));
         let resp = ui.interact(r, id.with(i), Sense::click());
-        let on = (at - i as f32).abs() < 0.5;
+        let on = !none && (at - i as f32).abs() < 0.5;
         if !on && resp.hovered() { ui.painter().rect_filled(r, CornerRadius::same(6), white(13)); }
         ui.painter().text(r.center(), Align2::CENTER_CENTER, *o, if on { semi(12.0) } else { body(12.0) }, if on { tab().highlight_text } else if resp.hovered() { TEXT } else { TEXT_2 });
         if resp.clicked() && *selected != i { *selected = i; changed = true; }

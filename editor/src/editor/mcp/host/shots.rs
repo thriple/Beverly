@@ -44,7 +44,7 @@ pub(super) fn shot(ed: &Editor, view: &View, args: &Value, commands: &mut Comman
             None => from + view.forward(),
         },
     };
-    if (target - from).length() < 1e-3 { return Err("from and look_at are the same point".into()); }
+    if (target - from).length() < crate::guard::SMALL { return Err("from and look_at are the same point".into()); }
     let up = if (target - from).normalize().y.abs() > 0.999 { Vec3::Z } else { Vec3::Y };
     let image = texture(images);
     let cam = commands.spawn((

@@ -44,6 +44,13 @@ These aren't tolerances, but they're the same kind of trouble: one idea, several
 | Grid snap | 0.25 m, written five times (`interact.rs` ×3, `pen.rs` ×2); scale snap 0.05; turn snap 15° |
 | Walker width | the walker's capsule radius 0.4 · Navigation `width` 0.8 (agrees, by hand) |
 
+**Stage 3 (2026-11-27):** these are now one number each. The level's Navigation settings are its **walker profile**
+(`Level::profile`): the walker's body (capsule width, how high it floats, so the step it climbs, its top, and tnua's
+`max_slope`, which was 90° before), navigation, Bucket's Floor (walkable = the profile's slope; "the same floor" =
+within a step) and the pen's Ground lines (climb = step + touching, 0.50 m, was 0.52) all read it. The snaps read
+`Level::grid` (move 0.25 m, scale 0.05, turn 15°; the light's reach and the texture handles too; the light's cone
+keeps its own 5° step). "Level" for the snaps and "upright" for navigation are `Precision::level` over a length.
+
 **3. Display and quality allowances (about pixels and looks, not data)**
 
 The bucket outline's lift off a face (0.01 m) · the paint shader's soft edges (slope ±0.03, height ±0.05) · the
@@ -100,10 +107,10 @@ each other's fields.
 | 1 | A bucket fill on copied floors asked "Change all, or make this one Unique?" | the instances step compared strokes the bucket step owns | fixed 2026-11-22: copies compare hand-painted strokes only |
 | 2 | An MCP change and the fill strokes it caused were two undo steps | `bucket::fills` ran outside the commit | fixed 2026-11-22: moved into `Editor::commit` |
 | 3 | **An MCP change that moves ground under a pen curve or a scatter makes more than one undo step** | 22 places in the MCP tools called `Editor::commit` directly; only the paint tools called `pen::strips` and `scatters` first, so the frame's `commit` made the strips and items again as further steps | fixed 2026-11-26 (stage 2): every edit goes through `Editor::commit`, which runs the steps in order; test `a_change_and_the_scatter_it_moves_are_one_undo_step_from_the_mcp_too`, and checked live through the MCP |
-| 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | open, confirmed by a test (stage 1): an item moved to (0, 0.1, 15) went back to (−9, 0.2, 1.4) when the ground changed (`…a_moved_scattered_item_becomes_the_users_own…`, ignored until stage 4) |
-| 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | open, timed (A4): 10.7 s on the big level |
+| 4 | **Moving or changing a scattered item is silently undone later** | `scatters` owns those parts, but nothing stops the user editing one. The edit stays until the curve or the ground next changes, and then it is quietly reverted | fixed 2026-11-27 (stage 4): an item edited (other than its tags) or deleted by hand is taken over in step 0: it becomes an ordinary part, the island says so, and the scatter leaves its spot empty (`Scatter::taken`, saved); test `a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put`, and checked live through the MCP |
+| 8 | **Moving one part remakes every pen curve's strips and scatter in the level** | the pen's ground stamp covers every part | fixed 2026-11-27 (stage 6): each curve's stamp covers only the parts near it; 10.7 s to 3.6 ms (A4); test `moving_a_part_lays_again_only_the_curves_near_it` |
 | 5 | A fill outline was stored in world coordinates and broke on a moving part | pen fill vs hierarchy | fixed 2026-11-20 |
-| 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | open (by reading; a walker can fail a step the path uses, or the reverse) |
+| 6 | Navigation and the walker can disagree on what is walkable | `Navigation.step` / `slope` vs tnua's own defaults | mostly fixed 2026-11-27 (stage 3): the walker's body and slope come from the walker profile, so navigation never asks it for a step it can't climb (test `the_walkers_body_is_the_walker_profile`, `tests/orderliness`). Still open the other way: walking into a ledge, the walker's rounded body rides up to about 0.6 m (measured in stage 6: it climbs 0.6, stops at 0.7) where the profile says 0.45, so it can reach a few places the navigation calls unreachable. A flat-bottomed body stops at the step but can't walk up 45° stairs or ramps (tried, and reverted); the fix belongs to the character controller (char-modes) |
 | 7 | The paint and grass draw one frame behind a fill | `paint` and `grass` run before `commit` in the chain | cosmetic |
 
 ### A4. Slow paths (timed 2026-11-26, stage 1)
@@ -135,6 +142,30 @@ What the numbers say (each is one of the brief's "performance hygiene" points):
 - **Picking** at 4.5 ms per ray is fine for one ray a frame, but the pen, placement and the bucket's hover each cast
   their own.
 - **Nothing changed costs little:** under half a millisecond for every step. The change stamps work.
+
+**Stage 6 (2026-11-27), timed again on the same level** (the same test, before and after the stage, this container):
+
+| Step | Before | After |
+|---|---|---|
+| First lay, strips, scatters and commit of the whole level | 11,188 ms | **72 ms** |
+| `pen::lay` after one box moved | 1,617 ms | **1.1 ms** (only the curves near it) |
+| `pen::strips` after one box moved | 9,076 ms | **1.4 ms** |
+| `scatter::scatters` after one box moved | 329 ms | **1.1 ms** |
+| `bucket::fills` after one box moved | 32 ms | 36 ms (unchanged: one Colour fill asks every part) |
+| picking: one ray | 3.6 ms | **0.02 ms** |
+| grass sheets: one painted box | 0.24 ms | 0.07 ms |
+| grass sheets: a 40 m floor with two strips | 1,014 ms | **12 ms** |
+| grass sheets: the 400 m floor with 20 strips | didn't finish in 9 minutes | **574 ms** |
+| any step with nothing changed | under 0.5 ms | under 0.5 ms |
+
+How: each curve's stamp covers only the parts whose box lies under its line, strip, fill or scatter band
+(`pen::near_stamps`); `world::Index` lists the parts by 8 m cells seen from above, and a ray walks only the cells it
+crosses (picking, the pen's lines, strips, fills and scatter landing; a test checks it finds what testing every
+part finds, ray for ray); the grass sheets work in tiles of 16 spots, each asking only the stroke pieces whose box
+reaches it (`paint::runs`, `paint::near`; a test checks the coverage is unchanged). The guards are named once in
+`guard.rs`, values unchanged; the scatter's "long enough to walk along" and the grass's "too thin to grow on" are
+the precision now. The display numbers (the springs and colour sums in the UI, the bucket outline's lift, the paint
+shader's soft edges, the grass's spot size and the paint tile) stay where they are, as display numbers.
 
 ---
 
@@ -182,6 +213,12 @@ are the places where two or more of them would decide the same thing.
     so a fitted thing never misses what it should meet.
 - **A setting for odd scales,** with presets (Tabletop 0.1 mm · Human 1 mm · Vehicle 5 mm · Planet 5 cm) and a typed
   value.
+  Built in stage 5 (2026-11-27): the Level panel (nothing selected) has **Precision**, the four presets and a typed
+  value in mm (0.01 mm to 1 m), an undo step like any edit; the MCP's `change_level` takes `precision` (a preset or
+  mm) and `get_project` gives the preset and the warning. The warning (`Level::precision_warning`, build and warn: the
+  setting stays as chosen) says when the level's far edge is past where an `f32` holds the precision, or its smallest
+  parts are under ten times it, and which preset would fit. A project with its own precision says so in the island
+  when it opens.
 - **Display allowances** are named in one place, apart from the data numbers.
 - **Guards** become named constants.
 
@@ -213,6 +250,19 @@ what each step owns:
 **No step undoes a decision another step owns.** When the user edits something a generator owns (a scattered
 item), the editor doesn't silently revert it later. It does the nearest thing and says so: the item becomes the
 user's own ("Turned into an item: it no longer follows the curve"), as Turn into items does now.
+
+**Stage 4 (2026-11-27), how it is held:** `scatter::take_over` runs first in `Editor::commit`, as part of the user's
+edit. It compares the scattered items with the last undo step: an item changed (other than its tags, which the user
+may always set) or deleted becomes the user's, and its spot number goes into `Scatter::taken`, so the scatter, the
+game and a level opened again make nothing there. The spot numbers follow the scatter's order: after the curve or
+its settings change, a taken number leaves some other spot empty, never puts an item back over the user's. Undo
+takes the whole thing back. A test for each rule:
+
+| Rule | Test |
+|---|---|
+| Step 3 never undoes the user's edit of an item | `scatter::a_moved_scattered_item_becomes_the_users_own_and_stays_where_it_was_put` |
+| Step 3 never changes a part it doesn't own | `scatter::a_scatter_never_moves_a_part_it_doesnt_own` |
+| Step 4 never changes a hand-painted stroke or its place; step 2 never sees generated strokes | `edit::generated_strokes_never_touch_hand_painted_ones_and_copies_dont_see_them` |
 
 ### C4. Who owns what, for the systems to come
 
@@ -269,6 +319,10 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
   So **changing any number in C1 or C2 changes how old levels look.** A project opened after a change keeps the
   numbers it was made with (stored in `project.bev` only when they differ from the defaults, and said once in the
   island). New projects start at the defaults, and a project at the defaults saves byte for byte as before.
+  So far (stage 5): the precision's default has never changed, so every project file without one reads 1 mm, the
+  number it was made with (`level::load` is where a later change of default gives older formats the old one). Stage
+  3 changed some derived numbers for every project, as listed there (the walker's slope and height, the pen's climb,
+  Bucket's Floor band); they weren't pinned for old projects, being small and the point of the stage.
 - **Compare before and after every stage:** the test projects' screenshots and the saved files.
 
 ### C7. Stages (each tested and released, as Prism did)
@@ -277,14 +331,14 @@ a test that another step can't undo its decision."* Each roadmap entry's note na
    A3-4 that fail.
 2. **One pipeline and one tolerance** (done 2026-11-26): every edit through `Editor::commit` with steps 1 to 4 inside it (fixes
    A3-3); `precision` in the project with one accessor; the dedup and follow checks on it.
-3. **Shared numbers:** the walker profile and the grid, each read from one place (fixes A3-6); level and upright
+3. **Shared numbers** (done 2026-11-27): the walker profile and the grid, each read from one place (fixes A3-6); level and upright
    tests that use length; Bucket's floor band and touching derived.
-4. **Ownership enforced:** a test per rule ("a fill never changes a hand-painted stroke", "scatter never moves a
+4. **Ownership enforced** (done 2026-11-27): a test per rule ("a fill never changes a hand-painted stroke", "scatter never moves a
    part it doesn't own", "an instance question never sees generated strokes"); editing a generated item turns it
    into the user's own, with a warning (fixes A3-4).
-5. **The setting:** Precision with presets in project settings, its warning for odd scales, old projects keeping
+5. **The setting** (done 2026-11-27): Precision with presets in project settings, its warning for odd scales, old projects keeping
    their numbers.
-6. **Sweep:** name the guards and the display numbers; one spatial index for picking, placement, pen, bucket and
+6. **Sweep** (done 2026-11-27): name the guards and the display numbers; one spatial index for picking, placement, pen, bucket and
    scatter. The stage 1 timings say it is needed: each curve asks only about the parts near it (moving one box no
    longer remakes every curve), and strips, grass sheets and coverage skip the stroke pieces whose box doesn't reach
    the spot. Each is timed again on the same level, before and after.
@@ -325,3 +379,5 @@ Owner's decisions, newest first. A later one that contradicts an earlier one mar
 - **Open, default in use: the walker profile (C2).** The owner hasn't worked with the walker, navigation or the
   pen's Ground stretch yet. Until decided, one shared profile is used (so a path never asks a character for a step
   it can't climb), with a character file able to override it for that character later.
+  Built in stage 3 (2026-11-27) as the level's Navigation settings; changing it is one place if the owner decides
+  otherwise.

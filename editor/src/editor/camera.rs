@@ -112,7 +112,7 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
         let n = view.forward();
         let to = ed.hit_skip(ray, Some(p.id)).map(|h| h.point).or_else(|| {
             let den = n.dot(*ray.direction);
-            (den.abs() > 1e-6).then(|| ray.origin + *ray.direction * (n.dot(at - ray.origin) / den))
+            (den.abs() > crate::guard::ZERO).then(|| ray.origin + *ray.direction * (n.dot(at - ray.origin) / den))
         });
         let Some(to) = to.filter(|t| t.distance(Vec3::from(p.pos)) > 0.2) else { return true };
         let mut q = p.clone();

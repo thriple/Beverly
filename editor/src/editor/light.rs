@@ -25,7 +25,7 @@ fn active(ed: &Editor) -> Option<Part> { ed.selected.and_then(|id| ed.level.get(
 /// Across the screen, for handles that should face the viewer.
 fn across(view: &View, d: Vec3) -> Vec3 {
     let a = d.cross(view.forward());
-    if a.length_squared() > 1e-4 { a.normalize() } else { d.any_orthonormal_vector() }
+    if a.length_squared() > crate::guard::SHORT { a.normalize() } else { d.any_orthonormal_vector() }
 }
 
 /// Where the handles are: the sphere's (to the right as seen), or the cone's tip and rim.
@@ -41,7 +41,7 @@ fn grips(p: &Part, view: &View) -> Vec<(Grip, Vec3)> {
 /// Where a ray meets the plane through `at` with normal `n`.
 fn on_plane(ray: Ray3d, at: Vec3, n: Vec3) -> Option<Vec3> {
     let den = n.dot(*ray.direction);
-    if den.abs() < 1e-6 { return None; }
+    if den.abs() < crate::guard::ZERO { return None; }
     let t = n.dot(at - ray.origin) / den;
     (t > 0.0).then(|| ray.origin + *ray.direction * t)
 }
@@ -59,13 +59,14 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
             return false;
         }
         let Some(ray) = ray else { return true };
+        let grid = ed.level.grid();
         let step = |x: f32, by: f32| if snap { ((x / by).round() * by).max(by) } else { x };
         let mut q = p.clone();
         let light = q.light.as_mut().expect("a light");
         let text = match grip {
             Grip::Reach => {
                 let Some(at) = on_plane(ray, c, view.forward()) else { return true };
-                light.reach = step(at.distance(c).max(0.1), 0.25);
+                light.reach = step(at.distance(c).max(0.1), grid.step);
                 format!("Reach · {:.2} m", light.reach)
             }
             Grip::Tip => {
@@ -74,7 +75,7 @@ pub fn handles(ed: &mut Editor, view: &View, cam: &Camera, gtf: &GlobalTransform
                 let Some(at) = at.filter(|a| a.distance(c) > 0.1) else { return true };
                 q.rot = Quat::from_rotation_arc(Vec3::Y, (at - c).normalize()).to_array();
                 let light = q.light.as_mut().expect("a light");
-                light.reach = step(at.distance(c), 0.25);
+                light.reach = step(at.distance(c), grid.step);
                 format!("Aim · reach {:.2} m", light.reach)
             }
             Grip::Rim => {
@@ -157,11 +158,11 @@ pub fn budget(level: &crate::level::Level) -> Vec<u64> {
     for (i, a) in lit.iter().enumerate() {
         for b in &lit[i + 1..] {
             let d = a.1.distance(b.1);
-            if d > 1e-4 && d < a.2 + b.2 { spots.push(a.1 + (b.1 - a.1) / d * ((d - b.2 + a.2) * 0.5)); }
+            if d > crate::guard::SHORT && d < a.2 + b.2 { spots.push(a.1 + (b.1 - a.1) / d * ((d - b.2 + a.2) * 0.5)); }
         }
     }
     spots.iter()
-        .map(|s| lit.iter().filter(|l| l.1.distance(*s) <= l.2 + 1e-4).map(|l| l.0).collect::<Vec<_>>())
+        .map(|s| lit.iter().filter(|l| l.1.distance(*s) <= l.2 + crate::guard::SHORT).map(|l| l.0).collect::<Vec<_>>())
         .max_by_key(|g| g.len())
         .unwrap_or_default()
 }

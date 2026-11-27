@@ -127,7 +127,7 @@ impl Tris {
             let e2 = c - a;
             let p = d.cross(e2);
             let det = e1.dot(p);
-            if det.abs() < 1e-9 { continue; }
+            if det.abs() < crate::guard::FINE { continue; }
             let inv = 1.0 / det;
             let s = o - a;
             let u = s.dot(p) * inv;
@@ -136,7 +136,7 @@ impl Tris {
             let v = d.dot(q) * inv;
             if v < 0.0 || u + v > 1.0 { continue; }
             let tt = e2.dot(q) * inv;
-            if tt > 1e-5 && best.is_none_or(|(bt, _, _)| tt < bt) {
+            if tt > crate::guard::AHEAD && best.is_none_or(|(bt, _, _)| tt < bt) {
                 best = Some((tt, e1.cross(e2).normalize_or_zero(), self.face.get(i).copied()));
             }
         }
@@ -238,7 +238,7 @@ fn ear_clip(p: &[Vec2]) -> Vec<[usize; 3]> {
         for i in 0..m {
             let (ia, ib, ic) = (idx[(i + m - 1) % m], idx[i], idx[(i + 1) % m]);
             let (a, b, c) = (p[ia], p[ib], p[ic]);
-            if cross(a, b, c) <= 1e-9 { continue; }
+            if cross(a, b, c) <= crate::guard::FINE { continue; }
             let inside = idx.iter().any(|&j| {
                 if j == ia || j == ib || j == ic { return false; }
                 let q = p[j];
